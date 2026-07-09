@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "Verification PASS。发现并修复 3 个接口一致性 bug: FeishuPlatform.start() config key 不匹配（2个）+ /help 命令误用 renderSessionListCard + formatAgentEvent 与 AgentEvent 结构不兼容。修复后 117 测试全通过。",
+  "artifacts": [
+    "verify-report.md"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "34d2c878771886dbb127ef5423bb970e2cafe473fe9da36128615cf56b8ff1a7",
+    "spec.md": "94ce7272d98e3910a5f29d49a94faf71816466ab14c09c1528ee2ddf43377ce5",
+    "test-report.md": "d6e0a31e8fc34cdcc5952f11c10d0d0b3ea53c933b75b3d77d219ae162c11482"
+  },
+  "artifact_fingerprints": {
+    "verify-report.md": "27a1dc5cbfd3890d3c0a3ce2f8168ce26e90759d65f5b7f009737ad13f96caaa"
+  },
+  "written_at": "2026-07-09T08:55:32.990Z"
+}

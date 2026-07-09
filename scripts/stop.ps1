@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$PidFile = Join-Path $ProjectRoot 'adapter.pid'
+$PidFile = Join-Path $ProjectRoot 'walker.pid'
 $ScriptPath = Join-Path $ProjectRoot 'src\index.js'
 
 function Get-BridgeProcess($PidValue) {
@@ -16,23 +16,23 @@ function Get-BridgeProcess($PidValue) {
 }
 
 if (-not (Test-Path -LiteralPath $PidFile)) {
-  'feishu-opendray-bridge is not running: adapter.pid not found.'
+  'walker is not running: walker.pid not found.'
   exit 0
 }
 
 $PidText = (Get-Content -LiteralPath $PidFile -Raw).Trim()
 if (-not $PidText) {
   Remove-Item -LiteralPath $PidFile -Force
-  'feishu-opendray-bridge is not running: adapter.pid was empty.'
+  'walker is not running: walker.pid was empty.'
   exit 0
 }
 
 $Process = Get-BridgeProcess ([int]$PidText)
 if ($Process) {
   Stop-Process -Id $Process.ProcessId -Force
-  "feishu-opendray-bridge stopped. PID=$PidText"
+  "walker stopped. PID=$PidText"
 } else {
-  "feishu-opendray-bridge was not running. Stale PID=$PidText"
+  "walker was not running. Stale PID=$PidText"
 }
 
 Remove-Item -LiteralPath $PidFile -Force

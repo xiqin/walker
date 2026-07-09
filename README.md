@@ -1,15 +1,14 @@
-# feishu-opendray-bridge
+# Walker
 
-本机飞书长连接到 opendray bridge channel 的适配器。
+飞书多 Agent CLI 桥接器 — 通过飞书长连接操控本机 opencode/opendray agent 会话。
 
-目标：不需要公网域名，让飞书消息通过长连接进入本机 opendray session。
+不依赖 opendray bridge，独立实现 Walker 本地 Agent Hub。
 
 ## 运行
 
-先在 opendray 中创建 `kind=bridge` channel，并拿到 token，然后运行：
+先配置 `.env`，然后：
 
 ```powershell
-$env:OPENDRAY_BRIDGE_TOKEN="你的 bridge token"
 npm start
 ```
 
@@ -22,65 +21,103 @@ npm start
 .\scripts\stop.ps1
 ```
 
-后台日志写入 `logs\adapter.out.log` 和 `logs\adapter.err.log`。
+后台日志写入 `logs\walker.out.log` 和 `logs\walker.err.log`。
 
-也可以在项目根目录创建 `.env`：
+## 配置
+
+在项目根目录创建 `.env`：
 
 ```text
-OPENDRAY_BRIDGE_TOKEN=你的 bridge token
+FEISHU_APP_ID=cli_xxxxxxxx
+FEISHU_APP_SECRET=你的飞书应用密钥
+WALKER_DEFAULT_AGENT=opencode
+WALKER_DEFAULT_RUNTIME=windows
+WALKER_DEFAULT_CWD=H:\walker
+OPENCODE_SERVER_URL=http://localhost:4096
+OPENCODE_SERVER_AUTOSTART=true
+OPENCODE_CMD=opencode
+FEISHU_ROUTE_MODE=thread
+FEISHU_PROGRESS_STYLE=card
+FEISHU_REACTION_EMOJI=OnIt
+FEISHU_DONE_EMOJI=none
 ```
 
-默认配置：
+飞书凭据也可从 `~/.cc-connect/config.toml` 自动读取（兼容 cc-connect 配置）。
 
-- cc-connect 配置：`C:\Users\tianxiqin\.cc-connect\config.toml`
-- opendray bridge WebSocket：默认自动读取 `Ubuntu-24.04` 的 WSL IP 并连接 `:8770`
-- 飞书凭据字段：读取第一个 `app_id` / `app_secret`
+### 环境变量说明
 
-可选环境变量：
-
-- `CC_CONNECT_CONFIG`：指定 cc-connect 配置路径
-- `OPENDRAY_WSL_DISTRO`：指定运行 opendray 的 WSL 发行版，默认 `Ubuntu-24.04`
-- `OPENDRAY_BRIDGE_URL`：指定 opendray bridge WebSocket 地址
-- `OPENDRAY_API_BASE`：指定 opendray HTTP API 地址，默认由 bridge WebSocket 地址推导
-- `OPENDRAY_ADMIN_USER` / `OPENDRAY_ADMIN_PASSWORD`：用于查询 session 列表
-- `OPENDRAY_BRIDGE_TOKEN`：opendray bridge channel token，必填
-- `FEISHU_ROUTE_MODE`：`thread` 或 `user`，默认 `thread`
-
-## 当前本机配置
-
-- opendray bridge channel：`ch_pENUsahukU5d`
-- bridge 名称：`feishu-long-connection`
-- 当前用户登录自启：`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\feishu-opendray-bridge.cmd`
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `FEISHU_APP_ID` | 空 | 飞书应用 App ID（必填） |
+| `FEISHU_APP_SECRET` | 空 | 飞书应用 App Secret（必填） |
+| `FEISHU_ROUTE_MODE` | `thread` | 路由模式：`thread`（按消息线程）、`user`（按用户）、`channel`（按群） |
+| `FEISHU_PROGRESS_STYLE` | `card` | 进度样式：`card`（结构化卡片）或 `legacy`（逐条文本） |
+| `FEISHU_REACTION_EMOJI` | `OnIt` | 收到消息时表情回复，`none` 禁用 |
+| `FEISHU_DONE_EMOJI` | `none` | Agent 完成时表情回复，`none` 禁用 |
+| `WALKER_DEFAULT_AGENT` | `opencode` | 默认 Agent 类型 |
+| `WALKER_DEFAULT_RUNTIME` | `windows` | 运行时：`windows` 或 `wsl` |
+| `WALKER_DEFAULT_CWD` | 当前目录 | Agent 工作目录 |
+| `WALKER_DATA_DIR` | `~/.walker` | 数据存储目录 |
+| `WALKER_WSL_DISTRO` | `Ubuntu-24.04` | WSL 发行版名称 |
+| `OPENCODE_SERVER_URL` | 空 | opencode serve 地址，WSL 模式自动探测 IP |
+| `OPENCODE_SERVER_AUTOSTART` | `true` | opencode serve 未启动时自动启动 |
+| `OPENCODE_CMD` | `opencode` | opencode CLI 命令名 |
+| `OPENCODE_MODEL` | 空 | 指定模型 |
+| `OPENCODE_AGENT` | 空 | 指定 agent |
 
 ## 飞书后台要求
 
-需要在飞书开放平台确认：
+- 应用类型：自建应用
+- 已开启机器人能力
+- 事件订阅方式：`使用长连接接收事件/回调`
+- 已订阅 `im.message.receive_v1`
+- 权限包含单聊或群聊消息读取能力
+- 发布应用版本后生效
+- 机器人被拉进目标群或用户直接单聊
 
-- 应用类型是自建应用。
-- 已开启机器人能力。
-- `事件与回调` 的订阅方式选择 `使用长连接接收事件/回调`。
-- 已订阅 `消息与群组 -> 接收消息 v2.0`，事件名是 `im.message.receive_v1`。
-- 权限至少包含单聊消息或群聊消息读取能力；如果只允许群里 @ 机器人，则群聊里需要 @ 机器人。
-- 修改事件或权限后需要发布应用版本。
-- 机器人需要被拉进目标群，或用户直接和机器人单聊。
+## 命令
 
-如果适配器日志只有 `ws client ready`，但发飞书消息没有 `forwarded feishu message to opendray`，优先检查以上飞书后台配置。
+| 命令 | 说明 |
+|------|------|
+| `/new [agent] [title]` | 创建新 Walker session 并绑定当前会话 |
+| `/list` | 查看所有 session（含卡片按钮） |
+| `/use <session_id>` | 绑定当前会话到指定 session |
+| `/use off` | 清除当前会话绑定 |
+| `/current` | 查看当前绑定的 session |
+| `/stop` | 停止当前 session |
+| `/delete <session_id>` | 删除指定 session |
+| `/agents` | 列出可用 Agent 类型 |
+| `/help` | 命令帮助 |
 
-## 当前 MVP 能力
+## Agent 扩展
 
-- 飞书长连接接收 `im.message.receive_v1`
-- 文本消息转发到 opendray bridge
-- opendray 文本回复发送回飞书原消息线程
-- 自动重连 opendray bridge WebSocket
+| Agent | 状态 | 说明 |
+|-------|------|------|
+| `opencode` | P0 已实现 | 通过 `opencode serve` HTTP API/SSE 控制 |
+| `claude` | 预留扩展点 | Claude Code CLI，未来实现 |
+| `codex` | 预留扩展点 | Codex CLI，未来实现 |
 
-当前按线程隔离会话：同一条飞书消息线程的回复会进入同一个 opendray session，不同线程不会串。修改 `.env` 的 `FEISHU_ROUTE_MODE=user` 可改成按用户隔离。
+## Runtime
 
-飞书内置命令：
+- `windows`：本机直接运行 Agent CLI
+- `wsl`：通过 `wsl.exe -d <distro>` 在 WSL 中运行 Agent CLI
 
-- `/sessions`：查看当前 opendray session 列表。
-- `/use <session_id>`：把当前飞书线程绑定到指定 opendray session。
-- `/use off`：清除当前飞书线程绑定。
+WSL 模式下自动探测 WSL IP 构建 server URL，也可通过 `OPENCODE_SERVER_URL` 手动指定。
 
-如果当前只有一个未结束的 opendray session，普通消息会自动绑定到它；如果有多个 session，请先用 `/use <session_id>` 明确选择，避免串线。
+## 数据存储
 
-后续可扩展：卡片按钮、消息更新、图片、文件、多项目路由。
+Walker 数据存储在 `.walker/` 目录下：
+
+- `sessions.json`：Walker session 信息
+- `routes.json`：飞书 routeKey 到 session 的绑定
+- `attachments/`：入站附件文件
+
+## Architecture
+
+飞书开放平台 → Walker Agent Hub（Node.js 单进程）→ Agent Driver → Runtime → Agent CLI
+
+- 飞书长连接（WSClient）接收消息和卡片回调
+- MessageDedup 5 分钟去重窗口
+- routeKey 三种模式精准路由到 Walker session
+- AgentDriver 抽象支持多 CLI 扩展
+- ProgressCard 结构化卡片实时更新

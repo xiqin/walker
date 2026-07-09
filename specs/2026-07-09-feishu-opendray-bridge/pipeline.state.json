@@ -4,9 +4,9 @@
   "loom_version": "2.0.0",
   "created_at": "2026-07-09T12:05:00Z",
   "started_at": "2026-07-09T12:05:00.000Z",
-  "updated_at": "2026-07-09T07:25:31.528Z",
-  "current_stage_started_at": "2026-07-09T07:25:31.528Z",
-  "current_stage": "git-worktree",
+  "updated_at": "2026-07-09T08:57:30.355Z",
+  "current_stage_started_at": "2026-07-09T08:57:30.355Z",
+  "current_stage": "code-review-request",
   "request": "不依赖 opendray，按 opendray 和 cc-connect 的设计思路重新实现一套 Walker 飞书多 Agent CLI 桥接器：飞书长连接作为入口，Walker 本地 Agent Hub 自行管理 routeKey→session 精准绑定、session 持久化、卡片交互和进度更新；P0 先实现 opencode driver（opencode serve + HTTP/SSE），同时保留 Claude Code、Codex 等 AgentDriver 扩展点；兼容 Windows 原生与 WSL runtime。",
   "dynamic_steps": [
     {
@@ -148,6 +148,24 @@
       "exited_at": "2026-07-09T07:25:31.528Z",
       "status": "passed",
       "approval": "user_confirmed"
+    },
+    {
+      "stage": "git-worktree",
+      "entered_at": "2026-07-09T07:25:31.528Z",
+      "exited_at": "2026-07-09T07:29:52.295Z",
+      "status": "passed"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-07-09T07:29:52.295Z",
+      "exited_at": "2026-07-09T08:44:46.618Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-07-09T08:44:46.618Z",
+      "exited_at": "2026-07-09T08:57:30.355Z",
+      "status": "passed"
     }
   ],
   "completed_steps": [],
