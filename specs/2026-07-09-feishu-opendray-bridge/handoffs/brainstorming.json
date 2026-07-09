@@ -1,0 +1,27 @@
+{
+  "decisions": [
+    "放弃基于 opendray bridge/REST/Hub 的原方案，不依赖 opendray 运行时",
+    "采用单进程本地 Agent Hub + 可插拔 AgentDriver 架构",
+    "多会话精准匹配由本地 RouteBinding 持久化保证：routeKey -> walkerSessionId -> agentRef",
+    "P0 Agent 为 opencode，接入方式为 opencode serve + HTTP API/SSE，而不是 PTY 或双向 stdio",
+    "支持 Windows 原生与 WSL runtime 抽象",
+    "飞书端采用卡片交互和 card 进度样式，Patch API 原地更新"
+  ],
+  "open_questions": [],
+  "approved_by_user": true,
+  "status": "done",
+  "summary": "用户批准了新方向 spec：不依赖 opendray，独立实现 Walker 本地 Agent Hub；飞书长连接作为入口，Walker 自行管理 routeKey→walkerSessionId→agentRef；P0 实现 OpencodeDriver（opencode serve + HTTP API/SSE），通过 AgentDriver/Runtime 抽象预留 Claude Code、Codex、Windows 原生与 WSL 扩展。",
+  "artifacts": [
+    "spec.md",
+    "H:\\walker\\DESIGN.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "94ce7272d98e3910a5f29d49a94faf71816466ab14c09c1528ee2ddf43377ce5"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "94ce7272d98e3910a5f29d49a94faf71816466ab14c09c1528ee2ddf43377ce5"
+  },
+  "written_at": "2026-07-09T07:10:45.924Z"
+}

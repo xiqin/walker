@@ -1,0 +1,14 @@
+{
+  "entries": [
+    {
+      "id": "init",
+      "type": "状态",
+      "content": "项目初始化完成",
+      "author": "loom-init-project",
+      "tags": [],
+      "context": "[TODO: 技术栈摘要]",
+      "created_at": "2026-07-09T00:00:00.000Z"
+    }
+  ],
+  "sessions": []
+}

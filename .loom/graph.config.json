@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "backend": "codegraph",
+  "enabled": true,
+  "requiredCapabilities": [
+    "explore",
+    "definition",
+    "references",
+    "impact"
+  ],
+  "fallback": {
+    "useSourceSearch": true,
+    "reportLimitations": true
+  },
+  "trust": {
+    "allowRepositoryAdapter": false,
+    "allowNetwork": false
+  }
+}

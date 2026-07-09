@@ -1,0 +1,41 @@
+{
+  "task_count": 8,
+  "dependency_summary": "T1 -> T2 -> T3 -> T4 -> T6 -> T7 -> T8; T1 -> T5 -> T6. T3 与 T5 理论上可并行，但默认按串行执行以降低从单文件 MVP 重构的冲突风险。",
+  "validation": [
+    "node C:\\Users\\tianxiqin\\.config\\opencode\\skills\\loom-writing-plans\\scripts\\validate-plan.mjs --spec-dir H:\\walker\\specs\\2026-07-09-feishu-opendray-bridge: PASS",
+    "loom tasks --spec-dir H:\\walker\\specs\\2026-07-09-feishu-opendray-bridge --validate: PASS"
+  ],
+  "requirements_coverage": "REQ-001 到 REQ-028 已全部覆盖。",
+  "status": "done",
+  "summary": "已将新方向 spec 拆解为 8 个串行实现任务：T1 基础配置与持久化、T2 route/session 核心、T3 飞书平台与命令、T4 卡片和进度 UI、T5 Runtime 与 OpencodeDriver、T6 消息调度/去重/附件/表情、T7 入口替换与脚本、T8 README 和配置文档。所有 REQ-001 到 REQ-028 均已映射到 task，计划校验和 loom task 冲突检测通过。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md",
+    "tasks/T7.md",
+    "tasks/T8.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "34d2c878771886dbb127ef5423bb970e2cafe473fe9da36128615cf56b8ff1a7",
+    "spec.md": "94ce7272d98e3910a5f29d49a94faf71816466ab14c09c1528ee2ddf43377ce5",
+    "tasks/": "36f7a749cde439ce4dcc717622ca08f742142a56b54f6970d35ee2471e766d58"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "34d2c878771886dbb127ef5423bb970e2cafe473fe9da36128615cf56b8ff1a7",
+    "tasks/T1.md": "b92b9f0b0294ae211408420796b0ea12fd4ea00dbd9490cc37c4691c39bef3a2",
+    "tasks/T2.md": "64eb0670dd667588357f1bda7f17057814d4390d37848f6cf0cfbf23dab177f9",
+    "tasks/T3.md": "789fdd9a7cb1201d0ca221fafc1946a5f9a8c280db59bb941c33f8b665368d25",
+    "tasks/T4.md": "2c570fa1773128d42314f4c57261994f324edc59cb7393a8f6fdb20da3f71bd6",
+    "tasks/T5.md": "5781c45764c010f3333c53d96cc51b350ed49124ee40dd43c370d247cda81bed",
+    "tasks/T6.md": "496ea50429bc81179202d58568bb0a27d6b85613a36e536b1df77d59d4a56586",
+    "tasks/T7.md": "bfeb29607f18c66eb8d7e23e28cd7ca1fff71de266a43d6e61697c3cfdf095fe",
+    "tasks/T8.md": "1e0fd786fe26e0211b22149a8c4226c3bfd1e11038cf9a1f4cf0d15994615661"
+  },
+  "written_at": "2026-07-09T07:23:03.790Z"
+}

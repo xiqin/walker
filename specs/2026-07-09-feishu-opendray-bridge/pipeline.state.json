@@ -1,0 +1,156 @@
+{
+  "spec_dir": "H:\\walker\\specs\\2026-07-09-feishu-opendray-bridge",
+  "pipeline_type": "feature",
+  "loom_version": "2.0.0",
+  "created_at": "2026-07-09T12:05:00Z",
+  "started_at": "2026-07-09T12:05:00.000Z",
+  "updated_at": "2026-07-09T07:25:31.528Z",
+  "current_stage_started_at": "2026-07-09T07:25:31.528Z",
+  "current_stage": "git-worktree",
+  "request": "不依赖 opendray，按 opendray 和 cc-connect 的设计思路重新实现一套 Walker 飞书多 Agent CLI 桥接器：飞书长连接作为入口，Walker 本地 Agent Hub 自行管理 routeKey→session 精准绑定、session 持久化、卡片交互和进度更新；P0 先实现 opencode driver（opencode serve + HTTP/SSE），同时保留 Claude Code、Codex 等 AgentDriver 扩展点；兼容 Windows 原生与 WSL runtime。",
+  "dynamic_steps": [
+    {
+      "id": "brainstorming",
+      "skill": "loom-brainstorming",
+      "next": "planning",
+      "outputs": [
+        "spec.md",
+        "handoffs/brainstorming.json"
+      ],
+      "description": "需求头脑风暴，探索实现方案，输出 spec.md（已有 DESIGN.md 可作为输入）"
+    },
+    {
+      "id": "planning",
+      "skill": "loom-writing-plans",
+      "next": "approved",
+      "requires": [
+        "spec.md"
+      ],
+      "outputs": [
+        "plan.md",
+        "tasks/",
+        "handoffs/planning.json"
+      ],
+      "description": "分层拆解实现计划，输出 plan.md 和 tasks/"
+    },
+    {
+      "id": "approved",
+      "gate": "human-approval",
+      "description": "等待用户确认 plan 后继续",
+      "next": "git-worktree"
+    },
+    {
+      "id": "git-worktree",
+      "skill": "loom-using-git-worktrees",
+      "next": "executing",
+      "requires": [
+        "spec.md",
+        "plan.md"
+      ],
+      "outputs": [],
+      "description": "创建隔离 feature 分支"
+    },
+    {
+      "id": "executing",
+      "skill": "loom-subagent-driven-development",
+      "next": "verification",
+      "requires": [
+        "spec.md",
+        "plan.md",
+        "tasks/"
+      ],
+      "outputs": [
+        "test-report.md",
+        "handoffs/executing.json"
+      ],
+      "gate_verdict": "test-report.md",
+      "evidence_required": true,
+      "description": "subagent 并行编码执行"
+    },
+    {
+      "id": "verification",
+      "skill": "loom-verification-before-completion",
+      "next": "code-review-request",
+      "requires": [
+        "spec.md",
+        "test-report.md"
+      ],
+      "outputs": [
+        "verify-report.md",
+        "handoffs/verification.json"
+      ],
+      "gate_verdict": "verify-report.md",
+      "evidence_required": true,
+      "description": "完成前验证：spec 覆盖 / 类型一致性 / 编译测试"
+    },
+    {
+      "id": "code-review-request",
+      "skill": "loom-requesting-code-review",
+      "next": "review-gate",
+      "requires": [
+        "verify-report.md",
+        "spec.md"
+      ],
+      "outputs": [
+        "review-request.md",
+        "handoffs/code-review-request.json"
+      ],
+      "description": "双轴预审查后生成代码审查请求"
+    },
+    {
+      "id": "review-gate",
+      "gate": "human-approval",
+      "description": "审查请求已发出，等待审查者反馈",
+      "requires": [
+        "review-request.md"
+      ],
+      "next": "code-review-response"
+    },
+    {
+      "id": "code-review-response",
+      "skill": "loom-receiving-code-review",
+      "next": "synced",
+      "requires": [
+        "review-request.md"
+      ],
+      "outputs": [
+        "review-response.md",
+        "handoffs/code-review-response.json"
+      ],
+      "description": "处理审查反馈"
+    },
+    {
+      "id": "synced",
+      "skill": "loom-index-update",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [],
+      "description": "图后端同步与结构化记忆更新"
+    }
+  ],
+  "stage_history": [
+    {
+      "stage": "brainstorming",
+      "entered_at": "2026-07-09T12:05:00.000Z",
+      "exited_at": "2026-07-09T07:16:50.563Z",
+      "status": "passed"
+    },
+    {
+      "stage": "planning",
+      "entered_at": "2026-07-09T07:16:50.563Z",
+      "exited_at": "2026-07-09T07:24:23.209Z",
+      "status": "passed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-07-09T07:24:23.209Z",
+      "exited_at": "2026-07-09T07:25:31.528Z",
+      "status": "passed",
+      "approval": "user_confirmed"
+    }
+  ],
+  "completed_steps": [],
+  "metadata": {},
+  "status": "active"
+}
