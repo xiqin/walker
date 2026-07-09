@@ -4,7 +4,17 @@ const { createLogger } = require('../core/logger');
 
 const logger = createLogger('wsl-runtime');
 
+/**
+ * WSL (Windows Subsystem for Linux) 运行时环境，通过 wsl.exe 在指定发行版中执行命令
+ */
 class WslRuntime {
+  /**
+   * 初始化 WSL 运行时
+   * @param {Object} options - 配置选项
+   * @param {string} options.distro - WSL 发行版名称，如 'Ubuntu-24.04'
+   * @param {Function} [options.spawn] - 自定义 spawn 函数
+   * @param {Function} [options.exec] - 自定义 exec 函数，用于同步执行命令
+   */
   constructor(options) {
     if (!options.distro) {
       throw new Error('WslRuntime requires distro configuration');
@@ -22,6 +32,13 @@ class WslRuntime {
     };
   }
 
+  /**
+   * 通过 WSL 在指定发行版中启动子进程
+   * @param {string} command - 要在 WSL 中执行的命令
+   * @param {string[]} args - 命令参数列表
+   * @param {Object} [options] - spawn 选项
+   * @returns {ChildProcess} 子进程对象
+   */
   spawn(command, args, options) {
     const wslArgs = ['-d', this.distro, '--', command, ...args];
     const opts = { ...options };
@@ -29,6 +46,13 @@ class WslRuntime {
     return this._spawn('wsl.exe', wslArgs, opts);
   }
 
+  /**
+   * 解析 WSL 中 OpenCode 服务的访问地址，优先使用配置的 URL，否则自动检测 WSL IP
+   * @param {Object} options - 解析选项
+   * @param {string} [options.configuredUrl] - 用户配置的服务 URL
+   * @param {number} [options.port=4096] - 服务端口
+   * @returns {Promise<string>} 服务 URL 地址
+   */
   async resolveServerUrl({ configuredUrl, port }) {
     if (configuredUrl) {
       logger.info('wsl use configured url', { url: configuredUrl });

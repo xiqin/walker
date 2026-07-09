@@ -1,3 +1,9 @@
+/**
+ * 根据消息信息和路由模式构建路由键，用于将消息映射到对应会话
+ * @param {Object} message - 消息对象，包含 chatId、openId、rootId、parentId、messageId 等字段
+ * @param {string} [mode='thread'] - 路由模式：thread（按消息线程）、user（按用户）、channel（按频道）
+ * @returns {string} 路由键字符串，格式为 feishu:<chatId>:<模式特定部分>
+ */
 function buildRouteKey(message, mode) {
   mode = mode || 'thread';
 

@@ -16,6 +16,12 @@ const path = require('path');
 
 const logger = createLogger('bootstrap');
 
+/**
+ * 创建 Walker 应用实例，组装所有服务组件并返回启动/停止接口
+ * @param {Object} config - 环境配置对象
+ * @param {Object} deps - 依赖注入映射，允许替换各组件类用于测试
+ * @returns {Object} 包含 start、stop、platform、dispatcher、sessionService、registry 的应用对象
+ */
 function createApp(config, deps) {
   const FeishuPlatformClass = deps.FeishuPlatform || FeishuPlatform;
   const SessionServiceClass = deps.SessionService || SessionService;
@@ -86,12 +92,19 @@ function createApp(config, deps) {
   feishuApiRef.patchCard = (cardId, card) => platform.api.patchCard(cardId, card);
   feishuApiRef.addReaction = (msgId, emoji) => platform.api.addReaction(msgId, emoji);
 
+  /**
+   * 启动 Walker 应用，初始化飞书平台连接
+   * @returns {Promise<void>}
+   */
   async function start() {
     logger.info('walker starting', { agent: config.walkerDefaultAgent, runtime: config.walkerDefaultRuntime });
     await platform.start();
     logger.info('walker started successfully');
   }
 
+  /**
+   * 停止 Walker 应用，关闭飞书平台连接
+   */
   function stop() {
     logger.info('walker stopping');
     platform.stop();

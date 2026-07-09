@@ -1,3 +1,4 @@
+/** Walker 支持的命令定义表，包含描述和使用方式 */
 const COMMANDS = {
   new: { desc: '创建新会话', usage: '/new [agent] [name]' },
   list: { desc: '列出所有会话', usage: '/list' },
@@ -10,6 +11,11 @@ const COMMANDS = {
   help: { desc: '显示命令帮助', usage: '/help' },
 };
 
+/**
+ * 解析用户输入文本，识别是否为命令及其参数
+ * @param {string} text - 用户输入的原始文本
+ * @returns {Object} 解析结果：{ type: 'text', text } 或 { type: 'command', name, args }
+ */
 function parseCommand(text) {
   if (!text || !text.startsWith('/')) {
     return { type: 'text', text: text || '' };
@@ -26,6 +32,10 @@ function parseCommand(text) {
   return { type: 'command', name, args };
 }
 
+/**
+ * 格式化命令帮助信息为飞书 Markdown 文本
+ * @returns {string} 命令清单的 Markdown 格式文本
+ */
 function formatHelp() {
   const lines = ['**Walker 命令清单**\n'];
   for (const [name, cmd] of Object.entries(COMMANDS)) {

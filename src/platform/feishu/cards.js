@@ -1,3 +1,4 @@
+/** 会话状态对应的表情符号映射 */
 const STATUS_EMOJI = {
   created: '⚪',
   running: '🔵',
@@ -7,6 +8,7 @@ const STATUS_EMOJI = {
   deleted: '❌',
 };
 
+/** 会话状态对应的卡片标题模板颜色 */
 const STATUS_TEMPLATE = {
   created: 'default',
   running: 'blue',
@@ -16,10 +18,22 @@ const STATUS_TEMPLATE = {
   deleted: 'default',
 };
 
+/**
+ * 构建飞书卡片按钮的 value 字段，封装命令和会话 ID
+ * @param {string} cmd - 命令字符串，如 'cmd:/use'
+ * @param {string} sessionId - 目标会话 ID
+ * @returns {Object} 按钮的 value 对象
+ */
 function buildButtonValue(cmd, sessionId) {
   return { action: cmd + ' ' + sessionId };
 }
 
+/**
+ * 渲染会话列表的飞书卡片 JSON 结构
+ * @param {Object[]} sessions - 会话对象列表
+ * @param {string|null} currentSessionId - 当前绑定的会话 ID
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
 function renderSessionListCard(sessions, currentSessionId) {
   if (!sessions || sessions.length === 0) {
     return {
@@ -82,6 +96,11 @@ function renderSessionListCard(sessions, currentSessionId) {
   };
 }
 
+/**
+ * 渲染未绑定会话的提示飞书卡片
+ * @param {string} routeKey - 当前路由键
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
 function renderUnboundRouteCard(routeKey) {
   return {
     config: { wide_screen_mode: true },
@@ -92,6 +111,11 @@ function renderUnboundRouteCard(routeKey) {
   };
 }
 
+/**
+ * 渲染错误提示飞书卡片
+ * @param {string} message - 错误描述信息
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
 function renderErrorCard(message) {
   return {
     config: { wide_screen_mode: true },

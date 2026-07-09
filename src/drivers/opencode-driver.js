@@ -5,7 +5,22 @@ const { createLogger } = require('../core/logger');
 
 const logger = createLogger('opencode-driver');
 
+/**
+ * OpenCode Agent 驱动，通过 HTTP/SSE 与 OpenCode 服务交互
+ */
 class OpencodeDriver extends AgentDriver {
+  /**
+   * 初始化 OpenCode 驱动
+   * @param {Object} options - 配置选项
+   * @param {Object} [options.httpClient] - HTTP 请求客户端，默认使用 DefaultHttpClient
+   * @param {Object} [options.sseClient] - SSE 连接客户端，默认使用 DefaultSSEClient
+   * @param {string} [options.serverUrl] - OpenCode 服务地址
+   * @param {boolean} [options.autostart=true] - 是否在服务不可用时自动启动
+   * @param {Object} [options.runtime] - 运行时环境实例，用于自动启动服务进程
+   * @param {string} [options.opencodeCmd='opencode'] - OpenCode 命令行工具名
+   * @param {number} [options.pollInterval=500] - 健康检查轮询间隔（毫秒）
+   * @param {number} [options.maxPolls=20] - 最大轮询次数
+   */
   constructor(options) {
     super('opencode');
     this.httpClient = options.httpClient || new DefaultHttpClient();
@@ -18,6 +33,10 @@ class OpencodeDriver extends AgentDriver {
     this.maxPolls = options.maxPolls || 20;
   }
 
+  /**
+   * 确保 OpenCode 服务就绪，必要时自动启动
+   * @returns {Promise<boolean>} 服务就绪返回 true
+   */
   async ensureReady() {
     if (await this._checkHealth()) {
       logger.info('opencode server already ready');
@@ -42,6 +61,15 @@ class OpencodeDriver extends AgentDriver {
     throw new Error('opencode server failed to start at ' + this.serverUrl + ' after ' + (this.maxPolls * this.pollInterval) + 'ms');
   }
 
+  /**
+   * 在 OpenCode 服务上创建新会话
+   * @param {Object} options - 会话创建选项
+   * @param {string} [options.title] - 会话标题
+   * @param {string} [options.cwd] - 工作目录
+   * @param {string} [options.model] - 模型名称
+   * @param {string} [options.agent] - Agent 名称
+   * @returns {Promise<Object>} 包含 opencodeSessionId 和 serverUrl 的会话引用
+   */
   async createSession(options) {
     const url = this.serverUrl + '/api/v1/session';
     const body = {
@@ -64,6 +92,11 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  /**
+   * 恢复已有 OpenCode 会话
+   * @param {Object} sessionRef - 包含 opencodeSessionId 的会话引用
+   * @returns {Promise<Object>} 原会话引用对象
+   */
   async resumeSession(sessionRef) {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('resumeSession requires sessionRef with opencodeSessionId');
@@ -72,6 +105,12 @@ class OpencodeDriver extends AgentDriver {
     return sessionRef;
   }
 
+  /**
+   * 向会话发送提示文本并收集 SSE 事件流响应
+   * @param {Object} sessionRef - 包含 opencodeSessionId 的会话引用
+   * @param {string} text - 提示文本内容
+   * @returns {Promise<AgentEvent[]>} 映射后的 Agent 事件列表
+   */
   async prompt(sessionRef, text) {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('prompt requires sessionRef with opencodeSessionId');
@@ -100,6 +139,11 @@ class OpencodeDriver extends AgentDriver {
     return events;
   }
 
+  /**
+   * 停止指定 OpenCode 会话
+   * @param {Object} sessionRef - 包含 opencodeSessionId 的会话引用
+   * @returns {Promise<void>}
+   */
   async stop(sessionRef) {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('stop requires sessionRef with opencodeSessionId');
@@ -113,6 +157,11 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  /**
+   * 删除指定 OpenCode 会话
+   * @param {Object} sessionRef - 包含 opencodeSessionId 的会话引用
+   * @returns {Promise<void>}
+   */
   async delete(sessionRef) {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('delete requires sessionRef with opencodeSessionId');
@@ -126,6 +175,10 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  /**
+   * 检查 OpenCode 服务健康状态
+   * @returns {Promise<boolean>} 服务正常返回 true，否则返回 false
+   */
   async _checkHealth() {
     try {
       const resp = await this.httpClient.request('GET', this.serverUrl + '/api/v1/health', null);
@@ -135,6 +188,9 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  /**
+   * 通过运行时环境启动 OpenCode 服务进程
+   */
   _startServer() {
     if (!this.runtime) {
       throw new Error('runtime not configured for autostart');
@@ -146,11 +202,20 @@ class OpencodeDriver extends AgentDriver {
     logger.info('opencode server process spawned', { pid: proc ? proc.pid : null });
   }
 
+  /**
+   * 从 serverUrl 中提取端口号
+   * @returns {number} 端口号，默认 4096
+   */
   _extractPort() {
     const match = this.serverUrl.match(/:(\d+)/);
     return match ? parseInt(match[1], 10) : 4096;
   }
 
+  /**
+   * 将原始 SSE 事件映射为 AgentEvent 对象
+   * @param {Object} raw - 原始 SSE 事件数据
+   * @returns {AgentEvent|null} 映射后的 AgentEvent，无法映射则返回 null
+   */
   _mapSSEEvent(raw) {
     if (!raw || !raw.properties) return null;
     const props = raw.properties;
@@ -199,12 +264,27 @@ class OpencodeDriver extends AgentDriver {
     return null;
   }
 
+  /**
+   * 等待指定毫秒数
+   * @param {number} ms - 等待时间（毫秒）
+   * @returns {Promise<void>}
+   */
   _sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
+/**
+ * 默认 HTTP 客户端，使用 Node.js 内置 http/https 模块发送请求
+ */
 class DefaultHttpClient {
+  /**
+   * 发送 HTTP 请求
+   * @param {string} method - HTTP 方法（GET/POST/PATCH/DELETE 等）
+   * @param {string} url - 请求 URL
+   * @param {Object|null} body - 请求体，为 null 时不发送
+   * @returns {Promise<Object>} 包含 status 和 data 的响应对象
+   */
   async request(method, url, body) {
     const http = require('http');
     const https = require('https');
@@ -236,7 +316,15 @@ class DefaultHttpClient {
   }
 }
 
+/**
+ * 默认 SSE 客户端，连接 Server-Sent Events 流并收集事件数据
+ */
 class DefaultSSEClient {
+  /**
+   * 连接 SSE 事件流并收集所有事件
+   * @param {string} url - SSE 流地址
+   * @returns {Promise<Object[]>} 解析后的 JSON 事件数组
+   */
   async connect(url) {
     const http = require('http');
     const https = require('https');

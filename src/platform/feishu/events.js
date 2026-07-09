@@ -1,3 +1,8 @@
+/**
+ * 解析飞书消息事件数据，提取聊天 ID、消息 ID、发送者信息等字段
+ * @param {Object} data - 飞书原始事件数据
+ * @returns {Object} 标准化的消息事件对象
+ */
 function parseMessageEvent(data) {
   const sender = data.sender || {};
   const senderId = sender.sender_id || {};
@@ -25,6 +30,11 @@ function parseMessageEvent(data) {
   };
 }
 
+/**
+ * 解析飞书卡片交互事件数据，提取操作类型、用户信息和表单值
+ * @param {Object} data - 飞书卡片交互原始数据
+ * @returns {Object} 标准化的卡片动作对象
+ */
 function parseCardAction(data) {
   const action = data.action || {};
   const context = data.context || {};

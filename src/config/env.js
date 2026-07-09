@@ -1,12 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * 从 TOML 格式文本中提取指定键的字符串值
+ * @param {string} raw - TOML 格式的原始文本内容
+ * @param {string} key - 要提取的键名
+ * @returns {string} 匹配到的字符串值，未匹配则返回空字符串
+ */
 function matchTomlString(raw, key) {
   const re = new RegExp('^\\s*' + key + '\\s*=\\s*"([^"]+)"', 'm');
   const m = raw.match(re);
   return m ? m[1] : '';
 }
 
+/**
+ * 加载环境配置，优先从环境变量读取，不足时回退到 cc-connect TOML 配置文件
+ * @param {Object} options - 配置选项
+ * @param {Object} [options.env] - 环境变量对象，默认使用 process.env
+ * @param {string} [options.ccConnectConfigPath] - cc-connect 配置文件路径，默认为 ~/.cc-connect/config.toml
+ * @returns {Object} 包含所有配置项的对象
+ */
 function loadEnvConfig(options) {
   const env = options.env || process.env;
   const ccConnectConfigPath = options.ccConnectConfigPath ||
@@ -31,6 +44,12 @@ function loadEnvConfig(options) {
     feishuConfigSource = 'env';
   }
 
+  /**
+   * 将字符串值解析为布尔值
+   * @param {string|undefined} val - 要解析的值
+   * @param {boolean} defaultVal - 当值为空时的默认返回值
+   * @returns {boolean} 解析后的布尔值
+   */
   function parseBool(val, defaultVal) {
     if (val === undefined || val === '') return defaultVal;
     const s = String(val).toLowerCase();

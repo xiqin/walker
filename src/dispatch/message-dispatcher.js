@@ -8,7 +8,24 @@ const { createLogger } = require('../core/logger');
 
 const logger = createLogger('message-dispatcher');
 
+/**
+ * 消息调度器，处理飞书平台的消息和命令事件并协调 Agent 驱动与飞书 API 交互
+ */
 class MessageDispatcher {
+  /**
+   * 初始化消息调度器
+   * @param {Object} options - 配置选项
+   * @param {SessionService} options.sessionService - 会话管理服务
+   * @param {DriverRegistry} options.driverRegistry - Agent 驱动注册表
+   * @param {Object} options.feishuApi - 飞书 API 代理对象
+   * @param {MessageDedup} options.dedup - 消息去重器
+   * @param {string} [options.routeMode='thread'] - 路由模式
+   * @param {string} [options.reactionEmoji] - 处理中表情符号
+   * @param {string} [options.doneEmoji] - 完成表情符号
+   * @param {string} [options.progressStyle='card'] - 进度展示风格（card 或 text）
+   * @param {string} [options.defaultAgent='opencode'] - 默认 Agent 类型
+   * @param {string} [options.defaultCwd] - 默认工作目录
+   */
   constructor(options) {
     this.sessionService = options.sessionService;
     this.driverRegistry = options.driverRegistry;
@@ -22,6 +39,11 @@ class MessageDispatcher {
     this.defaultCwd = options.defaultCwd || process.cwd();
   }
 
+  /**
+   * 处理飞书平台传入的消息事件，路由到对应会话并调用 Agent 驱动响应
+   * @param {Object} event - 消息事件对象，包含 messageId、chatId、text 等字段
+   * @returns {Promise<string>} 处理结果标识（duplicate/unbound/error/prompted）
+   */
   async handleIncomingMessage(event) {
     if (this.dedup.isDuplicate(event.messageId)) {
       logger.info('skipping duplicate message', { messageId: event.messageId });
@@ -75,6 +97,11 @@ class MessageDispatcher {
     }
   }
 
+  /**
+   * 处理飞书命令（/new、/list、/use、/current、/stop、/delete、/help、/agents、/runtime）
+   * @param {Object} cmd - 命令对象，包含 name、args、routeKey、messageId、chatId 等字段
+   * @returns {Promise<Object>} 命令执行结果
+   */
   async handleCommand(cmd) {
     const routeKey = cmd.routeKey;
     const messageId = cmd.messageId;
@@ -189,6 +216,13 @@ class MessageDispatcher {
     return { unknown: cmd.name };
   }
 
+  /**
+   * 根据 progressStyle 选择渲染方式并渲染 Agent 事件列表
+   * @param {Object} session - 当前会话对象
+   * @param {Object} event - 原始消息事件
+   * @param {AgentEvent[]} events - Agent 返回的事件列表
+   * @returns {Promise<void>}
+   */
   async _renderEvents(session, event, events) {
     if (this.progressStyle === 'card') {
       await this._renderCardProgress(session, event, events);
@@ -197,6 +231,13 @@ class MessageDispatcher {
     }
   }
 
+  /**
+   * 使用飞书卡片消息渲染 Agent 处理进度，实时更新卡片内容
+   * @param {Object} session - 当前会话对象
+   * @param {Object} event - 原始消息事件
+   * @param {AgentEvent[]} events - Agent 返回的事件列表
+   * @returns {Promise<void>}
+   */
   async _renderCardProgress(session, event, events) {
     const card = new ProgressCard({ sessionId: session.id });
     const cardId = this.feishuApi.replyCard(event.messageId, card.render());
@@ -218,8 +259,18 @@ class MessageDispatcher {
         }
       }
     }
+
+    if (this.doneEmoji) {
+      try { this.feishuApi.addReaction(event.messageId, this.doneEmoji); } catch (_) {}
+    }
   }
 
+  /**
+   * 使用纯文本方式渲染 Agent 处理结果（仅输出文本事件内容）
+   * @param {Object} event - 原始消息事件
+   * @param {AgentEvent[]} events - Agent 返回的事件列表
+   * @returns {Promise<void>}
+   */
   async _renderLegacyProgress(event, events) {
     let fullText = '';
     for (const agentEvent of events) {

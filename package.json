@@ -7,7 +7,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "check": "node --check src/config/env.js && node --check src/core/json-store.js && node --check src/core/id.js && node --check src/core/logger.js && node --check src/core/route-key.js && node --check src/core/session-store.js && node --check src/core/session-service.js && node --check src/core/message-dedup.js && node --check src/drivers/agent-driver.js && node --check src/drivers/driver-registry.js && node --check src/drivers/opencode-driver.js && node --check src/drivers/stub-drivers.js && node --check src/runtime/windows-runtime.js && node --check src/runtime/wsl-runtime.js && node --check src/runtime/runtime-factory.js && node --check src/dispatch/message-dispatcher.js && node --check src/dispatch/attachment-service.js && node --check src/app/bootstrap.js && node --check src/index.js && node --test test/*.test.js"
+    "check": "node --check src/config/env.js && node --check src/core/json-store.js && node --check src/core/id.js && node --check src/core/logger.js && node --check src/core/route-key.js &&  node --check src/core/session-service.js && node --check src/core/message-dedup.js && node --check src/drivers/agent-driver.js && node --check src/drivers/driver-registry.js && node --check src/drivers/opencode-driver.js && node --check src/drivers/stub-drivers.js && node --check src/runtime/windows-runtime.js && node --check src/runtime/wsl-runtime.js && node --check src/runtime/runtime-factory.js && node --check src/dispatch/message-dispatcher.js && node --check src/dispatch/attachment-service.js && node --check src/app/bootstrap.js && node --check src/index.js && node --test test/*.test.js"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.70.0",
