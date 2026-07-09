@@ -37,7 +37,7 @@ class SessionService {
       title: title || ('session ' + id.slice(0, 12)),
       runtime: runtime || 'windows',
       cwd: cwd || '',
-      state: 'created',
+      status: 'created',
       agentRef: agentRef || null,
       errorMessage: null,
       createdAt: Date.now(),
@@ -104,7 +104,7 @@ class SessionService {
    */
   listSessions() {
     const data = this.sessionsStore.read();
-    return Object.values(data).filter((s) => s.state !== 'deleted');
+    return Object.values(data).filter((s) => s.status !== 'deleted');
   }
 
   /**
@@ -149,7 +149,7 @@ class SessionService {
     if (!session) return;
 
     this.sessionsStore.update((data) => {
-      data[sessionId].state = 'deleted';
+      data[sessionId].status = 'deleted';
       data[sessionId].updatedAt = Date.now();
     });
 
@@ -168,10 +168,10 @@ class SessionService {
    * @param {string} state - 新状态值
    * @param {Object} [extra] - 需要同时更新的额外字段
    */
-  _updateState(sessionId, state, extra) {
+  _updateState(sessionId, status, extra) {
     this.sessionsStore.update((data) => {
       if (!data[sessionId]) return;
-      data[sessionId].state = state;
+      data[sessionId].status = status;
       data[sessionId].updatedAt = Date.now();
       if (extra) {
         for (const k of Object.keys(extra)) { data[sessionId][k] = extra[k]; }

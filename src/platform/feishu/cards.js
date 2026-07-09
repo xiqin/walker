@@ -47,8 +47,8 @@ function renderSessionListCard(sessions, currentSessionId) {
 
   const elements = [];
   for (const s of sessions) {
-    if (s.state === 'deleted') continue;
-    const emoji = STATUS_EMOJI[s.state] || '⚪';
+    if (s.status === 'deleted') continue;
+    const emoji = STATUS_EMOJI[s.status] || '⚪';
     const isCurrent = s.id === currentSessionId;
     const marker = isCurrent ? ' ← 当前绑定' : '';
     const title = s.title || s.id.slice(0, 12);
@@ -71,7 +71,7 @@ function renderSessionListCard(sessions, currentSessionId) {
                 tag: 'lark_md',
                 content: emoji + ' **' + title + '**' + marker + ' `' + s.id.slice(0, 12) + '`'
                   + '\n' + agentLabel + ' · ' + cwdLabel
-                  + '\n状态: ' + s.state + (timeLabel ? ' · ' + timeLabel : ''),
+                  + '\n状态: ' + s.status + (timeLabel ? ' · ' + timeLabel : ''),
               },
             },
           ],
@@ -91,7 +91,7 @@ function renderSessionListCard(sessions, currentSessionId) {
 
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: 'plain_text', content: 'Walker 会话列表 (' + sessions.filter((s) => s.state !== 'deleted').length + ')' }, template: 'blue' },
+    header: { title: { tag: 'plain_text', content: 'Walker 会话列表 (' + sessions.filter((s) => s.status !== 'deleted').length + ')' }, template: 'blue' },
     elements,
   };
 }

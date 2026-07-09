@@ -44,7 +44,10 @@ class FeishuPlatform {
       'im.message.receive_v1': async (data) => {
         try {
           const parsed = parseMessageEvent(data);
-          if (parsed.messageType !== 'text') return;
+          if (parsed.messageType !== 'text') {
+            this.api.replyText({ messageId: parsed.messageId }, '暂时仅支持文本消息，图片和文件支持将在后续版本实现。');
+            return;
+          }
 
           const routeKey = buildRouteKey(parsed, routeMode);
           const cmd = parseCommand(parsed.text);

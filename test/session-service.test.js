@@ -22,7 +22,7 @@ test('createSession 创建并自动绑定 routeKey', () => {
 
   assert.ok(session.id.startsWith('wks_'));
   assert.equal(session.agent, 'opencode');
-  assert.equal(session.state, 'created');
+  assert.equal(session.status, 'created');
   assert.equal(session.title, 'test session');
 
   const current = service.getCurrent(routeKey);
@@ -39,7 +39,7 @@ test('同一 routeKey 再创建新 session 会覆盖旧绑定', () => {
   const s2 = service.createSession({ route: routeKey, agent: 'opencode' });
 
   assert.equal(service.getCurrent(routeKey).id, s2.id);
-  assert.equal(s1.state, 'created');
+  assert.equal(s1.status, 'created');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -85,13 +85,13 @@ test('状态切换：created -> running -> idle -> stopped', () => {
   const service = new SessionService({ sessionsStore, routesStore });
   const s = service.createSession({ route: 'feishu:oc_abc:ou_user', agent: 'opencode' });
 
-  assert.equal(s.state, 'created');
+  assert.equal(s.status, 'created');
   service.markRunning(s.id);
-  assert.equal(service.getSession(s.id).state, 'running');
+  assert.equal(service.getSession(s.id).status, 'running');
   service.markIdle(s.id);
-  assert.equal(service.getSession(s.id).state, 'idle');
+  assert.equal(service.getSession(s.id).status, 'idle');
   service.stopSession(s.id);
-  assert.equal(service.getSession(s.id).state, 'stopped');
+  assert.equal(service.getSession(s.id).status, 'stopped');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -101,7 +101,7 @@ test('markError 设置错误状态', () => {
   const service = new SessionService({ sessionsStore, routesStore });
   const s = service.createSession({ route: 'feishu:oc_abc:ou_user', agent: 'opencode' });
   service.markError(s.id, 'API key expired');
-  assert.equal(service.getSession(s.id).state, 'error');
+  assert.equal(service.getSession(s.id).status, 'error');
   assert.equal(service.getSession(s.id).errorMessage, 'API key expired');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -114,7 +114,7 @@ test('deleteSession 标记删除并清除绑定', () => {
   const s = service.createSession({ route: routeKey, agent: 'opencode' });
   service.deleteSession(s.id);
 
-  assert.equal(service.getSession(s.id).state, 'deleted');
+  assert.equal(service.getSession(s.id).status, 'deleted');
   assert.equal(service.getCurrent(routeKey), null);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });

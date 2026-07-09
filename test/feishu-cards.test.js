@@ -16,8 +16,8 @@ test('renderSessionListCard 空列表时显示提示', () => {
 
 test('renderSessionListCard 包含 session 状态和按钮', () => {
   const sessions = [
-    { id: 'wks_abc1', title: 'session 1', agent: 'opencode', state: 'idle', cwd: '/home/user', updatedAt: Date.now() },
-    { id: 'wks_abc2', title: 'session 2', agent: 'opencode', state: 'running', cwd: '/home/user2', updatedAt: Date.now() },
+    { id: 'wks_abc1', title: 'session 1', agent: 'opencode', status: 'idle', cwd: '/home/user', updatedAt: Date.now() },
+    { id: 'wks_abc2', title: 'session 2', agent: 'opencode', status: 'running', cwd: '/home/user2', updatedAt: Date.now() },
   ];
   const card = renderSessionListCard(sessions, 'wks_abc1');
   assert.ok(card.header);
@@ -29,7 +29,7 @@ test('renderSessionListCard 包含 session 状态和按钮', () => {
 
 test('renderSessionListCard 当前 session 有标记', () => {
   const sessions = [
-    { id: 'wks_abc1', title: 'session 1', agent: 'opencode', state: 'idle', cwd: '/home/user', updatedAt: Date.now() },
+    { id: 'wks_abc1', title: 'session 1', agent: 'opencode', status: 'idle', cwd: '/home/user', updatedAt: Date.now() },
   ];
   const card = renderSessionListCard(sessions, 'wks_abc1');
   const colEl = card.elements.find((el) => el.tag === 'column_set');
@@ -42,7 +42,7 @@ test('renderSessionListCard 当前 session 有标记', () => {
 
 test('renderSessionListCard running 状态显示蓝色', () => {
   const sessions = [
-    { id: 'wks_run1', title: 'running session', agent: 'opencode', state: 'running', cwd: '/home/user', updatedAt: Date.now() },
+    { id: 'wks_run1', title: 'running session', agent: 'opencode', status: 'running', cwd: '/home/user', updatedAt: Date.now() },
   ];
   const card = renderSessionListCard(sessions, null);
   const colEl = card.elements.find((el) => el.tag === 'column_set');

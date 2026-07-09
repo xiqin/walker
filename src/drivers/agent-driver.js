@@ -73,7 +73,7 @@ class AgentDriver {
 class AgentEvent {
   /**
    * 创建 Agent 事件
-   * @param {string} type - 事件类型（text/reasoning/tool_use/tool_result/error/status/done）
+   * @param {string} type - 事件类型（text/reasoning/tool_use/error/status/done）
    * @param {Object} data - 事件数据
    */
   constructor(type, data) {
@@ -86,10 +86,8 @@ class AgentEvent {
 AgentEvent.TYPE_TEXT = 'text';
 /** 事件类型常量：推理过程 */
 AgentEvent.TYPE_REASONING = 'reasoning';
-/** 事件类型常量：工具调用 */
+/** 事件类型常量：工具调用（含结果，status 字段区分进行中/完成/错误） */
 AgentEvent.TYPE_TOOL_USE = 'tool_use';
-/** 事件类型常量：工具结果 */
-AgentEvent.TYPE_TOOL_RESULT = 'tool_result';
 /** 事件类型常量：错误 */
 AgentEvent.TYPE_ERROR = 'error';
 /** 事件类型常量：状态变更 */

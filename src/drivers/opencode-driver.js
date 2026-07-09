@@ -1,12 +1,13 @@
 'use strict';
 
 const { AgentDriver, AgentEvent } = require('./agent-driver');
+const { httpRequest, sseConnect } = require('../core/http-helper');
 const { createLogger } = require('../core/logger');
 
 const logger = createLogger('opencode-driver');
 
 /**
- * OpenCode Agent 驱动，通过 HTTP/SSE 与 OpenCode 服务交互
+ * OpenCode Agent 驆动，通过 HTTP/SSE 与 OpenCode 服务交互
  */
 class OpencodeDriver extends AgentDriver {
   /**
@@ -246,10 +247,10 @@ class OpencodeDriver extends AgentDriver {
         });
       }
       if (part.type === 'tool-result') {
-        return new AgentEvent(AgentEvent.TYPE_TOOL_RESULT, {
+        return new AgentEvent(AgentEvent.TYPE_TOOL_USE, {
           name: part.toolName || part.name || '',
           output: part.toolOutput || part.output || '',
-          error: part.isError || false,
+          status: part.isError ? 'error' : 'done',
         });
       }
     }
@@ -275,93 +276,32 @@ class OpencodeDriver extends AgentDriver {
 }
 
 /**
- * 默认 HTTP 客户端，使用 Node.js 内置 http/https 模块发送请求
+ * 默认 HTTP 客户端，委托给共享的 httpRequest 工具函数
  */
 class DefaultHttpClient {
   /**
-   * 发送 HTTP 请求
-   * @param {string} method - HTTP 方法（GET/POST/PATCH/DELETE 等）
+   * 发送 HTTP 请求，委托给 http-helper 的 httpRequest
+   * @param {string} method - HTTP 方法
    * @param {string} url - 请求 URL
-   * @param {Object|null} body - 请求体，为 null 时不发送
+   * @param {Object|null} body - 请求体
    * @returns {Promise<Object>} 包含 status 和 data 的响应对象
    */
   async request(method, url, body) {
-    const http = require('http');
-    const https = require('https');
-    const parsed = new URL(url);
-    const client = parsed.protocol === 'https:' ? https : http;
-    const isBody = body !== null && body !== undefined;
-    const options = {
-      method,
-      hostname: parsed.hostname,
-      port: parsed.port,
-      path: parsed.pathname + parsed.search,
-      headers: { 'Content-Type': 'application/json' },
-    };
-
-    return new Promise((resolve, reject) => {
-      const req = client.request(options, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          let parsedData = {};
-          try { parsedData = JSON.parse(data); } catch (_) {}
-          resolve({ status: res.statusCode, data: parsedData });
-        });
-      });
-      req.on('error', reject);
-      if (isBody) req.write(JSON.stringify(body));
-      req.end();
-    });
+    return httpRequest(method, url, body);
   }
 }
 
 /**
- * 默认 SSE 客户端，连接 Server-Sent Events 流并收集事件数据
+ * 默认 SSE 客户端，委托给共享的 sseConnect 工具函数
  */
 class DefaultSSEClient {
   /**
-   * 连接 SSE 事件流并收集所有事件
+   * 连接 SSE 事件流，委托给 http-helper 的 sseConnect
    * @param {string} url - SSE 流地址
    * @returns {Promise<Object[]>} 解析后的 JSON 事件数组
    */
   async connect(url) {
-    const http = require('http');
-    const https = require('https');
-    const parsed = new URL(url);
-    const client = parsed.protocol === 'https:' ? https : http;
-
-    return new Promise((resolve, reject) => {
-      const options = {
-        hostname: parsed.hostname,
-        port: parsed.port,
-        path: parsed.pathname + parsed.search,
-        headers: { Accept: 'text/event-stream' },
-      };
-
-      const req = client.request(options, (res) => {
-        const events = [];
-        let buffer = '';
-
-        res.on('data', (chunk) => {
-          buffer += chunk.toString();
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.startsWith('data:')) {
-              try {
-                events.push(JSON.parse(line.slice(5).trim()));
-              } catch (_) {}
-            }
-          }
-        });
-
-        res.on('end', () => resolve(events));
-      });
-      req.on('error', reject);
-      req.end();
-    });
+    return sseConnect(url);
   }
 }
 
