@@ -1,9 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$PidFile = Join-Path $ProjectRoot 'adapter.pid'
-$OutLog = Join-Path $ProjectRoot 'logs\adapter.out.log'
-$ErrLog = Join-Path $ProjectRoot 'logs\adapter.err.log'
+$PidFile = Join-Path $ProjectRoot 'walker.pid'
+$OutLog = Join-Path $ProjectRoot 'logs\walker.out.log'
+$ErrLog = Join-Path $ProjectRoot 'logs\walker.err.log'
 $ScriptPath = Join-Path $ProjectRoot 'src\index.js'
 
 function Get-BridgeProcess($PidValue) {

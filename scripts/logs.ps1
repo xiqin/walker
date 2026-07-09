@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$OutLog = Join-Path $ProjectRoot 'logs\adapter.out.log'
-$ErrLog = Join-Path $ProjectRoot 'logs\adapter.err.log'
+$OutLog = Join-Path $ProjectRoot 'logs\walker.out.log'
+$ErrLog = Join-Path $ProjectRoot 'logs\walker.err.log'
 $Tail = 80
 
 if ($args.Count -gt 0) {

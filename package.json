@@ -1,13 +1,13 @@
 {
-  "name": "feishu-opendray-bridge",
+  "name": "walker",
   "version": "0.1.0",
   "private": true,
-  "description": "Local Feishu long-connection adapter for opendray bridge channels.",
+  "description": "Walker — IM tool and AI agent CLI multiplexer. Feishu long-connection bridge to local agent sessions.",
   "type": "commonjs",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "check": "node --check src/index.js"
+    "check": "node --check src/config/env.js && node --check src/core/json-store.js && node --check src/core/id.js && node --check src/core/logger.js && node --check src/core/http-helper.js && node --check src/core/route-key.js && node --check src/core/session-service.js && node --check src/core/message-dedup.js && node --check src/drivers/agent-driver.js && node --check src/drivers/driver-registry.js && node --check src/drivers/opencode-driver.js && node --check src/drivers/stub-drivers.js && node --check src/runtime/windows-runtime.js && node --check src/runtime/wsl-runtime.js && node --check src/runtime/runtime-factory.js && node --check src/dispatch/message-dispatcher.js && node --check src/dispatch/attachment-service.js && node --check src/app/bootstrap.js && node --check src/index.js && node --check src/platform/feishu/api.js && node --check src/platform/feishu/events.js && node --check src/platform/feishu/commands.js && node --check src/platform/feishu/platform.js && node --check src/platform/feishu/cards.js && node --check src/platform/feishu/progress-card.js && node --test test/*.test.js"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.70.0",
