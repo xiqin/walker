@@ -1,6 +1,70 @@
 {
   "entries": [
     {
+      "id": "f084b3b4",
+      "type": "踩坑",
+      "content": "loom verification artifact checker script failed because local opencode skill install lacks src/core/artifact-checker.js; mitigated by fresh npm run check evidence receipt, placeholder scan, task-state check, and manual artifact verification.",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-10T01:29:07.390Z"
+    },
+    {
+      "id": "d705def4",
+      "type": "状态",
+      "content": "project-health-sweep completed: hardened Feishu API/platform, JsonStore/HTTP/SSE, SessionService, MessageDispatcher, OpenCode driver, and Windows/WSL runtime boundaries; final verification npm run check passed with 192 tests.",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-10T01:29:07.126Z"
+    },
+    {
+      "id": "85d60627",
+      "type": "决策",
+      "content": "setInterval 保活方案：当前使用 setInterval(callback, interval) 作为进程保活 hack，审查建议优化为优雅保活方案（如 SIGUSR1 handler），暂保留现有方案待后续优化",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-09T12:24:22.628Z"
+    },
+    {
+      "id": "2801a8d4",
+      "type": "踩坑",
+      "content": "飞书 WSClient 参数兼容性：Lark SDK WSClient 构造参数使用 appId（非 appID），eventDispatcher 应传入 start() 而非构造函数；路径：src/platform/feishu/platform.js",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-09T12:24:17.698Z"
+    },
+    {
       "id": "init",
       "type": "状态",
       "content": "项目初始化完成",
@@ -8,6 +72,110 @@
       "tags": [],
       "context": "[TODO: 技术栈摘要]",
       "created_at": "2026-07-09T00:00:00.000Z"
+    },
+    {
+      "id": "1904b8aa",
+      "type": "决策",
+      "content": "Web管理端选型：方案A（在Walker单进程内增加AdminServer），复用现有service/driver/runtime/卡片渲染，默认127.0.0.1:8787，WALKER_ADMIN_ENABLED控制开关，token鉴权",
+      "author": "tianxiqin",
+      "tags": [
+        "admin",
+        "architecture"
+      ],
+      "context": "spec.md 方案对比后选定A",
+      "source": "specs/2026-07-10-web-admin-console/spec.md",
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/admin/"
+      ],
+      "links": {},
+      "created_at": "2026-07-10T05:32:30.691Z"
+    },
+    {
+      "id": "fe412085",
+      "type": "踩坑",
+      "content": "server.js port=0回退bug：config.port || 8787 将测试端口0回退为8787导致EADDRINUSE冲突；修复为 config.port != null ? config.port : 8787",
+      "author": "tianxiqin",
+      "tags": [
+        "admin",
+        "bug"
+      ],
+      "context": "T7集成测试",
+      "source": "src/admin/server.js",
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/admin/server.js"
+      ],
+      "links": {},
+      "created_at": "2026-07-10T05:32:30.692Z"
+    },
+    {
+      "id": "f6b87a23",
+      "type": "踩坑",
+      "content": "流水线占位符检查误报：自审句中含TBD/TODO字面量会触发占位符扫描阻断，需避免在自审/结论表述中使用这些关键字",
+      "author": "tianxiqin",
+      "tags": [
+        "loom",
+        "pipeline"
+      ],
+      "context": "verify-report.md和review-request.md的自审句",
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-10T05:32:30.692Z"
+    },
+    {
+      "id": "5d43c4ab",
+      "type": "踩坑",
+      "content": "前后端API路径对齐是必须同步完成的：spec定义的API路径、HTTP方法和字段名必须与后端路由和前端app.js一致，否则功能不可用",
+      "author": "tianxiqin",
+      "tags": [
+        "admin",
+        "api"
+      ],
+      "context": "code-review-request预审查发现15项API不匹配",
+      "source": "src/admin/",
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/admin/core-routes.js",
+        "src/admin/public/app.js"
+      ],
+      "links": {},
+      "created_at": "2026-07-10T05:32:30.692Z"
+    },
+    {
+      "id": "fbc240a0",
+      "type": "状态",
+      "content": "web-admin-console功能开发完成：26条需求(REQ-001~REQ-026)全部实现，461测试通过/0失败，包含AdminServer生命周期、鉴权、核心业务API、文件维护诊断、调试工具、静态SPA、集成验证",
+      "author": "tianxiqin",
+      "tags": [
+        "admin",
+        "status"
+      ],
+      "context": null,
+      "source": "specs/2026-07-10-web-admin-console",
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/admin/"
+      ],
+      "links": {},
+      "created_at": "2026-07-10T05:32:30.692Z"
     }
   ],
   "sessions": []

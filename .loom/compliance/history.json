@@ -1,0 +1,107 @@
+[
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-09-feishu-opendray-bridge",
+    "timestamp": "2026-07-09T12:21:07.742Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed。",
+      "error`，但 `AgentEvent` 结构为 `{type, data}`，导致进度卡片内容为空 | 改为兼容 `event.data.text \\|\\| event.text` 两种格式 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-09-feishu-opendray-bridge",
+    "timestamp": "2026-07-09T12:23:10.629Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed。",
+      "error`，但 `AgentEvent` 结构为 `{type, data}`，导致进度卡片内容为空 | 改为兼容 `event.data.text \\|\\| event.text` 两种格式 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-09-project-health-sweep",
+    "timestamp": "2026-07-09T16:37:00.866Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed as expected before implementation.",
+      "failed.",
+      "Failed coverage:",
+      "failed.",
+      "failed."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-09-project-health-sweep",
+    "timestamp": "2026-07-09T16:41:04.989Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 0 blocked |",
+      "failed.",
+      "Error: `ERR_MODULE_NOT_FOUND` for `C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js`."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-09-project-health-sweep",
+    "timestamp": "2026-07-09T16:43:53.763Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 0 blocked |",
+      "failed.",
+      "Error: `ERR_MODULE_NOT_FOUND` for `C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js`."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-09-project-health-sweep",
+    "timestamp": "2026-07-10T01:26:43.559Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 0 blocked |",
+      "failed.",
+      "Error: `ERR_MODULE_NOT_FOUND` for `C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js`."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-10-web-admin-console",
+    "timestamp": "2026-07-10T04:07:35.184Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "fail-count: 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-10-web-admin-console",
+    "timestamp": "2026-07-10T04:28:07.145Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "fail-count: 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-10-web-admin-console",
+    "timestamp": "2026-07-10T05:30:54.683Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "fail-count: 0"
+    ]
+  }
+]
