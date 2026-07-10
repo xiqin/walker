@@ -39,6 +39,15 @@ class AgentDriver {
   }
 
   /**
+   * 列出可恢复的已有会话
+   * @param {Object} options - 查询选项
+   * @returns {Promise<Object[]>} 会话摘要列表
+   */
+  async listSessions(options) {
+    throw new Error('listSessions not implemented by ' + this.name);
+  }
+
+  /**
    * 向会话发送提示文本并获取响应
    * @param {Object} sessionRef - 会话引用对象
    * @param {string} text - 提示文本内容

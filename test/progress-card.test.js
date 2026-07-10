@@ -9,6 +9,12 @@ test('ProgressCard 初始状态为 thinking', () => {
   assert.equal(card.header.template, 'turquoise');
 });
 
+test('ProgressCard render 开启多端同步更新', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  const card = pc.render();
+  assert.equal(card.config.update_multi, true);
+});
+
 test('ProgressCard append text 事件后切换到 working', () => {
   const pc = new ProgressCard({ sessionId: 'wks_test' });
   pc.append({ type: 'text', text: '开始处理你的请求' });
@@ -31,6 +37,24 @@ test('ProgressCard done 后切换到 done 模板', () => {
   pc.markDone();
   const card = pc.render();
   assert.equal(card.header.template, 'green');
+});
+
+test('ProgressCard append done 事件后保留已有内容并切换完成', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'text', text: '最终回答' });
+  pc.append({ type: 'done', data: { reason: 'idle' } });
+  const card = pc.render();
+  assert.equal(card.header.template, 'green');
+  assert.ok(card.elements.some((el) => el.text.content.includes('最终回答')));
+});
+
+test('ProgressCard 连续 text delta 事件合并为一段回答', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'text', data: { text: '你', delta: true } });
+  pc.append({ type: 'text', data: { text: '好', delta: true } });
+  const card = pc.render();
+  assert.equal(card.elements.length, 1);
+  assert.ok(card.elements[0].text.content.includes('你好'));
 });
 
 test('ProgressCard error 事件切换到 red 模板', () => {

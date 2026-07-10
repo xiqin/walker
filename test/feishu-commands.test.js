@@ -23,6 +23,20 @@ test('parseCommand /list', () => {
   assert.deepEqual(result.args, []);
 });
 
+test('parseCommand /attach', () => {
+  const result = parseCommand('/attach');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'attach');
+  assert.deepEqual(result.args, []);
+});
+
+test('parseCommand /attach ses_abc', () => {
+  const result = parseCommand('/attach ses_abc');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'attach');
+  assert.deepEqual(result.args, ['ses_abc']);
+});
+
 test('parseCommand /use wks_abc', () => {
   const result = parseCommand('/use wks_abc');
   assert.equal(result.type, 'command');
@@ -83,6 +97,7 @@ test('parseCommand /runtime', () => {
 test('COMMANDS 包含所有需要的命令', () => {
   const names = Object.keys(COMMANDS);
   assert.ok(names.includes('new'));
+  assert.ok(names.includes('attach'));
   assert.ok(names.includes('list'));
   assert.ok(names.includes('use'));
   assert.ok(names.includes('current'));

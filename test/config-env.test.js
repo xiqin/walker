@@ -1,8 +1,5 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
 
 const { loadEnvConfig } = require('../src/config/env');
 
@@ -62,46 +59,8 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
   assert.equal(config.feishuDoneEmoji, 'Done');
 });
 
-test('loadEnvConfig 从 cc-connect TOML 读取飞书凭据回退', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-env-'));
-  const configPath = path.join(tmpDir, 'config.toml');
-  fs.writeFileSync(configPath, [
-    'app_id = "cli_from_toml"',
-    'app_secret = "secret_from_toml"',
-  ].join('\n'), 'utf8');
-
-  const config = loadEnvConfig({ env: {}, ccConnectConfigPath: configPath });
-  assert.equal(config.feishuAppId, 'cli_from_toml');
-  assert.equal(config.feishuAppSecret, 'secret_from_toml');
-
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-});
-
-test('loadEnvConfig 环境变量优先于 cc-connect TOML', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-env-'));
-  const configPath = path.join(tmpDir, 'config.toml');
-  fs.writeFileSync(configPath, [
-    'app_id = "cli_from_toml"',
-    'app_secret = "secret_from_toml"',
-  ].join('\n'), 'utf8');
-
-  const env = { FEISHU_APP_ID: 'cli_env', FEISHU_APP_SECRET: 'secret_env' };
-  const config = loadEnvConfig({ env, ccConnectConfigPath: configPath });
-  assert.equal(config.feishuAppId, 'cli_env');
-  assert.equal(config.feishuAppSecret, 'secret_env');
-
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-});
-
 test('loadEnvConfig 缺少飞书凭据时标记为空', () => {
-  const config = loadEnvConfig({ env: {}, ccConnectConfigPath: '/nonexistent/missing-config.toml' });
-  assert.equal(config.feishuAppId, '');
-  assert.equal(config.feishuAppSecret, '');
-  assert.equal(config.feishuConfigSource, 'missing');
-});
-
-test('loadEnvConfig cc-connect TOML 不存在时不报错', () => {
-  const config = loadEnvConfig({ env: {}, ccConnectConfigPath: '/nonexistent/config.toml' });
+  const config = loadEnvConfig({ env: {} });
   assert.equal(config.feishuAppId, '');
   assert.equal(config.feishuAppSecret, '');
   assert.equal(config.feishuConfigSource, 'missing');

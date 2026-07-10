@@ -2,47 +2,39 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * 从 TOML 格式文本中提取指定键的字符串值
- * @param {string} raw - TOML 格式的原始文本内容
- * @param {string} key - 要提取的键名
- * @returns {string} 匹配到的字符串值，未匹配则返回空字符串
+ * 从 .env 文件加载环境变量到 process.env（不覆盖已存在的变量）
+ * @param {string} [envPath] - .env 文件路径，默认为项目根目录下的 .env
  */
-function matchTomlString(raw, key) {
-  const re = new RegExp('^\\s*' + key + '\\s*=\\s*"([^"]+)"', 'm');
-  const m = raw.match(re);
-  return m ? m[1] : '';
+function loadDotEnv(envPath) {
+  const filePath = envPath || path.join(__dirname, '..', '..', '.env');
+  if (!fs.existsSync(filePath)) return;
+  const raw = fs.readFileSync(filePath, 'utf8');
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx < 1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim();
+    if (!process.env[key]) {
+      process.env[key] = val;
+    }
+  }
 }
 
 /**
- * 加载环境配置，优先从环境变量读取，不足时回退到 cc-connect TOML 配置文件
+ * 加载环境配置，从环境变量 / .env 文件读取飞书凭据
  * @param {Object} options - 配置选项
  * @param {Object} [options.env] - 环境变量对象，默认使用 process.env
- * @param {string} [options.ccConnectConfigPath] - cc-connect 配置文件路径，默认为 ~/.cc-connect/config.toml
  * @returns {Object} 包含所有配置项的对象
  */
 function loadEnvConfig(options) {
-  const env = options.env || process.env;
-  const ccConnectConfigPath = options.ccConnectConfigPath ||
-    path.join(process.env.USERPROFILE || process.env.HOME || '.', '.cc-connect', 'config.toml');
+  loadDotEnv(options && options.envPath);
+  const env = (options && options.env) || process.env;
 
-  let feishuAppId = env.FEISHU_APP_ID || '';
-  let feishuAppSecret = env.FEISHU_APP_SECRET || '';
-  let feishuConfigSource = 'missing';
-
-  if (!feishuAppId || !feishuAppSecret) {
-    if (fs.existsSync(ccConnectConfigPath)) {
-      try {
-        const raw = fs.readFileSync(ccConnectConfigPath, 'utf8');
-        const fromTomlAppId = matchTomlString(raw, 'app_id');
-        const fromTomlAppSecret = matchTomlString(raw, 'app_secret');
-        if (!feishuAppId && fromTomlAppId) { feishuAppId = fromTomlAppId; }
-        if (!feishuAppSecret && fromTomlAppSecret) { feishuAppSecret = fromTomlAppSecret; }
-        if (feishuAppId && feishuAppSecret) { feishuConfigSource = 'cc-connect'; }
-      } catch (_) {}
-    }
-  } else {
-    feishuConfigSource = 'env';
-  }
+  const feishuAppId = env.FEISHU_APP_ID || '';
+  const feishuAppSecret = env.FEISHU_APP_SECRET || '';
+  const feishuConfigSource = (feishuAppId && feishuAppSecret) ? 'env' : 'missing';
 
   /**
    * 将字符串值解析为布尔值
@@ -54,6 +46,17 @@ function loadEnvConfig(options) {
     if (val === undefined || val === '') return defaultVal;
     const s = String(val).toLowerCase();
     return s === 'true' || s === '1' || s === 'yes';
+  }
+
+  /**
+   * 解析端口数值，无效值回落默认端口
+   * @param {string} val - 端口字符串
+   * @param {number} defaultVal - 默认端口
+   * @returns {number}
+   */
+  function parsePort(val, defaultVal) {
+    const port = parseInt(val, 10);
+    return Number.isFinite(port) && port > 0 ? port : defaultVal;
   }
 
   return {
@@ -77,7 +80,15 @@ function loadEnvConfig(options) {
     walkerDedupWindowMs: parseInt(env.WALKER_DEDUP_WINDOW_MS, 10) || 300000,
     opencodePollInterval: parseInt(env.OPENCODE_POLL_INTERVAL, 10) || 500,
     opencodeMaxPolls: parseInt(env.OPENCODE_MAX_POLLS, 10) || 20,
+    opencodePromptTimeoutMs: parseInt(env.OPENCODE_PROMPT_TIMEOUT_MS, 10) || 120000,
+    opencodeSseOpenTimeoutMs: parseInt(env.OPENCODE_SSE_OPEN_TIMEOUT_MS, 10) || 1000,
+    admin: {
+      enabled: parseBool(env.WALKER_ADMIN_ENABLED, true),
+      host: env.WALKER_ADMIN_HOST || '127.0.0.1',
+      port: parsePort(env.WALKER_ADMIN_PORT, 8787),
+      token: env.WALKER_ADMIN_TOKEN || '',
+    },
   };
 }
 
-module.exports = { loadEnvConfig, matchTomlString };
+module.exports = { loadEnvConfig, loadDotEnv };

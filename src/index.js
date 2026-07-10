@@ -16,7 +16,7 @@ async function main() {
   if (!config.feishuAppId || !config.feishuAppSecret) {
     logger.error('missing feishu credentials', {
       source: config.feishuConfigSource,
-      hint: 'Set FEISHU_APP_ID and FEISHU_APP_SECRET in .env or ~/.cc-connect/config.toml',
+      hint: 'Set FEISHU_APP_ID and FEISHU_APP_SECRET in .env',
     });
     process.exit(1);
   }
@@ -35,8 +35,16 @@ async function main() {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
+  setInterval(() => {}, 60000);
+
   try {
-    await app.start();
+    const result = await app.start();
+    if (app.adminServer) {
+      const status = app.adminServer.getStatus();
+      if (status && !status.disabled) {
+        logger.info('Admin console: http://' + (status.host || '127.0.0.1') + ':' + (status.port || 8787));
+      }
+    }
   } catch (err) {
     logger.error('walker start failed', { error: err.message });
     process.exit(1);

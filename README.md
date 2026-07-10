@@ -42,7 +42,7 @@ FEISHU_REACTION_EMOJI=OnIt
 FEISHU_DONE_EMOJI=none
 ```
 
-飞书凭据也可从 `~/.cc-connect/config.toml` 自动读取（兼容 cc-connect 配置）。
+飞书凭据通过环境变量或项目根目录的 `.env` 文件配置。
 
 ### 环境变量说明
 

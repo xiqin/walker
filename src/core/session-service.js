@@ -3,32 +3,16 @@ const { createLogger } = require('./logger');
 
 const logger = createLogger('session-service');
 
-/**
- * 会话管理服务，负责创建、查询、绑定路由、状态更新和删除会话
- */
 class SessionService {
-  /**
-   * 初始化会话服务
-   * @param {Object} options - 初始化选项
-   * @param {JsonStore} options.sessionsStore - 会话数据的持久化存储
-   * @param {JsonStore} options.routesStore - 路由映射的持久化存储
-   */
-  constructor({ sessionsStore, routesStore }) {
-    this.sessionsStore = sessionsStore;
-    this.routesStore = routesStore;
+  constructor({ stateStore }) {
+    this.stateStore = stateStore;
   }
 
-  /**
-   * 创建新会话并可选绑定到路由键
-   * @param {Object} options - 创建选项
-   * @param {string} [options.route] - 要绑定的路由键
-   * @param {string} [options.agent] - Agent 类型名称，默认 'opencode'
-   * @param {string} [options.title] - 会话标题
-   * @param {string} [options.runtime] - 运行时类型，默认 'windows'
-   * @param {string} [options.cwd] - 工作目录
-   * @param {Object} [options.agentRef] - Agent 驱动的会话引用
-   * @returns {Object} 新创建的会话对象
-   */
+  _ensureState(state) {
+    if (!state.sessions) state.sessions = {};
+    if (!state.routes) state.routes = {};
+  }
+
   createSession({ route, agent, title, runtime, cwd, agentRef }) {
     const id = createId('wks_');
     const session = {
@@ -44,139 +28,156 @@ class SessionService {
       updatedAt: Date.now(),
     };
 
-    this.sessionsStore.update((data) => { data[id] = session; });
-    if (route) {
-      this.routesStore.update((data) => { data[route] = id; });
-    }
+    this.stateStore.update((state) => {
+      this._ensureState(state);
+      state.sessions[id] = session;
+      if (route) state.routes[route] = id;
+    });
 
     logger.info('session created', { sessionId: id, agent, route });
     return session;
   }
 
-  /**
-   * 根据会话 ID 获取会话信息
-   * @param {string} id - 会话标识符
-   * @returns {Object|null} 会话对象，不存在则返回 null
-   */
   getSession(id) {
-    const data = this.sessionsStore.read();
-    return data[id] || null;
+    const state = this.stateStore.read();
+    this._ensureState(state);
+    return state.sessions[id] || null;
   }
 
-  /**
-   * 根据路由键获取当前绑定的会话
-   * @param {string} routeKey - 路由键
-   * @returns {Object|null} 当前绑定的会话对象，未绑定则返回 null
-   */
   getCurrent(routeKey) {
-    const routes = this.routesStore.read();
-    const sessionId = routes[routeKey];
+    const state = this.stateStore.read();
+    this._ensureState(state);
+    const sessionId = state.routes[routeKey];
     if (!sessionId) return null;
-    return this.getSession(sessionId);
+    const session = state.sessions[sessionId];
+    if (session && session.status !== 'deleted') return session;
+    this.stateStore.update((s) => { this._ensureState(s); delete s.routes[routeKey]; });
+    return null;
   }
 
-  /**
-   * 将路由键绑定到指定会话
-   * @param {string} routeKey - 路由键
-   * @param {string} sessionId - 要绑定的会话 ID
-   */
   bindRoute(routeKey, sessionId) {
-    const session = this.getSession(sessionId);
+    const state = this.stateStore.read();
+    this._ensureState(state);
+    const session = state.sessions[sessionId];
     if (!session) {
       throw new Error('session not found: ' + sessionId);
     }
-    this.routesStore.update((data) => { data[routeKey] = sessionId; });
+    if (session.status === 'deleted') {
+      throw new Error('session deleted: ' + sessionId);
+    }
+    this.stateStore.update((s) => { this._ensureState(s); s.routes[routeKey] = sessionId; });
     logger.info('route bound', { routeKey, sessionId });
   }
 
-  /**
-   * 解除路由键的会话绑定
-   * @param {string} routeKey - 要解绑的路由键
-   */
   unbindRoute(routeKey) {
-    this.routesStore.update((data) => { delete data[routeKey]; });
+    this.stateStore.update((s) => { this._ensureState(s); delete s.routes[routeKey]; });
     logger.info('route unbound', { routeKey });
   }
 
-  /**
-   * 列出所有未删除的会话
-   * @returns {Object[]} 活跃会话列表
-   */
   listSessions() {
-    const data = this.sessionsStore.read();
-    return Object.values(data).filter((s) => s.status !== 'deleted');
+    const state = this.stateStore.read();
+    this._ensureState(state);
+    return Object.values(state.sessions).filter((s) => s.status !== 'deleted');
   }
 
-  /**
-   * 标记会话为运行中状态
-   * @param {string} sessionId - 会话 ID
-   */
   markRunning(sessionId) {
     this._updateState(sessionId, 'running');
   }
 
-  /**
-   * 标记会话为空闲状态
-   * @param {string} sessionId - 会话 ID
-   */
   markIdle(sessionId) {
-    this._updateState(sessionId, 'idle');
+    this._updateState(sessionId, 'idle', { errorMessage: null });
   }
 
-  /**
-   * 标记会话为错误状态并记录错误信息
-   * @param {string} sessionId - 会话 ID
-   * @param {string} errorMessage - 错误描述信息
-   */
   markError(sessionId, errorMessage) {
     this._updateState(sessionId, 'error', { errorMessage });
   }
 
-  /**
-   * 标记会话为已停止状态
-   * @param {string} sessionId - 会话 ID
-   */
   stopSession(sessionId) {
     this._updateState(sessionId, 'stopped');
   }
 
-  /**
-   * 删除会话，同时清除所有关联的路由绑定
-   * @param {string} sessionId - 要删除的会话 ID
-   */
   deleteSession(sessionId) {
-    const session = this.getSession(sessionId);
+    const state = this.stateStore.read();
+    this._ensureState(state);
+    const session = state.sessions[sessionId];
     if (!session) return;
 
-    this.sessionsStore.update((data) => {
-      data[sessionId].status = 'deleted';
-      data[sessionId].updatedAt = Date.now();
-    });
-
-    this.routesStore.update((data) => {
-      for (const key of Object.keys(data)) {
-        if (data[key] === sessionId) delete data[key];
+    this.stateStore.update((s) => {
+      this._ensureState(s);
+      if (s.sessions[sessionId]) {
+        s.sessions[sessionId].status = 'deleted';
+        s.sessions[sessionId].updatedAt = Date.now();
+      }
+      for (const key of Object.keys(s.routes)) {
+        if (s.routes[key] === sessionId) delete s.routes[key];
       }
     });
 
     logger.info('session deleted', { sessionId });
   }
 
-  /**
-   * 内部方法：更新会话状态和额外字段
-   * @param {string} sessionId - 会话 ID
-   * @param {string} state - 新状态值
-   * @param {Object} [extra] - 需要同时更新的额外字段
-   */
   _updateState(sessionId, status, extra) {
-    this.sessionsStore.update((data) => {
-      if (!data[sessionId]) return;
-      data[sessionId].status = status;
-      data[sessionId].updatedAt = Date.now();
+    this.stateStore.update((state) => {
+      this._ensureState(state);
+      const session = state.sessions[sessionId];
+      if (!session) return;
+      if (session.status === 'stopped' || session.status === 'deleted') return;
+      session.status = status;
+      session.updatedAt = Date.now();
       if (extra) {
-        for (const k of Object.keys(extra)) { data[sessionId][k] = extra[k]; }
+        for (const k of Object.keys(extra)) { session[k] = extra[k]; }
       }
     });
+  }
+
+  updateSessionField(sessionId, field, value) {
+    this.stateStore.update((state) => {
+      this._ensureState(state);
+      const session = state.sessions[sessionId];
+      if (!session) return;
+      session[field] = value;
+      session.updatedAt = Date.now();
+    });
+    logger.info('session field updated', { sessionId, field, value });
+  }
+
+  recoverOnStartup() {
+    const state = this.stateStore.read();
+    this._ensureState(state);
+    const recovered = [];
+    this.stateStore.update((s) => {
+      this._ensureState(s);
+      for (const id of Object.keys(s.sessions)) {
+        const session = s.sessions[id];
+        if (session.status === 'running' || session.status === 'error') {
+          session.status = 'idle';
+          session.errorMessage = null;
+          session.updatedAt = Date.now();
+          recovered.push(id);
+          logger.info('recovered session to idle on startup', { sessionId: id, previousStatus: session.status });
+        }
+      }
+    });
+    return recovered;
+  }
+
+  cleanOrphanRoutes() {
+    const state = this.stateStore.read();
+    this._ensureState(state);
+    const cleaned = [];
+    this.stateStore.update((s) => {
+      this._ensureState(s);
+      for (const routeKey of Object.keys(s.routes)) {
+        const sessionId = s.routes[routeKey];
+        const session = s.sessions[sessionId];
+        if (!session || session.status === 'deleted') {
+          delete s.routes[routeKey];
+          cleaned.push(routeKey);
+          logger.info('cleaned orphan route', { routeKey, sessionId });
+        }
+      }
+    });
+    return cleaned;
   }
 }
 

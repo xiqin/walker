@@ -9,7 +9,7 @@ const { AgentDriver } = require('./agent-driver');
  */
 function stubDriver(name) {
   const driver = new AgentDriver(name);
-  const methods = ['ensureReady', 'createSession', 'resumeSession', 'prompt', 'stop', 'delete'];
+  const methods = ['ensureReady', 'createSession', 'resumeSession', 'listSessions', 'prompt', 'stop', 'delete'];
   for (const method of methods) {
     driver[method] = async function () {
       throw new Error(name + ' driver is not implemented yet. This is a stub for future extension.');

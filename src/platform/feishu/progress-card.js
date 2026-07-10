@@ -69,6 +69,7 @@ class ProgressCard {
     this.cardMessageId = cardMessageId || null;
     this.phase = 'thinking';
     this.entries = [];
+    this.entryTypes = [];
     this.done = false;
   }
 
@@ -78,11 +79,23 @@ class ProgressCard {
    */
   append(event) {
     if (this.done) return;
+    if (event.type === 'done') {
+      this.markDone();
+      return;
+    }
     const formatted = formatAgentEvent(event);
     if (!formatted) return;
+    if (event.type === 'text' && event.data && event.data.delta && this.entryTypes[this.entryTypes.length - 1] === 'text') {
+      const lastIndex = this.entries.length - 1;
+      this.entries[lastIndex] = truncateText(this.entries[lastIndex] + formatted, MAX_TEXT_LEN);
+      this._updatePhase(event);
+      return;
+    }
     this.entries.push(formatted);
+    this.entryTypes.push(event.type);
     if (this.entries.length > MAX_EVENT_LINES) {
       this.entries = this.entries.slice(-MAX_EVENT_LINES);
+      this.entryTypes = this.entryTypes.slice(-MAX_EVENT_LINES);
     }
     this._updatePhase(event);
   }
@@ -127,7 +140,7 @@ class ProgressCard {
     }
 
     return {
-      config: { wide_screen_mode: true },
+      config: { wide_screen_mode: true, update_multi: true },
       header: { title: { tag: 'plain_text', content: headerTitle }, template: CARD_PHASE[this.phase] },
       elements,
     };

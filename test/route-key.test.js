@@ -7,14 +7,14 @@ test('thread 模式：rootId 优先', () => {
   assert.equal(buildRouteKey(msg, 'thread'), 'feishu:oc_abc:root:om_root');
 });
 
-test('thread 模式：无 rootId 时用 parentId', () => {
+test('thread 模式：无 rootId 时忽略 parentId 并退到 chatId', () => {
   const msg = { chatId: 'oc_abc', rootId: '', parentId: 'om_parent', messageId: 'om_msg', openId: 'ou_user' };
-  assert.equal(buildRouteKey(msg, 'thread'), 'feishu:oc_abc:root:om_parent');
+  assert.equal(buildRouteKey(msg, 'thread'), 'feishu:oc_abc:root:oc_abc');
 });
 
-test('thread 模式：无 rootId 和 parentId 时用 messageId', () => {
+test('thread 模式：无 rootId 和 parentId 时用 chatId', () => {
   const msg = { chatId: 'oc_abc', rootId: '', parentId: '', messageId: 'om_msg', openId: 'ou_user' };
-  assert.equal(buildRouteKey(msg, 'thread'), 'feishu:oc_abc:root:om_msg');
+  assert.equal(buildRouteKey(msg, 'thread'), 'feishu:oc_abc:root:oc_abc');
 });
 
 test('user 模式：chatId + openId', () => {

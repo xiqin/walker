@@ -1,11 +1,13 @@
 /** Walker 支持的命令定义表，包含描述和使用方式 */
 const COMMANDS = {
   new: { desc: '创建新会话', usage: '/new [agent] [name]' },
+  attach: { desc: '发现并纳入已有 OpenCode 会话', usage: '/attach' },
   list: { desc: '列出所有会话', usage: '/list' },
   use: { desc: '绑定当前对话到指定会话', usage: '/use <session_id> | /use off' },
   current: { desc: '查看当前绑定的会话', usage: '/current' },
   stop: { desc: '停止当前会话', usage: '/stop' },
   delete: { desc: '删除指定会话', usage: '/delete <session_id>' },
+  model: { desc: '列出可用模型或切换当前会话模型', usage: '/model | /model <model_id>' },
   agents: { desc: '列出可用的 Agent 类型', usage: '/agents' },
   runtime: { desc: '查看当前运行时环境', usage: '/runtime' },
   help: { desc: '显示命令帮助', usage: '/help' },

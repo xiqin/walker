@@ -120,6 +120,83 @@ describe('WslRuntime resolveServerUrl', () => {
   });
 });
 
+describe('WindowsRuntime openTerminal', () => {
+  it('openTerminal 用 spawn cmd.exe /k 在新窗口启动', async () => {
+    const mock = makeMockSpawn({});
+    const rt = new WindowsRuntime({ spawn: mock.spawn });
+    await rt.openTerminal('opencode', ['-s', 'ses_abc123', 'H:\\walker'], { cwd: 'H:\\walker', title: 'opencode ses_abc' });
+    assert.equal(mock.calls.length, 1);
+    assert.equal(mock.calls[0].cmd, 'cmd.exe');
+    assert.equal(mock.calls[0].args[0], '/v:off');
+    assert.equal(mock.calls[0].args[1], '/k');
+    assert.equal(mock.calls[0].args[2], 'opencode -s ses_abc123 H:\\walker');
+    assert.equal(mock.calls[0].opts.cwd, 'H:\\walker');
+    assert.equal(mock.calls[0].opts.detached, true);
+    assert.equal(mock.calls[0].opts.stdio, 'ignore');
+  });
+
+  it('openTerminal 默认 cwd 为 process.cwd', async () => {
+    const mock = makeMockSpawn({});
+    const rt = new WindowsRuntime({ spawn: mock.spawn });
+    await rt.openTerminal('node', ['--version']);
+    assert.equal(mock.calls[0].cmd, 'cmd.exe');
+    assert.deepEqual(mock.calls[0].args, ['/v:off', '/k', 'node --version']);
+    assert.equal(mock.calls[0].opts.cwd, process.cwd());
+  });
+
+  it('openTerminal spawn 失败时抛错', async () => {
+    const mock = makeMockSpawn({ 'cmd.exe': { error: new Error('spawn error') } });
+    const rt = new WindowsRuntime({ spawn: mock.spawn });
+    await assert.rejects(() => rt.openTerminal('opencode', ['-s', 'x']), { message: /spawn error/i });
+  });
+
+  it('openTerminal 转义 cmd.exe 控制符', async () => {
+    const mock = makeMockSpawn({});
+    const rt = new WindowsRuntime({ spawn: mock.spawn });
+    await rt.openTerminal('open&|<>^%!"code', ['arg &|<>^%!" value']);
+    assert.equal(
+      mock.calls[0].args[2],
+      'open^&^|^<^>^^^%^!^"code arg^ ^&^|^<^>^^^%^!^"^ value',
+    );
+  });
+});
+
+describe('WslRuntime openTerminal', () => {
+  it('openTerminal 用 spawn cmd.exe /k 在新窗口启动 WSL 命令', async () => {
+    const mock = makeMockSpawn({});
+    const rt = new WslRuntime({ spawn: mock.spawn, distro: 'Ubuntu-24.04' });
+    await rt.openTerminal('opencode', ['-s', 'ses_abc'], { title: 'opencode ses' });
+    assert.equal(mock.calls.length, 1);
+    assert.equal(mock.calls[0].cmd, 'cmd.exe');
+    assert.equal(mock.calls[0].args[0], '/v:off');
+    assert.equal(mock.calls[0].args[1], '/k');
+    assert.equal(mock.calls[0].args[2], 'wsl.exe -d Ubuntu-24.04 -- opencode -s ses_abc');
+    assert.equal(mock.calls[0].opts.detached, true);
+    assert.equal(mock.calls[0].opts.stdio, 'ignore');
+  });
+
+  it('openTerminal spawn 失败时抛错', async () => {
+    const mock = makeMockSpawn({ 'cmd.exe': { error: new Error('wsl error') } });
+    const rt = new WslRuntime({ spawn: mock.spawn, distro: 'Ubuntu-24.04' });
+    await assert.rejects(() => rt.openTerminal('opencode', ['serve']), { message: /wsl error/i });
+  });
+
+  it('openTerminal 转义 WSL distro 和参数中的 cmd.exe 控制符', async () => {
+    const mock = makeMockSpawn({});
+    const rt = new WslRuntime({ spawn: mock.spawn, distro: 'Ubuntu&|<>^%!"24' });
+    await rt.openTerminal(
+      'open"code',
+      ['-s', 'ses&|<>^%!"abc', 'http://127.0.0.1:4096/?x=1&y="z"', '/home/user/a b'],
+      { cwd: 'H:\\walker & docs', title: 'opencode ses' },
+    );
+    assert.equal(
+      mock.calls[0].args[2],
+      'wsl.exe -d Ubuntu^&^|^<^>^^^%^!^"24 -- open^"code -s ses^&^|^<^>^^^%^!^"abc http://127.0.0.1:4096/?x=1^&y=^"z^" /home/user/a^ b',
+    );
+    assert.equal(mock.calls[0].opts.cwd, 'H:\\walker & docs');
+  });
+});
+
 describe('createRuntime factory', () => {
   it('windows 类型返回 WindowsRuntime', () => {
     const rt = createRuntime('windows', { spawn: makeMockSpawn({}).spawn });

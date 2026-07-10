@@ -4,6 +4,10 @@ const { createLogger } = require('../core/logger');
 
 const logger = createLogger('wsl-runtime');
 
+function escapeCmdArg(value) {
+  return String(value).replace(/([&|<>\^%!(\)" \t])/g, '^$1');
+}
+
 /**
  * WSL (Windows Subsystem for Linux) 运行时环境，通过 wsl.exe 在指定发行版中执行命令
  */
@@ -30,6 +34,7 @@ class WslRuntime {
         });
       });
     };
+    this._exec = options._exec || require('child_process').exec;
   }
 
   /**
@@ -44,6 +49,37 @@ class WslRuntime {
     const opts = { ...options };
     logger.info('wsl spawn', { distro: this.distro, command, args });
     return this._spawn('wsl.exe', wslArgs, opts);
+  }
+
+  /**
+   * 在新的 cmd 终端窗口中通过 WSL 启动命令，用户可在终端中接手工作
+   * @param {string} command - 要在 WSL 中执行的命令
+   * @param {string[]} args - 命令参数列表
+   * @param {Object} [options] - 选项
+   * @param {string} [options.cwd] - WSL 中的工作目录
+   * @param {string} [options.title] - 终端窗口标题
+   * @returns {Promise<void>}
+   */
+  openTerminal(command, args, options) {
+    const cwd = (options && options.cwd) || process.cwd();
+    const title = (options && options.title) || 'Walker Session';
+
+    const wslCmdParts = [command, ...args];
+    const wslCmd = wslCmdParts.map(escapeCmdArg).join(' ');
+
+    const cmdArgs = ['/v:off', '/k', 'wsl.exe -d ' + escapeCmdArg(this.distro) + ' -- ' + wslCmd];
+
+    logger.info('wsl openTerminal', { distro: this.distro, command, args, title });
+
+    try {
+      const proc = this._spawn('cmd.exe', cmdArgs, { cwd, detached: true, stdio: 'ignore' });
+      if (proc && proc.unref) proc.unref();
+      logger.info('wsl openTerminal success');
+      return Promise.resolve();
+    } catch (err) {
+      logger.error('wsl openTerminal failed', { error: err.message });
+      return Promise.reject(err);
+    }
   }
 
   /**

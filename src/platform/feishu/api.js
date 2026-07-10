@@ -49,6 +49,7 @@ class FeishuApi {
    * @returns {Promise<Object>} 飞书 API 返回结果
    */
   async replyText(replyCtx, text) {
+    if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
     if (replyCtx && replyCtx.messageId) {
       return this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
@@ -88,24 +89,30 @@ class FeishuApi {
    * @returns {Promise<string>} 卡片消息 ID
    */
   async replyCard(replyCtx, card) {
+    if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
     const cardContent = JSON.stringify(card);
+    let result;
     if (replyCtx && replyCtx.messageId) {
-      const result = await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
+      result = await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
         msg_type: 'interactive',
         content: cardContent,
       }), token);
-      return result && result.data && result.data.message_id || 'om_card_stub';
-    }
-    if (replyCtx && replyCtx.chatId) {
-      const result = await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+    } else if (replyCtx && replyCtx.chatId) {
+      result = await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
         receive_id: replyCtx.chatId,
         msg_type: 'interactive',
         content: cardContent,
       }), token);
-      return result && result.data && result.data.message_id || 'om_card_stub';
+    } else {
+      throw new Error('replyCard: no messageId or chatId');
     }
-    throw new Error('replyCard: no messageId or chatId');
+
+    const messageId = result && result.data && result.data.message_id;
+    if (!messageId) {
+      throw new Error('feishu replyCard missing data.message_id: ' + JSON.stringify(result));
+    }
+    return messageId;
   }
 
   /**
@@ -129,9 +136,9 @@ class FeishuApi {
    * @returns {Promise<Object|void>} 飞书 API 返回结果，失败时仅输出警告
    */
   async addReaction(messageId, emoji) {
-    const token = await this.getTenantToken();
     try {
-      return this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + messageId + '/reactions', JSON.stringify({
+      const token = await this.getTenantToken();
+      return await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + messageId + '/reactions', JSON.stringify({
         reaction_type: { emoji: emoji },
       }), token);
     } catch (err) {
@@ -156,7 +163,37 @@ class FeishuApi {
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
-          try { resolve(JSON.parse(data)); } catch (_) { reject(new Error('feishu api parse error: ' + data.slice(0, 200))); }
+          let parsed;
+          try {
+            parsed = data ? JSON.parse(data) : {};
+          } catch (_) {
+            reject(new Error('feishu api parse error: ' + data.slice(0, 200)));
+            return;
+          }
+
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            const err = new Error('feishu api http error: ' + method + ' ' + path + ' status=' + res.statusCode);
+            err.method = method;
+            err.path = path;
+            err.status = res.statusCode;
+            err.code = parsed && parsed.code;
+            err.response = parsed;
+            reject(err);
+            return;
+          }
+
+          if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'code') && parsed.code !== 0) {
+            const err = new Error('feishu api business error: ' + method + ' ' + path + ' code=' + parsed.code);
+            err.method = method;
+            err.path = path;
+            err.status = res.statusCode;
+            err.code = parsed.code;
+            err.response = parsed;
+            reject(err);
+            return;
+          }
+
+          resolve(parsed);
         });
       });
       req.on('error', (err) => { reject(err); });

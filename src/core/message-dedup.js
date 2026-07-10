@@ -4,55 +4,73 @@ const { createLogger } = require('./logger');
 
 const logger = createLogger('message-dedup');
 
-/**
- * 消息去重器，基于时间窗口检测并过滤重复消息
- */
 class MessageDedup {
-  /**
-   * 初始化去重器
-   * @param {Object} options - 配置选项
-   * @param {number} [options.windowMs=300000] - 去重时间窗口（毫秒），默认 5 分钟
-   */
   constructor(options) {
     this.windowMs = options.windowMs || 300000;
     this.entries = {};
+    this._store = options.store || null;
+    this._staleThresholdMs = options.staleThresholdMs || this.windowMs;
+    this._cleanupThreshold = options.cleanupThreshold || 200;
+    this._lastCleanup = 0;
+    if (this._store) {
+      const stored = this._store.read();
+      if (stored && typeof stored === 'object') {
+        this.entries = stored;
+      }
+    }
   }
 
-  /**
-   * 检测消息是否为重复消息
-   * @param {string} messageId - 消息唯一标识符
-   * @returns {boolean} 若为重复消息返回 true，否则记录该消息并返回 false
-   */
-  isDuplicate(messageId) {
+  isDuplicate(key, createTime) {
     const now = Date.now();
-    this._cleanup(now);
 
-    if (this.entries[messageId]) {
-      logger.info('duplicate message detected', { messageId });
+    if (createTime && this._staleThresholdMs > 0) {
+      const elapsed = now - createTime;
+      if (elapsed > this._staleThresholdMs) {
+        logger.info('stale message rejected', { key, elapsedMs: elapsed });
+        return true;
+      }
+    }
+
+    if (this.size() >= this._cleanupThreshold || now - this._lastCleanup > this.windowMs) {
+      this._cleanup(now);
+    }
+
+    if (this.entries[key]) {
+      logger.info('duplicate message detected', { key });
       return true;
     }
 
-    this.entries[messageId] = now;
+    this.entries[key] = now;
+    this._persist();
     return false;
   }
 
-  /**
-   * 获取当前去重缓存中的消息条数
-   * @returns {number} 缓存条目数量
-   */
   size() {
     return Object.keys(this.entries).length;
   }
 
-  /**
-   * 清理超出时间窗口的过期缓存条目
-   * @param {number} now - 当前时间戳（毫秒）
-   */
   _cleanup(now) {
+    this._lastCleanup = now;
+    let dirty = false;
     for (const key of Object.keys(this.entries)) {
       if (now - this.entries[key] > this.windowMs) {
         delete this.entries[key];
+        dirty = true;
       }
+    }
+    if (dirty) this._persist();
+  }
+
+  _persist() {
+    if (this._store) {
+      this._store.update((data) => {
+        Object.assign(data, this.entries);
+        for (const key of Object.keys(data)) {
+          if (!this.entries[key]) {
+            delete data[key];
+          }
+        }
+      });
     }
   }
 }
