@@ -3,8 +3,10 @@ const assert = require('node:assert/strict');
 const {
   renderSessionListCard,
   renderUnboundRouteCard,
+  renderAttachableSessionCard,
   renderErrorCard,
   buildButtonValue,
+  buildCommandValue,
 } = require('../src/platform/feishu/cards');
 
 test('renderSessionListCard 空列表时显示提示', () => {
@@ -65,12 +67,49 @@ test('buildButtonValue /delete 编码正确', () => {
   assert.deepEqual(val, { action: 'cmd:/delete wks_xyz' });
 });
 
-test('renderUnboundRouteCard 提示 /new 和 /list', () => {
+test('buildButtonValue 携带 routeKey', () => {
+  const val = buildButtonValue('cmd:/use', 'wks_abc1', 'feishu:oc_chat1:root:om_root1');
+  assert.deepEqual(val, { action: 'cmd:/use wks_abc1', routeKey: 'feishu:oc_chat1:root:om_root1' });
+});
+
+test('buildCommandValue /attach 编码正确', () => {
+  const val = buildCommandValue('cmd:/attach');
+  assert.deepEqual(val, { action: 'cmd:/attach' });
+});
+
+test('buildCommandValue 携带 routeKey', () => {
+  const val = buildCommandValue('cmd:/attach', 'feishu:oc_chat1:root:om_root1');
+  assert.deepEqual(val, { action: 'cmd:/attach', routeKey: 'feishu:oc_chat1:root:om_root1' });
+});
+
+test('renderUnboundRouteCard 提供 attach/new/list 按钮', () => {
   const card = renderUnboundRouteCard('feishu:oc_chat1:root:om_root1');
   assert.ok(card.header);
   assert.ok(card.elements.some((el) => el.tag === 'div'));
-  const markdownEls = card.elements.filter((el) => el.tag === 'div' && el.text);
-  assert.ok(markdownEls.some((el) => el.text.content.includes('/new') || el.text.content.includes('/list')));
+  const actionEl = card.elements.find((el) => el.tag === 'action');
+  assert.ok(actionEl);
+  const actions = actionEl.actions.map((action) => action.value.action);
+  assert.ok(actions.includes('cmd:/attach'));
+  assert.ok(actions.includes('cmd:/new'));
+  assert.ok(actions.includes('cmd:/list'));
+});
+
+test('renderAttachableSessionCard 显示可纳入会话按钮', () => {
+  const card = renderAttachableSessionCard([
+    { id: 'ses_abc123', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
+  ], { managedIds: [] });
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  const actionEl = card.elements.find((el) => el.tag === 'action');
+  assert.ok(textEl.text.content.includes('terminal session'));
+  assert.equal(actionEl.actions[0].value.action, 'cmd:/attach ses_abc123');
+});
+
+test('renderAttachableSessionCard 过滤已管理会话', () => {
+  const card = renderAttachableSessionCard([
+    { id: 'ses_managed', title: 'managed', cwd: 'H:\\walker', status: 'idle' },
+  ], { managedIds: ['ses_managed'] });
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('没有发现'));
 });
 
 test('renderErrorCard 显示错误信息', () => {

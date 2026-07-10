@@ -11,8 +11,9 @@ function buildRouteKey(message, mode) {
   const openId = message.openId || chatId;
 
   if (mode === 'thread') {
-    const rootId = message.rootId || message.parentId || message.messageId || chatId;
-    return 'feishu:' + chatId + ':root:' + rootId;
+    const rootId = message.rootId;
+    if (rootId) return 'feishu:' + chatId + ':root:' + rootId;
+    return 'feishu:' + chatId + ':root:' + chatId;
   }
 
   if (mode === 'user') {

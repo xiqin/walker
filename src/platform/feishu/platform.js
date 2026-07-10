@@ -31,7 +31,7 @@ class FeishuPlatform {
   /**
    * 启动飞书 WebSocket 客户端，注册消息接收和卡片交互事件处理器
    */
-  start() {
+  async start() {
     const appId = this.config.appId || this.config.feishuAppId;
     const appSecret = this.config.appSecret || this.config.feishuAppSecret;
     const routeMode = this.config.routeMode || this.config.feishuRouteMode;
@@ -41,66 +41,74 @@ class FeishuPlatform {
     }
 
     const dispatcher = new lark.EventDispatcher({}).register({
-      'im.message.receive_v1': async (data) => {
-        try {
-          const parsed = parseMessageEvent(data);
-          if (parsed.messageType !== 'text') {
-            this.api.replyText({ messageId: parsed.messageId }, '暂时仅支持文本消息，图片和文件支持将在后续版本实现。');
-            return;
-          }
-
-          const routeKey = buildRouteKey(parsed, routeMode);
-          const cmd = parseCommand(parsed.text);
-
-          if (cmd.type === 'command') {
-            await this.onMessage({
-              type: 'command',
-              command: cmd,
-              routeKey,
-              chatId: parsed.chatId,
-              messageId: parsed.messageId,
-              openId: parsed.openId,
-              rootId: parsed.rootId,
-            });
-          } else {
-            await this.onMessage({
-              type: 'text',
-              text: parsed.text,
-              routeKey,
-              chatId: parsed.chatId,
-              messageId: parsed.messageId,
-              openId: parsed.openId,
-              rootId: parsed.rootId,
-            });
-          }
-        } catch (err) {
+      'im.message.receive_v1': (data) => {
+        this._handleMessageEvent(data, routeMode).catch((err) => {
           logger.error('message event error', { err });
-        }
+        });
       },
-      'card.action.trigger': async (data) => {
-        try {
-          const parsed = parseCardAction(data);
-          if (parsed.action) {
-            await this.onCardAction({
-              action: parsed.action,
-              chatId: parsed.chatId,
-              messageId: parsed.messageId,
-              openId: parsed.openId,
-            });
-          }
-        } catch (err) {
+      'card.action.trigger': (data) => {
+        this._handleCardAction(data).catch((err) => {
           logger.error('card action error', { err });
-        }
+        });
       },
     });
 
     this.wsClient = new lark.WSClient({
-      appID: appId,
+      appId: appId,
       appSecret: appSecret,
-      eventDispatcher: dispatcher,
     });
-    this.wsClient.start();
+    const result = await this.wsClient.start({ eventDispatcher: dispatcher });
     logger.info('feishu ws client started', { appId: appId.slice(0, 8) });
+    return result;
+  }
+
+  async _handleMessageEvent(data, routeMode) {
+    const parsed = parseMessageEvent(data);
+    if (parsed.messageType !== 'text') {
+      await this.api.replyText({ messageId: parsed.messageId }, '暂时仅支持文本消息，图片和文件支持将在后续版本实现。');
+      return;
+    }
+
+    const routeKey = buildRouteKey(parsed, routeMode);
+    const cmd = parseCommand(parsed.text);
+
+    if (cmd.type === 'command') {
+      await this.onMessage({
+        type: 'command',
+        command: cmd,
+        routeKey,
+        chatId: parsed.chatId,
+        messageId: parsed.messageId,
+        openId: parsed.openId,
+        rootId: parsed.rootId,
+        createTime: parsed.createTime,
+      });
+      return;
+    }
+
+    await this.onMessage({
+      type: 'text',
+      text: parsed.text,
+      routeKey,
+      chatId: parsed.chatId,
+      messageId: parsed.messageId,
+      openId: parsed.openId,
+      rootId: parsed.rootId,
+      createTime: parsed.createTime,
+    });
+  }
+
+  async _handleCardAction(data) {
+    const parsed = parseCardAction(data);
+    if (parsed.action) {
+      await this.onCardAction({
+        action: parsed.action,
+        chatId: parsed.chatId,
+        messageId: parsed.messageId,
+        openId: parsed.openId,
+        routeKey: parsed.routeKey,
+      });
+    }
   }
 
   /**

@@ -19,28 +19,48 @@ const STATUS_TEMPLATE = {
 };
 
 /**
- * 构建飞书卡片按钮的 value 字段，封装命令和会话 ID
+ * 构建飞书卡片按钮的 value 字段，封装命令和会话 ID，可选携带 routeKey 用于回调精准路由
  * @param {string} cmd - 命令字符串，如 'cmd:/use'
  * @param {string} sessionId - 目标会话 ID
+ * @param {string} [routeKey] - 路由键，嵌入按钮值以便卡片回调时直接使用
  * @returns {Object} 按钮的 value 对象
  */
-function buildButtonValue(cmd, sessionId) {
-  return { action: cmd + ' ' + sessionId };
+function buildButtonValue(cmd, sessionId, routeKey) {
+  const value = { action: cmd + ' ' + sessionId };
+  if (routeKey) value.routeKey = routeKey;
+  return value;
+}
+
+/**
+ * 构建不带会话 ID 的命令按钮 value 字段，可选携带 routeKey
+ * @param {string} cmd - 命令字符串，如 'cmd:/attach'
+ * @param {string} [routeKey] - 路由键，嵌入按钮值以便卡片回调时直接使用
+ * @returns {Object} 按钮的 value 对象
+ */
+function buildCommandValue(cmd, routeKey) {
+  const value = { action: cmd };
+  if (routeKey) value.routeKey = routeKey;
+  return value;
 }
 
 /**
  * 渲染会话列表的飞书卡片 JSON 结构
  * @param {Object[]} sessions - 会话对象列表
  * @param {string|null} currentSessionId - 当前绑定的会话 ID
+ * @param {string} [routeKey] - 路由键，嵌入按钮值以便卡片回调精准路由
  * @returns {Object} 飞书卡片 JSON 结构
  */
-function renderSessionListCard(sessions, currentSessionId) {
+function renderSessionListCard(sessions, currentSessionId, routeKey) {
   if (!sessions || sessions.length === 0) {
     return {
       config: { wide_screen_mode: true },
       header: { title: { tag: 'plain_text', content: 'Walker 会话列表' }, template: 'default' },
       elements: [
-        { tag: 'div', text: { tag: 'lark_md', content: '暂无活跃会话\n发送 **/new** 创建新会话' } },
+        { tag: 'div', text: { tag: 'lark_md', content: '暂无活跃会话\n发送 **/new** 创建新会话，或发送 **/attach** 纳入已有 OpenCode 会话' } },
+        { tag: 'action', actions: [
+          { tag: 'button', text: { tag: 'plain_text', content: '纳入已有 OpenCode' }, type: 'primary', value: buildCommandValue('cmd:/attach', routeKey) },
+          { tag: 'button', text: { tag: 'plain_text', content: '新建会话' }, type: 'default', value: buildCommandValue('cmd:/new', routeKey) },
+        ] },
       ],
     };
   }
@@ -82,9 +102,9 @@ function renderSessionListCard(sessions, currentSessionId) {
     elements.push({
       tag: 'action',
       actions: [
-        { tag: 'button', text: { tag: 'plain_text', content: isCurrent ? '已绑定' : '绑定' }, type: isCurrent ? 'default' : 'primary', value: buildButtonValue('cmd:/use', s.id) },
-        { tag: 'button', text: { tag: 'plain_text', content: '停止' }, type: 'default', value: buildButtonValue('cmd:/stop', s.id) },
-        { tag: 'button', text: { tag: 'plain_text', content: '删除' }, type: 'danger', value: buildButtonValue('cmd:/delete', s.id) },
+        { tag: 'button', text: { tag: 'plain_text', content: isCurrent ? '已绑定' : '绑定' }, type: isCurrent ? 'default' : 'primary', value: buildButtonValue('cmd:/use', s.id, routeKey) },
+        { tag: 'button', text: { tag: 'plain_text', content: '停止' }, type: 'default', value: buildButtonValue('cmd:/stop', s.id, routeKey) },
+        { tag: 'button', text: { tag: 'plain_text', content: '删除' }, type: 'danger', value: buildButtonValue('cmd:/delete', s.id, routeKey) },
       ],
     });
   }
@@ -106,8 +126,64 @@ function renderUnboundRouteCard(routeKey) {
     config: { wide_screen_mode: true },
     header: { title: { tag: 'plain_text', content: '未绑定会话' }, template: 'yellow' },
     elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: '当前对话未绑定任何 agent 会话\n\n发送 **/new** 创建新会话\n发送 **/list** 查看已有会话并绑定' } },
+      { tag: 'div', text: { tag: 'lark_md', content: '当前对话未绑定任何 agent 会话\n\n可以直接纳入已启动的 OpenCode 会话，或新建一个会话。' } },
+      { tag: 'action', actions: [
+        { tag: 'button', text: { tag: 'plain_text', content: '纳入已有 OpenCode' }, type: 'primary', value: buildCommandValue('cmd:/attach', routeKey) },
+        { tag: 'button', text: { tag: 'plain_text', content: '新建会话' }, type: 'default', value: buildCommandValue('cmd:/new', routeKey) },
+        { tag: 'button', text: { tag: 'plain_text', content: '查看 Walker 会话' }, type: 'default', value: buildCommandValue('cmd:/list', routeKey) },
+      ] },
     ],
+  };
+}
+
+/**
+ * 渲染可纳入的 OpenCode 会话列表卡片
+ * @param {Object[]} sessions - OpenCode 会话摘要列表
+ * @param {Object} [options] - 渲染选项
+ * @param {string[]} [options.managedIds] - 已被 Walker 管理的 OpenCode session ID
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
+function renderAttachableSessionCard(sessions, options) {
+  const managedIds = new Set((options && options.managedIds) || []);
+  const routeKey = options && options.routeKey;
+  const attachable = (sessions || []).filter((session) => session && session.id && !managedIds.has(session.id));
+  if (attachable.length === 0) {
+    return {
+      config: { wide_screen_mode: true },
+      header: { title: { tag: 'plain_text', content: '可纳入的 OpenCode 会话' }, template: 'default' },
+      elements: [
+        { tag: 'div', text: { tag: 'lark_md', content: '没有发现可纳入的 OpenCode 会话。' } },
+        { tag: 'action', actions: [
+          { tag: 'button', text: { tag: 'plain_text', content: '新建会话' }, type: 'primary', value: buildCommandValue('cmd:/new', routeKey) },
+        ] },
+      ],
+    };
+  }
+
+  const elements = [];
+  for (const session of attachable) {
+    const title = session.title || ('opencode ' + session.id.slice(0, 12));
+    const cwdLabel = session.cwd || '(未设置)';
+    const status = session.status || 'unknown';
+    elements.push({
+      tag: 'div',
+      text: {
+        tag: 'lark_md',
+        content: '**' + title + '** `' + session.id.slice(0, 12) + '`\n' + cwdLabel + '\n状态: ' + status,
+      },
+    });
+    elements.push({
+      tag: 'action',
+      actions: [
+        { tag: 'button', text: { tag: 'plain_text', content: '纳入并绑定' }, type: 'primary', value: buildButtonValue('cmd:/attach', session.id, routeKey) },
+      ],
+    });
+  }
+
+  return {
+    config: { wide_screen_mode: true },
+    header: { title: { tag: 'plain_text', content: '可纳入的 OpenCode 会话 (' + attachable.length + ')' }, template: 'blue' },
+    elements,
   };
 }
 
@@ -129,8 +205,10 @@ function renderErrorCard(message) {
 module.exports = {
   renderSessionListCard,
   renderUnboundRouteCard,
+  renderAttachableSessionCard,
   renderErrorCard,
   buildButtonValue,
+  buildCommandValue,
   STATUS_EMOJI,
   STATUS_TEMPLATE,
 };

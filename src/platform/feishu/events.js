@@ -16,6 +16,7 @@ function parseMessageEvent(data) {
     } catch (_) {
       text = msg.content;
     }
+    text = stripBotMentionPrefix(text, msg.mentions || []);
   }
 
   return {
@@ -30,6 +31,27 @@ function parseMessageEvent(data) {
   };
 }
 
+function stripBotMentionPrefix(text, mentions) {
+  let cleaned = text || '';
+  const mentionKeys = (mentions || [])
+    .map((mention) => mention && mention.key)
+    .filter(Boolean);
+
+  for (const key of mentionKeys) {
+    const pattern = new RegExp('^\\s*' + escapeRegExp(key) + '\\s*');
+    if (pattern.test(cleaned)) {
+      cleaned = cleaned.replace(pattern, '');
+      return cleaned.trimStart();
+    }
+  }
+
+  return cleaned.replace(/^\s*@_user_\d+\s*/, '').trimStart();
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * 解析飞书卡片交互事件数据，提取操作类型、用户信息和表单值
  * @param {Object} data - 飞书卡片交互原始数据
@@ -41,10 +63,11 @@ function parseCardAction(data) {
 
   return {
     openId: context.open_id || '',
-    chatId: context.chat_id || '',
-    messageId: context.message_id || '',
+    chatId: context.chat_id || context.open_chat_id || '',
+    messageId: context.message_id || context.open_message_id || '',
     action: (action.value && action.value.action) || '',
     formValue: action.form_value || null,
+    routeKey: (action.value && action.value.routeKey) || '',
   };
 }
 

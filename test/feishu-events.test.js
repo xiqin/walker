@@ -27,6 +27,36 @@ test('parseMessageEvent 提取文本消息字段', () => {
   assert.equal(parsed.createTime, 1783579441000);
 });
 
+test('parseMessageEvent 清理群聊 mention 前缀命令', () => {
+  const data = {
+    sender: { sender_id: { open_id: 'ou_123' } },
+    message: {
+      message_id: 'om_msg1',
+      chat_id: 'oc_chat1',
+      chat_type: 'group',
+      message_type: 'text',
+      content: JSON.stringify({ text: '@_user_1 /list' }),
+      mentions: [{ key: '@_user_1' }],
+    },
+  };
+  const parsed = parseMessageEvent(data);
+  assert.equal(parsed.text, '/list');
+});
+
+test('parseMessageEvent 普通命令保持不变', () => {
+  const data = {
+    sender: { sender_id: { open_id: 'ou_123' } },
+    message: {
+      message_id: 'om_msg2',
+      chat_id: 'oc_chat1',
+      message_type: 'text',
+      content: JSON.stringify({ text: '/list' }),
+    },
+  };
+  const parsed = parseMessageEvent(data);
+  assert.equal(parsed.text, '/list');
+});
+
 test('parseMessageEvent text 无 root_id 和 parent_id', () => {
   const data = {
     sender: { sender_id: { open_id: 'ou_abc' } },
@@ -65,6 +95,24 @@ test('parseCardAction 提取按钮 action', () => {
   assert.equal(parsed.action, 'cmd:/use wks_abc123');
 });
 
+test('parseCardAction 支持飞书卡片回调 open_* 上下文字段', () => {
+  const data = {
+    action: {
+      value: { action: 'cmd:/use wks_abc123' },
+    },
+    context: {
+      open_id: 'ou_user1',
+      open_chat_id: 'oc_chat1',
+      open_message_id: 'om_msg1',
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.openId, 'ou_user1');
+  assert.equal(parsed.chatId, 'oc_chat1');
+  assert.equal(parsed.messageId, 'om_msg1');
+  assert.equal(parsed.action, 'cmd:/use wks_abc123');
+});
+
 test('parseCardAction 提取 form value', () => {
   const data = {
     action: {
@@ -79,6 +127,35 @@ test('parseCardAction 提取 form value', () => {
   const parsed = parseCardAction(data);
   assert.equal(parsed.action, 'cmd:/stop wks_xyz');
   assert.deepEqual(parsed.formValue, { confirm: 'yes' });
+});
+
+test('parseCardAction 提取嵌入的 routeKey', () => {
+  const data = {
+    action: {
+      value: { action: 'cmd:/use wks_abc123', routeKey: 'feishu:oc_chat1:root:om_root1' },
+    },
+    context: {
+      open_id: 'ou_user1',
+      chat_id: 'oc_chat1',
+      message_id: 'om_msg1',
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.routeKey, 'feishu:oc_chat1:root:om_root1');
+});
+
+test('parseCardAction 无 routeKey 时返回空字符串', () => {
+  const data = {
+    action: {
+      value: { action: 'cmd:/use wks_abc123' },
+    },
+    context: {
+      open_id: 'ou_user1',
+      chat_id: 'oc_chat1',
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.routeKey, '');
 });
 
 test('parseMessageEvent 缺少 create_time 时为 undefined', () => {
