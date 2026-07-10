@@ -1,0 +1,118 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "Admin HTTP 服务骨架与鉴权已完成：server.js 实现 AdminServer 生命周期（start/stop/getStatus），adminEnabled=false 时返回禁用状态不监听端口；router.js 实现轻量 method+path 路由匹配和 :id 参数提取；response.js 实现统一 JSON 成功/错误响应格式；auth.js 实现 Bearer+cookie 双通道 token 验证和 authGuard 包装器，提供 auth/status 和 auth/login 接口；static.js 实现静态文件服务、MIME 映射、路径穿越防护、SPA fallback（API 路径不 fallback）。41/41 测试全通过。",
+  "artifacts": [
+    "src/admin/server.js",
+    "src/admin/router.js",
+    "src/admin/response.js",
+    "src/admin/auth.js",
+    "src/admin/static.js",
+    "test/admin-server.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "createAdminServer",
+      "path": "src/admin/server.js",
+      "signature": "(options?) => { start, stop, server, getStatus, router }; options = { config: { enabled, host, port, token }, routes?, publicDir?, eventStore?, now?, serverFactory? }; start() => Promise<{ ok, disabled?, host?, port? }>"
+    },
+    {
+      "name": "createRouter",
+      "path": "src/admin/router.js",
+      "signature": "() => { add(method, pattern, handler), match(method, pathname) => { handler, params } | null, routes }"
+    },
+    {
+      "name": "compilePattern",
+      "path": "src/admin/router.js",
+      "signature": "(pattern) => { re: RegExp, names: string[] }"
+    },
+    {
+      "name": "isAdminApiPath",
+      "path": "src/admin/router.js",
+      "signature": "(pathname) => boolean"
+    },
+    {
+      "name": "success",
+      "path": "src/admin/response.js",
+      "signature": "(data) => { ok: true, data }"
+    },
+    {
+      "name": "error",
+      "path": "src/admin/response.js",
+      "signature": "(code, message) => { ok: false, error: { code, message } }"
+    },
+    {
+      "name": "send",
+      "path": "src/admin/response.js",
+      "signature": "(res, body, statusCode?) => void; 自动设置 JSON 头和状态码"
+    },
+    {
+      "name": "errorCodeToStatus",
+      "path": "src/admin/response.js",
+      "signature": "(errorCode) => number; UNAUTHORIZED→401, NOT_FOUND→404, etc."
+    },
+    {
+      "name": "extractToken",
+      "path": "src/admin/auth.js",
+      "signature": "(req) => string; 从 Authorization Bearer 或 cookie walker_admin_token 提取"
+    },
+    {
+      "name": "isAuthenticated",
+      "path": "src/admin/auth.js",
+      "signature": "(req, config) => boolean; 无 token 配置时始终 true"
+    },
+    {
+      "name": "createAuthGuard",
+      "path": "src/admin/auth.js",
+      "signature": "(config, responseModule) => (handler) => guardedHandler; 包装路由 handler 要求先通过鉴权"
+    },
+    {
+      "name": "parseBody",
+      "path": "src/admin/auth.js",
+      "signature": "(req, callback) => void; 异步解析 JSON 请求体"
+    },
+    {
+      "name": "createAuthHandlers",
+      "path": "src/admin/auth.js",
+      "signature": "(config, responseModule) => { statusHandler, loginHandler }; status→GET /auth/status, login→POST /auth/login"
+    },
+    {
+      "name": "MIME_TYPES",
+      "path": "src/admin/static.js",
+      "signature": "Object; 扩展名→Content-Type 映射表"
+    },
+    {
+      "name": "getMimeType",
+      "path": "src/admin/static.js",
+      "signature": "(filePath) => string"
+    },
+    {
+      "name": "hasTraversal",
+      "path": "src/admin/static.js",
+      "signature": "(urlPath) => boolean; 检测 .. 段"
+    },
+    {
+      "name": "resolveFilePath",
+      "path": "src/admin/static.js",
+      "signature": "(urlPath, publicDir) => string|null; 安全映射到文件系统路径"
+    },
+    {
+      "name": "isSpaFallbackCandidate",
+      "path": "src/admin/static.js",
+      "signature": "(pathname) => boolean; 排除 API 和已知静态扩展名"
+    },
+    {
+      "name": "serveFile",
+      "path": "src/admin/static.js",
+      "signature": "(res, filePath, responseModule) => void; 读取文件并返回"
+    },
+    {
+      "name": "handleStatic",
+      "path": "src/admin/static.js",
+      "signature": "(req, res, publicDir, responseModule) => void; 完整静态请求处理流程"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-001", "REQ-002", "REQ-025", "REQ-026"],
+  "notes": "authGuard 使用包装器模式 (handler => guardedHandler)，而非中间件 (req, res, next) 模式，与路由匹配器的 handler 签名 (req, res, params) 一致。cookie Path 设置为 /（而非 /api/admin）以便 SPA 页面也能携带 cookie 访问 API。serverFactory 参数支持注入自定义 http.Server 创建逻辑，用于测试隔离。所有测试使用 port:0 随机端口和 Connection:close 头避免端口冲突和 ECONNRESET。"
+}

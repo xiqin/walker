@@ -1,0 +1,43 @@
+{
+  "verdict": "PASS",
+  "evidence": {
+    "command": "npm run check",
+    "exit_code": 0,
+    "file": "evidence/verification.log",
+    "sha256": "dd1927cd5b42b0445663fddf32b7a93f18dca80075f24c1cee3511bc19bcfc5a",
+    "summary": "syntax checks passed; node --test test/*.test.js completed 192 tests, 192 passed, 0 failed"
+  },
+  "artifact_checker": {
+    "status": "inconclusive",
+    "reason": "local skill script imports missing C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js",
+    "mitigation": "manual artifact, verdict, evidence receipt, placeholder, task-state, and fresh npm run check verification completed"
+  },
+  "placeholder_scan": "No unfinished placeholder markers found in spec markdown, src/**/*.js, or test/**/*.js.",
+  "constitution_note": "constitution technical stack and coding redline sections still contain template content, so no concrete BUILD_CMD/VET_CMD/TEST_CMD were available there.",
+  "remaining_risks": [
+    "未连接真实飞书租户、真实 WSClient 长连接或真实 OpenCode 服务做端到端演练。",
+    "Windows/WSL terminal 转义由命令构造测试覆盖，未在真实 cmd.exe 交互窗口手动覆盖所有特殊字符组合。",
+    "未来 OpenCode SSE schema 变化仍可能需要适配。"
+  ],
+  "status": "done",
+  "summary": "完成最终 verification：读取 test-report PASS 与执行 handoff，重新运行 npm run check 并保存 evidence/verification.log；192 tests 全部通过，报告证据哈希一致，占位符扫描无命中。",
+  "artifacts": [
+    "verify-report.md",
+    "evidence/verification.log",
+    "test-report.md",
+    "check-output.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "eb738feace817280e1308a0c303bc6f1df9f87c104dbbb906493b06b16532b68",
+    "spec.md": "53e49bb4e32df7a5f52d46cd5a897ca466f779fb4776e7e6f83bb7eecfc7c93d",
+    "test-report.md": "29cf346d744e770b0220092d7b8c0632064930a7cc5eea6dc5217e2cd39fbfc4"
+  },
+  "artifact_fingerprints": {
+    "evidence/verification.log": "dd1927cd5b42b0445663fddf32b7a93f18dca80075f24c1cee3511bc19bcfc5a",
+    "test-report.md": "29cf346d744e770b0220092d7b8c0632064930a7cc5eea6dc5217e2cd39fbfc4",
+    "verify-report.md": "46770ff746f77d9add218bcd4badfc23367c333a6c029467b0b12bf87cd5ccb9"
+  },
+  "written_at": "2026-07-09T16:39:20.264Z"
+}

@@ -1,0 +1,62 @@
+﻿{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "调试工具、卡片预览、指标与服务控制 API 已完成：command-simulator.js 实现命令模拟器（parseCommand→动作摘要→dryRun=true），card-preview.js 实现卡片类型列表和渲染预览（5种卡片类型+简化视觉预览），service-control.js 实现二次确认服务停止（confirm=true/注入stopApp/exitProcess），tools-routes.js 导出5条路由。43/43 测试全通过，T1/T2/T3 测试无回归。",
+  "artifacts": [
+    "src/admin/command-simulator.js",
+    "src/admin/card-preview.js",
+    "src/admin/service-control.js",
+    "src/admin/tools-routes.js",
+    "test/admin-tools.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "simulateCommand",
+      "path": "src/admin/command-simulator.js",
+      "signature": "(text, options?) => { input, parsed, action, dryRun, commandDef? }; options={routeKey,dryRun}; dryRun默认true"
+    },
+    {
+      "name": "describeAction",
+      "path": "src/admin/command-simulator.js",
+      "signature": "(parsed, routeKey?) => { action, description, routeKey, command?, args?, details }"
+    },
+    {
+      "name": "listCardTypes",
+      "path": "src/admin/card-preview.js",
+      "signature": "() => [{ name, description }]; 5种:unbound_route/session_list/attachable_session/error/progress"
+    },
+    {
+      "name": "getSampleData",
+      "path": "src/admin/card-preview.js",
+      "signature": "(typeName) => Object|null; 返回示例数据JSON"
+    },
+    {
+      "name": "previewCard",
+      "path": "src/admin/card-preview.js",
+      "signature": "(typeName, customData?) => { typeName, data, rendered, preview }|null"
+    },
+    {
+      "name": "extractPreview",
+      "path": "src/admin/card-preview.js",
+      "signature": "(rendered) => { header:{title,template}, elementCount, elements[] }"
+    },
+    {
+      "name": "CARD_TYPES",
+      "path": "src/admin/card-preview.js",
+      "signature": "Array<{name,description,sampleData:()=>Object,render:(data)=>Object}>; 5种卡片定义表"
+    },
+    {
+      "name": "handleServiceStop",
+      "path": "src/admin/service-control.js",
+      "signature": "(req, res, ctx, deps) => void; deps={stopApp,exitProcess,response,parseBodyFn?,recordEventFn?}; confirm=true才执行; 成功后setTimeout(500)调exitProcess"
+    },
+    {
+      "name": "createToolsRoutes",
+      "path": "src/admin/tools-routes.js",
+      "signature": "(appContext, deps?) => Array<{method,pattern,handler}>; 5条路由; deps={stopApp?,exitProcess?}"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-020", "REQ-021", "REQ-023", "REQ-024", "REQ-026"],
+  "notes": "service-control 停止确认后通过注入 exitProcess 延迟500ms退出进程，测试通过注入 stopApp/exitProcess 完全隔离。tools-routes 的 metrics 路由复用 T1 event-store 的 getMetrics。parseQueryString 支持 URL 解码。admin action/error 事件写入 eventStore。"
+}

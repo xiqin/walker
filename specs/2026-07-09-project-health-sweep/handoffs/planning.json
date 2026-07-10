@@ -1,0 +1,50 @@
+{
+  "task_count": 6,
+  "tasks": [
+    "T1 Core store 与 HTTP/SSE 边界",
+    "T2 Feishu API、卡片与平台事件边界",
+    "T3 Session 删除与终态保护",
+    "T4 MessageDispatcher 异步错误与状态收敛",
+    "T5 OpenCode driver 响应校验与跨 session SSE 过滤",
+    "T6 Windows/WSL terminal 命令转义与完整验证"
+  ],
+  "validation": [
+    "node validate-plan.mjs --spec-dir H:\\walker\\specs\\2026-07-09-project-health-sweep 通过；警告：spec.md 没有内嵌 REQ ID，plan.md 已提供映射",
+    "loom tasks --spec-dir H:\\walker\\specs\\2026-07-09-project-health-sweep --validate 通过，无文件冲突"
+  ],
+  "dependency_order": [
+    "T1",
+    "T2/T3/T5 after T1",
+    "T4 after T2 and T3",
+    "T6 after T1-T5"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "完成实现计划拆解：将 13 类高置信缺陷映射为 6 个按依赖排序的可验证任务，产出 plan.md 与 tasks/T1.md 到 T6.md；规划校验通过，任务冲突检测通过。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "eb738feace817280e1308a0c303bc6f1df9f87c104dbbb906493b06b16532b68",
+    "spec.md": "53e49bb4e32df7a5f52d46cd5a897ca466f779fb4776e7e6f83bb7eecfc7c93d",
+    "tasks/": "93c03e2e98bd76342024806107237f2cab24077256a14387c9fa5765e304f8d9"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "eb738feace817280e1308a0c303bc6f1df9f87c104dbbb906493b06b16532b68",
+    "tasks/T1.md": "0c08677d68c27bf8938cbcfa9575c79dd13ed0d2561232700dec42ec5f9056a9",
+    "tasks/T2.md": "5ea6523c07b16db90b56f1a970b3a11a688772cd229a2641c7b67d84cb0fbe45",
+    "tasks/T3.md": "f905a4231d61038ea4348163c1faab41dcfffea180f067432daf865002e394e1",
+    "tasks/T4.md": "9e49612f0745cc6b390db917072bea5846404f9b079d68e2f785e449a149d361",
+    "tasks/T5.md": "61a3d5a575dce726f94737d66a0f3b65b3318973eb8d5cc8b959bc944f1220dc",
+    "tasks/T6.md": "8dd3b8a8d6cb13408815a158c967826c3352f61927c2f015d2ac4a8e08696536"
+  },
+  "written_at": "2026-07-09T15:47:02.182Z"
+}

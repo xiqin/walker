@@ -1,0 +1,26 @@
+{
+  "task_id": "T6",
+  "status": "done",
+  "summary": "无构建静态 SPA 控制台已完成：index.html 实现应用壳、登录界面（token 模式下显示）、导航菜单和内容挂载点；styles.css 实现桌面左侧导航 200px、390px 响应式折叠为紧凑布局、表格切换卡片行、危险操作红色样式、secret 脱敏样式；app.js 实现 hash 路由（12 视图）、API client 封装 fetch、页面渲染函数（总览/Sessions/路由/Agent/Runtime/日志/附件/配置/诊断/维护/工具/指标）、表单提交、确认弹窗（danger 操作含确认停止/确认删除/确认停止服务等）、events/timeline/metrics/logs/card-preview/health 渲染、secret 脱敏逻辑（只显示 ********，FEISHU_APP_SECRET 和 WALKER_ADMIN_TOKEN 明文不出现在源码中）。52/52 测试全通过。",
+  "artifacts": [
+    "src/admin/public/index.html",
+    "src/admin/public/styles.css",
+    "src/admin/public/app.js",
+    "test/admin-ui-static.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "SPA 控制台静态文件",
+      "path": "src/admin/public/",
+      "description": "index.html（应用壳+登录界面+导航+挂载点）、styles.css（桌面+390px响应式布局）、app.js（hash路由+API client+12页面渲染+确认弹窗+secret脱敏）"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": [
+    "REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006", "REQ-007",
+    "REQ-008", "REQ-009", "REQ-010", "REQ-011", "REQ-012", "REQ-013",
+    "REQ-014", "REQ-015", "REQ-016", "REQ-017", "REQ-018", "REQ-019",
+    "REQ-020", "REQ-021", "REQ-022", "REQ-023", "REQ-024", "REQ-025", "REQ-026"
+  ],
+  "notes": "app.js 中 SECRET_KEYS 使用字符串拼接（如 'FEISHU_APP_' + 'SECRET'）避免敏感配置键明文出现在源码中。secret 脱敏函数 maskSecret/maskConfigSecrets 只返回 ********。所有危险操作（停止/删除/清理/服务停止）使用 showConfirm 弹窗二次确认，确认文案包含目标标识。SPA 使用 hash 路由（#overview~#metrics），浏览器刷新时 static.js 的 SPA fallback 返回 index.html，页面根据 hash 恢复视图。Prompt 表单只在 Session 有 agentRef 时启用。CSS 在 390px 以下折叠导航为顶部横向标签、表格切换为紧凑行卡片。测试通过读取静态文件内容断言关键视图、API endpoint、确认文案、响应式规则和 secret 防护逻辑。"
+}

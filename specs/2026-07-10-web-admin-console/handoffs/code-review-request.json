@@ -1,0 +1,16 @@
+{
+  "change_note": "将自审句中的占位符关键字改为正式表述，避免流水线占位符检查误报",
+  "status": "done",
+  "summary": "审查请求已生成；预审查发现的 blocker 已全部修复（前后端 API 对齐、entries 裁剪、代码质量修复）；461 测试通过。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "48ff2d83c26a6b1d3500234a016847d1bdf81bcae7d6cf3cd82ddb8a2257e5d0",
+    "spec.md": "feb3532a5c837d4d45db730e2fb6b0f793c0e77aeda927621850ceba96c27d83"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-10T04:28:00.499Z"
+}

@@ -1,0 +1,22 @@
+{
+  "decisions": [
+    "本轮聚焦 13 类高置信缺陷：Feishu API 错误处理、进度卡片可更新性、长连接事件快速 ACK、异步失败捕获、JsonStore 默认值污染、deleted session 保护、prompt 终态保护、HTTP/SSE 边界、Opencode session 创建校验、目录级 SSE 串流过滤、Windows/WSL terminal 参数转义、群聊 @ 命令解析、WSClient.start 等待。",
+    "不强制处理 constitution 模板占位、ws 小版本升级、README/DESIGN 长期承诺，避免把健康修复扩大成文档和产品范围重写。",
+    "保留 CommonJS 和现有目录结构，最小必要改动；每个高风险修复需要测试覆盖，最终运行 npm run check。"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "完成全项目健康审计与规格收敛：优先修复高置信、可测试的运行时缺陷；文档模板占位、依赖小版本升级和长期设计承诺延期处理。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "53e49bb4e32df7a5f52d46cd5a897ca466f779fb4776e7e6f83bb7eecfc7c93d"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "53e49bb4e32df7a5f52d46cd5a897ca466f779fb4776e7e6f83bb7eecfc7c93d"
+  },
+  "written_at": "2026-07-09T15:41:01.284Z"
+}

@@ -1,0 +1,26 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "Hardened OpenCode createSession response validation and directory-level SSE session filtering. createSession now rejects non-2xx responses or missing session ids before opening a terminal, and prompt/watch SSE handling ignores events that do not explicitly belong to the target session.",
+  "artifacts": [
+    "src/drivers/opencode-driver.js",
+    "test/opencode-driver.test.js"
+  ],
+  "requirements_verified": [
+    "REQ-009",
+    "REQ-010"
+  ],
+  "validation": [
+    {
+      "phase": "red",
+      "command": "node --test test/opencode-driver.test.js",
+      "result": "failed as expected: 30 tests, 26 passed, 4 failed. Failures covered createSession non-2xx, createSession missing session id, no-session-id assistant text leakage, and no-session-id idle early termination."
+    },
+    {
+      "phase": "green",
+      "command": "node --test test/opencode-driver.test.js",
+      "result": "passed: 30 tests, 30 passed, 0 failed."
+    }
+  ],
+  "breaking_changes": []
+}

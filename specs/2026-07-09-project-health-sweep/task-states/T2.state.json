@@ -1,0 +1,11 @@
+{
+  "task_id": "T2",
+  "spec_dir": "H:\\walker\\specs\\2026-07-09-project-health-sweep",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-07-09T15:57:03.826Z",
+  "updated_at": "2026-07-09T16:06:25.004Z",
+  "last_reviewer_result": null,
+  "blocker": null
+}

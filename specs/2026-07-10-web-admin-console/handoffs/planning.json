@@ -1,0 +1,49 @@
+{
+  "task_order": [
+    "T1 管理端配置与事件指标基础",
+    "T2 Admin HTTP 服务骨架与鉴权",
+    "T3 Session、Route、Agent 与 Runtime API",
+    "T4 配置编辑、日志、附件、维护与诊断 API",
+    "T5 调试工具、卡片预览、指标与服务控制 API",
+    "T6 无构建静态 SPA 控制台",
+    "T7 应用集成、脚本收口与全量验证"
+  ],
+  "dependency_summary": "T1 -> T2 -> T3；T4 与 T5 均依赖 T3，文件所有权独立；T6 依赖 T2-T5；T7 依赖全部前序任务。",
+  "requirements_coverage": "REQ-001 至 REQ-026 均至少映射到一个任务；REQ-026 在每个任务中包含对应自动化测试。",
+  "validation": [
+    "node C:\\Users\\tianxiqin\\.config\\opencode\\skills\\loom-writing-plans\\scripts\\validate-plan.mjs --spec-dir H:\\walker\\specs\\2026-07-10-web-admin-console -> Checked 7 task file(s)",
+    "loom tasks --spec-dir H:\\walker\\specs\\2026-07-10-web-admin-console --validate -> No file conflicts detected across 7 tasks"
+  ],
+  "parallel_boundaries": "默认按依赖串行执行；T4 和 T5 在 T3 完成后可并行实现，因为 owns 集合无交集；T7 必须最后执行。",
+  "open_questions": [],
+  "status": "done",
+  "summary": "已将网页管理端规格拆为 7 个可验证任务：配置与事件基础、HTTP 服务骨架、核心业务 API、文件维护与诊断 API、调试工具与服务控制、静态 SPA、最终集成与验证。计划校验通过，任务所有权无冲突。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md",
+    "tasks/T7.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "48ff2d83c26a6b1d3500234a016847d1bdf81bcae7d6cf3cd82ddb8a2257e5d0",
+    "spec.md": "feb3532a5c837d4d45db730e2fb6b0f793c0e77aeda927621850ceba96c27d83",
+    "tasks/": "fe65fa7ac1f3724f7337cdf9ac7a6f1551a3dd7c5ebce760b2ae8b93eaf693ea"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "48ff2d83c26a6b1d3500234a016847d1bdf81bcae7d6cf3cd82ddb8a2257e5d0",
+    "tasks/T1.md": "e77edae15fd291a0e2a50d5208056a9cbc9445a2afeec5f6347431bc4633081a",
+    "tasks/T2.md": "de4ae2e8d938b1feddaee63c19c77bdb4551b2107dbbd4b272d8216a78c3a6b2",
+    "tasks/T3.md": "07dc589debe32c4aa349c6226517bb73ae9676c03e5ea6606aebd6a7cb3c2bd3",
+    "tasks/T4.md": "dfdb572007310038126a3a488301d387e666f59aa4aafea20531574f9e2a8184",
+    "tasks/T5.md": "559c08716ec10935cc9d526fe1a37e4ef9e0a14e0050c4467f9e9c6b7eab41e4",
+    "tasks/T6.md": "6c4f871a7c7b62dc53a4229812206f99523536c9b0fbac19cab7fa72f9fe1d3c",
+    "tasks/T7.md": "5332eb6f334c0af37f6b54a6d2313801f072ea101081d1f25aa5a54c3d0c80ce"
+  },
+  "written_at": "2026-07-10T02:07:32.434Z"
+}

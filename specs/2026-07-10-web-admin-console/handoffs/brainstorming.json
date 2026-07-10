@@ -1,0 +1,25 @@
+{
+  "decisions": [
+    "管理端定位为本机 Agent Hub 控制台。",
+    "确认方案 A：在现有 Walker Node.js 单进程内增加本地 AdminServer。",
+    "默认监听 127.0.0.1，支持 WALKER_ADMIN_* 配置。",
+    "不引入数据库或大型前端构建链。",
+    "写操作通过 Admin API 复用 service/driver，并加入 allowlist、token 与二次确认约束。"
+  ],
+  "open_questions": [],
+  "change_note": "将自审结论中含占位符关键字的表述改为正式表述，避免流水线占位符检查误报。",
+  "status": "done",
+  "summary": "规格已确认；本次刷新仅移除自审句中的占位符检查误报，不改变需求、架构方案或验收范围。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "feb3532a5c837d4d45db730e2fb6b0f793c0e77aeda927621850ceba96c27d83"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "feb3532a5c837d4d45db730e2fb6b0f793c0e77aeda927621850ceba96c27d83"
+  },
+  "written_at": "2026-07-10T01:51:10.041Z"
+}

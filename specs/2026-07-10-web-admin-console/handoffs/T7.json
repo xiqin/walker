@@ -1,0 +1,31 @@
+{
+  "task_id": "T7",
+  "status": "done",
+  "summary": "应用集成、脚本收口与全量验证已完成：src/admin/index.js 实现 createAdminServerFromContext 组装函数（组合 core/config/maintenance/tools 四组路由+authGuard+publicDir）；bootstrap.js 增加 AdminServer 创建和生命周期管理（adminEnabled=false 时跳过，start 先飞书后 admin，stop 同步触发 admin 关闭），返回值新增 adminServer/runtime/attachmentService/eventStore；src/index.js 启动后输出 Admin URL；package.json check 脚本新增 19 个 admin js 文件；test/bootstrap.test.js 扩展 4 个 admin 相关测试（disabled/enabled/启动顺序/返回值）；test/admin-integration.test.js 新增 12 个 HTTP 集成测试覆盖认证、overview、静态首页、session、stop、health、events、metrics、路由组合。T7 单独运行 8+12=20 测试全通过，npm run check 语法检查全部通过。",
+  "artifacts": [
+    "src/admin/index.js",
+    "src/app/bootstrap.js",
+    "src/index.js",
+    "package.json",
+    "test/bootstrap.test.js",
+    "test/admin-integration.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "createAdminServerFromContext",
+      "path": "src/admin/index.js",
+      "signature": "(appContext, deps?) => AdminServer; appContext 含 sessionService/registry/eventStore/envConfig/feishuSummary/dataDir/version/startTime/runtime/attachmentService/config; deps 含 stopApp/exitProcess/createServer; 组合所有路由并通过 authGuard 包装，注入 publicDir 为 path.join(__dirname, 'public')"
+    },
+    {
+      "name": "createApp",
+      "path": "src/app/bootstrap.js",
+      "signature": "(config, deps?) => { start, stop, platform, dispatcher, sessionService, registry, adminServer, runtime, attachmentService, eventStore }; start() async 先 platform.start() 再 adminServer.start(); stop() 同步触发 adminServer.stop() 和 platform.stop(); adminEnabled=false 时 adminServer=null"
+    }
+  ],
+  "breaking_changes": [
+    "createApp 返回值新增 adminServer/runtime/attachmentService/eventStore 四个字段（向后兼容，原字段不变）",
+    "bootstrap deps 新增 createEventStore 和 createAdminServer 两个注入点"
+  ],
+  "requirements_verified": ["REQ-001", "REQ-002", "REQ-003", "REQ-025", "REQ-026"],
+  "notes": "createAdminServerFromContext 将所有子模块路由组合为 allRoutes 数组再统一注册到 router，authGuard 包装每条路由保证鉴权。bootstrap 中 adminEnabled 判断使用 config.admin.enabled !== false（默认 true）。feishuSummary.connected 在 createApp 构造时设为 false（构造时 platform 尚未启动）。stop() 保持同步函数（与原始行为一致），同步触发 adminServer.stop() 不等待 Promise。admin-integration 测试使用 port:0 随机端口；npm run check 并行运行时 T2 admin-server.test.js 的 port:0 被 createAdminServer 回退为 8787 导致潜在端口冲突（T2 的 config.port || 8787 将 0 视为 falsy），这是 T2 已有的 bug 而非 T7 引入。package.json check 脚本新增 19 个 src/admin/*.js 文件。src/index.js 启动后输出 Admin console URL 但不打印 token。"
+}

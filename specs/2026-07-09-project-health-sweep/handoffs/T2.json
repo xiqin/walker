@@ -1,0 +1,42 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "Hardened Feishu API success checks, progress card config, mention command parsing, asynchronous event ACK handling, and WSClient startup propagation.",
+  "artifacts": [
+    "src/platform/feishu/api.js",
+    "src/platform/feishu/progress-card.js",
+    "src/platform/feishu/events.js",
+    "src/platform/feishu/platform.js",
+    "test/feishu-api.test.js",
+    "test/progress-card.test.js",
+    "test/feishu-events.test.js",
+    "test/feishu-platform.test.js"
+  ],
+  "requirements_verified": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-012",
+    "REQ-013"
+  ],
+  "commands": [
+    {
+      "command": "node --test test/feishu-api.test.js test/progress-card.test.js test/feishu-events.test.js test/feishu-platform.test.js",
+      "phase": "red",
+      "result": "failed as expected with 11 failing tests covering Feishu API HTTP/business errors, missing card message_id, reaction rejection, mention cleanup, fast ACK, non-text reply rejection, WSClient.start awaiting, and update_multi."
+    },
+    {
+      "command": "node --test test/feishu-api.test.js test/progress-card.test.js test/feishu-events.test.js test/feishu-platform.test.js",
+      "phase": "green",
+      "result": "passed with 34 tests, 0 failures."
+    }
+  ],
+  "notes": [
+    "T1 handoff was read for navigation; no conflict with current source was found.",
+    "FeishuApi._request now rejects non-2xx HTTP responses and Feishu code values other than 0 with method/path/status/code context.",
+    "replyCard now requires a real data.message_id and no longer returns om_card_stub.",
+    "FeishuPlatform event callbacks now start background work and return immediately; background failures are logged through existing logger paths.",
+    "The worktree contained pre-existing unrelated changes outside T2 scope; they were left untouched."
+  ]
+}

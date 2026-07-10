@@ -1,0 +1,26 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "Hardened MessageDispatcher Feishu API promise handling, command error boundaries, and prompt completion state convergence for stopped/deleted sessions.",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js"
+  ],
+  "requirements_verified": [
+    "REQ-004",
+    "REQ-007"
+  ],
+  "validation": [
+    {
+      "command": "node --test test/message-dispatcher.test.js",
+      "phase": "red",
+      "result": "failed as expected with 9 failing tests covering rejected Feishu sendUnboundGuide/addReaction/sendErrorCard/replyText promises, /new and /use command failures, and prompt completion racing stopped/deleted terminal states."
+    },
+    {
+      "command": "node --test test/message-dispatcher.test.js",
+      "phase": "green",
+      "result": "passed with 26 tests, 0 failures."
+    }
+  ],
+  "breaking_changes": []
+}

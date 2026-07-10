@@ -1,0 +1,107 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "Session、Route、Agent 与 Runtime API 全部完成：session-admin.js 实现 7 个服务函数（list/get/create/stop/delete/prompt/timeline），route-admin.js 实现 5 个服务函数（list/bind/unbind/detectDangling/cleanupDangling），agent-runtime-admin.js 实现 5 个服务函数（listAgents/checkAgent/ensureReadyAgent/detectRuntime/detectHealth），core-routes.js 导出 createCoreRoutes 注册 19 条路由。56/56 测试全通过，T1/T2 测试无回归。",
+  "artifacts": [
+    "src/admin/core-routes.js",
+    "src/admin/session-admin.js",
+    "src/admin/route-admin.js",
+    "src/admin/agent-runtime-admin.js",
+    "test/admin-core-api.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "createCoreRoutes",
+      "path": "src/admin/core-routes.js",
+      "signature": "(appContext) => Array<{ method, pattern, handler }>; appContext 含 sessionService/registry/eventStore/envConfig/feishuSummary/dataDir/version startTime"
+    },
+    {
+      "name": "listSessions",
+      "path": "src/admin/session-admin.js",
+      "signature": "(ctx) => Object[]"
+    },
+    {
+      "name": "getSession",
+      "path": "src/admin/session-admin.js",
+      "signature": "(ctx, sessionId) => Object|null; 含 routeKeys 和 timeline 摘要"
+    },
+    {
+      "name": "createSession",
+      "path": "src/admin/session-admin.js",
+      "signature": "(ctx, opts) => Promise<Object>; opts 含 agent/title/runtime/cwd/route/createAgentSession"
+    },
+    {
+      "name": "stopSession",
+      "path": "src/admin/session-admin.js",
+      "signature": "(ctx, sessionId) => Promise<{ ok, session?, warning?, error? }>"
+    },
+    {
+      "name": "deleteSession",
+      "path": "src/admin/session-admin.js",
+      "signature": "(ctx, sessionId) => Promise<{ ok, warning?, error? }>"
+    },
+    {
+      "name": "sendPrompt",
+      "path": "src/admin/session-admin.js",
+      "signature": "(ctx, sessionId, text) => Promise<{ ok, events?, error? }>; 限有 agentRef 的 session"
+    },
+    {
+      "name": "getTimeline",
+      "path": "src/admin/session-admin.js",
+      "signature": "(ctx, sessionId, opts?) => Object[]"
+    },
+    {
+      "name": "listRoutes",
+      "path": "src/admin/route-admin.js",
+      "signature": "(ctx) => Object[]; 每条含 routeKey/sessionId/health/dangling"
+    },
+    {
+      "name": "bindRoute",
+      "path": "src/admin/route-admin.js",
+      "signature": "(ctx, routeKey, sessionId) => { ok, routeKey, sessionId } | { ok, error }"
+    },
+    {
+      "name": "unbindRoute",
+      "path": "src/admin/route-admin.js",
+      "signature": "(ctx, routeKey) => { ok, routeKey }"
+    },
+    {
+      "name": "detectDangling",
+      "path": "src/admin/route-admin.js",
+      "signature": "(ctx) => Object[]; 每条含 routeKey/sessionId/reason"
+    },
+    {
+      "name": "cleanupDangling",
+      "path": "src/admin/route-admin.js",
+      "signature": "(ctx, confirm) => { ok, cleaned? } | { ok, error }"
+    },
+    {
+      "name": "listAgents",
+      "path": "src/admin/agent-runtime-admin.js",
+      "signature": "(ctx) => Object[]; 每条含 name/available/reason/config"
+    },
+    {
+      "name": "checkAgent",
+      "path": "src/admin/agent-runtime-admin.js",
+      "signature": "(ctx, agentName) => Promise<{ ok, healthy, agent, error?, config? }>"
+    },
+    {
+      "name": "ensureReadyAgent",
+      "path": "src/admin/agent-runtime-admin.js",
+      "signature": "(ctx) => Promise<{ ok, ready, agent?, error? }>"
+    },
+    {
+      "name": "detectRuntime",
+      "path": "src/admin/agent-runtime-admin.js",
+      "signature": "(ctx, opts?) => { windows: { type, cwd, cwdExists }, wsl: { type, distro, cwd, cwdExists, ipDetected, ip, ipError } }; opts 可注入 checkCwd/detectWslIp"
+    },
+    {
+      "name": "detectHealth",
+      "path": "src/admin/agent-runtime-admin.js",
+      "signature": "(ctx, opts?) => Promise<Object[]>; 返回 dangling_routes/opencode/runtime 检查结果"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-003", "REQ-004", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009", "REQ-010", "REQ-011", "REQ-016", "REQ-017", "REQ-018", "REQ-022", "REQ-023", "REQ-026"],
+  "notes": "createCoreRoutes 返回路由数组而非直接注册到 router，由集成方（createAdminServer routes 回调）自行注册。session-admin 所有状态变更写入 eventStore。stop/delete 优先调 driver，失败返回 warning 并继续更新 Walker 状态。prompt 限有 agentRef 的 session。stub driver 通过 detectStubDriver 检查方法源码字符串识别，不实际调用异步方法避免 unhandled rejection。detectRuntime 支持 opts 注入 checkCwd 和 detectWslIp，测试可完全隔离。core-routes 的 overview handler 直接读取 eventStore 的最近错误和 metrics 摘要。"
+}

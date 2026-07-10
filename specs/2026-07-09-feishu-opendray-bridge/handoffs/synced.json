@@ -1,0 +1,19 @@
+{
+  "status": "done",
+  "summary": "索引同步完成：codegraph 已确认 fresh，新增 3 条 memory（2 踩坑 + 1 决策），MEMORY.md 已导出，无需更新入口文件",
+  "artifacts": [
+    "specs/2026-07-09-feishu-opendray-bridge/index-update-report.md",
+    ".loom/memory/MEMORY.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "34d2c878771886dbb127ef5423bb970e2cafe473fe9da36128615cf56b8ff1a7",
+    "spec.md": "94ce7272d98e3910a5f29d49a94faf71816466ab14c09c1528ee2ddf43377ce5"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/MEMORY.md": "a64888ea30efe53e9d667961519958d7622e6eaec35d92ada8814cd6f79f440a",
+    "specs/2026-07-09-feishu-opendray-bridge/index-update-report.md": "c00de994b677a172005d23cca7f37e24b2bb85b732e60172b5bb359a9f646291"
+  },
+  "written_at": "2026-07-09T12:25:24.743Z"
+}

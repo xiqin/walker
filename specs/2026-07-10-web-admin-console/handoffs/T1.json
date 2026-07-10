@@ -1,0 +1,77 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "管理端配置与事件指标基础已完成：env.js 增加 admin 配置解析，config.js 输出脱敏摘要与 allowlist，config-editor.js 实现 .env 安全写入，event-store.js 实现内存事件裁剪和指标桶统计。7/7 测试全通过。",
+  "artifacts": [
+    "src/config/env.js",
+    "src/admin/config.js",
+    "src/admin/config-editor.js",
+    "src/admin/event-store.js",
+    "test/admin-config-event.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "loadEnvConfig",
+      "path": "src/config/env.js",
+      "signature": "(options?) => { feishu, walker, opencode, admin: { enabled, host, port, token }, ... }"
+    },
+    {
+      "name": "EDITABLE_ENV_KEYS",
+      "path": "src/admin/config.js",
+      "signature": "string[] (frozen)"
+    },
+    {
+      "name": "SENSITIVE_ENV_KEYS",
+      "path": "src/admin/config.js",
+      "signature": "string[] (frozen)"
+    },
+    {
+      "name": "buildConfigSummary",
+      "path": "src/admin/config.js",
+      "signature": "(env?) => { values, editableKeys, sensitiveKeys }"
+    },
+    {
+      "name": "isSensitiveEnvKey",
+      "path": "src/admin/config.js",
+      "signature": "(key) => boolean"
+    },
+    {
+      "name": "updateDotEnv",
+      "path": "src/admin/config-editor.js",
+      "signature": "(envPath, updates) => { restartRequired, updatedKeys }"
+    },
+    {
+      "name": "createEventStore",
+      "path": "src/admin/event-store.js",
+      "signature": "(options?) => store"
+    },
+    {
+      "name": "recordEvent",
+      "path": "src/admin/event-store.js",
+      "signature": "(storeOrEvent, maybeEvent?) => event"
+    },
+    {
+      "name": "listEvents",
+      "path": "src/admin/event-store.js",
+      "signature": "(storeOrOpts, maybeOpts?) => event[]"
+    },
+    {
+      "name": "recordMetric",
+      "path": "src/admin/event-store.js",
+      "signature": "(storeOrName, nameOrValue?, valueOrTime?, maybeCreatedAt?) => void"
+    },
+    {
+      "name": "getMetrics",
+      "path": "src/admin/event-store.js",
+      "signature": "(storeOrNone?) => { messages, commands, prompts, errors, promptDurationsMs, averagePromptDurationMs, buckets }"
+    },
+    {
+      "name": "timelineForSession",
+      "path": "src/admin/event-store.js",
+      "signature": "(storeOrSessionId, sessionIdOrOpts?, maybeOpts?) => event[]"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-001", "REQ-012", "REQ-014", "REQ-023", "REQ-026"],
+  "notes": "event-store 导出的便捷函数（recordEvent/listEvents/recordMetric/getMetrics/timelineForSession）支持省略 store 参数自动使用默认内存 store；带 store 参数调用仍兼容。loadEnvConfig 新增 admin 字段不破坏现有调用方。config-editor 的 updateDotEnv 拒绝 allowlist 外字段并保留 .env 注释空行。"
+}

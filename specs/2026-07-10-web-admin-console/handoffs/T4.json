@@ -1,0 +1,102 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "配置编辑、日志、附件、维护与诊断 API 全部完成：config-routes.js 实现 GET/PATCH 配置路由（脱敏摘要+allowlist写入+restartRequired），file-admin.js 实现日志读取（out/err切换、500行限制、关键词/级别过滤、缺失空结果）和附件管理（列举/下载/删除+路径穿越防护），diagnostics.js 实现一键健康检查（7项pass/warn/fail数组，单项失败不影响整体），maintenance-routes.js 实现导出/备份/确认清理/健康路由。54/54 测试全通过，T1/T2/T3 测试无回归。",
+  "artifacts": [
+    "src/admin/file-admin.js",
+    "src/admin/diagnostics.js",
+    "src/admin/config-routes.js",
+    "src/admin/maintenance-routes.js",
+    "test/admin-files-diagnostics.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "safeResolve",
+      "path": "src/admin/file-admin.js",
+      "signature": "(rootDir, relativePath) => string|null; 安全路径解析和穿越防护"
+    },
+    {
+      "name": "readLogs",
+      "path": "src/admin/file-admin.js",
+      "signature": "(options) => { lines, total, filtered }; options={dataDir, stream, lines, keyword, level}"
+    },
+    {
+      "name": "listAttachments",
+      "path": "src/admin/file-admin.js",
+      "signature": "(dataDir) => { groups, totalFiles }; 按 session 分组列举附件"
+    },
+    {
+      "name": "getAttachment",
+      "path": "src/admin/file-admin.js",
+      "signature": "(dataDir, sessionId, filename) => { ok, data?, error? }; 读取附件内容，含路径穿越防护"
+    },
+    {
+      "name": "deleteAttachment",
+      "path": "src/admin/file-admin.js",
+      "signature": "(dataDir, sessionId, filename) => { ok, error? }; 删除附件，含路径穿越防护"
+    },
+    {
+      "name": "findOrphanAttachments",
+      "path": "src/admin/file-admin.js",
+      "signature": "(dataDir, sessionsData) => Object[]; 查找孤立附件"
+    },
+    {
+      "name": "cleanupOrphanAttachments",
+      "path": "src/admin/file-admin.js",
+      "signature": "(dataDir, sessionsData, confirm) => { ok, cleaned?, error? }; 清理孤立附件"
+    },
+    {
+      "name": "runHealthCheck",
+      "path": "src/admin/diagnostics.js",
+      "signature": "(ctx) => Promise<Object[]>; 7项健康检查（feishu/dataDir/jsonFiles/opencode/runtime/logs/danglingRoutes），单项失败不导致整体500"
+    },
+    {
+      "name": "checkFeishuCredentials",
+      "path": "src/admin/diagnostics.js",
+      "signature": "(ctx) => { name, status, detail }"
+    },
+    {
+      "name": "checkDataDirectory",
+      "path": "src/admin/diagnostics.js",
+      "signature": "(ctx) => { name, status, detail }"
+    },
+    {
+      "name": "checkJsonFiles",
+      "path": "src/admin/diagnostics.js",
+      "signature": "(ctx) => { name, status, detail, issues? }"
+    },
+    {
+      "name": "checkOpenCode",
+      "path": "src/admin/diagnostics.js",
+      "signature": "(ctx) => Promise<{ name, status, detail }>"
+    },
+    {
+      "name": "checkRuntime",
+      "path": "src/admin/diagnostics.js",
+      "signature": "(ctx) => { name, status, detail }"
+    },
+    {
+      "name": "checkLogFiles",
+      "path": "src/admin/diagnostics.js",
+      "signature": "(ctx) => { name, status, detail }"
+    },
+    {
+      "name": "checkDanglingRoutes",
+      "path": "src/admin/diagnostics.js",
+      "signature": "(ctx) => { name, status, detail, items? }"
+    },
+    {
+      "name": "createConfigRoutes",
+      "path": "src/admin/config-routes.js",
+      "signature": "(appContext) => Array<{ method, pattern, handler }>; GET/PATCH /api/admin/config 路由"
+    },
+    {
+      "name": "createMaintenanceRoutes",
+      "path": "src/admin/maintenance-routes.js",
+      "signature": "(appContext) => Array<{ method, pattern, handler }>; 8条维护路由（logs/attachments/export/backup/cleanup/health）"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-012", "REQ-013", "REQ-015", "REQ-018", "REQ-019", "REQ-026"],
+  "notes": "file-admin 的 safeResolve 使用 path.resolve + startsWith 检测路径穿越，与 static.js 的 hasTraversal 双重防护互补。config-routes PATCH 调用 T1 的 updateDotEnv 拒绝 allowlist 外字段并返回 restartRequired=true。maintenance-routes cleanup 使用 confirmed=true 门控，清理范围限于 dangling route 和孤立附件。diagnostics 每个检查函数独立 try-catch，单项异常不影响整体结果。所有路由 handler 均将状态变更写入 eventStore。"
+}

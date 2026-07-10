@@ -1,0 +1,32 @@
+{
+  "task_id": "T6",
+  "status": "done",
+  "summary": "Hardened Windows and WSL terminal command construction for cmd.exe /k. openTerminal now disables delayed expansion and caret-escapes command, distro, and argument fragments so shell control characters do not become extra commands or break argument boundaries.",
+  "artifacts": [
+    "src/runtime/windows-runtime.js",
+    "src/runtime/wsl-runtime.js",
+    "test/runtime.test.js",
+    "specs/2026-07-09-project-health-sweep/verify-report.md"
+  ],
+  "requirements_verified": [
+    "REQ-011"
+  ],
+  "validation": [
+    {
+      "phase": "red",
+      "command": "node --test test/runtime.test.js",
+      "result": "failed as expected: 20 tests, 18 passed, 2 failed. Failures covered unescaped Windows cmd.exe control characters and WSL distro/argument control characters."
+    },
+    {
+      "phase": "green",
+      "command": "node --test test/runtime.test.js",
+      "result": "passed: 20 tests, 20 passed, 0 failed."
+    },
+    {
+      "phase": "full",
+      "command": "npm run check",
+      "result": "passed: syntax checks passed and test/*.test.js completed with 192 tests, 192 passed, 0 failed."
+    }
+  ],
+  "breaking_changes": []
+}

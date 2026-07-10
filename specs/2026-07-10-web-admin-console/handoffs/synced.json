@@ -1,0 +1,19 @@
+{
+  "memory_entries_added": 5,
+  "graph_backend": "none",
+  "graph_sync": "跳过（图后端不可用）",
+  "entry_file_update": "无需更新",
+  "status": "done",
+  "summary": "索引更新完成：图后端不可用已跳过；结构化 Memory 新增 5 条记录（1决策+3踩坑+1状态）；入口文件无需更新；同步报告已输出。",
+  "artifacts": [
+    "index-update-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "48ff2d83c26a6b1d3500234a016847d1bdf81bcae7d6cf3cd82ddb8a2257e5d0",
+    "spec.md": "feb3532a5c837d4d45db730e2fb6b0f793c0e77aeda927621850ceba96c27d83"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-10T05:34:10.957Z"
+}

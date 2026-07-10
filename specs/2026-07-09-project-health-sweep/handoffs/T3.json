@@ -1,0 +1,29 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "Hardened SessionService deletion and terminal-state semantics: deleted sessions cannot be rebound, dirty routes to deleted or missing sessions are cleared, and stopped/deleted sessions ignore later state updates.",
+  "artifacts": [
+    "src/core/session-service.js",
+    "test/session-service.test.js"
+  ],
+  "requirements_verified": [
+    "REQ-006",
+    "REQ-007"
+  ],
+  "tests": [
+    {
+      "command": "node --test test/session-service.test.js",
+      "phase": "red",
+      "result": "failed as expected: 10 passed, 3 failed; failures covered deleted bindRoute, dirty route getCurrent, and stopped terminal-state protection. Reviewer follow-up added explicit missing-session dirty route coverage."
+    },
+    {
+      "command": "node --test test/session-service.test.js",
+      "phase": "green",
+      "result": "passed: 14 passed, 0 failed."
+    }
+  ],
+  "notes": [
+    "Read T1 handoff as navigation; no conflict with current source was found.",
+    "Only task-owned files and this handoff were modified."
+  ]
+}

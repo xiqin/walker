@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "双轴预审查完成，无 blocker。Standards 3 个 findings（API 路径兼容性、WSClient 参数兼容性、setInterval 保活 hack），Spec 0 findings。生成 review-request.md，117 测试全通过，npm run check exit 0。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "34d2c878771886dbb127ef5423bb970e2cafe473fe9da36128615cf56b8ff1a7",
+    "spec.md": "94ce7272d98e3910a5f29d49a94faf71816466ab14c09c1528ee2ddf43377ce5"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-09T12:20:25.221Z"
+}

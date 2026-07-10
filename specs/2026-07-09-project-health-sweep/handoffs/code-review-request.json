@@ -1,0 +1,40 @@
+{
+  "pre_review": {
+    "standards_findings": 0,
+    "spec_findings": 0,
+    "worst": "none",
+    "fixed_point": "HEAD at 86439ce",
+    "scope": "project-health-sweep spec artifacts and T1-T6 changed files"
+  },
+  "evidence": {
+    "fresh_verification": "npm run check passed during verification; 192 tests passed; evidence/verification.log sha256 dd1927cd5b42b0445663fddf32b7a93f18dca80075f24c1cee3511bc19bcfc5a",
+    "diff_check": "git diff --check on T1-T6 changed source/test files returned no output",
+    "placeholder_scan": "No unfinished placeholder markers found in spec markdown."
+  },
+  "review_focus": [
+    "Feishu API HTTP/business error semantics",
+    "Feishu WS fast ACK and background error logging",
+    "MessageDispatcher stopped/deleted state convergence",
+    "OpenCode directory-level SSE session filtering strictness",
+    "Windows/WSL cmd.exe escaping semantics",
+    "Behavior-oriented quality of new tests"
+  ],
+  "remaining_risks": [
+    "No live Feishu tenant, real WSClient long connection, or real OpenCode service end-to-end run was performed.",
+    "Windows/WSL terminal escaping is verified by command construction tests, not manual interactive terminal coverage of every special-character combination.",
+    "Future OpenCode SSE schema changes may require driver adaptation."
+  ],
+  "status": "done",
+  "summary": "完成代码审查请求：生成 review-request.md，包含 Standards/Spec 双轴预审查、变更统计、主要变更、自测证据、审查重点与剩余风险。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "eb738feace817280e1308a0c303bc6f1df9f87c104dbbb906493b06b16532b68",
+    "spec.md": "53e49bb4e32df7a5f52d46cd5a897ca466f779fb4776e7e6f83bb7eecfc7c93d"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-09T16:43:17.013Z"
+}
