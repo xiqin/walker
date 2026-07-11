@@ -40,6 +40,10 @@ FEISHU_ROUTE_MODE=thread
 FEISHU_PROGRESS_STYLE=card
 FEISHU_REACTION_EMOJI=OnIt
 FEISHU_DONE_EMOJI=none
+WALKER_PROMPT_HEARTBEAT_INITIAL_MS=30000
+WALKER_PROMPT_HEARTBEAT_INTERVAL_MS=60000
+WALKER_PROMPT_HEARTBEAT_STUCK_MS=300000
+WALKER_MAX_TURN_TIME_MINS=0
 ```
 
 飞书凭据通过环境变量或项目根目录的 `.env` 文件配置。
@@ -59,6 +63,10 @@ FEISHU_DONE_EMOJI=none
 | `WALKER_DEFAULT_CWD` | 当前目录 | Agent 工作目录 |
 | `WALKER_DATA_DIR` | `~/.walker` | 数据存储目录 |
 | `WALKER_WSL_DISTRO` | `Ubuntu-24.04` | WSL 发行版名称 |
+| `WALKER_PROMPT_HEARTBEAT_INITIAL_MS` | `30000` | prompt 开始后多久无事件时首次更新原进度卡片，单位毫秒；仅 `FEISHU_PROGRESS_STYLE=card` 时启用 |
+| `WALKER_PROMPT_HEARTBEAT_INTERVAL_MS` | `60000` | 首次心跳后的重复更新间隔，单位毫秒；心跳只更新原进度卡片，不发送普通群消息 |
+| `WALKER_PROMPT_HEARTBEAT_STUCK_MS` | `300000` | 达到该时长后在原进度卡片提示任务可能卡住，单位毫秒 |
+| `WALKER_MAX_TURN_TIME_MINS` | `0` | 单轮 prompt 最大执行时长，单位分钟；`0` 默认关闭，`>0` 时超时自动取消当前 turn，并抑制已取消或超时后的残留输出 |
 | `OPENCODE_SERVER_URL` | 空 | opencode serve 地址，WSL 模式自动探测 IP |
 | `OPENCODE_SERVER_AUTOSTART` | `true` | opencode serve 未启动时自动启动 |
 | `OPENCODE_CMD` | `opencode` | opencode CLI 命令名 |
@@ -84,10 +92,20 @@ FEISHU_DONE_EMOJI=none
 | `/use <session_id>` | 绑定当前会话到指定 session |
 | `/use off` | 清除当前会话绑定 |
 | `/current` | 查看当前绑定的 session |
+| `/status` | 查看当前会话绑定的 Walker session、Agent、状态、OpenCode session、模型、工作目录、当前 turn 运行状态、运行时长、最近事件时间和后台 watch 状态 |
+| `/ps` | `/status` 的等价别名 |
+| `/cancel` | 取消当前正在执行的 turn，保留 Walker session 并回到 `idle` |
 | `/stop` | 停止当前 session |
 | `/delete <session_id>` | 删除指定 session |
 | `/agents` | 列出可用 Agent 类型 |
 | `/help` | 命令帮助 |
+
+## 长任务控制
+
+- 进度卡片心跳由 `WALKER_PROMPT_HEARTBEAT_INITIAL_MS`、`WALKER_PROMPT_HEARTBEAT_INTERVAL_MS` 和 `WALKER_PROMPT_HEARTBEAT_STUCK_MS` 控制；心跳只更新原进度卡片，不发送普通群消息。
+- 非 card 进度模式不启用卡片心跳；例如 `FEISHU_PROGRESS_STYLE=legacy` 时不会发送卡片心跳更新。
+- `/cancel` 用于取消当前绑定 session 的正在执行 turn。第一版对 OpenCode 可复用 driver stop 能力，但 Walker session 会保留并回到 `idle`，不同于 `/stop` 停止整个 session。
+- `WALKER_MAX_TURN_TIME_MINS=0` 默认关闭单轮最大执行时长；当配置为 `>0` 时，Walker 会在当前 turn 超时后自动取消该 turn，并抑制已取消或超时后的残留输出继续推送到飞书。
 
 ## Agent 扩展
 

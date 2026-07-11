@@ -1,0 +1,84 @@
+{
+  "requirements": [
+    "REQ-001 心跳参数环境变量化",
+    "REQ-002 /cancel 取消当前 turn",
+    "REQ-003 /status 与 /ps 状态查看",
+    "REQ-004 max turn timeout 自动取消",
+    "REQ-005 重复推送和残留输出防护",
+    "REQ-006 README 更新"
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "name": "配置入口与注入",
+      "owns": [
+        "src/config/env.js",
+        "src/app/bootstrap.js",
+        "test/config-env.test.js",
+        "test/bootstrap.test.js"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "name": "命令注册与帮助文案",
+      "owns": [
+        "src/platform/feishu/commands.js",
+        "test/feishu-commands.test.js"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "name": "turn 生命周期控制",
+      "owns": [
+        "src/dispatch/message-dispatcher.js",
+        "test/message-dispatcher.test.js"
+      ],
+      "depends_on": [
+        "T1",
+        "T2"
+      ]
+    },
+    {
+      "id": "T4",
+      "name": "文档与验收验证",
+      "owns": [
+        "README.md"
+      ],
+      "depends_on": [
+        "T1",
+        "T2",
+        "T3"
+      ]
+    }
+  ],
+  "validation": [
+    "node C:\\Users\\tianxiqin\\.config\\opencode\\skills\\loom-writing-plans\\scripts\\validate-plan.mjs --spec-dir H:\\walker\\specs\\2026-07-11+walker-short-term-evolution 通过",
+    "loom tasks --spec-dir H:\\walker\\specs\\2026-07-11+walker-short-term-evolution --validate 通过"
+  ],
+  "status": "done",
+  "summary": "已完成 Walker 短期演进实现计划：定义 REQ-001 到 REQ-006，拆分为 T1 配置入口与注入、T2 命令注册与帮助文案、T3 turn 生命周期控制、T4 文档与验收验证。T3 集中处理 MessageDispatcher 热点文件，T1/T2 可独立先行，T4 串行收尾。计划校验和任务冲突校验均通过。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "468858186bb5d5f5a5523866e378bacd9eb8049369842ed7f3f8e7c22e2b0fa4",
+    "spec.md": "4595e717dd846bf56fcf9e54a019b89b639a34fa6724e7328395649d43a8571b",
+    "tasks/": "bdfc7146dfe490fe3fb3b25aacf8724aa85ed814f616e397bc674e89ca4e8cc1"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "468858186bb5d5f5a5523866e378bacd9eb8049369842ed7f3f8e7c22e2b0fa4",
+    "tasks/T1.md": "641e153b8bca49431e48071eb4ee3bcc16fdc528355989c0c010d8ff0222f2da",
+    "tasks/T2.md": "9321a5737029a58b3bf1c4288ce93319f0c23b4b655088471baa3df3e9163e64",
+    "tasks/T3.md": "f8999eeee4dcd710bcacb7a4d3af63b0eb458d552012db52aaf3d0d6c6a4f4ce",
+    "tasks/T4.md": "d89a563d973f5148126fe5406a8e6345572d58cd7346f755dec25051216bc004"
+  },
+  "written_at": "2026-07-11T09:09:58.781Z"
+}

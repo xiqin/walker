@@ -84,3 +84,47 @@ test('FeishuApi addReaction 捕获异步失败', async () => {
 
   await assert.doesNotReject(api.addReaction('om_1', 'DONE'));
 });
+
+test('FeishuApi sendText 将超长文本拆成多条消息完整发送', async () => {
+  const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+  api.token = 'tenant-token';
+  api.tokenExpiresAt = Date.now() + 60000;
+  const requests = [];
+  api._request = async (method, host, path, body, token) => {
+    requests.push({ method, host, path, body, token });
+    return { code: 0, data: { message_id: 'om_' + requests.length } };
+  };
+
+  const text = 'a'.repeat(FeishuApi.MAX_TEXT_CHARS + 17);
+  await api.sendText('oc_chat1', text);
+
+  assert.equal(requests.length, 2);
+  const sentText = requests
+    .map((req) => JSON.parse(JSON.parse(req.body).content).text)
+    .join('');
+  assert.equal(sentText, text);
+  assert.ok(JSON.parse(JSON.parse(requests[0].body).content).text.length <= FeishuApi.MAX_TEXT_CHARS);
+  assert.ok(JSON.parse(JSON.parse(requests[1].body).content).text.length <= FeishuApi.MAX_TEXT_CHARS);
+});
+
+test('FeishuApi replyText 将超长回复拆成首条回复和后续群消息', async () => {
+  const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+  api.token = 'tenant-token';
+  api.tokenExpiresAt = Date.now() + 60000;
+  const requests = [];
+  api._request = async (method, host, path, body, token) => {
+    requests.push({ method, host, path, body, token });
+    return { code: 0, data: { message_id: 'om_' + requests.length } };
+  };
+
+  const text = '行内容\n'.repeat(Math.ceil(FeishuApi.MAX_TEXT_CHARS / 4) + 2);
+  await api.replyText({ messageId: 'om_parent', chatId: 'oc_chat1' }, text);
+
+  assert.equal(requests.length > 1, true);
+  assert.equal(requests[0].path, '/open-apis/im/v1/messages/om_parent/reply');
+  assert.equal(requests[1].path, '/open-apis/im/v1/messages?receive_id_type=chat_id');
+  const sentText = requests
+    .map((req) => JSON.parse(JSON.parse(req.body).content).text)
+    .join('');
+  assert.equal(sentText, text);
+});

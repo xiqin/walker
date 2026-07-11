@@ -341,4 +341,42 @@ describe('createApp', () => {
     assert.ok(app.attachmentService);
     assert.ok(app.eventStore);
   });
+
+  it('向 MessageDispatcher 注入长任务配置', () => {
+    let dispatcherOptions;
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: '',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      walkerPromptHeartbeatInitialMs: 10000,
+      walkerPromptHeartbeatIntervalMs: 20000,
+      walkerPromptHeartbeatStuckMs: 90000,
+      walkerMaxTurnTimeMins: 45,
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    const deps = {
+      FeishuPlatform: class { start() { return Promise.resolve(); } stop() {} },
+      SessionService: class { constructor() {} recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class { constructor() {} },
+      OpencodeDriver: class { constructor() {} },
+      stubClaudeDriver: () => ({}),
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class { constructor(options) { dispatcherOptions = options; } },
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+
+    createApp(config, deps);
+
+    assert.equal(dispatcherOptions.promptHeartbeatInitialMs, 10000);
+    assert.equal(dispatcherOptions.promptHeartbeatIntervalMs, 20000);
+    assert.equal(dispatcherOptions.promptHeartbeatStuckMs, 90000);
+    assert.equal(dispatcherOptions.maxTurnTimeMins, 45);
+  });
 });

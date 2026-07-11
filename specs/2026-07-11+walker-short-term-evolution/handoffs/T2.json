@@ -1,0 +1,25 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "已注册 /cancel、/status、/ps 飞书命令，并补充解析与帮助输出测试。",
+  "artifacts": [
+    "src/platform/feishu/commands.js",
+    "test/feishu-commands.test.js"
+  ],
+  "exported_interfaces": [
+    "COMMANDS.cancel: { desc: '取消当前 turn', usage: '/cancel' }",
+    "COMMANDS.status: { desc: '查看当前会话状态', usage: '/status' }",
+    "COMMANDS.ps: { desc: '/status 的别名', usage: '/ps' }",
+    "parseCommand('/cancel' | '/status' | '/ps') returns type: 'command'"
+  ],
+  "breaking_changes": [],
+  "requirements_verified": [
+    "REQ-002: /cancel 可被识别为 Walker 命令，帮助输出包含 /cancel。",
+    "REQ-003: /status 和 /ps 可被识别为 Walker 命令，帮助输出包含两个命令及别名说明。"
+  ],
+  "notes": [
+    "遵循 TDD：先补充失败测试并运行 node --test test/feishu-commands.test.js，确认新增命令未注册导致失败。",
+    "实现后再次运行 node --test test/feishu-commands.test.js，19 个测试全部通过。",
+    "本任务仅实现命令注册与帮助文案入口，不包含 /cancel、/status 的调度执行逻辑。"
+  ]
+}

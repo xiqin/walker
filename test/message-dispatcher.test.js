@@ -467,6 +467,133 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(textUpdates[0].agentEvent.data.text, '我是你的代码协作助手，可以在这个仓库里帮你查代码、改代码、跑测试、定位问题或做代码审查。');
     assert.equal(textUpdates[0].agentEvent.data.text.includes('m0004'), false);
   });
+
+  it('思考事件只更新进度卡片，不作为文本消息单独发送', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } });
+    mocks.driver.prompt = async () => [
+      new AgentEvent(AgentEvent.TYPE_REASONING, { text: '正在分析调用链' }),
+      new AgentEvent(AgentEvent.TYPE_TEXT, { text: '分析完成' }),
+      new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }),
+    ];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_reasoning1', openId: 'ou_user1', text: '分析',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reasoningUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_REASONING);
+    assert.equal(reasoningUpdates.length, 1);
+    assert.equal(reasoningUpdates[0].agentEvent.data.text, '正在分析调用链');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text.includes('正在分析调用链')), false);
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('正在分析调用链')), false);
+  });
+
+  it('prompt 已渲染的回答不会在 watch 恢复后再次发送到飞书', async () => {
+    const mocks = makeMocks();
+    let watched;
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } });
+    mocks.driver.watchSession = (_agentRef, handlers) => {
+      watched = handlers;
+      return () => {};
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_watch_dup1', openId: 'ou_user1', text: '你好',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    watched.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }));
+    watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text === 'Hello'), false);
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT && c.agentEvent.data.text === 'Hello'));
+  });
+
+  it('prompt 长时间无事件时更新进度卡片心跳提示', async () => {
+    const mocks = makeMocks();
+    let resolvePrompt;
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } });
+    mocks.sessionService.getSession = () => ({ id: 'wks_bound1', status: 'running' });
+    mocks.driver.prompt = async () => new Promise((resolve) => { resolvePrompt = resolve; });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+      promptHeartbeatInitialMs: 10,
+      promptHeartbeatIntervalMs: 10,
+      promptHeartbeatStuckMs: 30,
+    });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_heartbeat1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const heartbeat = mocks.feishuApi.calls.find(c => c.type === 'updateProgressCard'
+      && c.agentEvent.type === AgentEvent.TYPE_STATUS
+      && c.agentEvent.data.message.includes('仍在执行'));
+    assert.ok(heartbeat);
+    assert.equal(heartbeat.cardId, 'om_prog1');
+
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_TEXT, { text: '完成' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    await pending;
+  });
+
+  it('prompt 完成后清理进度心跳，不再继续更新卡片', async () => {
+    const mocks = makeMocks();
+    let resolvePrompt;
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } });
+    mocks.sessionService.getSession = () => ({ id: 'wks_bound1', status: 'running' });
+    mocks.driver.prompt = async () => new Promise((resolve) => { resolvePrompt = resolve; });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+      promptHeartbeatInitialMs: 10,
+      promptHeartbeatIntervalMs: 10,
+      promptHeartbeatStuckMs: 30,
+    });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_heartbeat_clear1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_TEXT, { text: '完成' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    await pending;
+
+    const heartbeatCountAfterDone = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard'
+      && c.agentEvent.type === AgentEvent.TYPE_STATUS).length;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const heartbeatCountLater = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard'
+      && c.agentEvent.type === AgentEvent.TYPE_STATUS).length;
+    assert.equal(heartbeatCountLater, heartbeatCountAfterDone);
+  });
 });
 
 describe('MessageDispatcher /new command', () => {
@@ -604,6 +731,214 @@ describe('MessageDispatcher command error boundary', () => {
 
     assert.equal(result.current, null);
     assert.deepEqual(unhandled.map((err) => err.message), []);
+  });
+});
+
+describe('MessageDispatcher turn lifecycle commands', () => {
+  it('/cancel 无绑定 session 时返回可诊断提示', async () => {
+    const mocks = makeMocks();
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'cancel', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_cancel_none1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.noSession, true);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.equal(reply.text, 'No running session to cancel.');
+  });
+
+  it('/cancel 有 running session 时取消当前 turn 并保留 session 回 idle', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_cancel1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_cancel1' } };
+    let resolvePrompt;
+    let stopCalled = false;
+    let markedIdle = '';
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = (sessionId) => { markedIdle = sessionId; session.status = 'idle'; };
+    mocks.driver.prompt = async () => new Promise((resolve) => { resolvePrompt = resolve; });
+    mocks.driver.stop = async () => { stopCalled = true; };
+    const dispatcher = new MessageDispatcher({
+      ...mocks,
+      routeMode: 'thread',
+      progressStyle: 'card',
+      promptHeartbeatInitialMs: 10,
+      promptHeartbeatIntervalMs: 10,
+    });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_cancel_running1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'cancel', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_cancel_running_cmd1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.cancelled, 'wks_cancel1');
+    assert.equal(stopCalled, true);
+    assert.equal(markedIdle, 'wks_cancel1');
+    assert.equal(session.status, 'idle');
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text === 'Current turn cancelled: wks_cancel1'));
+
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'late answer' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    assert.equal(await pending, 'cancelled');
+  });
+
+  it('/cancel 后残留 watch 文本不再发送到飞书', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_cancel_watch1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_cancel_watch1' } };
+    let watched;
+    let resolvePrompt;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.driver.prompt = async () => new Promise((resolve) => { resolvePrompt = resolve; });
+    mocks.driver.watchSession = (_agentRef, handlers) => {
+      watched = handlers;
+      return () => {};
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_cancel_watch1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    await dispatcher.handleCommand({
+      type: 'command', name: 'cancel', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_cancel_watch_cmd1', chatId: 'oc_chat1',
+    });
+    watched.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'cancelled residue' }));
+    watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text === 'cancelled residue'), false);
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    await pending;
+  });
+
+  it('/status 无绑定时提示 /new 或 /attach', async () => {
+    const mocks = makeMocks();
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'status', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_status_none1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.noSession, true);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.equal(reply.text, 'No session bound to this conversation. Use /new or /attach first.');
+  });
+
+  it('/status 有绑定时返回 session、agent、状态、cwd、模型和运行时长', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_status1', agent: 'opencode', status: 'running', cwd: 'H:\\walker',
+      model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' },
+      agentRef: { opencodeSessionId: 'ses_status1', cwd: 'H:\\walker' },
+    };
+    mocks.sessionService.getCurrent = () => session;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    dispatcher.sessionWatchStops.set(session.id, () => {});
+    dispatcher.turnStates.set(session.id, {
+      token: 1,
+      startedAt: Date.now() - 1200,
+      lastEventAt: Date.now() - 500,
+      cancelled: false,
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'status', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_status_bound1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.sessionId, 'wks_status1');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.match(reply.text, /Walker session id: wks_status1/);
+    assert.match(reply.text, /Agent: opencode/);
+    assert.match(reply.text, /Status: running/);
+    assert.match(reply.text, /OpenCode session id: ses_status1/);
+    assert.match(reply.text, /Model: anthropic\/claude-sonnet-4/);
+    assert.match(reply.text, /CWD: H:\\walker/);
+    assert.match(reply.text, /Current turn running: yes/);
+    assert.match(reply.text, /Running time:/);
+    assert.match(reply.text, /Background watch: yes/);
+  });
+
+  it('/ps 复用 status', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_ps1', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: { opencodeSessionId: 'ses_ps1' } };
+    mocks.sessionService.getCurrent = () => session;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'ps', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_ps1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.sessionId, 'wks_ps1');
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('Walker session id: wks_ps1')));
+  });
+
+  it('max turn time 超时后取消当前 turn，清理心跳，不发送过期最终回答', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_timeout1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_timeout1' } };
+    let resolvePrompt;
+    let stopCalled = false;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.driver.prompt = async () => new Promise((resolve) => { resolvePrompt = resolve; });
+    mocks.driver.stop = async () => { stopCalled = true; };
+    const dispatcher = new MessageDispatcher({
+      ...mocks,
+      routeMode: 'thread',
+      progressStyle: 'card',
+      promptHeartbeatInitialMs: 10,
+      promptHeartbeatIntervalMs: 10,
+      maxTurnTimeMins: 0.00025,
+    });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_timeout1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const statusCountAfterTimeout = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_STATUS).length;
+
+    assert.equal(stopCalled, true);
+    assert.equal(session.status, 'idle');
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text === 'Current turn timed out after 0.00025 minutes and was cancelled.'));
+
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'late timeout answer' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    assert.equal(await pending, 'cancelled');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const statusCountLater = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_STATUS).length;
+    assert.equal(statusCountLater, statusCountAfterTimeout);
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'updateProgressCard' && c.agentEvent.data && c.agentEvent.data.text === 'late timeout answer'), false);
+  });
+
+  it('watch 重复 done 不重复发送 buffer', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_watch_done1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_watch_done1' } };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'watch answer' }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendText' && c.text === 'watch answer');
+    assert.equal(sends.length, 1);
   });
 });
 

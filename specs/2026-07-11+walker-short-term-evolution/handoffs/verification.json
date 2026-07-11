@@ -1,0 +1,36 @@
+{
+  "validation": {
+    "test_report": "PASS: REQ-001..REQ-006 covered",
+    "artifact_presence": "PASS: spec/plan/test-report/T1-T4 handoffs/executing handoff exist",
+    "placeholder_scan": "PASS: no unfinished markers in spec dir markdown",
+    "npm_test": "PASS: 504 tests, 30 suites, 504 pass, 0 fail",
+    "codegraph_sync": "PASS: Already up to date",
+    "evidence_receipt": "PASS: evidence/verification.log sha256 0463a7f9e344d341b9ba3bee1e6d4b8c7afcf7193f0ff3ae0eb247f912f72ec0",
+    "verify_artifacts_script": "FAILED due missing local skill dependency C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js; compensated by manual checks"
+  },
+  "known_risks": [
+    "工作区存在本轮前已有未提交 attach/watch restore、长文本分片等改动，未回滚且非本轮阻断项。",
+    "/cancel 第一版允许 fallback 到 OpenCode driver.stop(agentRef)，Walker session 保留并回 idle。",
+    "本机 verification 自动脚本依赖缺失，已记录并用手动校验补齐证据。"
+  ],
+  "status": "done",
+  "summary": "验证通过：verify-report.md 已补齐机器可识别 PASS verdict 与 Evidence Receipt；已核对 test-report.md 中 REQ-001 到 REQ-006 均 PASS；必需产物存在；spec 目录未完成标记扫描无命中；全量 npm test 通过 504 tests / 30 suites / 0 fail；codegraph sync . 通过 Already up to date。verify-artifacts.mjs 因本机 opencode skill 包缺少 artifact-checker.js 依赖失败，已在 verify-report.md 记录并用手动产物校验及 evidence/verification.log 补齐证据。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md",
+    "evidence/verification.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "468858186bb5d5f5a5523866e378bacd9eb8049369842ed7f3f8e7c22e2b0fa4",
+    "spec.md": "4595e717dd846bf56fcf9e54a019b89b639a34fa6724e7328395649d43a8571b",
+    "test-report.md": "e0799e538741a37d02595b66891452cc88d0280cc82681a212f0d008a468a364"
+  },
+  "artifact_fingerprints": {
+    "evidence/verification.log": "0463a7f9e344d341b9ba3bee1e6d4b8c7afcf7193f0ff3ae0eb247f912f72ec0",
+    "test-report.md": "e0799e538741a37d02595b66891452cc88d0280cc82681a212f0d008a468a364",
+    "verify-report.md": "70b0d3650d6809e5ad018d7795ebf07d7f9c21aa20cbf55d9f8f47958d1417ca"
+  },
+  "written_at": "2026-07-11T13:19:11.789Z"
+}

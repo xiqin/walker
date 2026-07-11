@@ -104,6 +104,19 @@ test('renderAttachableSessionCard 显示可纳入会话按钮', () => {
   assert.equal(actionEl.actions[0].value.action, 'cmd:/attach ses_abc123');
 });
 
+test('renderAttachableSessionCard 明确提示会话可能来自多个项目', () => {
+  const card = renderAttachableSessionCard([
+    { id: 'ses_abc123', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
+  ], { managedIds: [], crossProject: true });
+  const text = card.elements
+    .filter((el) => el.tag === 'div' && el.text)
+    .map((el) => el.text.content)
+    .join('\n');
+
+  assert.ok(text.includes('多个 OpenCode 项目'));
+  assert.ok(text.includes('工作目录'));
+});
+
 test('renderAttachableSessionCard 过滤已管理会话', () => {
   const card = renderAttachableSessionCard([
     { id: 'ses_managed', title: 'managed', cwd: 'H:\\walker', status: 'idle' },

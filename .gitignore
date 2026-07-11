@@ -3,3 +3,5 @@ node_modules/
 *.log
 logs/
 adapter.pid
+walker.pid
+token-usage-output.txt

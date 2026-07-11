@@ -5,6 +5,9 @@ const { AgentEvent } = require('../drivers/agent-driver');
 const { createLogger } = require('../core/logger');
 
 const logger = createLogger('message-dispatcher');
+const DEFAULT_HEARTBEAT_INITIAL_MS = 30000;
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 60000;
+const DEFAULT_HEARTBEAT_STUCK_MS = 300000;
 
 /**
  * 消息调度器，处理飞书平台的消息和命令事件并协调 Agent 驱动与飞书 API 交互
@@ -37,8 +40,18 @@ class MessageDispatcher {
     this.defaultCwd = options.defaultCwd || process.cwd();
     this.defaultModel = options.defaultModel || '';
     this.runtimeType = options.runtimeType || 'windows';
+    this.attachMaxDisplay = options.attachMaxDisplay || 10;
+    this.promptHeartbeatInitialMs = options.promptHeartbeatInitialMs || DEFAULT_HEARTBEAT_INITIAL_MS;
+    this.promptHeartbeatIntervalMs = options.promptHeartbeatIntervalMs || DEFAULT_HEARTBEAT_INTERVAL_MS;
+    this.promptHeartbeatStuckMs = options.promptHeartbeatStuckMs || DEFAULT_HEARTBEAT_STUCK_MS;
+    this.maxTurnTimeMins = options.maxTurnTimeMins || 0;
     this.sessionWatchStops = new Map();
     this.sessionWatchBuffers = new Map();
+    this.sessionDeliveredTexts = new Map();
+    this.promptHeartbeatStops = new Map();
+    this.turnStates = new Map();
+    this.cancelledTurnSessions = new Set();
+    this._turnSeq = 0;
     this._promptQueues = new Map();
     this._routeLocks = new Map();
   }
@@ -91,6 +104,7 @@ class MessageDispatcher {
     }
 
     this.sessionService.markRunning(current.id);
+    this._ensureWatch(current, event.chatId);
     logger.info('route bound, prompting driver', {
       messageId: event.messageId,
       routeKey,
@@ -113,21 +127,35 @@ class MessageDispatcher {
   _enqueuePrompt(session, event, driver, agentRef) {
     const sessionId = session.id;
     const task = async () => {
+      const token = ++this._turnSeq;
       try {
         const progressCardId = this.progressStyle === 'card'
           ? await this._callFeishu('sendProgressCard', [this._replyCtx(event), sessionId], null)
           : null;
+        const stopHeartbeat = this._startPromptHeartbeat(session, progressCardId);
+        const turnState = this._startTurnState(session, event, driver, agentRef, token, progressCardId, stopHeartbeat);
         const model = session.model || (this.defaultModel ? { modelID: this.defaultModel } : null);
         const events = await driver.prompt(agentRef, event.text, { model });
+        if (this._isTurnCancelled(sessionId, token)) {
+          this._clearTurnState(sessionId, token);
+          return 'cancelled';
+        }
+        this._clearTurnState(sessionId, token);
         logger.info('driver prompt completed', {
           messageId: event.messageId,
           sessionId,
           eventCount: events.length,
         });
+        this._touchTurnState(turnState);
         await this._renderEvents(session, event, events, progressCardId);
         this._markIdleIfActive(sessionId);
         return 'prompted';
       } catch (err) {
+        if (this._isTurnCancelled(sessionId, token)) {
+          this._clearTurnState(sessionId, token);
+          return 'cancelled';
+        }
+        this._clearTurnState(sessionId, token);
         logger.error('driver prompt failed', {
           messageId: event.messageId,
           sessionId,
@@ -169,6 +197,9 @@ class MessageDispatcher {
         new: () => this._enqueueRouteLock(cmd.routeKey, () => this._cmdNew(cmd)),
         attach: () => this._enqueueRouteLock(cmd.routeKey, () => this._cmdAttach(cmd)),
         model: () => this._cmdModel(cmd),
+        cancel: () => this._cmdCancel(cmd),
+        status: () => this._cmdStatus(cmd),
+        ps: () => this._cmdStatus(cmd),
         list: () => this._cmdList(cmd),
         use: () => this._cmdUse(cmd),
         current: () => this._cmdCurrent(cmd),
@@ -240,7 +271,7 @@ class MessageDispatcher {
     }
 
     await driver.ensureReady();
-    const remoteSessions = await driver.listSessions({ cwd: this.defaultCwd });
+    const remoteSessions = await driver.listSessions({});
     const managedIds = this._managedOpencodeSessionIds();
     const candidates = remoteSessions.filter((session) => session && session.id && !managedIds.has(session.id));
 
@@ -249,7 +280,7 @@ class MessageDispatcher {
         return this._attachOpencodeSession(cmd, driver, candidates[0]);
       }
       if (this.feishuApi.sendAttachableSessionList) {
-        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), remoteSessions, { managedIds: Array.from(managedIds), routeKey: cmd.routeKey }]);
+        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), candidates, { managedIds: Array.from(managedIds), routeKey: cmd.routeKey, maxDisplay: this.attachMaxDisplay || 10, crossProject: true }]);
       } else {
         await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatAttachableSessions(candidates)]);
       }
@@ -352,6 +383,35 @@ class MessageDispatcher {
     this.sessionService.stopSession(current.id);
     await this._callFeishu('replyText', [this._replyCtx(cmd), 'Session stopped: ' + current.id]);
     return { stopped: current.id };
+  }
+
+  async _cmdCancel(cmd) {
+    const current = this.sessionService.getCurrent(cmd.routeKey);
+    if (!current) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'No running session to cancel.']);
+      return { noSession: true };
+    }
+    const turnState = this.turnStates.get(current.id);
+    if (!turnState || current.status !== 'running') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'No running turn to cancel.']);
+      return { noTurn: true };
+    }
+
+    const driver = this.driverRegistry.get(current.agent);
+    await this._cancelTurn(current, driver, turnState, { reason: 'cancel' });
+    await this._callFeishu('replyText', [this._replyCtx(cmd), 'Current turn cancelled: ' + current.id]);
+    return { cancelled: current.id };
+  }
+
+  async _cmdStatus(cmd) {
+    const current = this.sessionService.getCurrent(cmd.routeKey);
+    if (!current) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound to this conversation. Use /new or /attach first.']);
+      return { noSession: true };
+    }
+
+    await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatStatus(current)]);
+    return { sessionId: current.id };
   }
 
   /**
@@ -469,6 +529,33 @@ class MessageDispatcher {
     return sessions.map((session) => session.title + ' ' + session.id).join('\n');
   }
 
+  _formatStatus(session) {
+    const turnState = this.turnStates.get(session.id);
+    const isRunning = !!turnState && !turnState.cancelled;
+    const model = this._formatModel(session.model || (this.defaultModel ? { modelID: this.defaultModel } : null));
+    const agentRef = session.agentRef || {};
+    const cwd = session.cwd || agentRef.cwd || this.defaultCwd || '';
+    return [
+      'Walker session id: ' + session.id,
+      'Agent: ' + (session.agent || ''),
+      'Status: ' + (session.status || ''),
+      'OpenCode session id: ' + (agentRef.opencodeSessionId || ''),
+      'Model: ' + model,
+      'CWD: ' + cwd,
+      'Current turn running: ' + (isRunning ? 'yes' : 'no'),
+      'Running time: ' + (isRunning ? this._formatDuration(Date.now() - turnState.startedAt) : '0 秒'),
+      'Last event time: ' + (turnState && turnState.lastEventAt ? new Date(turnState.lastEventAt).toISOString() : 'n/a'),
+      'Background watch: ' + (this.sessionWatchStops.has(session.id) ? 'yes' : 'no'),
+    ].join('\n');
+  }
+
+  _formatModel(model) {
+    if (!model) return '';
+    if (typeof model === 'string') return model;
+    if (model.providerID && model.modelID) return model.providerID + '/' + model.modelID;
+    return model.modelID || '';
+  }
+
   /**
    * 根据 progressStyle 选择渲染方式并渲染 Agent 事件列表
    * @param {Object} session - 当前会话对象
@@ -477,11 +564,14 @@ class MessageDispatcher {
    * @returns {Promise<void>}
    */
   async _renderEvents(session, event, events, progressCardId) {
+    if (this._isTurnSuppressed(session.id)) return;
+    const displayEvents = this._coalesceDisplayEvents(events, event.text);
     if (this.progressStyle === 'card') {
-      await this._renderCardProgress(session, event, events, progressCardId);
+      await this._renderCardProgress(session, event, displayEvents, progressCardId);
     } else {
-      await this._renderLegacyProgress(event, events);
+      await this._renderLegacyProgress(event, displayEvents);
     }
+    this._rememberDeliveredText(session.id, this._textFromDisplayEvents(displayEvents));
   }
 
   /**
@@ -491,16 +581,16 @@ class MessageDispatcher {
    * @param {AgentEvent[]} events - Agent 返回的事件列表
    * @returns {Promise<void>}
    */
-  async _renderCardProgress(session, event, events, progressCardId) {
+  async _renderCardProgress(session, event, displayEvents, progressCardId) {
     let cardId = progressCardId || await this._callFeishu('sendProgressCard', [this._replyCtx(event), session.id], null);
-    const displayEvents = this._coalesceDisplayEvents(events, event.text);
 
     if (!cardId) {
-      await this._renderLegacyProgress(event, events);
+      await this._renderLegacyProgress(event, displayEvents);
       return;
     }
 
     for (const agentEvent of displayEvents) {
+      this._touchTurnState(this.turnStates.get(session.id));
       const rendered = await this._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null);
       if (rendered && rendered.strategy === 'new_message') {
         const newCardId = await this._callFeishu('sendProgressCard', [this._replyCtx(event), session.id, agentEvent], null);
@@ -609,25 +699,66 @@ class MessageDispatcher {
    * @param {AgentEvent[]} events - Agent 返回的事件列表
    * @returns {Promise<void>}
    */
-  async _renderLegacyProgress(event, events) {
-    let fullText = '';
-    for (const agentEvent of this._coalesceDisplayEvents(events, event.text)) {
-      if (agentEvent.type === AgentEvent.TYPE_DONE) continue;
-      if (agentEvent.type === AgentEvent.TYPE_TEXT) {
-        fullText += agentEvent.data.text + '\n';
-      }
-    }
+  async _renderLegacyProgress(event, displayEvents) {
+    const fullText = this._textFromDisplayEvents(displayEvents);
     await this._callFeishu('replyText', [this._replyCtx(event), fullText.trim()]);
   }
 
+  _textFromDisplayEvents(displayEvents) {
+    return (displayEvents || [])
+      .filter((event) => event.type === AgentEvent.TYPE_TEXT)
+      .map((event) => event.data && event.data.text)
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+
   _watchSessionEvents(session, cmd, driver) {
-    if (!cmd.chatId || !driver || typeof driver.watchSession !== 'function') return;
+    const chatId = (cmd && cmd.chatId) || this._chatIdFromRouteKey(session.route);
+    logger.info('watchSessionEvents called', { sessionId: session.id, chatId, hasDriver: !!driver, agentRef: session.agentRef });
+    if (!chatId || !driver || typeof driver.watchSession !== 'function') {
+      logger.warn('watchSessionEvents skipped', { sessionId: session.id, chatId, hasDriver: !!driver, hasWatch: !!(driver && typeof driver.watchSession === 'function') });
+      return;
+    }
     this._stopSessionWatch(session.id);
     const stop = driver.watchSession(session.agentRef, {
-      onEvent: (agentEvent) => this._handleWatchedSessionEvent(session, cmd.chatId, agentEvent),
+      onEvent: (agentEvent) => this._handleWatchedSessionEvent(session, chatId, agentEvent),
       onError: (err) => logger.warn('session watch failed', { sessionId: session.id, error: err.message }),
     });
     if (typeof stop === 'function') this.sessionWatchStops.set(session.id, stop);
+  }
+
+  _chatIdFromRouteKey(routeKey) {
+    if (!routeKey || typeof routeKey !== 'string') return '';
+    const parts = routeKey.split(':');
+    if (parts.length >= 2 && parts[0] === 'feishu') return parts[1];
+    return '';
+  }
+
+  _ensureWatch(session, chatId) {
+    if (!session || !session.agentRef || !session.agentRef.opencodeSessionId) return;
+    if (this.sessionWatchStops.has(session.id)) return;
+    const driver = this.driverRegistry.get(session.agent || 'opencode');
+    if (!driver || typeof driver.watchSession !== 'function') return;
+    this._watchSessionEvents(session, { chatId }, driver);
+  }
+
+  restoreWatches() {
+    const driver = this.driverRegistry.get('opencode');
+    if (!driver || typeof driver.watchSession !== 'function') return;
+    const sessions = this.sessionService.listSessions();
+    let restored = 0;
+    for (const session of sessions) {
+      if (session.status === 'deleted') continue;
+      if (!session.agentRef || !session.agentRef.opencodeSessionId) continue;
+      const routeKey = this.sessionService.getRouteForSession(session.id);
+      if (!routeKey) continue;
+      const chatId = this._chatIdFromRouteKey(routeKey);
+      if (!chatId) continue;
+      this._watchSessionEvents(session, { chatId }, driver);
+      restored++;
+    }
+    if (restored > 0) logger.info('restored session watches on startup', { count: restored });
   }
 
   _stopSessionWatch(sessionId) {
@@ -637,26 +768,181 @@ class MessageDispatcher {
     }
     this.sessionWatchStops.delete(sessionId);
     this.sessionWatchBuffers.delete(sessionId);
+    this.sessionDeliveredTexts.delete(sessionId);
+    this._stopPromptHeartbeat(sessionId);
+    this._clearTurnState(sessionId);
+  }
+
+  _startTurnState(session, event, driver, agentRef, token, progressCardId, stopHeartbeat) {
+    this.cancelledTurnSessions.delete(session.id);
+    const turnState = {
+      token,
+      startedAt: Date.now(),
+      lastEventAt: Date.now(),
+      progressCardId,
+      cancelled: false,
+      timeoutTimer: null,
+      stopHeartbeat,
+      event,
+      driver,
+      agentRef,
+    };
+    this.turnStates.set(session.id, turnState);
+    this._startTurnTimeout(session, turnState);
+    return turnState;
+  }
+
+  _startTurnTimeout(session, turnState) {
+    if (!this.maxTurnTimeMins || this.maxTurnTimeMins <= 0) return;
+    const timeoutMs = Math.max(1, this.maxTurnTimeMins * 60 * 1000);
+    turnState.timeoutTimer = setTimeout(() => {
+      this._cancelTurn(session, turnState.driver, turnState, { reason: 'timeout' })
+        .then(() => this._callFeishu('replyText', [this._replyCtx(turnState.event), 'Current turn timed out after ' + this.maxTurnTimeMins + ' minutes and was cancelled.']))
+        .catch((err) => logger.warn('turn timeout cancel failed', { sessionId: session.id, error: err && err.message ? err.message : String(err) }));
+    }, timeoutMs);
+    if (turnState.timeoutTimer && typeof turnState.timeoutTimer.unref === 'function') turnState.timeoutTimer.unref();
+  }
+
+  async _cancelTurn(session, driver, turnState, options) {
+    if (!session || !turnState || turnState.cancelled) return;
+    turnState.cancelled = true;
+    this.cancelledTurnSessions.add(session.id);
+    this._clearTurnState(session.id, turnState.token);
+    this.sessionWatchBuffers.set(session.id, []);
+    const activeDriver = driver || this.driverRegistry.get(session.agent);
+    if (activeDriver && session.agentRef) {
+      if (typeof activeDriver.cancel === 'function') {
+        await activeDriver.cancel(session.agentRef);
+      } else if (typeof activeDriver.stop === 'function') {
+        await activeDriver.stop(session.agentRef);
+      }
+    }
+    this._markIdleIfActive(session.id);
+    logger.info('turn cancelled', { sessionId: session.id, reason: options && options.reason });
+  }
+
+  _clearTurnState(sessionId, token) {
+    const turnState = this.turnStates.get(sessionId);
+    if (!turnState || (token && turnState.token !== token)) return;
+    if (turnState.timeoutTimer) clearTimeout(turnState.timeoutTimer);
+    if (turnState.stopHeartbeat) {
+      try { turnState.stopHeartbeat(); } catch (_) {}
+    }
+    this.turnStates.delete(sessionId);
+  }
+
+  _isTurnCancelled(sessionId, token) {
+    const turnState = this.turnStates.get(sessionId);
+    return this.cancelledTurnSessions.has(sessionId) || !!(turnState && turnState.token === token && turnState.cancelled);
+  }
+
+  _isTurnSuppressed(sessionId) {
+    return this.cancelledTurnSessions.has(sessionId);
+  }
+
+  _touchTurnState(turnState) {
+    if (turnState) turnState.lastEventAt = Date.now();
+  }
+
+  _startPromptHeartbeat(session, progressCardId) {
+    if (this.progressStyle !== 'card' || !progressCardId || !session || !session.id) return () => {};
+    const sessionId = session.id;
+    this._stopPromptHeartbeat(sessionId);
+
+    const startedAt = Date.now();
+    const initialMs = Math.max(1, this.promptHeartbeatInitialMs);
+    const intervalMs = Math.max(1, this.promptHeartbeatIntervalMs);
+    const stuckMs = Math.max(initialMs, this.promptHeartbeatStuckMs);
+    let timer = null;
+    let stopped = false;
+
+    const tick = () => {
+      if (stopped) return;
+      if (this._isTerminalSession(sessionId)) {
+        this._stopPromptHeartbeat(sessionId);
+        return;
+      }
+
+      const elapsedMs = Date.now() - startedAt;
+      const elapsedText = this._formatDuration(elapsedMs);
+      const stuck = elapsedMs >= stuckMs;
+      const message = stuck
+        ? '任务可能卡住，已 ' + elapsedText + ' 无新事件。可以继续等待，或发送 /stop 停止当前 session。'
+        : '仍在执行，已等待 ' + elapsedText + '，最近无新事件。';
+      this._sendFeishu('updateProgressCard', [progressCardId, sessionId, new AgentEvent(AgentEvent.TYPE_STATUS, { message })], { sessionId });
+      timer = setTimeout(tick, intervalMs);
+      if (timer && typeof timer.unref === 'function') timer.unref();
+    };
+
+    timer = setTimeout(tick, initialMs);
+    if (timer && typeof timer.unref === 'function') timer.unref();
+
+    const stop = () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      if (this.promptHeartbeatStops.get(sessionId) === stop) {
+        this.promptHeartbeatStops.delete(sessionId);
+      }
+    };
+    this.promptHeartbeatStops.set(sessionId, stop);
+    return stop;
+  }
+
+  _stopPromptHeartbeat(sessionId) {
+    const stop = this.promptHeartbeatStops.get(sessionId);
+    if (stop) {
+      try { stop(); } catch (_) {}
+    }
+    this.promptHeartbeatStops.delete(sessionId);
+  }
+
+  _formatDuration(ms) {
+    const totalSeconds = Math.max(1, Math.round(ms / 1000));
+    if (totalSeconds < 60) return totalSeconds + ' 秒';
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (!seconds) return minutes + ' 分钟';
+    return minutes + ' 分钟 ' + seconds + ' 秒';
   }
 
   _handleWatchedSessionEvent(session, chatId, agentEvent) {
+    if (this._isTurnSuppressed(session.id)) {
+      this.sessionWatchBuffers.set(session.id, []);
+      return;
+    }
     const buffer = this.sessionWatchBuffers.get(session.id) || [];
     if (agentEvent.type === AgentEvent.TYPE_DONE) {
       const displayEvents = this._coalesceDisplayEvents(buffer, '');
-      const text = displayEvents
-        .filter((event) => event.type === AgentEvent.TYPE_TEXT)
-        .map((event) => event.data && event.data.text)
-        .filter(Boolean)
-        .join('\n')
-        .trim();
+      const text = this._textFromDisplayEvents(displayEvents);
       this.sessionWatchBuffers.set(session.id, []);
+      logger.info('watched session done', { sessionId: session.id, chatId, textLen: text.length, bufferLen: buffer.length });
       if (text) {
+        if (this._hasDeliveredText(session.id, text)) {
+          logger.info('skip duplicate watched session text', { sessionId: session.id, chatId, textLen: text.length });
+          return;
+        }
+        this._rememberDeliveredText(session.id, text);
         this._sendFeishu('sendText', [chatId, text], { sessionId: session.id });
       }
       return;
     }
     buffer.push(agentEvent);
     this.sessionWatchBuffers.set(session.id, buffer);
+  }
+
+  _rememberDeliveredText(sessionId, text) {
+    const normalized = (text || '').trim();
+    if (!sessionId || !normalized) return;
+    const recent = this.sessionDeliveredTexts.get(sessionId) || [];
+    const next = recent.filter((item) => item !== normalized);
+    next.push(normalized);
+    this.sessionDeliveredTexts.set(sessionId, next.slice(-5));
+  }
+
+  _hasDeliveredText(sessionId, text) {
+    const normalized = (text || '').trim();
+    if (!sessionId || !normalized) return false;
+    return (this.sessionDeliveredTexts.get(sessionId) || []).includes(normalized);
   }
 
   _sendFeishu(methodName, args, context) {

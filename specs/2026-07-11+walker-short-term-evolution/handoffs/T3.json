@@ -1,0 +1,29 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "完成 MessageDispatcher turn 生命周期控制：新增 /cancel、/status、/ps 调度逻辑，维护每个 session 当前 turn 的轻量运行态，支持手动取消、最大执行时长自动取消、心跳与超时 timer 清理，并抑制取消/超时后的 prompt 与 watch 残留输出。按 TDD 先补失败测试并确认失败，再实现并通过目标测试。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js"
+  ],
+  "exported_interfaces": [
+    "MessageDispatcher.handleCommand(): supports cancel/status/ps",
+    "MessageDispatcher._cmdCancel(): cancel current running turn and keep Walker session idle",
+    "MessageDispatcher._cmdStatus(): report bound session, agent, state, OpenCode session id, model, cwd, turn runtime, last event time, watch state",
+    "MessageDispatcher option maxTurnTimeMins: enables per-turn timeout cancellation when > 0"
+  ],
+  "breaking_changes": [],
+  "requirements_verified": [
+    "REQ-001: prompt heartbeat is stopped through shared turn cleanup on completion, cancel and timeout.",
+    "REQ-002: /cancel cancels the running turn, calls driver cancel/stop fallback, clears turn/watch buffers and keeps session idle.",
+    "REQ-003: /status and /ps report current binding and running state; missing binding prompts /new or /attach.",
+    "REQ-004: maxTurnTimeMins starts a per-turn watchdog and cancels timed out turns without deleting the session.",
+    "REQ-005: cancelled or timed out turns suppress stale prompt render and watch buffer delivery; duplicate watch done remains non-duplicating."
+  ],
+  "notes": [
+    "Red test confirmed with node --test test/message-dispatcher.test.js:新增 T3 用例中 /cancel、/status、/ps、timeout 等 7 个子测试失败，watch duplicate done 既有逻辑已满足。",
+    "Green test passed with node --test test/message-dispatcher.test.js: 42 tests, 8 suites, 42 pass, 0 fail.",
+    "实现保持在 T3 owns 范围内，仅修改 src/dispatch/message-dispatcher.js 和 test/message-dispatcher.test.js。",
+    "当前 cancel 第一版按规格优先调用 driver.cancel，缺失时回退 driver.stop；只将 Walker session 标记回 idle，不删除 session。"
+  ]
+}

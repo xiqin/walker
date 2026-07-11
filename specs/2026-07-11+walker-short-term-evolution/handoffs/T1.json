@@ -1,0 +1,35 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "完成长任务相关环境变量解析，并在 bootstrap 创建 MessageDispatcher 时注入心跳与最大 turn 时长配置。按 TDD 先补失败测试并确认失败，再实现并通过目标测试。",
+  "artifacts": [
+    "src/config/env.js",
+    "src/app/bootstrap.js",
+    "test/config-env.test.js",
+    "test/bootstrap.test.js"
+  ],
+  "exported_interfaces": {
+    "loadEnvConfig": [
+      "walkerPromptHeartbeatInitialMs",
+      "walkerPromptHeartbeatIntervalMs",
+      "walkerPromptHeartbeatStuckMs",
+      "walkerMaxTurnTimeMins"
+    ],
+    "MessageDispatcherOptions": [
+      "promptHeartbeatInitialMs",
+      "promptHeartbeatIntervalMs",
+      "promptHeartbeatStuckMs",
+      "maxTurnTimeMins"
+    ]
+  },
+  "breaking_changes": [],
+  "requirements_verified": [
+    "REQ-001",
+    "REQ-004"
+  ],
+  "notes": [
+    "心跳配置使用正数校验，无效值分别回落 30000、60000、300000。",
+    "WALKER_MAX_TURN_TIME_MINS 使用正数校验，无效值回落 0，0 表示关闭。",
+    "验证命令通过：node --test test/config-env.test.js test/bootstrap.test.js。"
+  ]
+}

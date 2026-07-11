@@ -19,6 +19,10 @@ test('loadEnvConfig 默认值正确', () => {
   assert.equal(config.feishuProgressStyle, 'card');
   assert.equal(config.feishuReactionEmoji, 'OnIt');
   assert.equal(config.feishuDoneEmoji, 'none');
+  assert.equal(config.walkerPromptHeartbeatInitialMs, 30000);
+  assert.equal(config.walkerPromptHeartbeatIntervalMs, 60000);
+  assert.equal(config.walkerPromptHeartbeatStuckMs, 300000);
+  assert.equal(config.walkerMaxTurnTimeMins, 0);
 });
 
 test('loadEnvConfig 环境变量覆盖默认值', () => {
@@ -39,6 +43,10 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
     FEISHU_PROGRESS_STYLE: 'compact',
     FEISHU_REACTION_EMOJI: 'ThumbsUp',
     FEISHU_DONE_EMOJI: 'Done',
+    WALKER_PROMPT_HEARTBEAT_INITIAL_MS: '10000',
+    WALKER_PROMPT_HEARTBEAT_INTERVAL_MS: '20000',
+    WALKER_PROMPT_HEARTBEAT_STUCK_MS: '90000',
+    WALKER_MAX_TURN_TIME_MINS: '45',
   };
   const config = loadEnvConfig({ env });
   assert.equal(config.feishuAppId, 'cli_test123');
@@ -57,6 +65,26 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
   assert.equal(config.feishuProgressStyle, 'compact');
   assert.equal(config.feishuReactionEmoji, 'ThumbsUp');
   assert.equal(config.feishuDoneEmoji, 'Done');
+  assert.equal(config.walkerPromptHeartbeatInitialMs, 10000);
+  assert.equal(config.walkerPromptHeartbeatIntervalMs, 20000);
+  assert.equal(config.walkerPromptHeartbeatStuckMs, 90000);
+  assert.equal(config.walkerMaxTurnTimeMins, 45);
+});
+
+test('loadEnvConfig 长任务数值配置无效时回落默认值', () => {
+  const config = loadEnvConfig({
+    env: {
+      WALKER_PROMPT_HEARTBEAT_INITIAL_MS: '0',
+      WALKER_PROMPT_HEARTBEAT_INTERVAL_MS: '-1',
+      WALKER_PROMPT_HEARTBEAT_STUCK_MS: 'abc',
+      WALKER_MAX_TURN_TIME_MINS: 'nope',
+    },
+  });
+
+  assert.equal(config.walkerPromptHeartbeatInitialMs, 30000);
+  assert.equal(config.walkerPromptHeartbeatIntervalMs, 60000);
+  assert.equal(config.walkerPromptHeartbeatStuckMs, 300000);
+  assert.equal(config.walkerMaxTurnTimeMins, 0);
 });
 
 test('loadEnvConfig 缺少飞书凭据时标记为空', () => {

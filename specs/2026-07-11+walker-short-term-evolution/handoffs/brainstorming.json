@@ -1,0 +1,33 @@
+{
+  "decisions": [
+    "本轮采用最小增量方案，不引入 TurnManager 或 ACP。",
+    "/cancel 第一版允许复用 OpenCode driver.stop，Walker session 保留并回到 idle。",
+    "心跳参数继续走环境变量和现有配置注入。",
+    "最大执行时长默认关闭。",
+    "planning 阶段新增 Requirement IDs 仅用于任务追踪，不改变 spec 范围。"
+  ],
+  "requirements": [
+    "REQ-001 心跳参数环境变量化",
+    "REQ-002 /cancel 命令",
+    "REQ-003 /status 与 /ps",
+    "REQ-004 WALKER_MAX_TURN_TIME_MINS",
+    "REQ-005 重复推送和取消/超时残留防护",
+    "REQ-006 README 更新"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已完成 Walker 短期演进 spec；planning 阶段为支持任务追踪补充了 REQ-001 到 REQ-006 Requirement IDs，未改变功能范围和验收目标。范围仍聚焦心跳配置化、/cancel、/status(/ps)、max_turn_time_mins、重复推送补强和 README 更新；排除 ACP、多平台、复杂 Web 管理后台和团队权限等中长期方向；选择最小增量方案。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "plan.md": "468858186bb5d5f5a5523866e378bacd9eb8049369842ed7f3f8e7c22e2b0fa4",
+    "spec.md": "4595e717dd846bf56fcf9e54a019b89b639a34fa6724e7328395649d43a8571b"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "4595e717dd846bf56fcf9e54a019b89b639a34fa6724e7328395649d43a8571b"
+  },
+  "written_at": "2026-07-11T09:11:23.474Z"
+}

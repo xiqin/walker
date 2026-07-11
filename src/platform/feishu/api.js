@@ -2,6 +2,25 @@ const https = require('https');
 const { createLogger } = require('../../core/logger');
 
 const logger = createLogger('feishu-api');
+const MAX_TEXT_CHARS = 3500;
+
+function splitTextChunks(text, maxChars) {
+  const value = text == null ? '' : String(text);
+  const limit = maxChars || MAX_TEXT_CHARS;
+  if (value.length <= limit) return [value];
+
+  const chunks = [];
+  let remaining = value;
+  while (remaining.length > limit) {
+    let cut = remaining.lastIndexOf('\n', limit);
+    if (cut > 0 && cut >= Math.floor(limit * 0.6)) cut += 1;
+    else cut = limit;
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut);
+  }
+  chunks.push(remaining);
+  return chunks;
+}
 
 /**
  * 飞书 API 客户端，封装与飞书开放平台的 HTTP 交互
@@ -51,18 +70,33 @@ class FeishuApi {
   async replyText(replyCtx, text) {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
+    const chunks = splitTextChunks(text);
+    const results = [];
     if (replyCtx && replyCtx.messageId) {
-      return this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
+      results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
         msg_type: 'text',
-        content: JSON.stringify({ text }),
-      }), token);
+        content: JSON.stringify({ text: chunks[0] }),
+      }), token));
+      if (chunks.length === 1) return results[0];
+      if (!replyCtx.chatId) return results[0];
+      for (const chunk of chunks.slice(1)) {
+        results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+          receive_id: replyCtx.chatId,
+          msg_type: 'text',
+          content: JSON.stringify({ text: chunk }),
+        }), token));
+      }
+      return results;
     }
     if (replyCtx && replyCtx.chatId) {
-      return this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
-        receive_id: replyCtx.chatId,
-        msg_type: 'text',
-        content: JSON.stringify({ text }),
-      }), token);
+      for (const chunk of chunks) {
+        results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+          receive_id: replyCtx.chatId,
+          msg_type: 'text',
+          content: JSON.stringify({ text: chunk }),
+        }), token));
+      }
+      return results.length === 1 ? results[0] : results;
     }
     throw new Error('replyText: no messageId or chatId in replyCtx');
   }
@@ -75,11 +109,15 @@ class FeishuApi {
    */
   async sendText(chatId, text) {
     const token = await this.getTenantToken();
-    return this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
-      receive_id: chatId,
-      msg_type: 'text',
-      content: JSON.stringify({ text }),
-    }), token);
+    const results = [];
+    for (const chunk of splitTextChunks(text)) {
+      results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+        receive_id: chatId,
+        msg_type: 'text',
+        content: JSON.stringify({ text: chunk }),
+      }), token));
+    }
+    return results.length === 1 ? results[0] : results;
   }
 
   /**
@@ -203,4 +241,7 @@ class FeishuApi {
   }
 }
 
-module.exports = { FeishuApi };
+FeishuApi.MAX_TEXT_CHARS = MAX_TEXT_CHARS;
+FeishuApi.splitTextChunks = splitTextChunks;
+
+module.exports = { FeishuApi, splitTextChunks, MAX_TEXT_CHARS };

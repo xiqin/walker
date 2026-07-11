@@ -74,6 +74,14 @@ class SessionService {
     logger.info('route unbound', { routeKey });
   }
 
+  getRouteForSession(sessionId) {
+    const state = this.stateStore.read();
+    this._ensureState(state);
+    const entries = Object.entries(state.routes || {});
+    const found = entries.find(([, id]) => id === sessionId);
+    return found ? found[0] : null;
+  }
+
   listSessions() {
     const state = this.stateStore.read();
     this._ensureState(state);

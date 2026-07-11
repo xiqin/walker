@@ -90,6 +90,10 @@ function createApp(config, deps) {
     defaultAgent: config.walkerDefaultAgent || 'opencode',
     defaultCwd: config.walkerDefaultCwd || process.cwd(),
     runtimeType: config.walkerDefaultRuntime || 'windows',
+    promptHeartbeatInitialMs: config.walkerPromptHeartbeatInitialMs,
+    promptHeartbeatIntervalMs: config.walkerPromptHeartbeatIntervalMs,
+    promptHeartbeatStuckMs: config.walkerPromptHeartbeatStuckMs,
+    maxTurnTimeMins: config.walkerMaxTurnTimeMins,
   });
 
   const platform = new FeishuPlatformClass({

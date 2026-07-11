@@ -158,14 +158,51 @@ class OpencodeDriver extends AgentDriver {
   }
 
   async listSessions(options) {
-    const cwd = (options && options.cwd) || process.cwd();
+    const cwd = options && options.cwd;
+    if (cwd) {
+      return this._listSessionsForDirectory(cwd);
+    }
+    return this._listAllSessions();
+  }
+
+  async _listSessionsForDirectory(cwd) {
     const url = this._buildUrl('/session', { directory: cwd });
     try {
       const resp = await this.httpClient.request('GET', url, null);
-      return this._extractSessionList(resp).map((session) => this._normalizeSessionSummary(session, cwd)).filter((session) => session.id);
+      const sessions = this._extractSessionList(resp)
+        .map((session) => this._normalizeSessionSummary(session, cwd))
+        .filter((session) => session.id);
+      sessions.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      return sessions;
     } catch (err) {
       throw new Error('Failed to list opencode sessions at ' + this.serverUrl + ': ' + err.message);
     }
+  }
+
+  async _listAllSessions() {
+    try {
+      const projectUrl = this._buildUrl('/project', {});
+      const projectResp = await this.httpClient.request('GET', projectUrl, null);
+      const projects = this._extractProjectList(projectResp);
+      const directories = projects
+        .map((p) => p.worktree || p.path || p.directory)
+        .filter((d) => d && d !== '/');
+      const results = await Promise.all(
+        directories.map((dir) =>
+          this._listSessionsForDirectory(dir).catch(() => [])
+        )
+      );
+      const sessions = results.flat();
+      sessions.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      return sessions;
+    } catch (err) {
+      return this._listSessionsForDirectory(process.cwd());
+    }
+  }
+
+  _extractProjectList(resp) {
+    const data = (resp && resp.data) || resp || [];
+    return Array.isArray(data) ? data : [];
   }
 
   /**
@@ -245,6 +282,15 @@ class OpencodeDriver extends AgentDriver {
       logger.warn('opencode sse failed', { sessionId, error: err.message });
       events.push(new AgentEvent(AgentEvent.TYPE_ERROR, { message: 'SSE connection error: ' + err.message }));
     } finally {
+      if (this._lastPolledMessageId && this._lastPolledMessageId.has(sessionId)) {
+        try {
+          const messages = await this.getSessionMessages(sessionRef);
+          if (messages.length > 0) {
+            const last = messages[messages.length - 1];
+            this._lastPolledMessageId.set(sessionId, last.info ? last.info.id : last.id);
+          }
+        } catch (_) {}
+      }
       this.resumeWatch(sessionRef);
     }
 
@@ -260,13 +306,20 @@ class OpencodeDriver extends AgentDriver {
 
     const controller = new AbortController();
     const sseUrl = this._buildUrl('/event', { directory: sessionRef.cwd });
+    logger.info('opencode watchSession starting', { sessionId, sseUrl, cwd: sessionRef.cwd });
     const watcher = {
       stop: () => {
         controller.abort();
+        if (this._pollTimers && this._pollTimers.has(sessionId)) {
+          clearInterval(this._pollTimers.get(sessionId));
+          this._pollTimers.delete(sessionId);
+        }
         this.watchers.delete(sessionId);
       },
     };
     this.watchers.set(sessionId, watcher);
+    if (!this._pollTimers) this._pollTimers = new Map();
+    if (!this._lastPolledMessageId) this._lastPolledMessageId = new Map();
 
     this.sseClient.connect(sseUrl, {
       signal: controller.signal,
@@ -275,7 +328,12 @@ class OpencodeDriver extends AgentDriver {
       onEvent: (raw) => {
         if (this.suspendedWatches.has(sessionId)) return;
         const event = this._mapSSEEvent(raw, sessionId);
-        if (event && handlers && handlers.onEvent) handlers.onEvent(event, raw);
+        if (event && handlers && handlers.onEvent) {
+          if (event.type === AgentEvent.TYPE_TEXT) {
+            this._markSSEMessagePolled(raw, sessionId);
+          }
+          handlers.onEvent(event, raw);
+        }
       },
     }).catch((err) => {
       if (!controller.signal.aborted) {
@@ -283,10 +341,107 @@ class OpencodeDriver extends AgentDriver {
         if (handlers && handlers.onError) handlers.onError(err);
       }
     }).finally(() => {
-      if (this.watchers.get(sessionId) === watcher) this.watchers.delete(sessionId);
+      if (this.watchers.get(sessionId) === watcher) watcher.stop();
     });
 
+    this._startMessagePolling(sessionRef, handlers, controller.signal);
+
     return watcher.stop;
+  }
+
+  _startMessagePolling(sessionRef, handlers, signal) {
+    const sessionId = sessionRef.opencodeSessionId;
+    const pollIntervalMs = 3000;
+    const self = this;
+    let polling = false;
+
+    const poll = async () => {
+      if (signal.aborted) return;
+      if (self.suspendedWatches.has(sessionId)) return;
+      if (polling) return;
+      polling = true;
+      try {
+        const messages = await self.getSessionMessages(sessionRef);
+        if (signal.aborted) return;
+        const lastKnownId = self._lastPolledMessageId.get(sessionId);
+        let newMessages = [];
+        if (lastKnownId) {
+          const knownIdx = messages.findIndex((m) => (m.info && m.info.id) === lastKnownId || m.id === lastKnownId);
+          if (knownIdx >= 0) newMessages = messages.slice(knownIdx + 1);
+          else newMessages = messages;
+        } else {
+          if (messages.length > 0) {
+            const last = messages[messages.length - 1];
+            self._lastPolledMessageId.set(sessionId, last.info ? last.info.id : last.id);
+          }
+          return;
+        }
+        const assistantMessages = newMessages.filter((m) => {
+          const role = m.info ? m.info.role : m.role;
+          return role === 'assistant';
+        });
+        const completedMessages = [];
+        const pendingMessages = [];
+        for (const msg of assistantMessages) {
+          const completed = msg.info && msg.info.time && msg.info.time.completed;
+          if (completed) completedMessages.push(msg);
+          else pendingMessages.push(msg);
+        }
+        if (completedMessages.length > 0) {
+          for (const msg of completedMessages) {
+            if (self.suspendedWatches.has(sessionId)) return;
+            const parts = msg.parts || [];
+            const msgId = msg.info ? msg.info.id : msg.id;
+            for (const part of parts) {
+              if (part.type === 'text' && part.text) {
+                if (handlers && handlers.onEvent) {
+                  handlers.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: part.text }));
+                }
+              }
+            }
+            self._lastPolledMessageId.set(sessionId, msgId);
+          }
+          if (handlers && handlers.onEvent) {
+            handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+          }
+        }
+        if (pendingMessages.length > 0) {
+          const lastPending = pendingMessages[pendingMessages.length - 1];
+          const pendingId = lastPending.info ? lastPending.info.id : lastPending.id;
+          const knownIdx = messages.findIndex((m) => (m.info && m.info.id) === pendingId || m.id === pendingId);
+          if (knownIdx > 0) {
+            self._lastPolledMessageId.set(sessionId, messages[knownIdx - 1].info ? messages[knownIdx - 1].info.id : messages[knownIdx - 1].id);
+          }
+        } else if (newMessages.length > 0) {
+          const last = newMessages[newMessages.length - 1];
+          self._lastPolledMessageId.set(sessionId, last.info ? last.info.id : last.id);
+        }
+      } catch (err) {
+        if (!signal.aborted) {
+          logger.warn('opencode poll failed', { sessionId, error: err.message });
+        }
+      } finally {
+        polling = false;
+      }
+    };
+
+    poll();
+    const timer = setInterval(poll, pollIntervalMs);
+    this._pollTimers.set(sessionId, timer);
+  }
+
+  _markSSEMessagePolled(raw, sessionId) {
+    if (!this._lastPolledMessageId) this._lastPolledMessageId = new Map();
+    const messageId = this._messageIdFromSSE(raw, sessionId);
+    if (messageId) this._lastPolledMessageId.set(sessionId, messageId);
+  }
+
+  _messageIdFromSSE(raw, sessionId) {
+    raw = this._normalizeSSEEvent(raw);
+    if (!raw || !raw.properties) return '';
+    const props = raw.properties;
+    if (!this._eventBelongsToSession(props, sessionId)) return '';
+    return props.messageID || props.messageId || (props.message && props.message.id) || '';
   }
 
   suspendWatch(sessionRef) {
@@ -297,6 +452,29 @@ class OpencodeDriver extends AgentDriver {
   resumeWatch(sessionRef) {
     const sessionId = sessionRef && sessionRef.opencodeSessionId;
     if (sessionId) this.suspendedWatches.delete(sessionId);
+  }
+
+  /**
+   * 获取指定 session 的消息列表
+   * @param {Object} sessionRef - 包含 opencodeSessionId 的会话引用
+   * @returns {Promise<Object[]>} 消息列表
+   */
+  async getSessionMessages(sessionRef) {
+    if (!sessionRef || !sessionRef.opencodeSessionId) {
+      throw new Error('getSessionMessages requires sessionRef with opencodeSessionId');
+    }
+    const sessionId = sessionRef.opencodeSessionId;
+    const url = this._buildUrl('/session/' + sessionId + '/message', {});
+    const resp = await this.httpClient.request('GET', url);
+    return this._extractMessageList(resp);
+  }
+
+  _extractMessageList(resp) {
+    if (Array.isArray(resp)) return resp;
+    if (!resp) return [];
+    if (Array.isArray(resp.data)) return resp.data;
+    if (Array.isArray(resp.messages)) return resp.messages;
+    return [];
   }
 
   /**
@@ -394,12 +572,14 @@ class OpencodeDriver extends AgentDriver {
     raw = raw || {};
     const id = raw.id || raw.sessionID || raw.sessionId || '';
     const status = raw.status && typeof raw.status === 'object' ? raw.status.type : raw.status;
+    const time = raw.time && typeof raw.time === 'object' ? raw.time : {};
+    const updatedAt = raw.updatedAt || raw.updated || raw.timeUpdated || time.updated || time.updatedAt || null;
     return {
       id,
       title: raw.title || raw.name || (id ? 'opencode ' + id.slice(0, 12) : 'opencode session'),
       status: status || 'unknown',
       cwd: raw.cwd || raw.directory || raw.path || (raw.workspace && raw.workspace.path) || fallbackCwd || '',
-      updatedAt: raw.updatedAt || raw.updated || raw.timeUpdated || null,
+      updatedAt: updatedAt || null,
     };
   }
 
@@ -447,6 +627,14 @@ class OpencodeDriver extends AgentDriver {
         return new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' });
       }
       return new AgentEvent(AgentEvent.TYPE_STATUS, { status: statusType });
+    }
+
+    if (type === 'session.idle') {
+      return new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' });
+    }
+
+    if (type === 'session.busy') {
+      return new AgentEvent(AgentEvent.TYPE_STATUS, { status: 'busy' });
     }
 
     if (type === 'message.part.delta') {

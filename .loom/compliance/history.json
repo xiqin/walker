@@ -103,5 +103,41 @@
       "fail |",
       "fail-count: 0"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-11+walker-short-term-evolution",
+    "timestamp": "2026-07-11T13:19:49.072Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "FAIL，原因不是项目产物缺失，而是本机 opencode skill 包缺少脚本依赖：",
+      "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js'"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-11+walker-short-term-evolution",
+    "timestamp": "2026-07-11T13:22:56.942Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "FAIL，原因不是项目产物缺失，而是本机 opencode skill 包缺少脚本依赖：",
+      "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js'"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-11+walker-short-term-evolution",
+    "timestamp": "2026-07-11T13:31:32.964Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "FAIL，原因不是项目产物缺失，而是本机 opencode skill 包缺少脚本依赖：",
+      "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js'"
+    ]
   }
 ]

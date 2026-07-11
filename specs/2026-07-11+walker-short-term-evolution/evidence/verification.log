@@ -1,0 +1,22 @@
+verification stage evidence summary
+
+spec_dir: specs/2026-07-11+walker-short-term-evolution
+verdict: PASS
+
+commands:
+- npm test: PASS, 504 tests, 30 suites, 504 pass, 0 fail
+- codegraph sync .: PASS, Already up to date
+
+artifact checks:
+- spec.md: present
+- plan.md: present
+- test-report.md: present
+- handoffs/executing.json: present
+- handoffs/T1.json: present
+- handoffs/T2.json: present
+- handoffs/T3.json: present
+- handoffs/T4.json: present
+
+notes:
+- verify-artifacts.mjs could not run because the local opencode skill package is missing artifact-checker.js.
+- Manual artifact checks, placeholder scan, test-report coverage, npm test, and codegraph sync were used as compensating evidence.

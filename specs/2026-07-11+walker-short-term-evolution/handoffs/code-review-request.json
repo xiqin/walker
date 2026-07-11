@@ -1,0 +1,39 @@
+{
+  "fixed_point": "current working tree vs HEAD",
+  "pre_review": {
+    "standards_findings": 0,
+    "spec_findings": 0,
+    "worst": "none"
+  },
+  "validation": {
+    "npm_test": "PASS: 504 tests, 30 suites, 504 pass, 0 fail",
+    "codegraph_sync": "PASS: Already up to date",
+    "verify_report": "PASS with Evidence Receipt"
+  },
+  "review_focus": [
+    "MessageDispatcher turn state cleanup across success/failure/cancel/timeout/watch stop paths",
+    "/cancel fallback to driver.stop while preserving Walker session idle semantics",
+    "suppression of late prompt/watch residual output after cancel or timeout",
+    "/status diagnostic usefulness and sensitive data exposure",
+    "new environment variable defaults compatibility",
+    "README behavior consistency"
+  ],
+  "known_risks": [
+    "工作区存在本轮前已有未提交改动，审查时需区分短期演进与此前修复。",
+    "/cancel 第一版允许 fallback 到 OpenCode driver.stop(agentRef)，不是协议级细粒度 turn cancel。",
+    "本轮不实现 ACP、多平台、新配置文件格式、Web 管理后台、团队权限和审计。"
+  ],
+  "status": "done",
+  "summary": "已完成代码审查请求：基于当前未提交工作区相对 HEAD 作为 fixed point，完成 Standards + Spec 双轴预审查，未发现阻断项；整理变更统计、自测证据、变更详情、审查重点和已知风险。review-request.md 已生成。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "468858186bb5d5f5a5523866e378bacd9eb8049369842ed7f3f8e7c22e2b0fa4",
+    "spec.md": "4595e717dd846bf56fcf9e54a019b89b639a34fa6724e7328395649d43a8571b"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-11T13:22:03.887Z"
+}

@@ -442,12 +442,66 @@ describe('OpencodeDriver prompt with SSE', () => {
     };
     const driver = new OpencodeDriver({ httpClient: new FakeHttpClient({}), sseClient: sse, serverUrl: 'http://localhost:4096' });
 
-    driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
 
     assert.equal(sse.calls[0].url, 'http://localhost:4096/event?directory=%2Fhome%2Fuser%2Fproject');
     assert.equal(sse.calls[0].options.collectEvents, false);
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].data.text, '终端回复');
+    if (typeof stopWatch === 'function') stopWatch();
+  });
+
+  it('watchSession 的 SSE 结束后会清理后台轮询定时器', async () => {
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        return [];
+      },
+    };
+    const driver = new OpencodeDriver({ httpClient: new FakeHttpClient({}), sseClient: sse, serverUrl: 'http://localhost:4096' });
+
+    driver.watchSession(sessionRef, { onEvent: () => {} });
+    await new Promise((resolve) => setImmediate(resolve));
+    const leaked = driver._pollTimers && driver._pollTimers.has('ses_abc');
+    if (leaked) {
+      clearInterval(driver._pollTimers.get('ses_abc'));
+      driver._pollTimers.delete('ses_abc');
+    }
+
+    assert.equal(leaked, false);
+    assert.equal(driver.watchers.has('ses_abc'), false);
+  });
+
+  it('watchSession 已通过 SSE 投递的 assistant 消息不会被轮询重复投递', async () => {
+    const delivered = [];
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/session/ses_abc/message': {
+        status: 200,
+        data: [
+          { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
+          { info: { id: 'msg1', role: 'assistant', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '终端回复' }] },
+        ],
+      },
+    });
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        options.onEvent({ type: 'message.part.updated', properties: { sessionID: 'ses_abc', messageID: 'msg1', message: { role: 'assistant' }, part: { type: 'text', text: '终端回复' } } });
+        return [];
+      },
+    };
+    const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096' });
+    driver._lastPolledMessageId = new Map([['ses_abc', 'msg0']]);
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
+    await new Promise((resolve) => setImmediate(resolve));
+    if (typeof stopWatch === 'function') stopWatch();
+
+    const textEvents = delivered.filter((event) => event.type === 'text');
+    assert.equal(textEvents.length, 1);
+    assert.equal(textEvents[0].data.text, '终端回复');
   });
 });
 

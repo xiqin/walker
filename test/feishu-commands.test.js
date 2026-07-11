@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseCommand, COMMANDS } = require('../src/platform/feishu/commands');
+const { parseCommand, COMMANDS, formatHelp } = require('../src/platform/feishu/commands');
 
 test('parseCommand /new 无参数', () => {
   const result = parseCommand('/new');
@@ -94,6 +94,27 @@ test('parseCommand /runtime', () => {
   assert.equal(result.name, 'runtime');
 });
 
+test('parseCommand /cancel', () => {
+  const result = parseCommand('/cancel');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'cancel');
+  assert.deepEqual(result.args, []);
+});
+
+test('parseCommand /status', () => {
+  const result = parseCommand('/status');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'status');
+  assert.deepEqual(result.args, []);
+});
+
+test('parseCommand /ps', () => {
+  const result = parseCommand('/ps');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'ps');
+  assert.deepEqual(result.args, []);
+});
+
 test('COMMANDS 包含所有需要的命令', () => {
   const names = Object.keys(COMMANDS);
   assert.ok(names.includes('new'));
@@ -106,4 +127,17 @@ test('COMMANDS 包含所有需要的命令', () => {
   assert.ok(names.includes('help'));
   assert.ok(names.includes('agents'));
   assert.ok(names.includes('runtime'));
+  assert.ok(names.includes('cancel'));
+  assert.ok(names.includes('status'));
+  assert.ok(names.includes('ps'));
+});
+
+test('formatHelp 包含新增命令', () => {
+  const help = formatHelp();
+  assert.match(help, /\/cancel/);
+  assert.match(help, /取消当前 turn/);
+  assert.match(help, /\/status/);
+  assert.match(help, /查看当前会话状态/);
+  assert.match(help, /\/ps/);
+  assert.match(help, /\/status 的别名/);
 });

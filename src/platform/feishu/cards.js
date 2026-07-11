@@ -138,14 +138,17 @@ function renderUnboundRouteCard(routeKey) {
 
 /**
  * 渲染可纳入的 OpenCode 会话列表卡片
- * @param {Object[]} sessions - OpenCode 会话摘要列表
+ * @param {Object[]} sessions - OpenCode 会话摘要列表（已按 updatedAt 倒序排列）
  * @param {Object} [options] - 渲染选项
  * @param {string[]} [options.managedIds] - 已被 Walker 管理的 OpenCode session ID
+ * @param {string} [options.routeKey] - 路由键
+ * @param {number} [options.maxDisplay=10] - 卡片最多展示的会话数量
  * @returns {Object} 飞书卡片 JSON 结构
  */
 function renderAttachableSessionCard(sessions, options) {
   const managedIds = new Set((options && options.managedIds) || []);
   const routeKey = options && options.routeKey;
+  const maxDisplay = (options && options.maxDisplay) || 10;
   const attachable = (sessions || []).filter((session) => session && session.id && !managedIds.has(session.id));
   if (attachable.length === 0) {
     return {
@@ -160,16 +163,27 @@ function renderAttachableSessionCard(sessions, options) {
     };
   }
 
+  const displayed = attachable.slice(0, maxDisplay);
+  const remaining = attachable.length - displayed.length;
   const elements = [];
-  for (const session of attachable) {
+  if (options && options.crossProject) {
+    elements.push({
+      tag: 'div',
+      text: { tag: 'lark_md', content: '以下会话可能来自多个 OpenCode 项目，请核对工作目录后再纳入。' },
+    });
+  }
+  for (const session of displayed) {
     const title = session.title || ('opencode ' + session.id.slice(0, 12));
     const cwdLabel = session.cwd || '(未设置)';
     const status = session.status || 'unknown';
+    const timeLabel = session.updatedAt ? formatRelativeTime(session.updatedAt) : '';
+    const metaParts = [cwdLabel, '状态: ' + status];
+    if (timeLabel) metaParts.push(timeLabel);
     elements.push({
       tag: 'div',
       text: {
         tag: 'lark_md',
-        content: '**' + title + '** `' + session.id.slice(0, 12) + '`\n' + cwdLabel + '\n状态: ' + status,
+        content: '**' + title + '** `' + session.id.slice(0, 12) + '`\n' + metaParts.join(' · '),
       },
     });
     elements.push({
@@ -180,11 +194,39 @@ function renderAttachableSessionCard(sessions, options) {
     });
   }
 
+  if (remaining > 0) {
+    elements.push({
+      tag: 'div',
+      text: { tag: 'lark_md', content: '还有 ' + remaining + ' 个更早的会话未展示。使用 `/attach <session_id>` 可直接纳入指定会话。' },
+    });
+  }
+
   return {
     config: { wide_screen_mode: true },
     header: { title: { tag: 'plain_text', content: '可纳入的 OpenCode 会话 (' + attachable.length + ')' }, template: 'blue' },
     elements,
   };
+}
+
+/**
+ * 将毫秒级时间戳格式化为相对时间描述
+ * @param {number} ts - 毫秒级时间戳
+ * @returns {string} 相对时间描述，如 "刚刚"、"5分钟前"、"2小时前"、"3天前"
+ */
+function formatRelativeTime(ts) {
+  if (!ts || typeof ts !== 'number') return '';
+  const now = Date.now();
+  const diff = now - ts;
+  if (diff < 0) return '刚刚';
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return '刚刚';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutes + '分钟前';
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + '小时前';
+  const days = Math.floor(hours / 24);
+  if (days < 30) return days + '天前';
+  return new Date(ts).toLocaleDateString();
 }
 
 /**

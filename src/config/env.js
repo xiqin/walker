@@ -59,6 +59,11 @@ function loadEnvConfig(options) {
     return Number.isFinite(port) && port > 0 ? port : defaultVal;
   }
 
+  function parsePositiveInt(val, defaultVal) {
+    const num = parseInt(val, 10);
+    return Number.isFinite(num) && num > 0 ? num : defaultVal;
+  }
+
   return {
     feishuAppId,
     feishuAppSecret,
@@ -77,6 +82,10 @@ function loadEnvConfig(options) {
     feishuProgressStyle: env.FEISHU_PROGRESS_STYLE || 'card',
     feishuReactionEmoji: env.FEISHU_REACTION_EMOJI || 'OnIt',
     feishuDoneEmoji: env.FEISHU_DONE_EMOJI || 'none',
+    walkerPromptHeartbeatInitialMs: parsePositiveInt(env.WALKER_PROMPT_HEARTBEAT_INITIAL_MS, 30000),
+    walkerPromptHeartbeatIntervalMs: parsePositiveInt(env.WALKER_PROMPT_HEARTBEAT_INTERVAL_MS, 60000),
+    walkerPromptHeartbeatStuckMs: parsePositiveInt(env.WALKER_PROMPT_HEARTBEAT_STUCK_MS, 300000),
+    walkerMaxTurnTimeMins: parsePositiveInt(env.WALKER_MAX_TURN_TIME_MINS, 0),
     walkerDedupWindowMs: parseInt(env.WALKER_DEDUP_WINDOW_MS, 10) || 300000,
     opencodePollInterval: parseInt(env.OPENCODE_POLL_INTERVAL, 10) || 500,
     opencodeMaxPolls: parseInt(env.OPENCODE_MAX_POLLS, 10) || 20,

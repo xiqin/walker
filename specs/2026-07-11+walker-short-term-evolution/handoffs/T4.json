@@ -1,0 +1,38 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "已更新 README，补齐心跳环境变量、最大 turn 时长、/cancel、/status、/ps 和长任务行为说明，并完成 README 关键字检查、npm test 与 CodeGraph 同步。",
+  "artifacts": [
+    "README.md"
+  ],
+  "red_light_check": {
+    "initial_command": "rg \"WALKER_PROMPT_HEARTBEAT_INITIAL_MS|WALKER_PROMPT_HEARTBEAT_INTERVAL_MS|WALKER_PROMPT_HEARTBEAT_STUCK_MS|WALKER_MAX_TURN_TIME_MINS|/cancel|/status|/ps\" README.md",
+    "initial_command_result": "blocked: PowerShell 中 rg 命令不可用。",
+    "fallback_check": "内置 grep 等价检查确认 README 初始缺少 WALKER_PROMPT_HEARTBEAT_INITIAL_MS、WALKER_PROMPT_HEARTBEAT_INTERVAL_MS、WALKER_PROMPT_HEARTBEAT_STUCK_MS、WALKER_MAX_TURN_TIME_MINS、/cancel、/status、/ps。"
+  },
+  "validation": [
+    {
+      "command": "README keyword check: WALKER_PROMPT_HEARTBEAT_INITIAL_MS|WALKER_PROMPT_HEARTBEAT_INTERVAL_MS|WALKER_PROMPT_HEARTBEAT_STUCK_MS|WALKER_MAX_TURN_TIME_MINS|/cancel|/status|/ps",
+      "result": "passed: README.md 命中 14 处，包含四个新增环境变量、三个新增命令及长任务说明。"
+    },
+    {
+      "command": "npm test",
+      "result": "passed: 504 tests, 30 suites, 504 pass, 0 fail."
+    },
+    {
+      "command": "codegraph sync .",
+      "result": "passed: Already up to date."
+    }
+  ],
+  "requirements_verified": [
+    "REQ-006: README 包含 WALKER_PROMPT_HEARTBEAT_INITIAL_MS、WALKER_PROMPT_HEARTBEAT_INTERVAL_MS、WALKER_PROMPT_HEARTBEAT_STUCK_MS、WALKER_MAX_TURN_TIME_MINS。",
+    "REQ-006: README 命令章节包含 /cancel、/status、/ps。",
+    "REQ-006: README 明确心跳只更新原进度卡片，不发送普通群消息，且非 card 模式不启用卡片心跳。",
+    "REQ-006: README 明确 /cancel 第一版对 OpenCode 可复用 driver stop 能力，但 Walker session 保留并回到 idle。",
+    "REQ-006: README 明确 WALKER_MAX_TURN_TIME_MINS=0 默认关闭，>0 时超时自动取消当前 turn，并抑制已取消或超时后的残留输出。"
+  ],
+  "notes": [
+    "本任务严格只修改 README.md，并新增本 handoff 文件。",
+    "未修改 T4 owns 范围外源码或测试文件，未回滚任何已有未提交改动。"
+  ]
+}
