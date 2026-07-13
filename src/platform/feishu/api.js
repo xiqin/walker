@@ -130,18 +130,31 @@ class FeishuApi {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
     const cardContent = JSON.stringify(card);
+    const sendByChat = () => this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+      receive_id: replyCtx.chatId,
+      msg_type: 'interactive',
+      content: cardContent,
+    }), token);
     let result;
     if (replyCtx && replyCtx.messageId) {
-      result = await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
-        msg_type: 'interactive',
-        content: cardContent,
-      }), token);
+      try {
+        result = await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
+          msg_type: 'interactive',
+          content: cardContent,
+        }), token);
+      } catch (err) {
+        if (!replyCtx.chatId) throw err;
+        logger.warn('reply card failed, fallback to chat message', {
+          messageId: replyCtx.messageId,
+          chatId: replyCtx.chatId,
+          status: err.status,
+          code: err.code,
+          error: err.message,
+        });
+        result = await sendByChat();
+      }
     } else if (replyCtx && replyCtx.chatId) {
-      result = await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
-        receive_id: replyCtx.chatId,
-        msg_type: 'interactive',
-        content: cardContent,
-      }), token);
+      result = await sendByChat();
     } else {
       throw new Error('replyCard: no messageId or chatId');
     }

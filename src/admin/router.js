@@ -68,7 +68,7 @@ function createRouter() {
  * @returns {boolean}
  */
 function isAdminApiPath(pathname) {
-  return pathname.startsWith('/api/admin/');
+  return pathname.startsWith('/api/admin/') || pathname.startsWith('/opencode/hook/');
 }
 
 module.exports = { createRouter, compilePattern, isAdminApiPath };

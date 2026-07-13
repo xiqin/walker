@@ -413,6 +413,33 @@ html, body {
   word-break: break-all;
 }
 
+.json-block {
+  margin: 0;
+  padding: 8px;
+  background: #f8f9fa;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: var(--font-size-small);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mini-line {
+  margin: 2px 0;
+  font-size: var(--font-size-small);
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.warn-text {
+  color: #856404;
+}
+
+.warn-card {
+  border-left: 4px solid var(--color-warning);
+}
+
 /* 时间线 */
 .timeline-item {
   padding: 8px 0;

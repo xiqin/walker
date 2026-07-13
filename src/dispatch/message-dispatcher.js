@@ -40,11 +40,11 @@ class MessageDispatcher {
     this.defaultCwd = options.defaultCwd || process.cwd();
     this.defaultModel = options.defaultModel || '';
     this.runtimeType = options.runtimeType || 'windows';
-    this.attachMaxDisplay = options.attachMaxDisplay || 10;
     this.promptHeartbeatInitialMs = options.promptHeartbeatInitialMs || DEFAULT_HEARTBEAT_INITIAL_MS;
     this.promptHeartbeatIntervalMs = options.promptHeartbeatIntervalMs || DEFAULT_HEARTBEAT_INTERVAL_MS;
     this.promptHeartbeatStuckMs = options.promptHeartbeatStuckMs || DEFAULT_HEARTBEAT_STUCK_MS;
     this.maxTurnTimeMins = options.maxTurnTimeMins || 0;
+    this.nonFocusOutput = options.nonFocusOutput !== false;
     this.sessionWatchStops = new Map();
     this.sessionWatchBuffers = new Map();
     this.sessionDeliveredTexts = new Map();
@@ -83,6 +83,10 @@ class MessageDispatcher {
       logger.info('route not bound, sending guide card', { routeKey });
       this._sendFeishu('sendUnboundGuide', [this._replyCtx(event), routeKey]);
       return 'unbound';
+    }
+
+    if (routeKey && typeof this.sessionService.touchRoute === 'function') {
+      this.sessionService.touchRoute(routeKey);
     }
 
     if (this.reactionEmoji) {
@@ -194,17 +198,17 @@ class MessageDispatcher {
 
     try {
       const handlers = {
-        new: () => this._enqueueRouteLock(cmd.routeKey, () => this._cmdNew(cmd)),
-        attach: () => this._enqueueRouteLock(cmd.routeKey, () => this._cmdAttach(cmd)),
-        model: () => this._cmdModel(cmd),
-        cancel: () => this._cmdCancel(cmd),
-        status: () => this._cmdStatus(cmd),
-        ps: () => this._cmdStatus(cmd),
-        list: () => this._cmdList(cmd),
-        use: () => this._cmdUse(cmd),
-        current: () => this._cmdCurrent(cmd),
-        stop: () => this._cmdStop(cmd),
-        delete: () => this._cmdDelete(cmd),
+        new: () => this._enqueueRouteLock(cmd.routeKey, () => this._withRouteTouch(cmd.routeKey, () => this._cmdNew(cmd))),
+        attach: () => this._enqueueRouteLock(cmd.routeKey, () => this._withRouteTouch(cmd.routeKey, () => this._cmdAttach(cmd))),
+        model: () => this._withRouteTouch(cmd.routeKey, () => this._cmdModel(cmd)),
+        cancel: () => this._withRouteTouch(cmd.routeKey, () => this._cmdCancel(cmd)),
+        status: () => this._withRouteTouch(cmd.routeKey, () => this._cmdStatus(cmd)),
+        ps: () => this._withRouteTouch(cmd.routeKey, () => this._cmdStatus(cmd)),
+        list: () => this._withRouteTouch(cmd.routeKey, () => this._cmdList(cmd)),
+        use: () => this._withRouteTouch(cmd.routeKey, () => this._cmdUse(cmd)),
+        current: () => this._withRouteTouch(cmd.routeKey, () => this._cmdCurrent(cmd)),
+        stop: () => this._withRouteTouch(cmd.routeKey, () => this._cmdStop(cmd)),
+        delete: () => this._withRouteTouch(cmd.routeKey, () => this._cmdDelete(cmd)),
         help: () => this._cmdHelp(cmd),
         agents: () => this._cmdAgents(cmd),
         runtime: () => this._cmdRuntime(cmd),
@@ -218,6 +222,15 @@ class MessageDispatcher {
       await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), message]);
       return { error: 'command_failed', message };
     }
+  }
+
+  _withRouteTouch(routeKey, fn) {
+    return Promise.resolve(fn()).then((result) => {
+      if (routeKey && typeof this.sessionService.touchRoute === 'function') {
+        this.sessionService.touchRoute(routeKey);
+      }
+      return result;
+    });
   }
 
   /**
@@ -273,6 +286,9 @@ class MessageDispatcher {
     await driver.ensureReady();
     const remoteSessions = await driver.listSessions({});
     const managedIds = this._managedOpencodeSessionIds();
+    const routeCwd = typeof this.sessionService.getRouteCwd === 'function'
+      ? this.sessionService.getRouteCwd(routeKey)
+      : '';
     const candidates = remoteSessions.filter((session) => session && session.id && !managedIds.has(session.id));
 
     if (!targetOpencodeSessionId) {
@@ -280,11 +296,15 @@ class MessageDispatcher {
         return this._attachOpencodeSession(cmd, driver, candidates[0]);
       }
       if (this.feishuApi.sendAttachableSessionList) {
-        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), candidates, { managedIds: Array.from(managedIds), routeKey: cmd.routeKey, maxDisplay: this.attachMaxDisplay || 10, crossProject: true }]);
+        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), candidates, {
+          managedIds: Array.from(managedIds),
+          routeKey: cmd.routeKey,
+          crossProject: new Set(candidates.map((session) => session.cwd || '')).size > 1,
+        }]);
       } else {
         await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatAttachableSessions(candidates)]);
       }
-      return { candidates };
+      return { candidates, routeCwd: routeCwd || '' };
     }
 
     const target = remoteSessions.find((session) => session.id === targetOpencodeSessionId);
@@ -325,32 +345,37 @@ class MessageDispatcher {
   }
 
   /**
-   * /list 命令：显示所有 Walker session 列表卡片
+   * /list 命令：显示当前 route 下的 session 列表卡片
    */
   async _cmdList(cmd) {
-    const sessions = this.sessionService.listSessions();
+    const sessions = this.sessionService.listSessionsInRoute(cmd.routeKey);
     const currentSession = this.sessionService.getCurrent(cmd.routeKey);
     await this._callFeishu('sendSessionList', [this._replyCtx(cmd), sessions, currentSession ? currentSession.id : null, cmd.routeKey]);
     return { sessions };
   }
 
   /**
-   * /use 命令：绑定或解绑 routeKey 到指定 session
+   * /use 命令：切换 route 的焦点 session 或移除焦点 session（/use off）
    */
   async _cmdUse(cmd) {
     const targetId = cmd.args[0];
     if (targetId === 'off') {
-      this.sessionService.unbindRoute(cmd.routeKey);
-      await this._callFeishu('replyText', [this._replyCtx(cmd), 'Route unbound.']);
-      return { unbound: true };
+      const current = this.sessionService.getCurrent(cmd.routeKey);
+      if (!current) {
+        await this._callFeishu('replyText', [this._replyCtx(cmd), 'No focus session to remove.']);
+        return { noFocus: true };
+      }
+      this.sessionService.removeSessionFromRoute(cmd.routeKey, current.id);
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'Removed focus session: ' + current.id]);
+      return { removed: current.id };
     }
     if (!targetId) {
       await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), 'Usage: /use <session_id|off>']);
       return { error: 'missing_session_id' };
     }
-    this.sessionService.bindRoute(cmd.routeKey, targetId);
-    await this._callFeishu('replyText', [this._replyCtx(cmd), 'Bound to session: ' + targetId]);
-    return { bound: targetId };
+    this.sessionService.setFocus(cmd.routeKey, targetId);
+    await this._callFeishu('replyText', [this._replyCtx(cmd), 'Focus set to session: ' + targetId]);
+    return { focus: targetId };
   }
 
   /**
@@ -410,7 +435,11 @@ class MessageDispatcher {
       return { noSession: true };
     }
 
-    await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatStatus(current)]);
+    const sessions = this.sessionService.listSessionsInRoute(cmd.routeKey);
+    const routeCwd = (typeof this.sessionService.getRouteCwd === 'function')
+      ? this.sessionService.getRouteCwd(cmd.routeKey)
+      : '';
+    await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatRouteStatus(cmd.routeKey, routeCwd, current, sessions)]);
     return { sessionId: current.id };
   }
 
@@ -526,7 +555,25 @@ class MessageDispatcher {
 
   _formatAttachableSessions(sessions) {
     if (!sessions || sessions.length === 0) return 'No attachable OpenCode sessions found.';
-    return sessions.map((session) => session.title + ' ' + session.id).join('\n');
+    return sessions.map((session) => session.title + ' ' + session.id + ' [' + (session.cwd || '(未设置)') + ']').join('\n');
+  }
+
+  _formatRouteStatus(routeKey, routeCwd, focusSession, sessions) {
+    const lines = [];
+    lines.push('Route: ' + routeKey + (routeCwd ? ' (cwd: ' + routeCwd + ')' : ''));
+    lines.push('  Active sessions: ' + sessions.length);
+    lines.push('  Focus: ' + this._formatSessionSummary(focusSession));
+    const others = sessions.filter((s) => s.id !== focusSession.id);
+    if (others.length > 0) {
+      const otherSummary = others.map((s) => s.id + ' (' + (s.status || '') + ')').join(', ');
+      lines.push('  Other: [' + otherSummary + ']');
+    }
+    return lines.join('\n');
+  }
+
+  _formatSessionSummary(session) {
+    const agentRef = (session && session.agentRef) || {};
+    return (session.id || '') + ' (' + (session.agent || '') + ', ' + (session.status || '') + ', ' + (agentRef.opencodeSessionId || '') + ')';
   }
 
   _formatStatus(session) {
@@ -743,6 +790,15 @@ class MessageDispatcher {
     this._watchSessionEvents(session, { chatId }, driver);
   }
 
+  ensureWatchForSession(sessionId) {
+    if (!sessionId) return;
+    const session = this.sessionService.getSession(sessionId);
+    if (!session) return;
+    const routeKey = this.sessionService.getRouteForSession(sessionId);
+    const chatId = this._chatIdFromRouteKey(routeKey);
+    this._ensureWatch(session, chatId);
+  }
+
   restoreWatches() {
     const driver = this.driverRegistry.get('opencode');
     if (!driver || typeof driver.watchSession !== 'function') return;
@@ -921,13 +977,33 @@ class MessageDispatcher {
           logger.info('skip duplicate watched session text', { sessionId: session.id, chatId, textLen: text.length });
           return;
         }
+        const isFocus = this._isFocusSession(session);
+        if (!isFocus && !this.nonFocusOutput) {
+          logger.info('non-focus output suppressed', { sessionId: session.id, chatId });
+          return;
+        }
         this._rememberDeliveredText(session.id, text);
-        this._sendFeishu('sendText', [chatId, text], { sessionId: session.id });
+        const outputText = (!isFocus && this.nonFocusOutput)
+          ? '[session: ' + session.id.slice(0, 8) + '] ' + text
+          : text;
+        this._sendFeishu('sendText', [chatId, outputText], { sessionId: session.id });
       }
       return;
     }
     buffer.push(agentEvent);
     this.sessionWatchBuffers.set(session.id, buffer);
+  }
+
+  _isFocusSession(session) {
+    if (!session || !this.sessionService || typeof this.sessionService.getRouteForSession !== 'function') return true;
+    try {
+      const routeKey = this.sessionService.getRouteForSession(session.id);
+      if (!routeKey) return true;
+      const current = this.sessionService.getCurrent(routeKey);
+      return !current || current.id === session.id;
+    } catch (_) {
+      return true;
+    }
   }
 
   _rememberDeliveredText(sessionId, text) {

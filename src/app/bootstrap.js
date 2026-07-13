@@ -18,6 +18,9 @@ const { buildRouteKey } = require('../core/route-key');
 const { createLogger } = require('../core/logger');
 const { createEventStore } = require('../admin/event-store');
 const { createAdminServerFromContext } = require('../admin/index');
+const { installHookPlugin } = require('../opencode-hook/installer');
+const { createHookReceiverRoutes } = require('../opencode-hook/receiver');
+const { createHealthPoller } = require('../opencode-hook/health-poller');
 const path = require('path');
 
 const logger = createLogger('bootstrap');
@@ -94,6 +97,7 @@ function createApp(config, deps) {
     promptHeartbeatIntervalMs: config.walkerPromptHeartbeatIntervalMs,
     promptHeartbeatStuckMs: config.walkerPromptHeartbeatStuckMs,
     maxTurnTimeMins: config.walkerMaxTurnTimeMins,
+    nonFocusOutput: config.walkerOpendcodeNonFocusOutput !== false,
   });
 
   const platform = new FeishuPlatformClass({
@@ -189,6 +193,15 @@ function createApp(config, deps) {
   const adminConfig = config.admin || { enabled: true, host: '127.0.0.1', port: 8787, token: '' };
   let platformStarted = false;
 
+  const healthPoller = createHealthPoller({
+    sessionService,
+    driverRegistry: registry,
+    dispatcher,
+    pollIntervalMs: config.walkerOpendcodeHealthPollIntervalMs,
+    exitAction: config.walkerOpendcodeExitAction,
+    httpClient: opencodeDriver.httpClient,
+  });
+
   /**
    * 创建管理端 AdminServer（adminEnabled=false 时跳过）
    * @returns {Object|null} AdminServer 实例或 null
@@ -199,6 +212,18 @@ function createApp(config, deps) {
       connected: false,
       source: config.feishuConfigSource || 'missing',
     };
+    const hookReceiverRoutes = createHookReceiverRoutes({
+      sessionService,
+      config: adminConfig,
+      defaultOpencodeUrl: config.opencodeServerUrl || 'http://localhost:4096',
+      onSessionEnrolled: ({ sessionId, routeKey }) => {
+        dispatcher.ensureWatchForSession(sessionId);
+        const session = sessionService.getSession(sessionId);
+        if (session && session.agentRef) {
+          healthPoller.track(sessionId, session.agentRef);
+        }
+      },
+    });
     return createAdminServerFn({
       sessionService,
       registry,
@@ -211,6 +236,7 @@ function createApp(config, deps) {
       runtime,
       attachmentService,
       config: adminConfig,
+      hookReceiverRoutes,
     }, {
       stopApp: async function stopWalkerApp() { stop(); return { ok: true }; },
       exitProcess: function exitWalkerProcess(code) { process.exit(code || 0); },
@@ -218,6 +244,22 @@ function createApp(config, deps) {
   }
 
   let adminServer = createAdminIfEnabled();
+
+  function _restoreHealthPollers() {
+    if (!sessionService || typeof sessionService.listSessions !== 'function') return;
+    const sessions = sessionService.listSessions();
+    let restored = 0;
+    for (const session of sessions) {
+      if (!session || session.status === 'deleted') continue;
+      if (!session.agentRef || !session.agentRef.opencodeSessionId) continue;
+      if (typeof sessionService.getRouteForSession !== 'function') continue;
+      const routeKey = sessionService.getRouteForSession(session.id);
+      if (!routeKey) continue;
+      healthPoller.track(session.id, session.agentRef);
+      restored++;
+    }
+    if (restored > 0) logger.info('restored health pollers on startup', { count: restored });
+  }
 
   /**
    * 启动 Walker 应用，初始化飞书平台连接和管理端 HTTP 服务
@@ -229,6 +271,16 @@ function createApp(config, deps) {
     const cleaned = sessionService.cleanOrphanRoutes();
     if (recovered.length > 0) logger.info('recovered running sessions to idle', { count: recovered.length });
     if (cleaned.length > 0) logger.info('cleaned orphan routes', { count: cleaned.length });
+    const hookResult = installHookPlugin({
+      opencodeConfigDir: config.opencodeConfigDir,
+      walkerPort: adminConfig.port,
+      enabled: config.walkerOpendcodeHookEnabled !== false,
+    });
+    if (hookResult.installed) {
+      logger.info('hook plugin installed', { path: hookResult.path });
+    } else if (hookResult.reason && hookResult.reason !== 'disabled') {
+      logger.info('hook plugin not installed', { reason: hookResult.reason, path: hookResult.path || '' });
+    }
     await platform.start();
     platformStarted = true;
     if (adminServer) {
@@ -237,6 +289,7 @@ function createApp(config, deps) {
         logger.info('admin console started', { host: result.host, port: result.port });
       }
     }
+    _restoreHealthPollers();
     logger.info('walker started successfully');
   }
 
@@ -246,6 +299,7 @@ function createApp(config, deps) {
    */
   async function stop() {
     logger.info('walker stopping');
+    healthPoller.stop();
     if (adminServer) {
       await adminServer.stop();
       logger.info('admin console stopped');
@@ -254,7 +308,7 @@ function createApp(config, deps) {
     logger.info('walker stopped');
   }
 
-  return { start, stop, platform, dispatcher, sessionService, registry, adminServer, runtime, attachmentService, eventStore };
+  return { start, stop, platform, dispatcher, sessionService, registry, adminServer, runtime, attachmentService, eventStore, healthPoller };
 }
 
 function normalizeReplyCtx(replyCtx) {

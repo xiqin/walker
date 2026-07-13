@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "验证通过：587/587 PASS，REQ-001~010 全部 PASS，0 占位符，12 跨 task 接口一致，19/19 验收标准覆盖。verdict: PASS，evidence-sha256: 10C9CA22AA7C386995E7D6A5B76B207AB0C35F4EE7B75DC086D45695648DCAAA，evidence-exit-code: 0。",
+  "artifacts": [
+    "specs/2026-07-12+terminal-auto-attach/verify-report.md"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "7782f33cf5b5f6be6fde2461f598f9bac12f6bae3f0d4aca89e7cba9e0ffd26e",
+    "spec.md": "e6d4476b06479175759312907fb6408f586e46df2b2e1c953cf7b5528bec6806",
+    "test-report.md": "92ff61592613e1efc1dd6a35dcecc5199465812c85a57c9c03654bad3dbc9537"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-12+terminal-auto-attach/verify-report.md": "e7824314a16aabcd0eda866a0f72b4e08a19e4623717af24b4de5da24e8e9fd4"
+  },
+  "written_at": "2026-07-13T03:46:07.520Z"
+}

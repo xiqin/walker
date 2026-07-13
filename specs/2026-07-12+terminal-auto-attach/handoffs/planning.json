@@ -1,0 +1,32 @@
+{
+  "status": "done",
+  "summary": "规划阶段完成：7 个 task 拆分，覆盖 REQ-001 到 REQ-010 全部 10 个需求。validate-plan.mjs 校验通过。",
+  "artifacts": [
+    "specs/2026-07-12+terminal-auto-attach/plan.md",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T1.md",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T2.md",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T3.md",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T4.md",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T5.md",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T6.md",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T7.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "7782f33cf5b5f6be6fde2461f598f9bac12f6bae3f0d4aca89e7cba9e0ffd26e",
+    "spec.md": "e6d4476b06479175759312907fb6408f586e46df2b2e1c953cf7b5528bec6806",
+    "tasks/": "b7b3ceb97cc5d7998642d0acea786689ad868a2aac710fd8ee842496e5765de3"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-12+terminal-auto-attach/plan.md": "7782f33cf5b5f6be6fde2461f598f9bac12f6bae3f0d4aca89e7cba9e0ffd26e",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T1.md": "f87c75c03052bef36dcc4fca273938d272e087b5013aa27283a01b3c1914fe93",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T2.md": "265c0a10a05060334cb6475b31e36e320eb07659d18536c86171b8ecfa3bdbde",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T3.md": "b03926cf33f1af31ccda55e7f696ce2bdc7a72f22bf084758751d7f71365aaad",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T4.md": "f29c230d9951c256d58b8ab30d9b106c82d92289b1023f2305608f0f8e86065a",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T5.md": "55f46574cf434827c99ec427b95473e72f23fbbecce5817064b4820be806a205",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T6.md": "0747758daabad3b3b282fb69e80b866dea0edade28f45dee94b32cee63ee16e4",
+    "specs/2026-07-12+terminal-auto-attach/tasks/T7.md": "5e71154cab3d262f613f78632f1f4fdeed8d8df3ed94a37df750be80e8956757"
+  },
+  "written_at": "2026-07-13T02:48:43.948Z"
+}

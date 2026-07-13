@@ -13,23 +13,64 @@ const { recordEvent } = require('./event-store');
  * @returns {Object[]} route 绑定列表，每条含 routeKey、sessionId、health 和 dangling 标记
  */
 function listRoutes(ctx) {
-  const state = ctx.sessionService.stateStore.read();
+  const state = ctx.sessionService._readNormalized ? ctx.sessionService._readNormalized() : ctx.sessionService.stateStore.read();
   const routes = state.routes || {};
   const sessions = state.sessions || {};
 
   return Object.keys(routes).map((routeKey) => {
-    const sessionId = routes[routeKey];
-    const session = sessions[sessionId];
+    const route = routes[routeKey];
+    const sessionId = route ? route.focusSessionId : null;
+    const session = sessionId ? sessions[sessionId] : null;
     const dangling = !session || session.status === 'deleted';
+    const sessionIds = route && Array.isArray(route.sessions) ? route.sessions.slice() : [];
+    const activeSessions = [];
+    const missingSessionIds = [];
+    const deletedSessionIds = [];
+    for (const id of sessionIds) {
+      const item = sessions[id];
+      if (!item) {
+        missingSessionIds.push(id);
+      } else if (item.status === 'deleted') {
+        deletedSessionIds.push(id);
+      } else {
+        activeSessions.push(summarizeSession(item, id === sessionId));
+      }
+    }
 
     return {
       routeKey,
       sessionId,
+      focusSessionId: sessionId,
+      sessions: sessionIds,
+      sessionIds,
+      sessionCount: sessionIds.length,
+      activeSessions,
+      missingSessionIds,
+      deletedSessionIds,
+      cwd: route && route.cwd ? route.cwd : '',
+      lastActiveAt: route && route.lastActiveAt ? route.lastActiveAt : null,
+      updatedAt: route && route.updatedAt ? route.updatedAt : null,
       health: dangling ? 'dangling' : (session ? session.status : 'unknown'),
       dangling,
       session: dangling ? null : session,
     };
   });
+}
+
+function summarizeSession(session, isFocus) {
+  const agentRef = session.agentRef || {};
+  return {
+    id: session.id,
+    title: session.title || '',
+    agent: session.agent || '',
+    status: session.status || '',
+    cwd: session.cwd || '',
+    runtime: session.runtime || '',
+    isFocus: !!isFocus,
+    opencodeSessionId: agentRef.opencodeSessionId || '',
+    serverUrl: agentRef.serverUrl || '',
+    updatedAt: session.updatedAt || null,
+  };
 }
 
 /**
@@ -80,13 +121,22 @@ function unbindRoute(ctx, routeKey) {
  * @returns {Object[]} 悬空 route 列表
  */
 function detectDangling(ctx) {
-  const state = ctx.sessionService.stateStore.read();
+  const state = ctx.sessionService._readNormalized ? ctx.sessionService._readNormalized() : ctx.sessionService.stateStore.read();
   const routes = state.routes || {};
   const sessions = state.sessions || {};
 
   const dangling = [];
   for (const routeKey of Object.keys(routes)) {
-    const sessionId = routes[routeKey];
+    const route = routes[routeKey];
+    if (!route || !route.focusSessionId) {
+      dangling.push({
+        routeKey,
+        sessionId: route ? route.focusSessionId : null,
+        reason: 'route has no focusSessionId',
+      });
+      continue;
+    }
+    const sessionId = route.focusSessionId;
     const session = sessions[sessionId];
     if (!session || session.status === 'deleted') {
       dangling.push({

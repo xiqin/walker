@@ -1,0 +1,36 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "改造 MessageDispatcher 的 /use、/list、/status 命令适配 1:N session 路由，实现非焦点 session 的 SSE watch 事件主动回卡片到群里并带 [session: wks_N] 标识。在 bootstrap.js 中集成 hook receiver 路由注册和 plugin 安装调用。具体改动：1) _cmdUse 从 bindRoute 改为 setFocus（切焦点而非覆盖式绑定），/use off 改为 removeSessionFromRoute（移除焦点 session，保留其他 session）。2) _cmdList 从 listSessions() 改为 listSessionsInRoute(cmd.routeKey)（只列出当前 route 下的 session，焦点排在第一位并标记）。3) _cmdStatus 新增 _formatRouteStatus 方法显示 route 多 session 状态格式（Route/Active sessions/Focus/Other）。4) _handleWatchedSessionEvent 新增 _isFocusSession 判断，非焦点 session 输出加 [session: <id前8位>] 前缀；nonFocusOutput=false 时非焦点 session 静默不回群。5) 构造参数新增 nonFocusOutput 选项（默认 true）。6) bootstrap.js 在 start() 中调用 installHookPlugin({ opencodeConfigDir, walkerPort, enabled })，在 createAdminIfEnabled 中调用 createHookReceiverRoutes 并注入 hookReceiverRoutes 到 admin server 上下文。7) admin/index.js 的 createAdminServerFromContext 新增 hookReceiverRoutes 参数支持，合并到 allRoutes。8) _cmdCancel 无需改动（getCurrent 返回焦点 session，T1 已保证）。全部 557 测试通过（52 message-dispatcher + 9 bootstrap + 496 其他），无回归，无占位符残留。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js",
+    "src/app/bootstrap.js",
+    "src/admin/index.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "MessageDispatcher.options.nonFocusOutput",
+      "path": "src/dispatch/message-dispatcher.js",
+      "signature": "构造参数 nonFocusOutput: boolean，默认 true。false 时非焦点 session 的 watch 输出静默不回群；true 时非焦点输出带 [session: <id前8位>] 前缀回群"
+    },
+    {
+      "name": "MessageDispatcher._isFocusSession",
+      "path": "src/dispatch/message-dispatcher.js",
+      "signature": "_isFocusSession(session) — 通过 sessionService.getRouteForSession(session.id) 找 routeKey，再比较 getCurrent(routeKey).id === session.id 判断是否焦点；无 routeKey 或 sessionService 不支持时默认返回 true（焦点）"
+    },
+    {
+      "name": "MessageDispatcher._formatRouteStatus",
+      "path": "src/dispatch/message-dispatcher.js",
+      "signature": "_formatRouteStatus(routeKey, routeCwd, focusSession, sessions) — 格式化多 session 状态文本：Route/Active sessions/Focus/Other"
+    }
+  ],
+  "breaking_changes": [
+    "/use 命令从 bindRoute（覆盖式绑定）改为 setFocus（切焦点），/use off 从 unbindRoute（删整个 route）改为 removeSessionFromRoute（只移除焦点 session，保留其他）",
+    "/list 命令从列出全局所有 session 改为只列出当前 route 下的 session",
+    "/status 命令输出格式从单 session 详情改为多 session 路由状态格式（Route/Active sessions/Focus/Other），不再显示 model/cwd/running time 等字段",
+    "createAdminServerFromContext 新增 hookReceiverRoutes 参数（可选，不传时行为不变）"
+  ],
+  "requirements_verified": ["REQ-004", "REQ-008"],
+  "notes": "1) /use 命令行为变更：现在调 setFocus(routeKey, sessionId) 而非 bindRoute。setFocus 校验 sessionId 必须在 route.sessions 列表中，不在则抛 'session not in route'。/use off 调 removeSessionFromRoute 移除焦点 session。2) /status 输出格式变更：从 _formatStatus（单 session 详情含 model/cwd/running time）改为 _formatRouteStatus（多 session 路由概览）。_formatStatus 方法保留但不再被 /status 使用。3) 非焦点输出前缀格式为 [session: <sessionId前8位>]，如 [session: wks_abcde12]。4) nonFocusOutput 配置项来自 config.walkerOpendcodeNonFocusOutput（注意拼写 Opendcode），bootstrap 中注入 nonFocusOutput: config.walkerOpendcodeNonFocusOutput !== false。5) bootstrap start() 中调用 installHookPlugin，enabled 来自 config.walkerOpendcodeHookEnabled !== false，walkerPort 来自 adminConfig.port，opencodeConfigDir 来自 config.opencodeConfigDir（若未配置则 installer 使用默认 ~/.config/opencode/plugins/）。6) hook receiver 路由通过 createHookReceiverRoutes({ sessionService, config: adminConfig }) 生成，合并到 admin server 的 allRoutes。adminConfig 需含 token 字段用于鉴权。7) _cmdCancel 无需改动，getCurrent 已返回焦点 session。8) _ensureWatch 对非焦点 session 也启动 watch（现有行为已满足），hook 纳入的非焦点 session 也能回群。9) admin/index.js 的 createAdminServerFromContext 现接受 ctx.hookReceiverRoutes 数组参数，合并到路由表。10) 现有测试中 /status 有绑定 和 /ps 复用 status 的断言已更新适配新格式。"
+}

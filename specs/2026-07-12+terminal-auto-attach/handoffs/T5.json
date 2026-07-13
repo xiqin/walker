@@ -1,0 +1,15 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "将 renderSessionListCard 中的原'绑定/已绑定'按钮改为'设为焦点/已聚焦'，适配 T4 将 /use 命令从'绑定'改为'切焦点'的语义变更。非焦点 session 显示'设为焦点'按钮（type: primary，value: buildButtonValue('cmd:/use', s.id, routeKey)），点击触发 /use 切换焦点；焦点 session 显示'已聚焦'标记（type: default，禁用态）。新增 3 个测试用例验证非焦点 session 有'设为焦点'按钮、焦点 session 有'已聚焦'标记、按钮携带 routeKey。全部 18 个 feishu-cards 测试通过，无回归，无占位符残留。",
+  "artifacts": [
+    "src/platform/feishu/cards.js",
+    "test/feishu-cards.test.js"
+  ],
+  "exported_interfaces": [],
+  "breaking_changes": [
+    "renderSessionListCard 的按钮文案从'绑定/已绑定'改为'设为焦点/已聚焦'，按钮 value 仍为 cmd:/use 不变"
+  ],
+  "requirements_verified": ["REQ-006"],
+  "notes": "1) 仅修改 renderSessionListCard 第 105 行的按钮文案，type 和 value 保持不变，逻辑无改动。2) 测试新增 3 个用例：'非焦点 session 有设为焦点按钮'、'焦点 session 标记已聚焦'、'设为焦点按钮携带 routeKey'，分别验证 REQ-006 的两条验收标准。3) 现有测试 'renderSessionListCard 当前 session 有标记' 仍断言 '当前绑定' 文本标记（column_set 内的 marker），与按钮文案无关，未受影响。4) 现有测试 'renderSessionListCard 包含 session 状态和按钮' 只检查 action 元素存在和按钮数量 > 0，未受影响。5) buildButtonValue('cmd:/use', s.id, routeKey) 的签名和使用方式完全不变，焦点和非焦点按钮都携带相同的 value，焦点按钮虽为禁用态但仍保留 value 以保持结构一致性。"
+}

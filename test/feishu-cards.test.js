@@ -42,6 +42,46 @@ test('renderSessionListCard 当前 session 有标记', () => {
   assert.ok(textEl.text.content.includes('当前绑定'));
 });
 
+test('非焦点 session 有设为焦点按钮', () => {
+  const sessions = [
+    { id: 'wks_focus', title: 'focus session', agent: 'opencode', status: 'idle', cwd: '/home/user', updatedAt: Date.now() },
+    { id: 'wks_other', title: 'other session', agent: 'opencode', status: 'running', cwd: '/home/user2', updatedAt: Date.now() },
+  ];
+  const card = renderSessionListCard(sessions, 'wks_focus');
+  const actionEls = card.elements.filter((el) => el.tag === 'action');
+  const otherAction = actionEls.find((el) => {
+    const btn = el.actions.find((a) => a.text && a.text.content === '设为焦点');
+    return btn !== undefined;
+  });
+  assert.ok(otherAction, '非焦点 session 应有"设为焦点"按钮');
+  const focusBtn = otherAction.actions.find((a) => a.text.content === '设为焦点');
+  assert.deepEqual(focusBtn.value, { action: 'cmd:/use wks_other' });
+  assert.equal(focusBtn.type, 'primary');
+});
+
+test('焦点 session 标记已聚焦', () => {
+  const sessions = [
+    { id: 'wks_focus', title: 'focus session', agent: 'opencode', status: 'idle', cwd: '/home/user', updatedAt: Date.now() },
+  ];
+  const card = renderSessionListCard(sessions, 'wks_focus');
+  const actionEl = card.elements.find((el) => el.tag === 'action');
+  assert.ok(actionEl);
+  const focusBtn = actionEl.actions.find((a) => a.text && a.text.content === '已聚焦');
+  assert.ok(focusBtn, '焦点 session 应有"已聚焦"标记');
+  assert.equal(focusBtn.type, 'default');
+  assert.deepEqual(focusBtn.value, { action: 'cmd:/use wks_focus' });
+});
+
+test('设为焦点按钮携带 routeKey', () => {
+  const sessions = [
+    { id: 'wks_other', title: 'other session', agent: 'opencode', status: 'idle', cwd: '/home/user', updatedAt: Date.now() },
+  ];
+  const card = renderSessionListCard(sessions, 'wks_focus', 'feishu:oc_chat1:root:om_root1');
+  const actionEl = card.elements.find((el) => el.tag === 'action');
+  const focusBtn = actionEl.actions.find((a) => a.text && a.text.content === '设为焦点');
+  assert.deepEqual(focusBtn.value, { action: 'cmd:/use wks_other', routeKey: 'feishu:oc_chat1:root:om_root1' });
+});
+
 test('renderSessionListCard running 状态显示蓝色', () => {
   const sessions = [
     { id: 'wks_run1', title: 'running session', agent: 'opencode', status: 'running', cwd: '/home/user', updatedAt: Date.now() },
@@ -96,12 +136,32 @@ test('renderUnboundRouteCard 提供 attach/new/list 按钮', () => {
 
 test('renderAttachableSessionCard 显示可纳入会话按钮', () => {
   const card = renderAttachableSessionCard([
-    { id: 'ses_abc123', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
+    { id: 'ses_abc1234567890_full', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
   ], { managedIds: [] });
   const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
   const actionEl = card.elements.find((el) => el.tag === 'action');
   assert.ok(textEl.text.content.includes('terminal session'));
-  assert.equal(actionEl.actions[0].value.action, 'cmd:/attach ses_abc123');
+  assert.ok(textEl.text.content.includes('ses_abc12345'));
+  assert.equal(actionEl.actions[0].value.action, 'cmd:/attach ses_abc1234567890_full');
+});
+
+test('renderAttachableSessionCard 候选过多时限制展示数量避免飞书拒绝整卡', () => {
+  const sessions = Array.from({ length: 12 }, (_, index) => ({
+    id: 'ses_candidate_' + String(index + 1).padStart(2, '0'),
+    title: 'candidate ' + (index + 1),
+    cwd: 'H:\\walker',
+    status: 'idle',
+  }));
+  const card = renderAttachableSessionCard(sessions, { managedIds: [] });
+  const text = card.elements
+    .filter((el) => el.tag === 'div' && el.text)
+    .map((el) => el.text.content)
+    .join('\n');
+
+  assert.ok(text.includes('candidate 1'));
+  assert.equal(text.includes('candidate 11'), false);
+  assert.ok(text.includes('还有 2 个候选未展示'));
+  assert.equal(card.elements.filter((el) => el.tag === 'action').length, 10);
 });
 
 test('renderAttachableSessionCard 明确提示会话可能来自多个项目', () => {

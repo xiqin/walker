@@ -418,6 +418,68 @@ function emptyHint(msg) {
   return '<div class="empty-msg">' + escapeHtml(msg) + '</div>';
 }
 
+function listFromPayload(payload) {
+  if (payload instanceof Array) return payload;
+  if (payload && payload.list instanceof Array) return payload.list;
+  return [];
+}
+
+function shortId(id) {
+  if (!id) return '-';
+  var text = String(id);
+  return text.length > 18 ? text.slice(0, 18) + '...' : text;
+}
+
+function renderJsonValue(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  if (value instanceof Array || typeof value === 'object') {
+    return '<pre class="json-block">' + escapeHtml(JSON.stringify(value, null, 2)) + '</pre>';
+  }
+  return escapeHtml(String(value));
+}
+
+function renderSessionRouteSummary(session) {
+  if (session.isUnbound || !session.routeKeys || session.routeKeys.length === 0) {
+    return statusTag('warn') + ' 未绑定/游离';
+  }
+  var html = '';
+  for (var i = 0; i < session.routeKeys.length; i++) {
+    var routeKey = session.routeKeys[i];
+    var isFocus = session.focusRouteKeys && session.focusRouteKeys.indexOf(routeKey) !== -1;
+    html += '<div class="mini-line">' + (isFocus ? '<strong>焦点</strong> ' : '') + escapeHtml(routeKey) + '</div>';
+  }
+  return html;
+}
+
+function renderRouteSessionSummary(route) {
+  var active = route.activeSessions || [];
+  var html = '<div class="mini-line">共 ' + (route.sessionCount || 0) + ' 个，活跃 ' + active.length + ' 个</div>';
+  for (var i = 0; i < active.length; i++) {
+    var s = active[i];
+    html += '<div class="mini-line">' + (s.isFocus ? '<strong>焦点</strong> ' : '') + escapeHtml(shortId(s.id)) + ' · ' + escapeHtml(s.status || '-') + ' · ' + escapeHtml(s.opencodeSessionId || '-') + '</div>';
+  }
+  if (route.missingSessionIds && route.missingSessionIds.length > 0) {
+    html += '<div class="mini-line warn-text">缺失: ' + escapeHtml(route.missingSessionIds.join(', ')) + '</div>';
+  }
+  if (route.deletedSessionIds && route.deletedSessionIds.length > 0) {
+    html += '<div class="mini-line warn-text">已删除: ' + escapeHtml(route.deletedSessionIds.join(', ')) + '</div>';
+  }
+  return html;
+}
+
+function renderUnboundSessionNotice(sessions) {
+  var unbound = sessions.filter(function (s) { return s.isUnbound; });
+  if (unbound.length === 0) return '';
+  var html = '<div class="card warn-card"><div class="card-header">游离 Session</div>';
+  html += '<p>这些 session 已存在，但未挂到任何 route。若它们来自 OpenCode hook，通常说明 hook 已上报，但 cwd 没匹配到 route.cwd。</p>';
+  for (var i = 0; i < unbound.length; i++) {
+    var s = unbound[i];
+    html += '<div class="mini-line">' + escapeHtml(s.id) + ' · ' + escapeHtml(s.cwd || '-') + ' · ' + escapeHtml(s.opencodeSessionId || '-') + ' · ' + escapeHtml(s.serverUrl || '-') + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 /* ============================================================
  * 页面渲染函数
  * ============================================================ */
@@ -492,13 +554,14 @@ function renderSessions() {
  */
 function loadSessionList() {
   apiRequest('GET', API_SESSIONS)
-    .then(function (sessions) {
+    .then(function (payload) {
+      var sessions = listFromPayload(payload);
       if (!sessions || sessions.length === 0) {
         document.getElementById('sessionList').innerHTML = emptyHint('暂无 Session');
         return;
       }
       var html = '<table class="data-table"><thead><tr>' +
-        '<th>ID</th><th>标题</th><th>Agent</th><th>状态</th><th>Runtime</th><th>创建时间</th><th>操作</th>' +
+        '<th>ID</th><th>标题</th><th>Agent</th><th>状态</th><th>CWD</th><th>Route</th><th>OpenCode</th><th>Server</th><th>创建时间</th><th>操作</th>' +
         '</tr></thead><tbody>';
       for (var i = 0; i < sessions.length; i++) {
         var s = sessions[i];
@@ -507,7 +570,10 @@ function loadSessionList() {
           '<td data-label="标题">' + escapeHtml(s.title || '-') + '</td>' +
           '<td data-label="Agent">' + escapeHtml(s.agent || '-') + '</td>' +
           '<td data-label="状态">' + statusTag(s.status || '-') + '</td>' +
-          '<td data-label="Runtime">' + escapeHtml(s.runtime || '-') + '</td>' +
+          '<td data-label="CWD">' + escapeHtml(s.cwd || '-') + '</td>' +
+          '<td data-label="Route">' + renderSessionRouteSummary(s) + '</td>' +
+          '<td data-label="OpenCode">' + escapeHtml(s.opencodeSessionId || '-') + '</td>' +
+          '<td data-label="Server">' + escapeHtml(s.serverUrl || '-') + '</td>' +
           '<td data-label="创建时间">' + formatTime(s.createdAt) + '</td>' +
           '<td data-label="操作">' +
             '<button class="btn btn-small btn-default" data-action="detail" data-id="' + escapeHtml(s.id) + '">详情</button> ' +
@@ -582,12 +648,11 @@ function showSessionDetail(sessionId) {
   apiRequest('GET', API_SESSION_DETAIL + sessionId)
     .then(function (s) {
       var html = '<div class="card"><div class="card-header">Session 详情</div>';
-      var fields = ['id', 'title', 'agent', 'status', 'runtime', 'cwd', 'agentRef', 'routeKeys', 'errorMessage', 'createdAt', 'updatedAt'];
+      var fields = ['id', 'title', 'agent', 'status', 'runtime', 'cwd', 'isUnbound', 'routeKeys', 'focusRouteKeys', 'opencodeSessionId', 'serverUrl', 'agentRef', 'errorMessage', 'createdAt', 'updatedAt'];
       for (var i = 0; i < fields.length; i++) {
         var key = fields[i];
         var val = s[key];
-        if (val instanceof Array) val = val.join(', ');
-        html += '<div class="detail-row"><span class="detail-key">' + escapeHtml(key) + '</span><span class="detail-val">' + escapeHtml(String(val || '-')) + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-key">' + escapeHtml(key) + '</span><span class="detail-val">' + renderJsonValue(val) + '</span></div>';
       }
       html += '</div>';
 
@@ -705,29 +770,37 @@ function renderRoutes() {
  * 加载路由列表
  */
 function loadRouteList() {
-  apiRequest('GET', API_ROUTES)
-    .then(function (routes) {
-      if (!routes || routes.length === 0) {
+  Promise.all([apiRequest('GET', API_ROUTES), apiRequest('GET', API_SESSIONS)])
+    .then(function (results) {
+      var routes = listFromPayload(results[0]);
+      var sessions = listFromPayload(results[1]);
+      var notice = renderUnboundSessionNotice(sessions);
+      if ((!routes || routes.length === 0) && !notice) {
         document.getElementById('routeList').innerHTML = emptyHint('暂无路由绑定');
         return;
       }
-      var html = '<table class="data-table"><thead><tr>' +
-        '<th>RouteKey</th><th>SessionId</th><th>状态</th><th>平台</th><th>操作</th>' +
-        '</tr></thead><tbody>';
-      for (var i = 0; i < routes.length; i++) {
-        var r = routes[i];
-        var statusCls = r.dangling ? 'dangling' : (r.health || '-');
-        html += '<tr>' +
-          '<td data-label="RouteKey">' + escapeHtml(r.routeKey || '-') + '</td>' +
-          '<td data-label="SessionId">' + escapeHtml(r.sessionId || '-') + '</td>' +
-          '<td data-label="状态">' + statusTag(r.dangling ? 'dangling' : (r.health || 'unknown')) + '</td>' +
-          '<td data-label="平台">' + escapeHtml(r.platform || '-') + '</td>' +
-          '<td data-label="操作">' +
-            '<button class="btn btn-small btn-danger" data-action="unbind" data-key="' + escapeHtml(r.routeKey) + '">解除绑定</button>' +
-          '</td>' +
-          '</tr>';
+      var html = notice;
+      if (routes && routes.length > 0) {
+        html += '<table class="data-table"><thead><tr>' +
+          '<th>RouteKey</th><th>CWD</th><th>焦点</th><th>Sessions</th><th>状态</th><th>最近活跃</th><th>更新时间</th><th>操作</th>' +
+          '</tr></thead><tbody>';
+        for (var i = 0; i < routes.length; i++) {
+          var r = routes[i];
+          html += '<tr>' +
+            '<td data-label="RouteKey">' + escapeHtml(r.routeKey || '-') + '</td>' +
+            '<td data-label="CWD">' + escapeHtml(r.cwd || '-') + '</td>' +
+            '<td data-label="焦点">' + escapeHtml(r.focusSessionId || r.sessionId || '-') + '</td>' +
+            '<td data-label="Sessions">' + renderRouteSessionSummary(r) + '</td>' +
+            '<td data-label="状态">' + statusTag(r.dangling ? 'dangling' : (r.health || 'unknown')) + '</td>' +
+            '<td data-label="最近活跃">' + formatTime(r.lastActiveAt) + '</td>' +
+            '<td data-label="更新时间">' + formatTime(r.updatedAt) + '</td>' +
+            '<td data-label="操作">' +
+              '<button class="btn btn-small btn-danger" data-action="unbind" data-key="' + escapeHtml(r.routeKey) + '">解除绑定</button>' +
+            '</td>' +
+            '</tr>';
+        }
+        html += '</tbody></table>';
       }
-      html += '</tbody></table>';
       document.getElementById('routeList').innerHTML = html;
 
       document.querySelectorAll('[data-action="unbind"]').forEach(function (btn) {

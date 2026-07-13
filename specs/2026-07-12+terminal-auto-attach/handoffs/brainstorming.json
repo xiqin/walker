@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "方案已确认：Hook Plugin + 1:N Session 路由。spec.md 已用新方案覆盖旧 wrapper 方案。核心决策：1) Walker 启动时自动安装 hook plugin；2) plugin 上报 session.created + cwd，Walker 按 cwd 找 routeKey 创建 session 加入 1:N 列表；3) routes 结构升级为 {focusSessionId, sessions[], cwd}，getCurrent 返回焦点；4) 非焦点 session 输出回群带标识；5) 每 session 独立心跳检测 detached，取消 turn 并从 route 移除，自动切焦点；6) /use 改切焦点，/list 加\"设为焦点\"按钮。session 和 driver 不改。10 个 REQ，19 条验收标准。",
+  "artifacts": [
+    "specs/2026-07-12+terminal-auto-attach/spec.md",
+    "specs/2026-07-12+terminal-auto-attach/opencode-auto-attach-solution.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "e6d4476b06479175759312907fb6408f586e46df2b2e1c953cf7b5528bec6806"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-12+terminal-auto-attach/opencode-auto-attach-solution.md": "b630904d65dd91eca7ca1c355c81c06c5e6a49077dc8580962a3e557fcf4e360",
+    "specs/2026-07-12+terminal-auto-attach/spec.md": "e6d4476b06479175759312907fb6408f586e46df2b2e1c953cf7b5528bec6806"
+  },
+  "written_at": "2026-07-13T02:42:31.709Z"
+}

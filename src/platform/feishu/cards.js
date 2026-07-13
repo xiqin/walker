@@ -18,6 +18,9 @@ const STATUS_TEMPLATE = {
   deleted: 'default',
 };
 
+/** 可纳入会话卡片最多展示的候选数，避免整卡超限 */
+const MAX_ATTACHABLE_CARD_ITEMS = 10;
+
 /**
  * 构建飞书卡片按钮的 value 字段，封装命令和会话 ID，可选携带 routeKey 用于回调精准路由
  * @param {string} cmd - 命令字符串，如 'cmd:/use'
@@ -102,7 +105,7 @@ function renderSessionListCard(sessions, currentSessionId, routeKey) {
     elements.push({
       tag: 'action',
       actions: [
-        { tag: 'button', text: { tag: 'plain_text', content: isCurrent ? '已绑定' : '绑定' }, type: isCurrent ? 'default' : 'primary', value: buildButtonValue('cmd:/use', s.id, routeKey) },
+        { tag: 'button', text: { tag: 'plain_text', content: isCurrent ? '已聚焦' : '设为焦点' }, type: isCurrent ? 'default' : 'primary', value: buildButtonValue('cmd:/use', s.id, routeKey) },
         { tag: 'button', text: { tag: 'plain_text', content: '停止' }, type: 'default', value: buildButtonValue('cmd:/stop', s.id, routeKey) },
         { tag: 'button', text: { tag: 'plain_text', content: '删除' }, type: 'danger', value: buildButtonValue('cmd:/delete', s.id, routeKey) },
       ],
@@ -142,14 +145,14 @@ function renderUnboundRouteCard(routeKey) {
  * @param {Object} [options] - 渲染选项
  * @param {string[]} [options.managedIds] - 已被 Walker 管理的 OpenCode session ID
  * @param {string} [options.routeKey] - 路由键
- * @param {number} [options.maxDisplay=10] - 卡片最多展示的会话数量
  * @returns {Object} 飞书卡片 JSON 结构
  */
 function renderAttachableSessionCard(sessions, options) {
   const managedIds = new Set((options && options.managedIds) || []);
   const routeKey = options && options.routeKey;
-  const maxDisplay = (options && options.maxDisplay) || 10;
   const attachable = (sessions || []).filter((session) => session && session.id && !managedIds.has(session.id));
+  const shown = attachable.slice(0, MAX_ATTACHABLE_CARD_ITEMS);
+  const hiddenCount = Math.max(0, attachable.length - shown.length);
   if (attachable.length === 0) {
     return {
       config: { wide_screen_mode: true },
@@ -163,8 +166,6 @@ function renderAttachableSessionCard(sessions, options) {
     };
   }
 
-  const displayed = attachable.slice(0, maxDisplay);
-  const remaining = attachable.length - displayed.length;
   const elements = [];
   if (options && options.crossProject) {
     elements.push({
@@ -172,7 +173,13 @@ function renderAttachableSessionCard(sessions, options) {
       text: { tag: 'lark_md', content: '以下会话可能来自多个 OpenCode 项目，请核对工作目录后再纳入。' },
     });
   }
-  for (const session of displayed) {
+  if (hiddenCount > 0) {
+    elements.push({
+      tag: 'div',
+      text: { tag: 'lark_md', content: '还有 ' + hiddenCount + ' 个候选未展示，请使用 `/attach <id>` 精确纳入。' },
+    });
+  }
+  for (const session of shown) {
     const title = session.title || ('opencode ' + session.id.slice(0, 12));
     const cwdLabel = session.cwd || '(未设置)';
     const status = session.status || 'unknown';
@@ -191,13 +198,6 @@ function renderAttachableSessionCard(sessions, options) {
       actions: [
         { tag: 'button', text: { tag: 'plain_text', content: '纳入并绑定' }, type: 'primary', value: buildButtonValue('cmd:/attach', session.id, routeKey) },
       ],
-    });
-  }
-
-  if (remaining > 0) {
-    elements.push({
-      tag: 'div',
-      text: { tag: 'lark_md', content: '还有 ' + remaining + ' 个更早的会话未展示。使用 `/attach <session_id>` 可直接纳入指定会话。' },
     });
   }
 

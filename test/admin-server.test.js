@@ -303,6 +303,7 @@ test('router 无匹配返回 null', () => {
 test('isAdminApiPath 判断正确', () => {
   assert.equal(isAdminApiPath('/api/admin/sessions'), true);
   assert.equal(isAdminApiPath('/api/admin/auth/status'), true);
+  assert.equal(isAdminApiPath('/opencode/hook/session-created'), true);
   assert.equal(isAdminApiPath('/css/app.css'), false);
   assert.equal(isAdminApiPath('/sessions'), false);
 });

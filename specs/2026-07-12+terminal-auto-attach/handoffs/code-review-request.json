@@ -1,0 +1,17 @@
+{
+  "status": "done",
+  "summary": "审查请求已生成：18 文件变更（1173+ / 66-），7 个主要变更，587/587 测试通过，Standards 轴 5 警告 0 阻断，Spec 轴 0 偏差。",
+  "artifacts": [
+    "specs/2026-07-12+terminal-auto-attach/review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "7782f33cf5b5f6be6fde2461f598f9bac12f6bae3f0d4aca89e7cba9e0ffd26e",
+    "spec.md": "e6d4476b06479175759312907fb6408f586e46df2b2e1c953cf7b5528bec6806"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-12+terminal-auto-attach/review-request.md": "ad847b754b10bd998d0db3a33af887bf0aa283b7b4c32a48790eb2f2bc92235d"
+  },
+  "written_at": "2026-07-13T03:47:30.427Z"
+}

@@ -10,6 +10,13 @@ function makeMocks() {
     getSession: () => null,
     createSession: () => ({ id: 'wks_new1', agent: 'opencode', status: 'created' }),
     bindRoute: () => {},
+    setFocus: () => {},
+    removeSessionFromRoute: () => {},
+    listSessionsInRoute: () => [],
+    getRouteCwd: () => '',
+    getRouteForSession: () => null,
+    touchRouteCalls: [],
+    touchRoute: (routeKey) => { sessionService.touchRouteCalls.push(routeKey); },
     markRunning: () => {},
     markIdle: () => {},
     markError: () => {},
@@ -148,6 +155,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'sendProgressCard'));
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'updateProgressCard'));
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'addReaction' && c.emoji === 'OnIt'));
+    assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_root1']);
   });
 
   it('处理中表情发送失败不会产生未捕获 rejection', async () => {
@@ -693,7 +701,7 @@ describe('MessageDispatcher command error boundary', () => {
 
   it('/use 不存在 session 时发送错误卡片并返回错误结果', async () => {
     const mocks = makeMocks();
-    mocks.sessionService.bindRoute = () => { throw new Error('session not found: wks_missing'); };
+    mocks.sessionService.setFocus = () => { throw new Error('session not found: wks_missing'); };
     const dispatcher = new MessageDispatcher({
       sessionService: mocks.sessionService,
       driverRegistry: mocks.driverRegistry,
@@ -837,7 +845,7 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     assert.equal(reply.text, 'No session bound to this conversation. Use /new or /attach first.');
   });
 
-  it('/status 有绑定时返回 session、agent、状态、cwd、模型和运行时长', async () => {
+  it('/status 有绑定时返回 route、焦点 session 和其他 session 状态', async () => {
     const mocks = makeMocks();
     const session = {
       id: 'wks_status1', agent: 'opencode', status: 'running', cwd: 'H:\\walker',
@@ -845,6 +853,8 @@ describe('MessageDispatcher turn lifecycle commands', () => {
       agentRef: { opencodeSessionId: 'ses_status1', cwd: 'H:\\walker' },
     };
     mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.listSessionsInRoute = () => [session];
+    mocks.sessionService.getRouteCwd = () => 'H:\\walker';
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
     dispatcher.sessionWatchStops.set(session.id, () => {});
     dispatcher.turnStates.set(session.id, {
@@ -861,21 +871,19 @@ describe('MessageDispatcher turn lifecycle commands', () => {
 
     assert.equal(result.sessionId, 'wks_status1');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.match(reply.text, /Walker session id: wks_status1/);
-    assert.match(reply.text, /Agent: opencode/);
-    assert.match(reply.text, /Status: running/);
-    assert.match(reply.text, /OpenCode session id: ses_status1/);
-    assert.match(reply.text, /Model: anthropic\/claude-sonnet-4/);
-    assert.match(reply.text, /CWD: H:\\walker/);
-    assert.match(reply.text, /Current turn running: yes/);
-    assert.match(reply.text, /Running time:/);
-    assert.match(reply.text, /Background watch: yes/);
+    assert.match(reply.text, /Route: feishu:oc_chat1:om_root1/);
+    assert.match(reply.text, /Active sessions: 1/);
+    assert.match(reply.text, /Focus: wks_status1/);
+    assert.match(reply.text, /opencode/);
+    assert.match(reply.text, /ses_status1/);
   });
 
   it('/ps 复用 status', async () => {
     const mocks = makeMocks();
     const session = { id: 'wks_ps1', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: { opencodeSessionId: 'ses_ps1' } };
     mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.listSessionsInRoute = () => [session];
+    mocks.sessionService.getRouteCwd = () => 'H:\\walker';
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
 
     const result = await dispatcher.handleCommand({
@@ -884,7 +892,7 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     });
 
     assert.equal(result.sessionId, 'wks_ps1');
-    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('Walker session id: wks_ps1')));
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('wks_ps1')));
   });
 
   it('max turn time 超时后取消当前 turn，清理心跳，不发送过期最终回答', async () => {
@@ -987,6 +995,7 @@ describe('MessageDispatcher /attach command', () => {
     assert.equal(markedIdle, 'wks_attached1');
     assert.ok(watched);
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('OpenCode session attached')));
+    assert.ok(mocks.feishuApi.calls.every(c => c.type !== 'sendAttachableSessionList'));
   });
 
   it('/attach 多个候选时发送可纳入列表卡片', async () => {
@@ -1014,6 +1023,7 @@ describe('MessageDispatcher /attach command', () => {
     assert.equal(result.candidates.length, 2);
     assert.equal(cardCall.sessions.length, 2);
     assert.deepEqual(cardCall.options.managedIds, []);
+    assert.equal(Object.prototype.hasOwnProperty.call(cardCall.options, 'maxDisplay'), false);
   });
 
   it('/attach <id> 对已管理 OpenCode 会话直接绑定现有 Walker session', async () => {
@@ -1022,7 +1032,7 @@ describe('MessageDispatcher /attach command', () => {
       { id: 'ses_managed', title: 'managed', cwd: 'H:\\walker', status: 'idle' },
     ];
     mocks.sessionService.listSessions = () => [
-      { id: 'wks_existing1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_managed' } },
+      { id: 'wks_existing1', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: { opencodeSessionId: 'ses_managed' } },
     ];
     let boundRoute;
     mocks.sessionService.bindRoute = (routeKey, sessionId) => { boundRoute = { routeKey, sessionId }; };
@@ -1042,6 +1052,39 @@ describe('MessageDispatcher /attach command', () => {
 
     assert.equal(result.bound, 'wks_existing1');
     assert.deepEqual(boundRoute, { routeKey: 'feishu:oc_chat1:om_root1', sessionId: 'wks_existing1' });
+  });
+
+  it('/attach <id> 可按完整 OpenCode session id 直接纳入指定会话', async () => {
+    const mocks = makeMocks();
+    let createOpts;
+    mocks.driver.listSessions = async () => [
+      { id: 'ses_foreign_full_id_12345', title: 'foreign', cwd: 'H:\\rsstest', status: 'idle' },
+    ];
+    mocks.sessionService.listSessions = () => [];
+    mocks.sessionService.createSession = (opts) => {
+      createOpts = opts;
+      return { id: 'wks_attached_foreign', agent: opts.agent, status: 'created', agentRef: opts.agentRef };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['ses_foreign_full_id_12345'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_attach_foreign1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.sessionId, 'wks_attached_foreign');
+    assert.equal(createOpts.route, 'feishu:oc_chat1:om_root1');
+    assert.equal(createOpts.cwd, 'H:\\rsstest');
+    assert.equal(createOpts.agentRef.opencodeSessionId, 'ses_foreign_full_id_12345');
+    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('ses_foreign_full_id_12345')));
   });
 });
 
@@ -1143,5 +1186,309 @@ describe('MessageDispatcher /model command', () => {
     assert.equal(result.noSession, true);
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply.text.includes('/new'));
+  });
+});
+
+describe('MessageDispatcher 1:N route commands', () => {
+  it('/use 切焦点到指定 session（而非覆盖式绑定）', async () => {
+    const mocks = makeMocks();
+    const setFocusCalls = [];
+    mocks.sessionService.setFocus = (routeKey, sessionId) => { setFocusCalls.push({ routeKey, sessionId }); };
+    mocks.sessionService.listSessionsInRoute = () => [
+      { id: 'wks_a', agent: 'opencode', status: 'idle' },
+      { id: 'wks_b', agent: 'opencode', status: 'idle' },
+    ];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'use', args: ['wks_b'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_use_focus1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.focus, 'wks_b');
+    assert.deepEqual(setFocusCalls, [{ routeKey: 'feishu:oc_chat1:om_root1', sessionId: 'wks_b' }]);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply.text.includes('wks_b'));
+  });
+
+  it('/use 不在 route sessions 列表中的 session id 返回错误', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.setFocus = () => { throw new Error('session not in route: wks_other'); };
+    mocks.sessionService.listSessionsInRoute = () => [
+      { id: 'wks_a', agent: 'opencode', status: 'idle' },
+    ];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'use', args: ['wks_other'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_use_notinroute1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.error, 'command_failed');
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard' && c.message.includes('wks_other')));
+  });
+
+  it('/use off 从 route 移除焦点 session（保留其他 session）', async () => {
+    const mocks = makeMocks();
+    const removeCalls = [];
+    mocks.sessionService.removeSessionFromRoute = (routeKey, sessionId) => { removeCalls.push({ routeKey, sessionId }); };
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_focus1', agent: 'opencode', status: 'idle' });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'use', args: ['off'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_use_off1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.removed, 'wks_focus1');
+    assert.deepEqual(removeCalls, [{ routeKey: 'feishu:oc_chat1:om_root1', sessionId: 'wks_focus1' }]);
+  });
+
+  it('/use off 无焦点 session 时返回提示', async () => {
+    const mocks = makeMocks();
+    const removeCalls = [];
+    mocks.sessionService.removeSessionFromRoute = (routeKey, sessionId) => { removeCalls.push({ routeKey, sessionId }); };
+    mocks.sessionService.getCurrent = () => null;
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'use', args: ['off'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_use_off_none1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.noFocus, true);
+    assert.equal(removeCalls.length, 0);
+  });
+
+  it('/list 列出 route 下多 session（焦点在前）', async () => {
+    const mocks = makeMocks();
+    const sessions = [
+      { id: 'wks_focus1', agent: 'opencode', status: 'idle' },
+      { id: 'wks_other1', agent: 'opencode', status: 'running' },
+    ];
+    mocks.sessionService.listSessionsInRoute = (routeKey) => sessions;
+    mocks.sessionService.getCurrent = () => sessions[0];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'list', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_list_route1', chatId: 'oc_chat1',
+    });
+
+    assert.deepEqual(result.sessions, sessions);
+    const cardCall = mocks.feishuApi.calls.find(c => c.type === 'sendSessionList');
+    assert.ok(cardCall);
+    assert.deepEqual(cardCall.sessions, sessions);
+    assert.equal(cardCall.currentId, 'wks_focus1');
+    assert.equal(cardCall.routeKey, 'feishu:oc_chat1:om_root1');
+    assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:om_root1']);
+  });
+
+  it('/status 显示多 session 状态', async () => {
+    const mocks = makeMocks();
+    const focusSession = {
+      id: 'wks_focus1', agent: 'opencode', status: 'running', cwd: 'H:\\walker',
+      agentRef: { opencodeSessionId: 'ses_focus1' },
+    };
+    const otherSession = {
+      id: 'wks_other1', agent: 'opencode', status: 'idle', cwd: 'H:\\walker',
+      agentRef: { opencodeSessionId: 'ses_other1' },
+    };
+    mocks.sessionService.getCurrent = () => focusSession;
+    mocks.sessionService.listSessionsInRoute = () => [focusSession, otherSession];
+    mocks.sessionService.getRouteCwd = () => 'H:\\walker';
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    dispatcher.sessionWatchStops.set(focusSession.id, () => {});
+    dispatcher.turnStates.set(focusSession.id, {
+      token: 1, startedAt: Date.now() - 1200, lastEventAt: Date.now() - 500, cancelled: false,
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'status', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_status_multi1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.sessionId, 'wks_focus1');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.match(reply.text, /Route: feishu:oc_chat1:om_root1/);
+    assert.match(reply.text, /Active sessions: 2/);
+    assert.match(reply.text, /Focus: wks_focus1/);
+    assert.match(reply.text, /Other:.*wks_other1/);
+  });
+
+  it('/status 无 session 时显示未绑定提示', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => null;
+    mocks.sessionService.listSessionsInRoute = () => [];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'status', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_status_empty1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.noSession, true);
+  });
+});
+
+describe('MessageDispatcher non-focus output', () => {
+  it('非焦点 session 输出带 session 标识前缀', async () => {
+    const mocks = makeMocks();
+    const focusSession = { id: 'wks_focus1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus1' } };
+    const nonFocusSession = { id: 'wks_nonfocus1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_nonfocus1' } };
+    mocks.sessionService.getCurrent = () => focusSession;
+    mocks.sessionService.getRouteForSession = (sessionId) => sessionId === 'wks_nonfocus1' || sessionId === 'wks_focus1' ? 'feishu:oc_chat1:om_root1' : null;
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      nonFocusOutput: true,
+    });
+
+    dispatcher._handleWatchedSessionEvent(nonFocusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: '非焦点回复' }));
+    dispatcher._handleWatchedSessionEvent(nonFocusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sendText = mocks.feishuApi.calls.find(c => c.type === 'sendText' && c.text.includes('非焦点回复'));
+    assert.ok(sendText, '非焦点 session 的输出应发送到群');
+    assert.ok(sendText.text.startsWith('[session: wks_nonf'), '非焦点输出应带 [session: <id前8位>] 前缀');
+  });
+
+  it('焦点 session 输出不带 session 标识前缀（保持原有体验）', async () => {
+    const mocks = makeMocks();
+    const focusSession = { id: 'wks_focus1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus1' } };
+    mocks.sessionService.getCurrent = () => focusSession;
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      nonFocusOutput: true,
+    });
+
+    dispatcher._handleWatchedSessionEvent(focusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: '焦点回复' }));
+    dispatcher._handleWatchedSessionEvent(focusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sendText = mocks.feishuApi.calls.find(c => c.type === 'sendText' && c.text.includes('焦点回复'));
+    assert.ok(sendText);
+    assert.equal(sendText.text.startsWith('[session:'), false, '焦点输出不应带 session 标识前缀');
+  });
+
+  it('nonFocusOutput=false 时非焦点 session 静默不回群', async () => {
+    const mocks = makeMocks();
+    const focusSession = { id: 'wks_focus1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus1' } };
+    const nonFocusSession = { id: 'wks_nonfocus1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_nonfocus1' } };
+    mocks.sessionService.getCurrent = () => focusSession;
+    mocks.sessionService.getRouteForSession = (sessionId) => sessionId === 'wks_nonfocus1' || sessionId === 'wks_focus1' ? 'feishu:oc_chat1:om_root1' : null;
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      nonFocusOutput: false,
+    });
+
+    dispatcher._handleWatchedSessionEvent(nonFocusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: '不应发送' }));
+    dispatcher._handleWatchedSessionEvent(nonFocusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sendText = mocks.feishuApi.calls.find(c => c.type === 'sendText' && c.text.includes('不应发送'));
+    assert.equal(!!sendText, false, 'nonFocusOutput=false 时非焦点 session 不应发送到群');
+  });
+});
+
+describe('MessageDispatcher ensureWatchForSession', () => {
+  it('纳入非焦点 session 后启动 watch', () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_enroll1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_enroll1', serverUrl: 'http://localhost:4096' } };
+    mocks.sessionService.getSession = (id) => id === session.id ? session : null;
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    assert.equal(dispatcher.sessionWatchStops.has(session.id), false, '调用前不应有 watch');
+    dispatcher.ensureWatchForSession(session.id);
+    assert.equal(dispatcher.sessionWatchStops.has(session.id), true, '调用后应启动 watch');
+  });
+
+  it('session 不存在时安全跳过', () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getSession = () => null;
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    dispatcher.ensureWatchForSession('wks_nope');
+    assert.equal(dispatcher.sessionWatchStops.size, 0, 'session 不存在时不应启动 watch');
+  });
+
+  it('已有 watch 时幂等不重复启动', () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_dup1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_dup1' } };
+    mocks.sessionService.getSession = (id) => id === session.id ? session : null;
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
+    let watchCallCount = 0;
+    mocks.driver.watchSession = () => { watchCallCount++; return () => {}; };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    dispatcher.ensureWatchForSession(session.id);
+    dispatcher.ensureWatchForSession(session.id);
+    assert.equal(watchCallCount, 1, '重复调用 ensureWatchForSession 不应重复 watch');
   });
 });

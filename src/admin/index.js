@@ -31,6 +31,7 @@ const { createToolsRoutes } = require('./tools-routes');
  * @param {Function} [deps.stopApp] - 停止 Walker 应用的函数
  * @param {Function} [deps.exitProcess] - 退出进程的函数
  * @param {Function} [deps.createServer] - 替换 createAdminServer 的工厂函数
+ * @param {Array} [appContext.hookReceiverRoutes] - 额外的 hook receiver 路由数组
  * @returns {Object} AdminServer 实例 { start, stop, server, getStatus, router }
  */
 function createAdminServerFromContext(appContext, deps) {
@@ -46,6 +47,7 @@ function createAdminServerFromContext(appContext, deps) {
       stopApp: injected.stopApp,
       exitProcess: injected.exitProcess,
     }),
+    ...(Array.isArray(ctx.hookReceiverRoutes) ? ctx.hookReceiverRoutes : []),
   ];
 
   /** 静态文件目录指向 admin/public */

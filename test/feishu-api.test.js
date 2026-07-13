@@ -76,6 +76,33 @@ test('FeishuApi replyCard 缺少真实 message_id 时失败', async () => {
   });
 });
 
+test('FeishuApi replyCard 回复消息失败时用 chatId 发送新卡片兜底', async () => {
+  const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+  api.token = 'tenant-token';
+  api.tokenExpiresAt = Date.now() + 60000;
+  const requests = [];
+  api._request = async (method, host, path, body, token) => {
+    requests.push({ method, host, path, body, token });
+    if (requests.length === 1) {
+      const err = new Error('feishu api http error: POST ' + path + ' status=400');
+      err.method = method;
+      err.path = path;
+      err.status = 400;
+      throw err;
+    }
+    return { code: 0, data: { message_id: 'om_fallback' } };
+  };
+
+  const messageId = await api.replyCard({ messageId: 'om_bad', chatId: 'oc_chat1' }, { elements: [] });
+
+  assert.equal(messageId, 'om_fallback');
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].path, '/open-apis/im/v1/messages/om_bad/reply');
+  assert.equal(requests[1].path, '/open-apis/im/v1/messages?receive_id_type=chat_id');
+  assert.equal(JSON.parse(requests[1].body).receive_id, 'oc_chat1');
+  assert.equal(JSON.parse(requests[1].body).msg_type, 'interactive');
+});
+
 test('FeishuApi addReaction 捕获异步失败', async () => {
   const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
   api.token = 'tenant-token';

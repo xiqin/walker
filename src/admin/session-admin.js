@@ -15,7 +15,11 @@ const { recordEvent, recordMetric, timelineForSession } = require('./event-store
  * @returns {Object[]} 未删除会话列表
  */
 function listSessions(ctx) {
-  return ctx.sessionService.listSessions();
+  const sessions = ctx.sessionService.listSessions();
+  const state = ctx.sessionService._readNormalized ? ctx.sessionService._readNormalized() : ctx.sessionService.stateStore.read();
+  const routes = state.routes || {};
+
+  return sessions.map((session) => withRouteDiagnostics(session, routes));
 }
 
 /**
@@ -28,12 +32,32 @@ function getSession(ctx, sessionId) {
   const session = ctx.sessionService.getSession(sessionId);
   if (!session) return null;
 
-  const state = ctx.sessionService.stateStore.read();
-  const routeKeys = Object.keys(state.routes || {}).filter((k) => state.routes[k] === sessionId);
+  const state = ctx.sessionService._readNormalized ? ctx.sessionService._readNormalized() : ctx.sessionService.stateStore.read();
+  const routes = state.routes || {};
 
   const timeline = timelineForSession(ctx.eventStore, sessionId, { limit: 10 });
 
-  return { ...session, routeKeys, timeline };
+  return { ...withRouteDiagnostics(session, routes), timeline };
+}
+
+function withRouteDiagnostics(session, routes) {
+  const routeKeys = [];
+  const focusRouteKeys = [];
+  for (const routeKey of Object.keys(routes || {})) {
+    const route = routes[routeKey];
+    if (!route || !Array.isArray(route.sessions) || !route.sessions.includes(session.id)) continue;
+    routeKeys.push(routeKey);
+    if (route.focusSessionId === session.id) focusRouteKeys.push(routeKey);
+  }
+  const agentRef = session.agentRef || {};
+  return {
+    ...session,
+    routeKeys,
+    focusRouteKeys,
+    isUnbound: routeKeys.length === 0,
+    opencodeSessionId: agentRef.opencodeSessionId || '',
+    serverUrl: agentRef.serverUrl || '',
+  };
 }
 
 /**

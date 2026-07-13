@@ -245,3 +245,305 @@ test('cleanOrphanRoutes 清除指向 missing session 的 route', () => {
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test('旧单值 routes 格式自动迁移', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const s1 = service.createSession({ agent: 'opencode', cwd: 'H:\\walker' });
+  stateStore.update((state) => {
+    if (!state.routes) state.routes = {};
+    state.routes['feishu:legacy:ou_old'] = s1.id;
+  });
+
+  service.listSessionsInRoute('feishu:legacy:ou_old');
+  const state = stateStore.read();
+  assert.ok(state.routes['feishu:legacy:ou_old'], 'route 条目应保留为对象格式');
+  assert.equal(typeof state.routes['feishu:legacy:ou_old'], 'object');
+  assert.equal(state.routes['feishu:legacy:ou_old'].focusSessionId, s1.id);
+  assert.deepEqual(state.routes['feishu:legacy:ou_old'].sessions, [s1.id]);
+  assert.equal(state.routes['feishu:legacy:ou_old'].cwd, 'H:\\walker');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('空 route cwd 自动从已有 session cwd 回填', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:legacy-empty-cwd:ou_old';
+  const s1 = service.createSession({ agent: 'opencode', cwd: 'H:\\walker' });
+  stateStore.update((state) => {
+    if (!state.routes) state.routes = {};
+    state.routes[routeKey] = {
+      focusSessionId: s1.id,
+      sessions: [s1.id],
+      cwd: '',
+      updatedAt: Date.now(),
+    };
+  });
+
+  service.listSessionsInRoute(routeKey);
+  const state = stateStore.read();
+  assert.equal(state.routes[routeKey].cwd, 'H:\\walker');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('addSessionToRoute 新增 session 到 route', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ agent: 'opencode' });
+  service.addSessionToRoute(routeKey, s1.id, '/home/proj');
+
+  const state = stateStore.read();
+  assert.equal(state.routes[routeKey].focusSessionId, s1.id);
+  assert.deepEqual(state.routes[routeKey].sessions, [s1.id]);
+  assert.equal(state.routes[routeKey].cwd, '/home/proj');
+
+  const s2 = service.createSession({ agent: 'opencode' });
+  service.addSessionToRoute(routeKey, s2.id, '/home/proj');
+  const stateAfter = stateStore.read();
+  assert.deepEqual(stateAfter.routes[routeKey].sessions, [s1.id, s2.id]);
+  assert.equal(stateAfter.routes[routeKey].focusSessionId, s1.id, '新增不改变焦点');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('getCurrent 返回焦点 session', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s2 = service.createSession({ agent: 'opencode' });
+  service.addSessionToRoute(routeKey, s2.id, '/home/proj');
+  service.setFocus(routeKey, s2.id);
+
+  assert.equal(service.getCurrent(routeKey).id, s2.id);
+
+  service.setFocus(routeKey, s1.id);
+  assert.equal(service.getCurrent(routeKey).id, s1.id);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('setFocus 切换焦点 session', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s2 = service.createSession({ agent: 'opencode' });
+  service.addSessionToRoute(routeKey, s2.id, '/home/proj');
+
+  service.setFocus(routeKey, s2.id);
+  assert.equal(service.getCurrent(routeKey).id, s2.id);
+
+  const state = stateStore.read();
+  assert.equal(state.routes[routeKey].focusSessionId, s2.id);
+  assert.ok(state.routes[routeKey].updatedAt >= s1.createdAt);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('setFocus 拒绝不在 sessions 列表中的 sessionId', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  service.createSession({ route: routeKey, agent: 'opencode' });
+
+  assert.throws(() => service.setFocus(routeKey, 'wks_not_in_route'), /not in route/);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('removeSessionFromRoute 移除焦点后自动切', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s2 = service.createSession({ agent: 'opencode' });
+  service.addSessionToRoute(routeKey, s2.id, '/home/proj');
+  service.setFocus(routeKey, s2.id);
+
+  service.removeSessionFromRoute(routeKey, s2.id);
+  assert.equal(service.getCurrent(routeKey).id, s1.id, '移除焦点后应自动切到第一个');
+
+  const state = stateStore.read();
+  assert.deepEqual(state.routes[routeKey].sessions, [s1.id]);
+  assert.equal(state.routes[routeKey].focusSessionId, s1.id);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('removeSessionFromRoute 移除最后一个 session 后删除 route', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+
+  service.removeSessionFromRoute(routeKey, s1.id);
+  const state = stateStore.read();
+  assert.equal(state.routes[routeKey], undefined, '空列表应删除 route 条目');
+  assert.equal(service.getCurrent(routeKey), null);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('listSessionsInRoute 列出 route 下所有 session', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode', title: 'first' });
+  const s2 = service.createSession({ agent: 'opencode', title: 'second' });
+  service.addSessionToRoute(routeKey, s2.id, '/home/proj');
+  service.setFocus(routeKey, s2.id);
+
+  const list = service.listSessionsInRoute(routeKey);
+  assert.equal(list.length, 2);
+  assert.equal(list[0].id, s2.id, '焦点排在第一位');
+  assert.equal(list[1].id, s1.id);
+
+  service.deleteSession(s1.id);
+  const listAfter = service.listSessionsInRoute(routeKey);
+  assert.equal(listAfter.length, 1, '过滤已删除 session');
+  assert.equal(listAfter[0].id, s2.id);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('listSessionsInRoute 不存在的 route 返回空数组', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const list = service.listSessionsInRoute('feishu:nope:ou_nope');
+  assert.deepEqual(list, []);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('getRouteCwd 返回 route 的 cwd 字段', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  service.createSession({ route: routeKey, agent: 'opencode', cwd: '/home/proj' });
+
+  assert.equal(service.getRouteCwd(routeKey), '/home/proj');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('getRouteCwd 不存在的 route 返回空字符串', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  assert.equal(service.getRouteCwd('feishu:nope:ou_nope'), '');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('setRouteCwd 设置 route 的 cwd 字段', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  service.createSession({ route: routeKey, agent: 'opencode' });
+
+  service.setRouteCwd(routeKey, '/new/cwd');
+  assert.equal(service.getRouteCwd(routeKey), '/new/cwd');
+
+  const state = stateStore.read();
+  assert.equal(state.routes[routeKey].cwd, '/new/cwd');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('touchRoute 刷新 route 活跃时间', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  service.createSession({ route: routeKey, agent: 'opencode' });
+
+  const before = stateStore.read().routes[routeKey];
+  const beforeActiveAt = before.lastActiveAt || 0;
+  const beforeUpdatedAt = before.updatedAt || 0;
+  service.touchRoute(routeKey);
+
+  const after = stateStore.read().routes[routeKey];
+  assert.ok(after.lastActiveAt >= beforeActiveAt);
+  assert.ok(after.updatedAt >= beforeUpdatedAt);
+  assert.equal(after.lastActiveAt, after.updatedAt);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('createSession 带 route 时加入 sessions 列表', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s2 = service.createSession({ route: routeKey, agent: 'opencode' });
+
+  const state = stateStore.read();
+  assert.deepEqual(state.routes[routeKey].sessions, [s1.id, s2.id], '两个 session 都在列表');
+  assert.equal(state.routes[routeKey].focusSessionId, s2.id, '最新创建的成为焦点');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('deleteSession 从 route sessions 移除并自动切焦点', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s2 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s3 = service.createSession({ route: routeKey, agent: 'opencode' });
+  service.setFocus(routeKey, s2.id);
+
+  service.deleteSession(s2.id);
+  const state = stateStore.read();
+  assert.deepEqual(state.routes[routeKey].sessions, [s1.id, s3.id], '已删除 session 从列表移除');
+  assert.ok(
+    state.routes[routeKey].focusSessionId === s1.id || state.routes[routeKey].focusSessionId === s3.id,
+    '删除焦点后自动切换到活跃 session'
+  );
+  assert.equal(service.getCurrent(routeKey).id, state.routes[routeKey].focusSessionId);
+
+  service.deleteSession(s1.id);
+  service.deleteSession(s3.id);
+  const stateEmpty = stateStore.read();
+  assert.equal(stateEmpty.routes[routeKey], undefined, '全部删除后 route 条目移除');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('getRouteForSession 遍历 sessions 数组查找', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s2 = service.createSession({ agent: 'opencode' });
+  service.addSessionToRoute(routeKey, s2.id, '/home/proj');
+
+  assert.equal(service.getRouteForSession(s1.id), routeKey);
+  assert.equal(service.getRouteForSession(s2.id), routeKey);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('unbindRoute 从 sessions 列表移除焦点 session', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s2 = service.createSession({ route: routeKey, agent: 'opencode' });
+  service.setFocus(routeKey, s1.id);
+
+  service.unbindRoute(routeKey);
+  const state = stateStore.read();
+  assert.equal(state.routes[routeKey].focusSessionId, s2.id, '移除焦点后自动切到剩余 session');
+  assert.deepEqual(state.routes[routeKey].sessions, [s2.id]);
+  assert.equal(service.getCurrent(routeKey).id, s2.id);
+
+  service.unbindRoute(routeKey);
+  const stateEmpty = stateStore.read();
+  assert.equal(stateEmpty.routes[routeKey], undefined, '最后一个 session 移除后 route 条目删除');
+  assert.equal(service.getCurrent(routeKey), null);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});

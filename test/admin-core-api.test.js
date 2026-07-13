@@ -28,7 +28,15 @@ function createFakeSessionService(initialSessions, initialRoutes) {
   for (const s of (initialSessions || [])) {
     sessionsData[s.id] = { ...s };
   }
-  const routesData = { ...(initialRoutes || {}) };
+  const routesData = {};
+  for (const routeKey of Object.keys(initialRoutes || {})) {
+    const sid = initialRoutes[routeKey];
+    if (typeof sid === 'string') {
+      routesData[routeKey] = { focusSessionId: sid, sessions: [sid], cwd: '' };
+    } else {
+      routesData[routeKey] = { ...sid };
+    }
+  }
 
   return {
     stateStore: {
@@ -51,7 +59,14 @@ function createFakeSessionService(initialSessions, initialRoutes) {
       };
       sessionsData[id] = session;
       if (opts.route) {
-        routesData[opts.route] = id;
+        const existing = routesData[opts.route];
+        if (existing) {
+          if (!existing.sessions.includes(id)) {
+            existing.sessions.push(id);
+          }
+        } else {
+          routesData[opts.route] = { focusSessionId: id, sessions: [id], cwd: opts.cwd || '' };
+        }
       }
       return session;
     },
@@ -62,18 +77,33 @@ function createFakeSessionService(initialSessions, initialRoutes) {
       return Object.values(sessionsData).filter((s) => s.status !== 'deleted');
     },
     getCurrent(routeKey) {
-      const sid = routesData[routeKey];
+      const route = routesData[routeKey];
+      if (!route) return null;
+      const sid = route.focusSessionId;
       if (!sid) return null;
       const s = sessionsData[sid];
       if (s && s.status !== 'deleted') return s;
       delete routesData[routeKey];
       return null;
     },
+    getRouteForSession(sessionId) {
+      const entries = Object.entries(routesData);
+      const found = entries.find(([, route]) => route && Array.isArray(route.sessions) && route.sessions.includes(sessionId));
+      return found ? found[0] : null;
+    },
     bindRoute(routeKey, sessionId) {
       const s = sessionsData[sessionId];
       if (!s) throw new Error('session not found: ' + sessionId);
       if (s.status === 'deleted') throw new Error('session deleted: ' + sessionId);
-      routesData[routeKey] = sessionId;
+      const existing = routesData[routeKey];
+      if (existing) {
+        if (!existing.sessions.includes(sessionId)) {
+          existing.sessions.push(sessionId);
+        }
+        existing.focusSessionId = sessionId;
+      } else {
+        routesData[routeKey] = { focusSessionId: sessionId, sessions: [sessionId], cwd: '' };
+      }
     },
     unbindRoute(routeKey) {
       delete routesData[routeKey];
@@ -89,7 +119,15 @@ function createFakeSessionService(initialSessions, initialRoutes) {
       sessionsData[id].status = 'deleted';
       sessionsData[id].updatedAt = Date.now();
       for (const key of Object.keys(routesData)) {
-        if (routesData[key] === id) delete routesData[key];
+        const route = routesData[key];
+        if (!route || !Array.isArray(route.sessions)) continue;
+        if (!route.sessions.includes(id)) continue;
+        route.sessions = route.sessions.filter((sid) => sid !== id);
+        if (route.sessions.length === 0) {
+          delete routesData[key];
+        } else if (route.focusSessionId === id) {
+          route.focusSessionId = route.sessions[0];
+        }
       }
     },
     markRunning(id) {
@@ -297,6 +335,28 @@ test('REQ-004: listSessions 返回未删除 session 列表', () => {
   assert.equal(result[0].id, 'wks_a');
 });
 
+test('REQ-004: listSessions 返回 route 归属和 OpenCode 诊断字段', () => {
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      { id: 'wks_focus', agent: 'opencode', title: 'focus', runtime: 'windows', cwd: 'H:\\walker', status: 'running', agentRef: { opencodeSessionId: 'ses_focus', serverUrl: 'http://localhost:4096' }, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+      { id: 'wks_free', agent: 'opencode', title: 'free', runtime: 'windows', cwd: 'H:\\walker', status: 'idle', agentRef: { opencodeSessionId: 'ses_free', serverUrl: 'http://localhost:4096' }, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+    ], {
+      'feishu:abc:chat1': { focusSessionId: 'wks_focus', sessions: ['wks_focus'], cwd: 'H:\\walker' },
+    }),
+  });
+
+  const result = sessionAdmin.listSessions(ctx);
+  const focus = result.find((s) => s.id === 'wks_focus');
+  const free = result.find((s) => s.id === 'wks_free');
+  assert.deepEqual(focus.routeKeys, ['feishu:abc:chat1']);
+  assert.deepEqual(focus.focusRouteKeys, ['feishu:abc:chat1']);
+  assert.equal(focus.isUnbound, false);
+  assert.equal(focus.opencodeSessionId, 'ses_focus');
+  assert.equal(focus.serverUrl, 'http://localhost:4096');
+  assert.deepEqual(free.routeKeys, []);
+  assert.equal(free.isUnbound, true);
+});
+
 test('REQ-004: getSession 详情包含 routeKeys 和 timeline', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
@@ -467,6 +527,31 @@ test('REQ-007: listRoutes 列出绑定和健康状态', () => {
   assert.equal(result[0].sessionId, 'wks_a');
   assert.equal(result[0].health, 'running');
   assert.equal(result[0].dangling, false);
+});
+
+test('REQ-007: listRoutes 返回 1:N route 诊断字段', () => {
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      { id: 'wks_focus', agent: 'opencode', title: 'focus', runtime: 'windows', cwd: 'H:\\walker', status: 'running', agentRef: { opencodeSessionId: 'ses_focus', serverUrl: 'http://localhost:4096' }, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+      { id: 'wks_other', agent: 'opencode', title: 'other', runtime: 'windows', cwd: 'H:\\walker', status: 'idle', agentRef: { opencodeSessionId: 'ses_other', serverUrl: 'http://localhost:4096' }, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+      { id: 'wks_deleted', agent: 'opencode', title: 'deleted', runtime: 'windows', cwd: 'H:\\walker', status: 'deleted', agentRef: null, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+    ], {
+      'feishu:abc:chat1': { focusSessionId: 'wks_focus', sessions: ['wks_focus', 'wks_other', 'wks_deleted', 'wks_missing'], cwd: 'H:\\walker', lastActiveAt: 1500, updatedAt: 2000 },
+    }),
+  });
+
+  const result = routeAdmin.listRoutes(ctx);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].focusSessionId, 'wks_focus');
+  assert.deepEqual(result[0].sessionIds, ['wks_focus', 'wks_other', 'wks_deleted', 'wks_missing']);
+  assert.equal(result[0].sessionCount, 4);
+  assert.equal(result[0].cwd, 'H:\\walker');
+  assert.equal(result[0].lastActiveAt, 1500);
+  assert.equal(result[0].activeSessions.length, 2);
+  assert.equal(result[0].activeSessions[0].isFocus, true);
+  assert.equal(result[0].activeSessions[0].opencodeSessionId, 'ses_focus');
+  assert.deepEqual(result[0].deletedSessionIds, ['wks_deleted']);
+  assert.deepEqual(result[0].missingSessionIds, ['wks_missing']);
 });
 
 test('REQ-007: bindRoute 绑定路由到 session', () => {

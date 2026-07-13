@@ -1,0 +1,14 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "在 src/config/env.js 的 loadEnvConfig 返回对象中新增 4 个 OpenCode hook 相关配置项（walkerOpendcodeHookEnabled 默认 true、walkerOpendcodeHealthPollIntervalMs 默认 5000、walkerOpendcodeExitAction 默认 cancel、walkerOpendcodeNonFocusOutput 默认 true），复用现有 parseBool/parsePositiveInt 辅助函数；在 src/admin/config.js 的 EDITABLE_ENV_KEYS 数组末尾追加对应 4 个环境变量名，使其可通过 admin 界面编辑；在 test/config-env.test.js 新增 10 个测试用例覆盖默认值、自定义值、无效值回落及白名单包含。全部 15 个测试通过，向后兼容。",
+  "artifacts": [
+    "src/config/env.js",
+    "src/admin/config.js",
+    "test/config-env.test.js"
+  ],
+  "exported_interfaces": [],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-007"],
+  "notes": "新增配置项字段名：walkerOpendcodeHookEnabled、walkerOpendcodeHealthPollIntervalMs、walkerOpendcodeExitAction、walkerOpendcodeNonFocusOutput（注意 Opendcode 拼写与 task 文件一致，非 OpenCode）。对应环境变量：WALKER_OPENCODE_HOOK_ENABLED、WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS、WALKER_OPENCODE_EXIT_ACTION、WALKER_OPENCODE_NON_FOCUS_OUTPUT，均已加入 EDITABLE_ENV_KEYS 白名单可经 admin 界面编辑。下游 task 可通过 loadEnvConfig() 读取这些配置项。"
+}

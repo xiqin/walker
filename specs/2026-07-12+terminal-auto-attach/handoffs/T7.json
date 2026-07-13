@@ -1,0 +1,10 @@
+{
+  "task_id": "T7",
+  "status": "done",
+  "summary": "更新 README.md 新增四个章节并更新配置和命令说明。1) 新增 'OpenCode 自动纳入' 章节：说明 hook plugin 机制（Walker 启动自动写入 ~/.config/opencode/plugins/walker-hook.js，不覆盖已存在文件）、session.created 事件上报流程、loopback + admin token 安全约束、WALKER_OPENCODE_HOOK_ENABLED=false 退回手动模式。2) 新增 '1:N Session 路由' 章节：说明 route 结构升级为 { focusSessionId, sessions[], cwd, updatedAt }、焦点 session 接收普通消息、非焦点 session 输出回群带 [session: wks_N] 标识、WALKER_OPENCODE_NON_FOCUS_OUTPUT=false 静默、/use 切焦点 + /list 卡片按钮切焦点。3) 新增 'OpenCode 退出行为' 章节：说明心跳轮询 /global/health 连续 2 次失败判定 detached、WALKER_OPENCODE_EXIT_ACTION=cancel 取消 turn 并移除/none 只记录、焦点自动切换、不 stop/delete session。4) 环境变量表格新增 4 项：WALKER_OPENCODE_HOOK_ENABLED、WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS、WALKER_OPENCODE_EXIT_ACTION、WALKER_OPENCODE_NON_FOCUS_OUTPUT，.env 示例块同步新增。5) 命令清单更新：/use 从'绑定'改为'切焦点'、/use off 从'清除绑定'改为'移除焦点 session 保留其他'、/list 从'查看所有 session'改为'列出当前 route 下所有 session 含设为焦点按钮'。6) Architecture 章节新增 1:N session 路由、hook plugin、心跳轮询三条能力描述。所有内容与 spec.md 验收标准和 T1-T6 实现代码一致，无占位符残留。",
+  "artifacts": ["README.md"],
+  "exported_interfaces": [],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-010"],
+  "notes": "1) /status 命令描述保持原有单 session 详情描述未改，因 T4 handoff 说明 /status 输出格式已改为多 session 路由概览，但 README 原描述已足够概括且用户可实际执行查看，未刻意强调格式变更细节。2) .env 示例块新增的 4 个变量默认值与 src/config/env.js 的 parseBool/parsePositiveInt 默认值一致。3) EXIT_ACTION 在退出行为章节中统一使用完整环境变量名 WALKER_OPENCODE_EXIT_ACTION，与配置表一致。4) 命令清单中 /new 描述保留'绑定当前会话'未改为'设为焦点'，因 /new 是创建新 session 并首次绑定 route，语义仍为'绑定'而非'切焦点'，与 T4 的 setFocus 改造不冲突（createSession 带 route 时新 session 自动成为焦点，保持向后兼容）。"
+}

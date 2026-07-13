@@ -1,0 +1,54 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "将 SessionService 的 routes 数据结构从单值 { routeKey: sessionId } 升级为 { routeKey: { focusSessionId, sessions[], cwd, updatedAt } }。新增 _normalizeRoute/_readNormalized 内部迁移机制（检测 typeof routes[key] === 'string' 自动转换为对象格式并持久化）。新增 addSessionToRoute/setFocus/removeSessionFromRoute/listSessionsInRoute/getRouteCwd/setRouteCwd 6 个公开方法。改造 createSession/getCurrent/bindRoute/unbindRoute/getRouteForSession/deleteSession/cleanOrphanRoutes 以适配新结构。createSession 带 route 时加入 sessions 列表并将新 session 设为焦点（保持现有'覆盖旧绑定'语义的向后兼容）。unbindRoute 改为只移除焦点 session，列表空则删 route 条目，否则自动切焦点到第一个。deleteSession 从所有 route 的 sessions 列表移除，若为焦点则自动切到下一个活跃 session。所有 32 个测试通过（16 个原有 + 16 个新增），构建检查通过，无占位符残留。",
+  "artifacts": [
+    "src/core/session-service.js",
+    "test/session-service.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "SessionService.addSessionToRoute",
+      "path": "src/core/session-service.js",
+      "signature": "addSessionToRoute(routeKey, sessionId, cwd) — 若 route 不存在则创建 { focusSessionId: sessionId, sessions: [sessionId], cwd }；已存在则 push 到 sessions（去重），不动 focusSessionId（除非是第一个）"
+    },
+    {
+      "name": "SessionService.setFocus",
+      "path": "src/core/session-service.js",
+      "signature": "setFocus(routeKey, sessionId) — 校验 sessionId 在 route.sessions 中，设置 focusSessionId = sessionId，更新 updatedAt；sessionId 不在列表则抛 'session not in route'"
+    },
+    {
+      "name": "SessionService.removeSessionFromRoute",
+      "path": "src/core/session-service.js",
+      "signature": "removeSessionFromRoute(routeKey, sessionId) — 从 sessions 数组移除，若为焦点则自动切到列表第一个，空列表则删 route 条目"
+    },
+    {
+      "name": "SessionService.listSessionsInRoute",
+      "path": "src/core/session-service.js",
+      "signature": "listSessionsInRoute(routeKey) — 返回 route.sessions 对应的 session 对象数组（过滤已删除），焦点排在第一位；route 不存在返回 []"
+    },
+    {
+      "name": "SessionService.getRouteCwd",
+      "path": "src/core/session-service.js",
+      "signature": "getRouteCwd(routeKey) — 返回 route.cwd 字段；route 不存在返回 ''"
+    },
+    {
+      "name": "SessionService.setRouteCwd",
+      "path": "src/core/session-service.js",
+      "signature": "setRouteCwd(routeKey, cwd) — 设置 route.cwd 字段，用于 hook receiver 绑定时记录 cwd；route 不存在则创建空 route 条目"
+    },
+    {
+      "name": "SessionService._normalizeRoute",
+      "path": "src/core/session-service.js",
+      "signature": "_normalizeRoute(state) — 内部方法，遍历 state.routes，将 typeof routes[key] === 'string' 的旧单值格式迁移为 { focusSessionId, sessions: [value], cwd: '' } 对象格式；返回是否发生迁移"
+    },
+    {
+      "name": "SessionService._readNormalized",
+      "path": "src/core/session-service.js",
+      "signature": "_readNormalized() — 内部方法，read + _normalizeRoute，若发生迁移则 update 写回持久化；返回 normalized 后的 state"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-003"],
+  "notes": "1) routes 结构已从单值字符串升级为对象 { focusSessionId, sessions[], cwd, updatedAt }，旧格式由 _normalizeRoute 自动迁移并持久化。2) 下游兼容性警告：src/admin/route-admin.js 的 listRoutes/detectDangling 直接读 state.routes[routeKey] 并期望单值字符串（routes[routeKey] 作为 sessionId），升级后会拿到对象而非字符串，需下游 task 适配（改为读 route.focusSessionId 或 route.sessions）。同样 src/admin/public/app.js 的 renderRoutes 前端渲染也需适配。3) createSession 带 route 时新 session 自动成为焦点（保持向后兼容'同一 routeKey 再创建覆盖旧绑定'语义）。4) bindRoute 保持覆盖式语义：调用 addSessionToRoute + 设为焦点。5) unbindRoute 语义从'删除整个 route 条目'改为'移除焦点 session'，列表空才删 route；现有测试（单 session 场景）仍兼容。6) getCurrent 遇到 focusSessionId 指向 missing/deleted session 时仍会清理整个 route 条目并返回 null（保持现有行为）。7) 所有只读方法通过 _readNormalized 确保旧格式在首次访问时持久化迁移，无需单独迁移脚本。"
+}

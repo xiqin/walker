@@ -97,6 +97,10 @@ function loadEnvConfig(options) {
       port: parsePort(env.WALKER_ADMIN_PORT, 8787),
       token: env.WALKER_ADMIN_TOKEN || '',
     },
+    walkerOpendcodeHookEnabled: parseBool(env.WALKER_OPENCODE_HOOK_ENABLED, true),
+    walkerOpendcodeHealthPollIntervalMs: parsePositiveInt(env.WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS, 5000),
+    walkerOpendcodeExitAction: env.WALKER_OPENCODE_EXIT_ACTION || 'cancel',
+    walkerOpendcodeNonFocusOutput: parseBool(env.WALKER_OPENCODE_NON_FOCUS_OUTPUT, true),
   };
 }
 

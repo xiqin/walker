@@ -44,6 +44,10 @@ WALKER_PROMPT_HEARTBEAT_INITIAL_MS=30000
 WALKER_PROMPT_HEARTBEAT_INTERVAL_MS=60000
 WALKER_PROMPT_HEARTBEAT_STUCK_MS=300000
 WALKER_MAX_TURN_TIME_MINS=0
+WALKER_OPENCODE_HOOK_ENABLED=true
+WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS=5000
+WALKER_OPENCODE_EXIT_ACTION=cancel
+WALKER_OPENCODE_NON_FOCUS_OUTPUT=true
 ```
 
 飞书凭据通过环境变量或项目根目录的 `.env` 文件配置。
@@ -72,6 +76,68 @@ WALKER_MAX_TURN_TIME_MINS=0
 | `OPENCODE_CMD` | `opencode` | opencode CLI 命令名 |
 | `OPENCODE_MODEL` | 空 | 指定模型 |
 | `OPENCODE_AGENT` | 空 | 指定 agent |
+| `WALKER_OPENCODE_HOOK_ENABLED` | `true` | 是否启用 OpenCode plugin 自动安装和 hook 接收。设为 `false` 退回手动 `/attach` 模式 |
+| `WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS` | `5000` | 心跳轮询 `/global/health` 间隔，单位毫秒 |
+| `WALKER_OPENCODE_EXIT_ACTION` | `cancel` | OpenCode 退出动作。`cancel` 取消该 session turn 并从 route 移除；`none` 只记录 detached |
+| `WALKER_OPENCODE_NON_FOCUS_OUTPUT` | `true` | 非焦点 session SSE 事件是否主动回卡片到群里。`false` 时静默 |
+
+## OpenCode 自动纳入
+
+Walker 启动时自动将 hook plugin 写入 `~/.config/opencode/plugins/walker-hook.js`（不存在时写入，已存在不覆盖），一次安装永久生效。
+
+工作流程：
+
+1. Walker 启动时检查 plugin 文件，不存在则写入；已存在不覆盖，保留用户现有配置。
+2. 用户在本机终端照常启动 `opencode`。
+3. OpenCode 加载全局 plugin，触发 `session.created` 事件。
+4. plugin 上报 `{ opencodeBaseUrl, sessionId, cwd }` 给 Walker 的 `POST /opencode/hook/session-created` 端点。
+5. Walker 按 `cwd` 找到 routeKey，创建 Walker session，加入 route 的 sessions 列表。
+6. 全程无飞书命令干预，用户照常启动 opencode 即可自动纳入。
+
+安全约束：
+
+- 只接受本机 loopback 请求（`127.0.0.1` / `::1` / `::ffff:127.0.0.1`），非本机请求返回 403。
+- 复用现有 admin token 保护（`WALKER_ADMIN_TOKEN`）；未配置 token 时仍限制 loopback。
+- plugin 文件不包含敏感信息，Walker 地址硬编码为 `127.0.0.1:<port>`。
+- Walker 不可达时 plugin 静默忽略，不影响 OpenCode 正常使用。
+
+`WALKER_OPENCODE_HOOK_ENABLED=false` 时，Walker 不安装 plugin，退回手动 `/attach` 模式。
+
+## 1:N Session 路由
+
+同一 `cwd` 启动多个 OpenCode 处理不同任务时，一个飞书群（routeKey）可绑定多个 session，通过"焦点 session"机制保证消息精准路由。
+
+路由结构：
+
+- route 从 `{ routeKey: sessionId }` 升级为 `{ focusSessionId, sessions[], cwd, updatedAt }`，旧格式自动迁移。
+- session 本身不变，仍 1 session : 1 agentRef `{ opencodeSessionId, serverUrl }`。
+- `getCurrent(routeKey)` 返回焦点 session。
+
+消息路由：
+
+- 普通消息发给焦点 session，输出回到原 routeKey。
+- 非焦点 session 的 SSE 事件主动回卡片到群里，带 `[session: wks_N]` 标识区分来源。
+- `WALKER_OPENCODE_NON_FOCUS_OUTPUT=false` 时，非焦点 session 输出静默不回群。
+
+焦点切换：
+
+- `/use <id>` 切换焦点（session 必须在当前 route 的 sessions 列表中）。
+- `/use off` 移除焦点 session（保留 route 中其他 session）。
+- `/list` 卡片的"设为焦点"按钮也可切换焦点。
+
+## OpenCode 退出行为
+
+每个 hook 纳入的 session 独立心跳轮询 OpenCode 的 `/global/health` 端点检测存活。连续 2 次检查失败判定该 session detached。
+
+detached 后的处理：
+
+- `WALKER_OPENCODE_EXIT_ACTION=cancel`（默认）：取消该 session 的 running turn，从 route 移除该 session，停止 SSE watch 和心跳轮询。
+- `WALKER_OPENCODE_EXIT_ACTION=none`：只记录 detached，不取消 turn，不主动移除。
+- 若 detached 的 session 是焦点，自动切换焦点到 route 中下一个活跃 session。
+- 没有 running turn 时，退出只记录 detached，不报错。
+- 不 stop/delete Walker session，不解绑 route。
+
+心跳间隔由 `WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS` 控制，退出动作由 `WALKER_OPENCODE_EXIT_ACTION` 控制。
 
 ## 飞书后台要求
 
@@ -88,9 +154,9 @@ WALKER_MAX_TURN_TIME_MINS=0
 | 命令 | 说明 |
 |------|------|
 | `/new [agent] [title]` | 创建新 Walker session 并绑定当前会话 |
-| `/list` | 查看所有 session（含卡片按钮） |
-| `/use <session_id>` | 绑定当前会话到指定 session |
-| `/use off` | 清除当前会话绑定 |
+| `/list` | 列出当前 route 下所有 session（含卡片"设为焦点"按钮） |
+| `/use <session_id>` | 切换当前 route 的焦点到指定 session |
+| `/use off` | 移除当前会话的焦点 session（保留 route 中其他 session） |
 | `/current` | 查看当前绑定的 session |
 | `/status` | 查看当前会话绑定的 Walker session、Agent、状态、OpenCode session、模型、工作目录、当前 turn 运行状态、运行时长、最近事件时间和后台 watch 状态 |
 | `/ps` | `/status` 的等价别名 |
@@ -137,5 +203,8 @@ Walker 数据存储在 `.walker/` 目录下：
 - 飞书长连接（WSClient）接收消息和卡片回调
 - MessageDedup 5 分钟去重窗口
 - routeKey 三种模式精准路由到 Walker session
+- 1:N session 路由：同一 routeKey 绑定多 session，焦点 session 接收普通消息
+- OpenCode hook plugin：自动安装，启动即纳入，无需飞书命令干预
+- 心跳轮询检测 OpenCode detached，自动取消 turn 并切焦点
 - AgentDriver 抽象支持多 CLI 扩展
 - ProgressCard 结构化卡片实时更新

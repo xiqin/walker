@@ -1,0 +1,20 @@
+{
+  "task_id": "T6",
+  "status": "done",
+  "summary": "实现心跳轮询管理器 createHealthPoller(options)，返回 { start, stop, track, untrack, getTrackedSessions }。track(sessionId, agentRef) 为每个 session 启动独立 setInterval 定时器（unref 避免阻止进程退出），定期 GET agentRef.serverUrl + '/global/health'，连续 2 次失败判定 detached。_handleDetached 执行：exitAction=cancel 且有 running turn 时调 dispatcher._cancelTurn 取消 turn，调 sessionService.removeSessionFromRoute 从 route 移除（若为焦点自动切到下一个），调 dispatcher._stopSessionWatch 停止 SSE watch，untrack 停止心跳。exitAction=none 时只停止 watch 不取消 turn。无 running turn 时退出不报错。bootstrap.js 集成：createApp 中创建 healthPoller 实例（注入 sessionService/driverRegistry/dispatcher/pollIntervalMs/exitAction/httpClient=opencodeDriver.httpClient），onSessionEnrolled 回调中调 healthPoller.track，start() 中调 _restoreHealthPollers 恢复已有 hook 纳入 session 的心跳追踪，stop() 中调 healthPoller.stop()。全部 581 测试通过（10 新增 health-poller 测试 + 571 原有），无回归，无占位符残留。",
+  "artifacts": [
+    "src/opencode-hook/health-poller.js",
+    "test/opencode-hook-health-poller.test.js",
+    "src/app/bootstrap.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "createHealthPoller",
+      "path": "src/opencode-hook/health-poller.js",
+      "signature": "(options) => { start, stop, track, untrack, getTrackedSessions }"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-005"],
+  "notes": "1) health-poller 通过 bootstrap.js 的 onSessionEnrolled 回调集成到 hook receiver，receiver.js 本身无需修改（ctx.onSessionEnrolled 回调机制 T2 已支持）。2) 心跳使用 opencodeDriver.httpClient 发送 GET 请求，复用现有 HTTP 客户端。3) 连续 2 次失败才判定 detached（failureThreshold 默认 2，可通过 options.failureThreshold 配置），避免单次网络抖动误判。4) _handleDetached 中取消 turn 通过 dispatcher._cancelTurn(session, null, turnState, { reason: 'opencode-detached' })，null driver 参数让 _cancelTurn 内部从 registry 获取。5) 定时器使用 setInterval + unref()，stop/untrack 时 clearInterval 正确清理，无内存泄漏。6) _restoreHealthPollers 在 start() 中恢复已有 hook 纳入的 session 心跳，对无 listSessions/getRouteForSession 方法的 mock sessionService 做了防御性检查。7) bootstrap 返回对象新增 healthPoller 字段，便于外部访问。8) health 端点路径为 serverUrl + '/global/health'（注意是 /global/health 非 /health，与 OpenCode server 全局健康检查端点一致）。"
+}

@@ -1,0 +1,47 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "实现 Hook plugin 安装器与 receiver 端点。plugin-template.js 导出 getPluginSource(walkerPort) 生成 plugin 文件内容字符串（监听 session.created、上报 { opencodeBaseUrl, sessionId, cwd } 到 http://127.0.0.1:<port>/opencode/hook/session-created，Walker 不可达时静默忽略，硬编码 loopback 地址，不含任何 token/敏感信息）。installer.js 导出 installHookPlugin({ opencodeConfigDir, walkerPort, enabled })：enabled=false 返回 { installed:false, reason:'disabled' }；目标文件已存在则返回 { installed:false, reason:'already_exists' }（不覆盖）；不存在则写入并返回 { installed:true, path }；未传 opencodeConfigDir 时使用 os.homedir()/.config/opencode/plugins/walker-hook.js。receiver.js 导出 createHookReceiverRoutes(ctx) 返回路由数组（{ method, pattern, handler } 格式，与 core-routes.js 一致）：POST /opencode/hook/session-created 校验 sessionId/cwd 非空（400）、loopback 校验（403，支持 127.0.0.1/::1/::ffff:127.0.0.1）、复用 isAuthenticated(req, ctx.config.admin) 鉴权（401，admin token 未配置时放行）；_autoEnrollSession 实现幂等纳入（按 agentRef.opencodeSessionId 去重）、cwd 匹配 routeKey（精确优先、子目录次之、多候选取 updatedAt 最大）、创建 Walker session（agent='opencode', cwd, agentRef={ opencodeSessionId, serverUrl: opencodeBaseUrl }）、addSessionToRoute 纳入 route；无匹配 routeKey 时创建游离 session 返回 { sessionId, routeKey:null }。全部 17 个新增测试通过（6 installer + 11 receiver），npm test 全套 547 测试通过，无回归，无占位符残留。",
+  "artifacts": [
+    "src/opencode-hook/plugin-template.js",
+    "src/opencode-hook/installer.js",
+    "src/opencode-hook/receiver.js",
+    "test/opencode-hook-installer.test.js",
+    "test/opencode-hook-receiver.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "getPluginSource",
+      "path": "src/opencode-hook/plugin-template.js",
+      "signature": "getPluginSource(walkerPort: number) => string — 返回 plugin JS 文件内容字符串，含 session.created 监听、loopback 上报、静默忽略网络错误逻辑"
+    },
+    {
+      "name": "installHookPlugin",
+      "path": "src/opencode-hook/installer.js",
+      "signature": "installHookPlugin({ opencodeConfigDir?: string, walkerPort?: number, enabled?: boolean }) => { installed: boolean, path?: string, reason?: 'disabled'|'already_exists'|'error', error?: string } — enabled=false 不安装；已存在不覆盖；默认路径 ~/.config/opencode/plugins/walker-hook.js"
+    },
+    {
+      "name": "createHookReceiverRoutes",
+      "path": "src/opencode-hook/receiver.js",
+      "signature": "createHookReceiverRoutes(ctx: { sessionService, config: { admin: { token } } }) => Array<{ method: string, pattern: string, handler: Function }> — 返回 POST /opencode/hook/session-created 路由，loopback + admin token 校验，调用 _autoEnrollSession 纳入 session"
+    },
+    {
+      "name": "_autoEnrollSession",
+      "path": "src/opencode-hook/receiver.js",
+      "signature": "_autoEnrollSession(ctx, { opencodeBaseUrl, sessionId, cwd }) => { sessionId: string, routeKey: string|null } — 幂等纳入：按 agentRef.opencodeSessionId 去重；按 cwd 匹配 routeKey（精确优先/子目录次之/多候选取 updatedAt 最大）；创建 Walker session 并 addSessionToRoute；无匹配创建游离 session"
+    },
+    {
+      "name": "isLoopback",
+      "path": "src/opencode-hook/receiver.js",
+      "signature": "isLoopback(req) => boolean — 判断 req.socket.remoteAddress 是否为 127.0.0.1/::1/::ffff:127.0.0.1"
+    },
+    {
+      "name": "findRouteKeyByCwd",
+      "path": "src/opencode-hook/receiver.js",
+      "signature": "findRouteKeyByCwd(ctx, cwd) => string|null — 按 cwd 查 routeKey，精确匹配优先，子目录次之，多候选取 updatedAt 最大"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-001", "REQ-002", "REQ-009"],
+  "notes": "1) T4 bootstrap 集成需调用：installHookPlugin({ opencodeConfigDir, walkerPort, enabled }) 其中 enabled 来自 envConfig.walkerOpendcodeHookEnabled，walkerPort 来自 envConfig.admin.port；createHookReceiverRoutes(ctx) 返回的路由数组需合并到主 HTTP 路由表（与 createCoreRoutes 返回的路由同格式 { method, pattern, handler }）。2) ctx 结构要求：{ sessionService, config: { admin: { token } } } —— 与 core-routes.js 的 appContext 一致，可直接复用。3) receiver 端点路径为 /opencode/hook/session-created（非 /api/admin/ 前缀，独立路径），但复用 admin/auth.js 的 isAuthenticated + admin token 鉴权。4) plugin 内容硬编码 loopback 127.0.0.1:<port>，不包含任何 token；OpenCode 端的 OPENCODE_SERVER_URL 环境变量会作为 opencodeBaseUrl 上报。5) cwd 匹配为 Windows 大小写不敏感（normalizePath 统一小写 + 反斜杠），跨平台路径分隔符已处理。6) 游离 session（routeKey=null）不绑任何 route，等 T6 游离 session 归入逻辑处理。7) _autoEnrollSession 是 receiver.js 内部函数但已导出，便于 T4/T6 单元测试或复用。8) route 的 cwd 由 setRouteCwd 设置（T1 已实现），hook receiver 读取 route.cwd 进行匹配，未设置 cwd 的 route 不参与匹配。"
+}

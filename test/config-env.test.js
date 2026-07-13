@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { loadEnvConfig } = require('../src/config/env');
+const { EDITABLE_ENV_KEYS } = require('../src/admin/config');
 
 test('loadEnvConfig 默认值正确', () => {
   const config = loadEnvConfig({ env: {} });
@@ -103,4 +104,61 @@ test('loadEnvConfig boolean 解析', () => {
   assert.equal(loadEnvConfig({ env: env3 }).opencodeServerAutostart, false);
   const env4 = { OPENCODE_SERVER_AUTOSTART: 'false' };
   assert.equal(loadEnvConfig({ env: env4 }).opencodeServerAutostart, false);
+});
+
+test('hook enabled 默认 true', () => {
+  const config = loadEnvConfig({ env: {} });
+  assert.equal(config.walkerOpendcodeHookEnabled, true);
+});
+
+test('hook enabled 自定义值解析', () => {
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: 'false' } }).walkerOpendcodeHookEnabled, false);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: '0' } }).walkerOpendcodeHookEnabled, false);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: 'true' } }).walkerOpendcodeHookEnabled, true);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: '1' } }).walkerOpendcodeHookEnabled, true);
+});
+
+test('health poll 默认 5000', () => {
+  const config = loadEnvConfig({ env: {} });
+  assert.equal(config.walkerOpendcodeHealthPollIntervalMs, 5000);
+});
+
+test('health poll 自定义值解析', () => {
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '1000' } }).walkerOpendcodeHealthPollIntervalMs, 1000);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '30000' } }).walkerOpendcodeHealthPollIntervalMs, 30000);
+});
+
+test('health poll 无效值回落默认 5000', () => {
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '0' } }).walkerOpendcodeHealthPollIntervalMs, 5000);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '-1' } }).walkerOpendcodeHealthPollIntervalMs, 5000);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: 'abc' } }).walkerOpendcodeHealthPollIntervalMs, 5000);
+});
+
+test('exit action 默认 cancel', () => {
+  const config = loadEnvConfig({ env: {} });
+  assert.equal(config.walkerOpendcodeExitAction, 'cancel');
+});
+
+test('exit action 自定义值解析', () => {
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_EXIT_ACTION: 'keep' } }).walkerOpendcodeExitAction, 'keep');
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_EXIT_ACTION: 'restart' } }).walkerOpendcodeExitAction, 'restart');
+});
+
+test('non focus output 默认 true', () => {
+  const config = loadEnvConfig({ env: {} });
+  assert.equal(config.walkerOpendcodeNonFocusOutput, true);
+});
+
+test('non focus output 自定义值解析', () => {
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'false' } }).walkerOpendcodeNonFocusOutput, false);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: '0' } }).walkerOpendcodeNonFocusOutput, false);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'true' } }).walkerOpendcodeNonFocusOutput, true);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'yes' } }).walkerOpendcodeNonFocusOutput, true);
+});
+
+test('hook 配置项在可编辑白名单中', () => {
+  assert.ok(EDITABLE_ENV_KEYS.includes('WALKER_OPENCODE_HOOK_ENABLED'), 'WALKER_OPENCODE_HOOK_ENABLED 应在白名单中');
+  assert.ok(EDITABLE_ENV_KEYS.includes('WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS'), 'WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS 应在白名单中');
+  assert.ok(EDITABLE_ENV_KEYS.includes('WALKER_OPENCODE_EXIT_ACTION'), 'WALKER_OPENCODE_EXIT_ACTION 应在白名单中');
+  assert.ok(EDITABLE_ENV_KEYS.includes('WALKER_OPENCODE_NON_FOCUS_OUTPUT'), 'WALKER_OPENCODE_NON_FOCUS_OUTPUT 应在白名单中');
 });
