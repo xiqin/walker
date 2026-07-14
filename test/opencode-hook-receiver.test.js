@@ -76,16 +76,16 @@ function makeRes() {
   return res;
 }
 
-function callRoute(routes, method, url, body, opts) {
+async function callRoute(routes, method, url, body, opts) {
   const req = makeReq(method, url, body, opts);
   const res = makeRes();
   const route = routes.find((r) => r.method === method && r.pattern === url);
   if (!route) throw new Error('route not found: ' + method + ' ' + url);
-  route.handler(req, res);
+  await route.handler(req, res);
   return { req, res, parsed: res.body ? JSON.parse(res.body) : null };
 }
 
-test('上报 session.created 并按 cwd 精确匹配 route', () => {
+test('上报 session.created 并按 cwd 精确匹配 route', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_abc:ou_user';
@@ -93,7 +93,7 @@ test('上报 session.created 并按 cwd 精确匹配 route', () => {
     ctx.sessionService.setRouteCwd(routeKey, cwd);
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_1',
       cwd: cwd,
@@ -114,7 +114,7 @@ test('上报 session.created 并按 cwd 精确匹配 route', () => {
   }
 });
 
-test('上报 cwd 匹配子目录 route（子目录次之）', () => {
+test('上报 cwd 匹配子目录 route（子目录次之）', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_parent:ou_user';
@@ -122,7 +122,7 @@ test('上报 cwd 匹配子目录 route（子目录次之）', () => {
     ctx.sessionService.setRouteCwd(routeKey, parentCwd);
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_sub',
       cwd: 'H:\\projects\\subdir',
@@ -139,7 +139,7 @@ test('上报 cwd 匹配子目录 route（子目录次之）', () => {
   }
 });
 
-test('重复上报同一 session 幂等返回', () => {
+test('重复上报同一 session 幂等返回', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_dup:ou_user';
@@ -148,14 +148,14 @@ test('重复上报同一 session 幂等返回', () => {
 
     const routes = createHookReceiverRoutes(ctx);
 
-    const r1 = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const r1 = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_dup',
       cwd: cwd,
     });
     assert.equal(r1.res.statusCode, 200);
 
-    const r2 = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const r2 = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_dup',
       cwd: cwd,
@@ -170,12 +170,12 @@ test('重复上报同一 session 幂等返回', () => {
   }
 });
 
-test('无匹配 cwd 时创建游离 session', () => {
+test('无匹配 cwd 时创建游离 session', async () => {
   const ctx = createCtx();
   try {
     const cwd = 'H:\\unmatched\\dir';
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_free',
       cwd: cwd,
@@ -197,7 +197,7 @@ test('无匹配 cwd 时创建游离 session', () => {
   }
 });
 
-test('多候选 route 选最近活跃', () => {
+test('多候选 route 选最近活跃', async () => {
   const ctx = createCtx();
   try {
     const cwd = 'H:\\walker';
@@ -213,7 +213,7 @@ test('多候选 route 选最近活跃', () => {
     ctx.sessionService.stateStore.write(state);
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_multi',
       cwd: cwd,
@@ -226,7 +226,7 @@ test('多候选 route 选最近活跃', () => {
   }
 });
 
-test('同 cwd 多 route 优先选择最近飞书活跃 route', () => {
+test('同 cwd 多 route 优先选择最近飞书活跃 route', async () => {
   const ctx = createCtx();
   try {
     const cwd = 'H:\\walker';
@@ -243,7 +243,7 @@ test('同 cwd 多 route 优先选择最近飞书活跃 route', () => {
     ctx.sessionService.stateStore.write(state);
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_active_route',
       cwd: cwd,
@@ -256,11 +256,11 @@ test('同 cwd 多 route 优先选择最近飞书活跃 route', () => {
   }
 });
 
-test('缺少 sessionId 返回 400', () => {
+test('缺少 sessionId 返回 400', async () => {
   const ctx = createCtx();
   try {
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       cwd: 'H:\\walker',
     });
@@ -271,11 +271,11 @@ test('缺少 sessionId 返回 400', () => {
   }
 });
 
-test('缺少 cwd 返回 400', () => {
+test('缺少 cwd 返回 400', async () => {
   const ctx = createCtx();
   try {
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_1',
     });
@@ -286,11 +286,11 @@ test('缺少 cwd 返回 400', () => {
   }
 });
 
-test('非 loopback 请求返回 403', () => {
+test('非 loopback 请求返回 403', async () => {
   const ctx = createCtx();
   try {
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_1',
       cwd: 'H:\\walker',
@@ -304,14 +304,14 @@ test('非 loopback 请求返回 403', () => {
   }
 });
 
-test('IPv6 loopback ::1 放行', () => {
+test('IPv6 loopback ::1 放行', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_v6:ou_user';
     ctx.sessionService.setRouteCwd(routeKey, 'H:\\walker');
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_v6',
       cwd: 'H:\\walker',
@@ -324,11 +324,11 @@ test('IPv6 loopback ::1 放行', () => {
   }
 });
 
-test('配置 token 时无 token 请求被拒', () => {
+test('配置 token 时无 token 请求被拒', async () => {
   const ctx = createCtx({ token: 'secret-token-xyz' });
   try {
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_1',
       cwd: 'H:\\walker',
@@ -342,14 +342,14 @@ test('配置 token 时无 token 请求被拒', () => {
   }
 });
 
-test('配置 token 时携带正确 token 放行', () => {
+test('配置 token 时携带正确 token 放行', async () => {
   const ctx = createCtx({ token: 'secret-token-xyz' });
   try {
     const routeKey = 'feishu:oc_authed:ou_user';
     ctx.sessionService.setRouteCwd(routeKey, 'H:\\walker');
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_authed',
       cwd: 'H:\\walker',
@@ -363,7 +363,7 @@ test('配置 token 时携带正确 token 放行', () => {
   }
 });
 
-test('直接传 adminConfig（无 .admin 属性）时 token 鉴权生效', () => {
+test('直接传 adminConfig（无 .admin 属性）时 token 鉴权生效', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-hook-rcv-'));
   try {
     const stateStore = new JsonStore(path.join(tmpDir, 'state.json'), {});
@@ -377,14 +377,14 @@ test('直接传 adminConfig（无 .admin 属性）时 token 鉴权生效', () =>
     ctx.sessionService.setRouteCwd(routeKey, 'H:\\walker');
 
     const routes = createHookReceiverRoutes(ctx);
-    const noToken = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const noToken = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_direct_notoken',
       cwd: 'H:\\walker',
     });
     assert.equal(noToken.res.statusCode, 401, '无 token 应被拒');
 
-    const withToken = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const withToken = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_direct_withtoken',
       cwd: 'H:\\walker',
@@ -395,7 +395,7 @@ test('直接传 adminConfig（无 .admin 属性）时 token 鉴权生效', () =>
   }
 });
 
-test('onSessionEnrolled 回调在新 session 纳入 route 后触发', () => {
+test('onSessionEnrolled 回调在新 session 纳入 route 后触发', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_cb:ou_user';
@@ -408,7 +408,7 @@ test('onSessionEnrolled 回调在新 session 纳入 route 后触发', () => {
     };
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_cb',
       cwd: cwd,
@@ -423,7 +423,7 @@ test('onSessionEnrolled 回调在新 session 纳入 route 后触发', () => {
   }
 });
 
-test('onSessionEnrolled 回调在幂等返回时也触发', () => {
+test('onSessionEnrolled 回调在幂等返回时也触发', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_idem:ou_user';
@@ -436,12 +436,12 @@ test('onSessionEnrolled 回调在幂等返回时也触发', () => {
     };
 
     const routes = createHookReceiverRoutes(ctx);
-    const r1 = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const r1 = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_idem',
       cwd: cwd,
     });
-    const r2 = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const r2 = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_idem',
       cwd: cwd,
@@ -456,7 +456,7 @@ test('onSessionEnrolled 回调在幂等返回时也触发', () => {
   }
 });
 
-test('onSessionEnrolled 回调抛错不影响 enroll 结果', () => {
+test('onSessionEnrolled 回调抛错不影响 enroll 结果', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_throw:ou_user';
@@ -466,7 +466,7 @@ test('onSessionEnrolled 回调抛错不影响 enroll 结果', () => {
     ctx.onSessionEnrolled = () => { throw new Error('callback boom'); };
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_throw',
       cwd: cwd,
@@ -692,7 +692,7 @@ test('E2E: session 被正确创建并纳入 route', async () => {
   });
 });
 
-test('opencodeBaseUrl 为空时 fallback 到 ctx.defaultOpencodeUrl', () => {
+test('opencodeBaseUrl 为空时 fallback 到 ctx.defaultOpencodeUrl', async () => {
   const ctx = createCtx({ defaultOpencodeUrl: 'http://localhost:4096' });
   try {
     const routeKey = 'feishu:oc_fallback:ou_user';
@@ -700,7 +700,7 @@ test('opencodeBaseUrl 为空时 fallback 到 ctx.defaultOpencodeUrl', () => {
     ctx.sessionService.setRouteCwd(routeKey, cwd);
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: '',
       sessionId: 'oc_empty_url',
       cwd: cwd,
@@ -717,7 +717,7 @@ test('opencodeBaseUrl 为空时 fallback 到 ctx.defaultOpencodeUrl', () => {
   }
 });
 
-test('opencodeBaseUrl 为空且无 defaultOpencodeUrl 时 fallback 到 localhost:4096', () => {
+test('opencodeBaseUrl 为空且无 defaultOpencodeUrl 时 fallback 到 localhost:4096', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_default_url:ou_user';
@@ -725,7 +725,7 @@ test('opencodeBaseUrl 为空且无 defaultOpencodeUrl 时 fallback 到 localhost
     ctx.sessionService.setRouteCwd(routeKey, cwd);
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: '',
       sessionId: 'oc_no_url',
       cwd: cwd,
@@ -742,7 +742,7 @@ test('opencodeBaseUrl 为空且无 defaultOpencodeUrl 时 fallback 到 localhost
   }
 });
 
-test('opencodeBaseUrl 非空时优先使用上报值', () => {
+test('opencodeBaseUrl 非空时优先使用上报值', async () => {
   const ctx = createCtx({ defaultOpencodeUrl: 'http://localhost:4096' });
   try {
     const routeKey = 'feishu:oc_priority:ou_user';
@@ -750,7 +750,7 @@ test('opencodeBaseUrl 非空时优先使用上报值', () => {
     ctx.sessionService.setRouteCwd(routeKey, cwd);
 
     const routes = createHookReceiverRoutes(ctx);
-    const { res, parsed } = callRoute(routes, 'POST', '/opencode/hook/session-created', {
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://192.168.1.100:8080',
       sessionId: 'oc_priority_url',
       cwd: cwd,

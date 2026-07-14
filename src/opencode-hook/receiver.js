@@ -198,7 +198,7 @@ function createHookReceiverRoutes(ctx) {
   routes.push({
     method: 'POST',
     pattern: '/opencode/hook/session-created',
-    handler: function sessionCreatedHandler(req, res) {
+    handler: async function sessionCreatedHandler(req, res) {
       if (!isLoopback(req)) {
         send(res, error('FORBIDDEN', 'only loopback requests are accepted'), 403);
         return;
@@ -209,33 +209,32 @@ function createHookReceiverRoutes(ctx) {
         return;
       }
 
-      parseBody(req, (body) => {
-        if (!body) {
-          send(res, error('BAD_REQUEST', '无效请求体'), 400);
-          return;
-        }
+      const body = await parseBody(req);
+      if (!body) {
+        send(res, error('BAD_REQUEST', '无效请求体'), 400);
+        return;
+      }
 
-        const opencodeBaseUrl = body.opencodeBaseUrl || '';
-        const sessionId = body.sessionId;
-        const cwd = body.cwd;
+      const opencodeBaseUrl = body.opencodeBaseUrl || '';
+      const sessionId = body.sessionId;
+      const cwd = body.cwd;
 
-        if (!sessionId) {
-          send(res, error('BAD_REQUEST', '缺少 sessionId'), 400);
-          return;
-        }
-        if (!cwd) {
-          send(res, error('BAD_REQUEST', '缺少 cwd'), 400);
-          return;
-        }
+      if (!sessionId) {
+        send(res, error('BAD_REQUEST', '缺少 sessionId'), 400);
+        return;
+      }
+      if (!cwd) {
+        send(res, error('BAD_REQUEST', '缺少 cwd'), 400);
+        return;
+      }
 
-        try {
-          const result = _autoEnrollSession(ctx, { opencodeBaseUrl, sessionId, cwd });
-          send(res, success({ ok: true, sessionId: result.sessionId, routeKey: result.routeKey }));
-        } catch (err) {
-          logger.error('auto enroll session failed', { err, sessionId, cwd });
-          send(res, error('INTERNAL_ERROR', err.message), 500);
-        }
-      });
+      try {
+        const result = _autoEnrollSession(ctx, { opencodeBaseUrl, sessionId, cwd });
+        send(res, success({ ok: true, sessionId: result.sessionId, routeKey: result.routeKey }));
+      } catch (err) {
+        logger.error('auto enroll session failed', { err, sessionId, cwd });
+        send(res, error('INTERNAL_ERROR', err.message), 500);
+      }
     },
   });
 

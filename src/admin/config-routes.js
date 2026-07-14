@@ -39,32 +39,31 @@ function createConfigRoutes(appContext) {
   routes.push({
     method: 'PATCH',
     pattern: '/api/admin/config',
-    handler: function configPatchHandler(req, res) {
-      parseBody(req, (body) => {
-        if (!body || typeof body !== 'object') {
-          send(res, error('BAD_REQUEST', '请求体需为 JSON 对象'), 400);
-          return;
-        }
+    handler: async function configPatchHandler(req, res) {
+      const body = await parseBody(req);
+      if (!body || typeof body !== 'object') {
+        send(res, error('BAD_REQUEST', '请求体需为 JSON 对象'), 400);
+        return;
+      }
 
-        const envPath = ctx.envPath || require('path').join(process.cwd(), '.env');
+      const envPath = ctx.envPath || require('path').join(process.cwd(), '.env');
 
-        try {
-          const result = updateDotEnv(envPath, body);
+      try {
+        const result = updateDotEnv(envPath, body);
 
-          recordEvent(ctx.eventStore, {
-            type: 'config.update',
-            message: '配置已更新，需要重启',
-            data: { updatedKeys: result.updatedKeys },
-          });
+        recordEvent(ctx.eventStore, {
+          type: 'config.update',
+          message: '配置已更新，需要重启',
+          data: { updatedKeys: result.updatedKeys },
+        });
 
-          send(res, success({
-            restartRequired: result.restartRequired,
-            updatedKeys: result.updatedKeys,
-          }));
-        } catch (err) {
-          send(res, error('BAD_REQUEST', err.message), 400);
-        }
-      });
+        send(res, success({
+          restartRequired: result.restartRequired,
+          updatedKeys: result.updatedKeys,
+        }));
+      } catch (err) {
+        send(res, error('BAD_REQUEST', err.message), 400);
+      }
     },
   });
 

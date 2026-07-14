@@ -127,26 +127,25 @@ function createCoreRoutes(appContext) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/sessions',
-    handler: function sessionsCreateHandler(req, res) {
-      parseBody(req, async (body) => {
-        if (!body) {
-          send(res, error('BAD_REQUEST', '无效请求体'), 400);
-          return;
-        }
-        try {
-          const session = await sessionAdmin.createSession(ctx, {
-            agent: body.agent,
-            title: body.title,
-            runtime: body.runtime,
-            cwd: body.cwd,
-            route: body.route,
-            createAgentSession: body.createAgentSession,
-          });
-          send(res, success(session));
-        } catch (err) {
-          send(res, error('INTERNAL_ERROR', err.message), 500);
-        }
-      });
+    handler: async function sessionsCreateHandler(req, res) {
+      const body = await parseBody(req);
+      if (!body) {
+        send(res, error('BAD_REQUEST', '无效请求体'), 400);
+        return;
+      }
+      try {
+        const session = await sessionAdmin.createSession(ctx, {
+          agent: body.agent,
+          title: body.title,
+          runtime: body.runtime,
+          cwd: body.cwd,
+          route: body.route,
+          createAgentSession: body.createAgentSession,
+        });
+        send(res, success(session));
+      } catch (err) {
+        send(res, error('INTERNAL_ERROR', err.message), 500);
+      }
     },
   });
 
@@ -174,16 +173,17 @@ function createCoreRoutes(appContext) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/sessions/:id/stop',
-    handler: function sessionStopHandler(_req, res, params) {
-      sessionAdmin.stopSession(ctx, params.id).then((result) => {
+    handler: async function sessionStopHandler(_req, res, params) {
+      try {
+        const result = await sessionAdmin.stopSession(ctx, params.id);
         if (!result.ok) {
           send(res, error(result.error.code, result.error.message), 404);
           return;
         }
         send(res, success({ session: result.session, warning: result.warning }));
-      }).catch((err) => {
+      } catch (err) {
         send(res, error('INTERNAL_ERROR', err.message), 500);
-      });
+      }
     },
   });
 
@@ -194,16 +194,17 @@ function createCoreRoutes(appContext) {
   routes.push({
     method: 'DELETE',
     pattern: '/api/admin/sessions/:id',
-    handler: function sessionDeleteHandler(_req, res, params) {
-      sessionAdmin.deleteSession(ctx, params.id).then((result) => {
+    handler: async function sessionDeleteHandler(_req, res, params) {
+      try {
+        const result = await sessionAdmin.deleteSession(ctx, params.id);
         if (!result.ok) {
           send(res, error(result.error.code, result.error.message), 404);
           return;
         }
         send(res, success({ warning: result.warning }));
-      }).catch((err) => {
+      } catch (err) {
         send(res, error('INTERNAL_ERROR', err.message), 500);
-      });
+      }
     },
   });
 
@@ -214,21 +215,23 @@ function createCoreRoutes(appContext) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/sessions/:id/prompt',
-    handler: function sessionPromptHandler(req, res, params) {
-      parseBody(req, (body) => {
-        if (!body || typeof body.text !== 'string') {
-          send(res, error('BAD_REQUEST', '请求体需包含 text 字段'), 400);
+    handler: async function sessionPromptHandler(req, res, params) {
+      const body = await parseBody(req);
+      if (!body || typeof body.text !== 'string') {
+        send(res, error('BAD_REQUEST', '请求体需包含 text 字段'), 400);
+        return;
+      }
+      try {
+        const result = await sessionAdmin.sendPrompt(ctx, params.id, body.text);
+        if (!result.ok) {
+          const status = result.error.code === 'NOT_FOUND' ? 404 : 400;
+          send(res, error(result.error.code, result.error.message), status);
           return;
         }
-        sessionAdmin.sendPrompt(ctx, params.id, body.text).then((result) => {
-          if (!result.ok) {
-            const status = result.error.code === 'NOT_FOUND' ? 404 : 400;
-            send(res, error(result.error.code, result.error.message), status);
-            return;
-          }
-          send(res, success({ events: result.events }));
-        });
-      });
+        send(res, success({ events: result.events }));
+      } catch (err) {
+        send(res, error('INTERNAL_ERROR', err.message), 500);
+      }
     },
   });
 
@@ -265,19 +268,18 @@ function createCoreRoutes(appContext) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/routes',
-    handler: function routesBindHandler(req, res) {
-      parseBody(req, (body) => {
-        if (!body || !body.routeKey || !body.sessionId) {
-          send(res, error('BAD_REQUEST', '需要 routeKey 和 sessionId'), 400);
-          return;
-        }
-        const result = routeAdmin.bindRoute(ctx, body.routeKey, body.sessionId);
-        if (!result.ok) {
-          send(res, error(result.error.code, result.error.message), 400);
-          return;
-        }
-        send(res, success(result));
-      });
+    handler: async function routesBindHandler(req, res) {
+      const body = await parseBody(req);
+      if (!body || !body.routeKey || !body.sessionId) {
+        send(res, error('BAD_REQUEST', '需要 routeKey 和 sessionId'), 400);
+        return;
+      }
+      const result = routeAdmin.bindRoute(ctx, body.routeKey, body.sessionId);
+      if (!result.ok) {
+        send(res, error(result.error.code, result.error.message), 400);
+        return;
+      }
+      send(res, success(result));
     },
   });
 
@@ -302,15 +304,14 @@ function createCoreRoutes(appContext) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/routes/cleanup-dangling',
-    handler: function routesCleanupHandler(req, res) {
-      parseBody(req, (body) => {
-        const result = routeAdmin.cleanupDangling(ctx, body && body.confirm);
-        if (!result.ok) {
-          send(res, error(result.error.code, result.error.message), 400);
-          return;
-        }
-        send(res, success(result));
-      });
+    handler: async function routesCleanupHandler(req, res) {
+      const body = await parseBody(req);
+      const result = routeAdmin.cleanupDangling(ctx, body && body.confirm);
+      if (!result.ok) {
+        send(res, error(result.error.code, result.error.message), 400);
+        return;
+      }
+      send(res, success(result));
     },
   });
 
@@ -334,14 +335,17 @@ function createCoreRoutes(appContext) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/agents/:id/check',
-    handler: function agentCheckHandler(_req, res, params) {
-      agentRuntimeAdmin.checkAgent(ctx, params.id).then((result) => {
+    handler: async function agentCheckHandler(_req, res, params) {
+      try {
+        const result = await agentRuntimeAdmin.checkAgent(ctx, params.id);
         if (!result.ok) {
           send(res, error(result.error.code, result.error.message), 404);
           return;
         }
         send(res, success(result));
-      });
+      } catch (err) {
+        send(res, error('INTERNAL_ERROR', err.message), 500);
+      }
     },
   });
 
@@ -352,14 +356,17 @@ function createCoreRoutes(appContext) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/agents/opencode/ensure-ready',
-    handler: function agentEnsureReadyHandler(_req, res) {
-      agentRuntimeAdmin.ensureReadyAgent(ctx).then((result) => {
+    handler: async function agentEnsureReadyHandler(_req, res) {
+      try {
+        const result = await agentRuntimeAdmin.ensureReadyAgent(ctx);
         if (!result.ok) {
           send(res, error(result.error.code, result.error.message), 404);
           return;
         }
         send(res, success(result));
-      });
+      } catch (err) {
+        send(res, error('INTERNAL_ERROR', err.message), 500);
+      }
     },
   });
 

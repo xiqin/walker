@@ -121,7 +121,7 @@ class MessageDispatcher {
       opencodeSessionId: agentRef.opencodeSessionId,
     });
 
-    return this._enqueuePrompt(current, event, driver, agentRef);
+    return this._enqueueRouteLock(routeKey, () => this._enqueuePrompt(current, event, driver, agentRef));
   }
 
   /**
@@ -154,6 +154,17 @@ class MessageDispatcher {
           sessionId,
           eventCount: events.length,
         });
+        const errorEvent = events.find((e) => e.type === AgentEvent.TYPE_ERROR);
+        if (errorEvent && errorEvent.data && errorEvent.data.message) {
+          logger.error('driver prompt returned error event', {
+            messageId: event.messageId,
+            sessionId,
+            error: errorEvent.data.message,
+          });
+          this._markErrorIfActive(sessionId, errorEvent.data.message);
+          await this._callFeishu('sendErrorCard', [this._replyCtx(event), errorEvent.data.message]);
+          return 'error';
+        }
         this._touchTurnState(turnState);
         await this._renderEvents(session, event, events, progressCardId);
         this._markIdleIfActive(sessionId);

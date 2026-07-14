@@ -217,41 +217,40 @@ function createMaintenanceRoutes(appContext) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/cleanup',
-    handler: function cleanupHandler(req, res) {
+    handler: async function cleanupHandler(req, res) {
       const sessionService = ctx.sessionService;
       if (!sessionService) {
         send(res, error('BAD_REQUEST', 'session 服务未提供'), 400);
         return;
       }
 
-      parseBody(req, (body) => {
-        if (!body || body.confirmed !== true) {
-          send(res, error('BAD_REQUEST', '清理操作需要 confirmed=true 确认'), 400);
-          return;
-        }
+      const body = await parseBody(req);
+      if (!body || body.confirmed !== true) {
+        send(res, error('BAD_REQUEST', '清理操作需要 confirmed=true 确认'), 400);
+        return;
+      }
 
-        const results = {};
+      const results = {};
 
-        const danglingResult = routeAdmin.cleanupDangling(ctx, true);
-        results.routes = danglingResult;
+      const danglingResult = routeAdmin.cleanupDangling(ctx, true);
+      results.routes = danglingResult;
 
-        const state = sessionService.stateStore.read();
-        const sessionsData = state.sessions || {};
-        const orphanResult = fileAdmin.cleanupOrphanAttachments(
-          ctx.dataDir || '',
-          sessionsData,
-          true
-        );
-        results.attachments = orphanResult;
+      const state = sessionService.stateStore.read();
+      const sessionsData = state.sessions || {};
+      const orphanResult = fileAdmin.cleanupOrphanAttachments(
+        ctx.dataDir || '',
+        sessionsData,
+        true
+      );
+      results.attachments = orphanResult;
 
-        recordEvent(ctx.eventStore, {
-          type: 'maintenance.cleanup',
-          message: '确认清理已执行',
-          data: results,
-        });
-
-        send(res, success(results));
+      recordEvent(ctx.eventStore, {
+        type: 'maintenance.cleanup',
+        message: '确认清理已执行',
+        data: results,
       });
+
+      send(res, success(results));
     },
   });
 

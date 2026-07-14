@@ -219,7 +219,7 @@ class OpencodeDriver extends AgentDriver {
       logger.info('opencode sse completed', { sessionId, eventCount: events.length });
     } catch (err) {
       logger.warn('opencode sse failed', { sessionId, error: err.message });
-      events.push(new AgentEvent(AgentEvent.TYPE_ERROR, { message: 'SSE connection error: ' + err.message }));
+      throw err;
     } finally {
       if (this._sessionWatcher.hasLastPolledMessageId(sessionId)) {
         try {

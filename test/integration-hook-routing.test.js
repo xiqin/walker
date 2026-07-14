@@ -63,7 +63,7 @@ function makeFeishuStub() {
   };
 }
 
-function enrollViaHook(ctx, opencodeSid, cwd) {
+async function enrollViaHook(ctx, opencodeSid, cwd) {
   const routes = createHookReceiverRoutes(ctx);
   const handler = routes.find((r) => r.method === 'POST' && r.pattern === '/opencode/hook/session-created').handler;
   const req = {
@@ -76,7 +76,7 @@ function enrollViaHook(ctx, opencodeSid, cwd) {
     },
   };
   const res = { statusCode: 0, headers: {}, body: '', writeHead(c) { res.statusCode = c; }, end(chunk) { if (chunk) res.body = chunk.toString(); } };
-  handler(req, res);
+  await handler(req, res);
   return JSON.parse(res.body);
 }
 
@@ -100,7 +100,7 @@ describe('集成测试 1: Hook 纳入 → 路由绑定 → 消息派发', () => 
         routeMode: 'thread',
       });
 
-      const result = enrollViaHook(ctx, 'oc_hook_enrolled', cwd);
+      const result = await enrollViaHook(ctx, 'oc_hook_enrolled', cwd);
       assert.equal(result.ok, true);
       assert.equal(result.data.routeKey, routeKey);
       const hookSessionId = result.data.sessionId;
@@ -132,7 +132,7 @@ describe('集成测试 1: Hook 纳入 → 路由绑定 → 消息派发', () => 
       const firstSession = ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd, agentRef: { opencodeSessionId: 'oc_first', serverUrl: 'http://localhost:4096' } });
       ctx.sessionService.setRouteCwd(routeKey, cwd);
 
-      const r2 = enrollViaHook(ctx, 'oc_second', cwd);
+      const r2 = await enrollViaHook(ctx, 'oc_second', cwd);
       assert.equal(r2.data.routeKey, routeKey);
 
       const sessions = ctx.sessionService.listSessionsInRoute(routeKey);
@@ -154,7 +154,7 @@ describe('集成测试 2: 1:N 路由 → 切焦点 → 消息派发到新焦点'
       const cwd = 'H:\\walker';
       const s1 = ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd, agentRef: { opencodeSessionId: 'oc_focus_orig', serverUrl: 'http://localhost:4096' } });
       ctx.sessionService.setRouteCwd(routeKey, cwd);
-      const r2 = enrollViaHook(ctx, 'oc_focus_new', cwd);
+      const r2 = await enrollViaHook(ctx, 'oc_focus_new', cwd);
       const newFocusId = r2.data.sessionId;
 
       const driver = makeStubDriver();
@@ -198,7 +198,7 @@ describe('集成测试 3: 非焦点 session 输出回群带标识', () => {
       const cwd = 'H:\\walker';
       const focusSession = ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd, agentRef: { opencodeSessionId: 'oc_integ4_focus', serverUrl: 'http://localhost:4096' } });
       ctx.sessionService.setRouteCwd(routeKey, cwd);
-      const r2 = enrollViaHook(ctx, 'oc_integ4_nonfocus', cwd);
+      const r2 = await enrollViaHook(ctx, 'oc_integ4_nonfocus', cwd);
       const nonFocusSession = ctx.sessionService.getSession(r2.data.sessionId);
 
       const feishuApi = makeFeishuStub();
@@ -241,7 +241,7 @@ describe('集成测试 4: OpenCode 退出检测 cascade', () => {
       const cwd = 'H:\\walker';
       const focusSession = ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd, agentRef: { opencodeSessionId: 'oc_integ5_focus', serverUrl: 'http://localhost:4096' } });
       ctx.sessionService.setRouteCwd(routeKey, cwd);
-      const r2 = enrollViaHook(ctx, 'oc_integ5_other', cwd);
+      const r2 = await enrollViaHook(ctx, 'oc_integ5_other', cwd);
       const otherSessionId = r2.data.sessionId;
 
       const feishuApi = makeFeishuStub();

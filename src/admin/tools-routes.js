@@ -81,21 +81,20 @@ function createToolsRoutes(appContext, deps) {
   routes.push({
     method: 'POST',
     pattern: '/api/admin/tools/cards/preview',
-    handler: function cardsPreviewHandler(req, res) {
-      parseBody(req, function (body) {
-        if (!body || !body.type) {
-          send(res, error('BAD_REQUEST', '请求体需包含 type 字段'), 400);
-          return;
-        }
+    handler: async function cardsPreviewHandler(req, res) {
+      const body = await parseBody(req);
+      if (!body || !body.type) {
+        send(res, error('BAD_REQUEST', '请求体需包含 type 字段'), 400);
+        return;
+      }
 
-        const result = previewCard(body.type, body.data);
-        if (!result) {
-          send(res, error('NOT_FOUND', '未知的卡片类型：' + body.type), 404);
-          return;
-        }
+      const result = previewCard(body.type, body.data);
+      if (!result) {
+        send(res, error('NOT_FOUND', '未知的卡片类型：' + body.type), 404);
+        return;
+      }
 
-        send(res, success(result));
-      });
+      send(res, success(result));
     },
   });
 

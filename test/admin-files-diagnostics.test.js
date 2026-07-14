@@ -106,7 +106,7 @@ function buildAppContext(overrides) {
   return { ...ctx, ...overrides };
 }
 
-function callRoute(routes, method, pathname, body, headers) {
+async function callRoute(routes, method, pathname, body, headers) {
   const router = createRouter();
   for (const r of routes) {
     router.add(r.method, r.pattern, r.handler);
@@ -138,24 +138,17 @@ function callRoute(routes, method, pathname, body, headers) {
     _headers: {},
   };
 
-  if (matched.handler.constructor.name === 'AsyncFunction') {
-    const promise = matched.handler(req, res, matched.params);
-    if (body) {
-      req.emit('data', Buffer.from(JSON.stringify(body)));
-      req.emit('end');
-    } else {
-      req.emit('end');
-    }
-    return promise.then(() => ({ statusCode, body: resBody }));
-  }
-
-  matched.handler(req, res, matched.params);
+  const result = matched.handler(req, res, matched.params);
 
   if (body) {
     req.emit('data', Buffer.from(JSON.stringify(body)));
     req.emit('end');
   } else {
     req.emit('end');
+  }
+
+  if (result && typeof result.then === 'function') {
+    await result;
   }
 
   return { statusCode, body: resBody };
@@ -210,7 +203,7 @@ function callRouteAsync(routes, method, pathname, body, headers) {
 
 // ── REQ-012: 配置 GET 脱敏展示和 PATCH allowlist 写入 ──
 
-test('REQ-012: GET config 返回脱敏配置摘要', () => {
+test('REQ-012: GET config 返回脱敏配置摘要', async () => {
   const envPath = path.join(tmpDir, 't4-config', '.env');
   fs.mkdirSync(path.dirname(envPath), { recursive: true });
   fs.writeFileSync(envPath, [
@@ -234,14 +227,14 @@ test('REQ-012: GET config 返回脱敏配置摘要', () => {
   assert.ok(summary.sensitiveKeys.length > 0);
 });
 
-test('REQ-012: PATCH config 写入 allowlist 字段并返回 restartRequired', () => {
+test('REQ-012: PATCH config 写入 allowlist 字段并返回 restartRequired', async () => {
   const envPath = path.join(tmpDir, 't4-patch', '.env');
   fs.mkdirSync(path.dirname(envPath), { recursive: true });
   fs.writeFileSync(envPath, 'WALKER_ADMIN_HOST=127.0.0.1\n', 'utf8');
 
   const ctx = buildAppContext({ envPath });
   const routes = createConfigRoutes(ctx);
-  const result = callRoute(routes, 'PATCH', '/api/admin/config', {
+  const result = await callRoute(routes, 'PATCH', '/api/admin/config', {
     WALKER_ADMIN_HOST: '0.0.0.0',
   });
 
@@ -254,14 +247,14 @@ test('REQ-012: PATCH config 写入 allowlist 字段并返回 restartRequired', (
   assert.match(updatedEnv, /^WALKER_ADMIN_HOST=0\.0\.0\.0/m);
 });
 
-test('REQ-012: PATCH config 拒绝 allowlist 外字段', () => {
+test('REQ-012: PATCH config 拒绝 allowlist 外字段', async () => {
   const envPath = path.join(tmpDir, 't4-reject', '.env');
   fs.mkdirSync(path.dirname(envPath), { recursive: true });
   fs.writeFileSync(envPath, 'WALKER_ADMIN_HOST=127.0.0.1\n', 'utf8');
 
   const ctx = buildAppContext({ envPath });
   const routes = createConfigRoutes(ctx);
-  const result = callRoute(routes, 'PATCH', '/api/admin/config', {
+  const result = await callRoute(routes, 'PATCH', '/api/admin/config', {
     FEISHU_APP_SECRET: 'should_not_write',
   });
 
@@ -270,7 +263,7 @@ test('REQ-012: PATCH config 拒绝 allowlist 外字段', () => {
   assert.match(result.body.error.message, /not editable/);
 });
 
-test('REQ-012: PATCH config 无效请求体返回 400', () => {
+test('REQ-012: PATCH config 无效请求体返回 400', async () => {
   const envPath = path.join(tmpDir, 't4-badbody', '.env');
   fs.mkdirSync(path.dirname(envPath), { recursive: true });
   fs.writeFileSync(envPath, '', 'utf8');
@@ -292,9 +285,12 @@ test('REQ-012: PATCH config 无效请求体返回 400', () => {
     setHeader() {},
   };
 
-  matched.handler(req, res, matched.params);
+  const handlerResult = matched.handler(req, res, matched.params);
   req.emit('data', Buffer.from('not-json'));
   req.emit('end');
+  if (handlerResult && typeof handlerResult.then === 'function') {
+    await handlerResult;
+  }
 
   assert.equal(statusCode, 400);
   assert.equal(resBody.ok, false);
@@ -302,7 +298,7 @@ test('REQ-012: PATCH config 无效请求体返回 400', () => {
 
 // ── REQ-013: 日志读取 out/err 切换、最近 500 行、关键词过滤、级别过滤 ──
 
-test('REQ-013: readLogs 读取 stdout 日志', () => {
+test('REQ-013: readLogs 读取 stdout 日志', async () => {
   const dataDir = setupDataDir('t4-logs-out');
   const logsDir = path.join(dataDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -320,7 +316,7 @@ test('REQ-013: readLogs 读取 stdout 日志', () => {
   assert.equal(result.lines[0].message, 'log line 0');
 });
 
-test('REQ-013: readLogs 读取 stderr 日志', () => {
+test('REQ-013: readLogs 读取 stderr 日志', async () => {
   const dataDir = setupDataDir('t4-logs-err');
   const logsDir = path.join(dataDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -333,7 +329,7 @@ test('REQ-013: readLogs 读取 stderr 日志', () => {
   assert.equal(result.lines[0].level, 'error');
 });
 
-test('REQ-013: readLogs 关键词过滤', () => {
+test('REQ-013: readLogs 关键词过滤', async () => {
   const dataDir = setupDataDir('t4-logs-kw');
   const logsDir = path.join(dataDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -350,7 +346,7 @@ test('REQ-013: readLogs 关键词过滤', () => {
   assert.equal(result.lines.every((l) => l.message.includes('prompt')), true);
 });
 
-test('REQ-013: readLogs 级别过滤', () => {
+test('REQ-013: readLogs 级别过滤', async () => {
   const dataDir = setupDataDir('t4-logs-level');
   const logsDir = path.join(dataDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -368,7 +364,7 @@ test('REQ-013: readLogs 级别过滤', () => {
   assert.equal(result.lines[0].message, 'error msg');
 });
 
-test('REQ-013: readLogs 缺失文件返回空结果', () => {
+test('REQ-013: readLogs 缺失文件返回空结果', async () => {
   const dataDir = setupDataDir('t4-logs-missing');
   const result = fileAdmin.readLogs({ dataDir });
   assert.equal(result.lines.length, 0);
@@ -376,7 +372,7 @@ test('REQ-013: readLogs 缺失文件返回空结果', () => {
   assert.equal(result.filtered, 0);
 });
 
-test('REQ-013: readLogs 最近 500 行限制', () => {
+test('REQ-013: readLogs 最近 500 行限制', async () => {
   const dataDir = setupDataDir('t4-lines-limit');
   const logsDir = path.join(dataDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -392,7 +388,7 @@ test('REQ-013: readLogs 最近 500 行限制', () => {
   assert.equal(result.total, 600);
 });
 
-test('REQ-013: readLogs 非结构化行原样保留', () => {
+test('REQ-013: readLogs 非结构化行原样保留', async () => {
   const dataDir = setupDataDir('t4-raw-lines');
   const logsDir = path.join(dataDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -409,7 +405,7 @@ test('REQ-013: readLogs 非结构化行原样保留', () => {
 
 // ── REQ-015: 附件列举、下载和删除，路径穿越防护 ──
 
-test('REQ-015: listAttachments 列出按 session 分组的附件', () => {
+test('REQ-015: listAttachments 列出按 session 分组的附件', async () => {
   const dataDir = setupDataDir('t4-attach-list');
   const attachDir = path.join(dataDir, 'attachments');
   const sessDir = path.join(attachDir, 'wks_a1');
@@ -427,7 +423,7 @@ test('REQ-015: listAttachments 列出按 session 分组的附件', () => {
   assert.ok(names.includes('image.png'));
 });
 
-test('REQ-015: getAttachment 读取附件内容', () => {
+test('REQ-015: getAttachment 读取附件内容', async () => {
   const dataDir = setupDataDir('t4-attach-get');
   const sessDir = path.join(dataDir, 'attachments', 'wks_a2');
   fs.mkdirSync(sessDir, { recursive: true });
@@ -438,7 +434,7 @@ test('REQ-015: getAttachment 读取附件内容', () => {
   assert.equal(result.data.toString(), 'hello attachment');
 });
 
-test('REQ-015: getAttachment 拒绝路径穿越', () => {
+test('REQ-015: getAttachment 拒绝路径穿越', async () => {
   const dataDir = setupDataDir('t4-attach-traversal');
   fs.mkdirSync(path.join(dataDir, 'attachments'), { recursive: true });
 
@@ -447,7 +443,7 @@ test('REQ-015: getAttachment 拒绝路径穿越', () => {
   assert.match(result.error, /路径穿越/);
 });
 
-test('REQ-015: getAttachment 不存在的附件返回错误', () => {
+test('REQ-015: getAttachment 不存在的附件返回错误', async () => {
   const dataDir = setupDataDir('t4-attach-missing');
   fs.mkdirSync(path.join(dataDir, 'attachments'), { recursive: true });
 
@@ -456,7 +452,7 @@ test('REQ-015: getAttachment 不存在的附件返回错误', () => {
   assert.match(result.error, /不存在/);
 });
 
-test('REQ-015: deleteAttachment 删除附件文件', () => {
+test('REQ-015: deleteAttachment 删除附件文件', async () => {
   const dataDir = setupDataDir('t4-attach-del');
   const sessDir = path.join(dataDir, 'attachments', 'wks_a3');
   fs.mkdirSync(sessDir, { recursive: true });
@@ -468,7 +464,7 @@ test('REQ-015: deleteAttachment 删除附件文件', () => {
   assert.equal(fs.existsSync(filePath), false);
 });
 
-test('REQ-015: deleteAttachment 拒绝路径穿越', () => {
+test('REQ-015: deleteAttachment 拒绝路径穿越', async () => {
   const dataDir = setupDataDir('t4-attach-del-traversal');
   fs.mkdirSync(path.join(dataDir, 'attachments'), { recursive: true });
 
@@ -477,7 +473,7 @@ test('REQ-015: deleteAttachment 拒绝路径穿越', () => {
   assert.match(result.error, /路径穿越/);
 });
 
-test('REQ-015: safeResolve 验证路径安全', () => {
+test('REQ-015: safeResolve 验证路径安全', async () => {
   const root = 'C:\\walker\\data\\attachments';
   assert.equal(fileAdmin.safeResolve(root, '../outside.txt'), null);
   assert.equal(fileAdmin.safeResolve(root, '../../etc/passwd'), null);
@@ -486,7 +482,7 @@ test('REQ-015: safeResolve 验证路径安全', () => {
   assert.ok(resolved.startsWith(root));
 });
 
-test('REQ-015: listAttachments 空目录返回空结果', () => {
+test('REQ-015: listAttachments 空目录返回空结果', async () => {
   const dataDir = setupDataDir('t4-attach-empty');
   const result = fileAdmin.listAttachments(dataDir);
   assert.equal(result.groups.length, 0);
@@ -667,7 +663,7 @@ test('REQ-018: 单项检查失败不导致整体抛错', async () => {
 
 // ── REQ-019: 导出、备份和确认清理维护动作 ──
 
-test('REQ-019: 导出 sessions 和 routes 数据', () => {
+test('REQ-019: 导出 sessions 和 routes 数据', async () => {
   const dataDir = setupDataDir('t4-export');
   const ctx = buildAppContext({
     dataDir,
@@ -707,7 +703,7 @@ test('REQ-019: 导出 sessions 和 routes 数据', () => {
   assert.ok(parsed.exportedAt);
 });
 
-test('REQ-019: 备份 sessions 和 routes 到 timestamp 文件', () => {
+test('REQ-019: 备份 sessions 和 routes 到 timestamp 文件', async () => {
   const dataDir = setupDataDir('t4-backup');
   fs.writeFileSync(path.join(dataDir, 'state.json'), JSON.stringify({ sessions: { wks_b1: { id: 'wks_b1' } }, routes: { 'feishu:abc': 'wks_b1' } }), 'utf8');
 
@@ -720,7 +716,7 @@ test('REQ-019: 备份 sessions 和 routes 到 timestamp 文件', () => {
   });
 
   const routes = createMaintenanceRoutes(ctx);
-  const result = callRoute(routes, 'POST', '/api/admin/backup');
+  const result = await callRoute(routes, 'POST', '/api/admin/backup');
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.ok, true);
@@ -731,7 +727,7 @@ test('REQ-019: 备份 sessions 和 routes 到 timestamp 文件', () => {
   assert.equal(backupFiles.length, 1);
 });
 
-test('REQ-019: 确认清理 stopped/deleted session route 和孤立附件', () => {
+test('REQ-019: 确认清理 stopped/deleted session route 和孤立附件', async () => {
   const dataDir = setupDataDir('t4-cleanup');
   const attachDir = path.join(dataDir, 'attachments', 'wks_deleted1');
   fs.mkdirSync(attachDir, { recursive: true });
@@ -746,7 +742,7 @@ test('REQ-019: 确认清理 stopped/deleted session route 和孤立附件', () =
   });
 
   const routes = createMaintenanceRoutes(ctx);
-  const result = callRoute(routes, 'POST', '/api/admin/cleanup', { confirmed: true });
+  const result = await callRoute(routes, 'POST', '/api/admin/cleanup', { confirmed: true });
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.ok, true);
@@ -756,31 +752,31 @@ test('REQ-019: 确认清理 stopped/deleted session route 和孤立附件', () =
   assert.ok(result.body.data.routes.cleaned.length > 0);
 });
 
-test('REQ-019: 清理未确认返回 BAD_REQUEST', () => {
+test('REQ-019: 清理未确认返回 BAD_REQUEST', async () => {
   const dataDir = setupDataDir('t4-cleanup-no');
   const ctx = buildAppContext({ dataDir });
 
   const routes = createMaintenanceRoutes(ctx);
-  const result = callRoute(routes, 'POST', '/api/admin/cleanup', { confirmed: false });
+  const result = await callRoute(routes, 'POST', '/api/admin/cleanup', { confirmed: false });
 
   assert.equal(result.statusCode, 400);
   assert.equal(result.body.ok, false);
   assert.match(result.body.error.message, /confirmed=true/);
 });
 
-test('REQ-019: 清理请求体缺失确认字段返回 400', () => {
+test('REQ-019: 清理请求体缺失确认字段返回 400', async () => {
   const dataDir = setupDataDir('t4-cleanup-nobody');
   const ctx = buildAppContext({ dataDir });
 
   const routes = createMaintenanceRoutes(ctx);
-  const result = callRoute(routes, 'POST', '/api/admin/cleanup', {});
+  const result = await callRoute(routes, 'POST', '/api/admin/cleanup', {});
 
   assert.equal(result.statusCode, 400);
 });
 
 // ── 孤立附件查找和清理 ──
 
-test('findOrphanAttachments 发现孤立附件', () => {
+test('findOrphanAttachments 发现孤立附件', async () => {
   const dataDir = setupDataDir('t4-orphan-find');
   const sessDir = path.join(dataDir, 'attachments', 'wks_del1');
   fs.mkdirSync(sessDir, { recursive: true });
@@ -793,7 +789,7 @@ test('findOrphanAttachments 发现孤立附件', () => {
   assert.equal(orphans[0].reason, 'session deleted');
 });
 
-test('findOrphanAttachments 发现不存在 session 的附件', () => {
+test('findOrphanAttachments 发现不存在 session 的附件', async () => {
   const dataDir = setupDataDir('t4-orphan-none');
   const sessDir = path.join(dataDir, 'attachments', 'wks_ghost');
   fs.mkdirSync(sessDir, { recursive: true });
@@ -804,7 +800,7 @@ test('findOrphanAttachments 发现不存在 session 的附件', () => {
   assert.equal(orphans[0].reason, 'session not found');
 });
 
-test('cleanupOrphanAttachments 清理孤立附件', () => {
+test('cleanupOrphanAttachments 清理孤立附件', async () => {
   const dataDir = setupDataDir('t4-orphan-cleanup');
   const sessDir = path.join(dataDir, 'attachments', 'wks_del2');
   fs.mkdirSync(sessDir, { recursive: true });
@@ -818,7 +814,7 @@ test('cleanupOrphanAttachments 清理孤立附件', () => {
   assert.equal(fs.existsSync(filePath), false);
 });
 
-test('cleanupOrphanAttachments 未确认返回错误', () => {
+test('cleanupOrphanAttachments 未确认返回错误', async () => {
   const result = fileAdmin.cleanupOrphanAttachments('', {}, false);
   assert.equal(result.ok, false);
   assert.match(result.error, /confirm=true/);
@@ -826,7 +822,7 @@ test('cleanupOrphanAttachments 未确认返回错误', () => {
 
 // ── 路由集成测试 ──
 
-test('createMaintenanceRoutes 注册日志、附件、导出、备份、清理和健康路由', () => {
+test('createMaintenanceRoutes 注册日志、附件、导出、备份、清理和健康路由', async () => {
   const ctx = buildAppContext();
   const routes = createMaintenanceRoutes(ctx);
 
@@ -841,7 +837,7 @@ test('createMaintenanceRoutes 注册日志、附件、导出、备份、清理�
   assert.ok(patterns.includes('GET /api/admin/health'));
 });
 
-test('createConfigRoutes 注册 GET 和 PATCH config 路由', () => {
+test('createConfigRoutes 注册 GET 和 PATCH config 路由', async () => {
   const ctx = buildAppContext();
   const routes = createConfigRoutes(ctx);
 
@@ -864,7 +860,7 @@ test('GET health 路由返回检查结果', async () => {
   assert.ok(result.body.data.overall);
 });
 
-test('GET logs 路由返回日志数据', () => {
+test('GET logs 路由返回日志数据', async () => {
   const dataDir = setupDataDir('t4-logs-route');
   const logsDir = path.join(dataDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -873,14 +869,14 @@ test('GET logs 路由返回日志数据', () => {
 
   const ctx = buildAppContext({ dataDir });
   const routes = createMaintenanceRoutes(ctx);
-  const result = callRoute(routes, 'GET', '/api/admin/logs');
+  const result = await callRoute(routes, 'GET', '/api/admin/logs');
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.ok, true);
   assert.equal(result.body.data.lines.length, 1);
 });
 
-test('DELETE 附件路由拒绝路径穿越', () => {
+test('DELETE 附件路由拒绝路径穿越', async () => {
   const dataDir = setupDataDir('t4-attach-route-traversal');
   fs.mkdirSync(path.join(dataDir, 'attachments'), { recursive: true });
 
@@ -899,12 +895,12 @@ test('DELETE 附件路由拒绝路径穿越', () => {
 
 // ── REQ-026: 文件与诊断 API 测试可独立运行 ──
 
-test('REQ-026: 所有测试使用临时目录，无外部连接依赖', () => {
+test('REQ-026: 所有测试使用临时目录，无外部连接依赖', async () => {
   assert.ok(tmpDir);
   assert.ok(fs.existsSync(tmpDir));
 });
 
-test('REQ-026: 配置更新事件写入 eventStore', () => {
+test('REQ-026: 配置更新事件写入 eventStore', async () => {
   const envPath = path.join(tmpDir, 't4-event', '.env');
   fs.mkdirSync(path.dirname(envPath), { recursive: true });
   fs.writeFileSync(envPath, 'WALKER_ADMIN_HOST=127.0.0.1\n', 'utf8');
@@ -912,14 +908,14 @@ test('REQ-026: 配置更新事件写入 eventStore', () => {
   const store = createEventStore();
   const ctx = buildAppContext({ envPath, eventStore: store });
   const routes = createConfigRoutes(ctx);
-  callRoute(routes, 'PATCH', '/api/admin/config', { WALKER_ADMIN_HOST: '0.0.0.0' });
+  await callRoute(routes, 'PATCH', '/api/admin/config', { WALKER_ADMIN_HOST: '0.0.0.0' });
 
   const events = store.events.filter((e) => e.type === 'config.update');
   assert.ok(events.length >= 1);
   assert.equal(events[0].message, '配置已更新，需要重启');
 });
 
-test('REQ-026: 附件删除事件写入 eventStore', () => {
+test('REQ-026: 附件删除事件写入 eventStore', async () => {
   const dataDir = setupDataDir('t4-del-event');
   const sessDir = path.join(dataDir, 'attachments', 'wks_ev');
   fs.mkdirSync(sessDir, { recursive: true });
@@ -928,26 +924,26 @@ test('REQ-026: 附件删除事件写入 eventStore', () => {
   const store = createEventStore();
   const ctx = buildAppContext({ dataDir, eventStore: store });
   const routes = createMaintenanceRoutes(ctx);
-  callRoute(routes, 'DELETE', '/api/admin/attachments/wks_ev/ev.txt');
+  await callRoute(routes, 'DELETE', '/api/admin/attachments/wks_ev/ev.txt');
 
   const events = store.events.filter((e) => e.type === 'attachment.delete');
   assert.ok(events.length >= 1);
 });
 
-test('REQ-026: 备份事件写入 eventStore', () => {
+test('REQ-026: 备份事件写入 eventStore', async () => {
   const dataDir = setupDataDir('t4-bak-event');
   fs.writeFileSync(path.join(dataDir, 'state.json'), JSON.stringify({ sessions: {}, routes: {} }), 'utf8');
 
   const store = createEventStore();
   const ctx = buildAppContext({ dataDir, eventStore: store, sessionService: createFakeSessionService([], {}) });
   const routes = createMaintenanceRoutes(ctx);
-  callRoute(routes, 'POST', '/api/admin/backup');
+  await callRoute(routes, 'POST', '/api/admin/backup');
 
   const events = store.events.filter((e) => e.type === 'maintenance.backup');
   assert.ok(events.length >= 1);
 });
 
-test('REQ-026: 清理事件写入 eventStore', () => {
+test('REQ-026: 清理事件写入 eventStore', async () => {
   const dataDir = setupDataDir('t4-cln-event');
   const sessDir = path.join(dataDir, 'attachments', 'wks_del_evt');
   fs.mkdirSync(sessDir, { recursive: true });
@@ -963,7 +959,7 @@ test('REQ-026: 清理事件写入 eventStore', () => {
     ),
   });
   const routes = createMaintenanceRoutes(ctx);
-  callRoute(routes, 'POST', '/api/admin/cleanup', { confirmed: true });
+  await callRoute(routes, 'POST', '/api/admin/cleanup', { confirmed: true });
 
   const events = store.events.filter((e) => e.type === 'maintenance.cleanup');
   assert.ok(events.length >= 1);

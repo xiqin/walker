@@ -107,19 +107,32 @@ function createAuthGuard(config, response) {
 /**
  * 解析请求体 JSON 数据，限制最大 1MB 防止 DoS
  * @param {import('http').IncomingMessage} req - HTTP 请求
- * @param {Function} callback - 回调函数 (body) => void
+ * @param {Function} [callback] - 可选回调函数 (body) => void；省略时返回 Promise
+ * @returns {Promise<Object|null>|void} callback 模式无返回值，Promise 模式返回解析后的 body
  */
 function parseBody(req, callback) {
+  if (!req || typeof req.on !== 'function') {
+    if (callback) return callback(null);
+    return Promise.resolve(null);
+  }
+
   const chunks = [];
   let totalSize = 0;
   let aborted = false;
+
+  let resolvePromise;
+  const promise = callback ? null : new Promise((resolve) => { resolvePromise = resolve; });
+  const done = (body) => {
+    if (callback) callback(body);
+    else if (resolvePromise) resolvePromise(body);
+  };
 
   req.on('data', (chunk) => {
     if (aborted) return;
     totalSize += chunk.length;
     if (totalSize > MAX_BODY_SIZE) {
       aborted = true;
-      callback(null);
+      done(null);
       req.destroy();
       return;
     }
@@ -130,16 +143,18 @@ function parseBody(req, callback) {
     try {
       const raw = Buffer.concat(chunks).toString('utf8');
       const body = raw ? JSON.parse(raw) : {};
-      callback(body);
+      done(body);
     } catch (_e) {
-      callback(null);
+      done(null);
     }
   });
   req.on('error', () => {
     if (aborted) return;
     aborted = true;
-    callback(null);
+    done(null);
   });
+
+  if (!callback) return promise;
 }
 
 /**
@@ -167,32 +182,31 @@ function createAuthHandlers(config, response) {
    * @param {import('http').IncomingMessage} req - HTTP 请求
    * @param {import('http').ServerResponse} res - HTTP 响应
    */
-  function loginHandler(req, res) {
+  async function loginHandler(req, res) {
     if (!config.token) {
       response.send(res, response.error('BAD_REQUEST', '管理端未配置 token，无需登录'));
       return;
     }
 
-    parseBody(req, (body) => {
-      if (!body || typeof body.token !== 'string') {
-        response.send(res, response.error('BAD_REQUEST', '请求体需包含 token 字段'), 400);
-        return;
-      }
+    const body = await parseBody(req);
+    if (!body || typeof body.token !== 'string') {
+      response.send(res, response.error('BAD_REQUEST', '请求体需包含 token 字段'), 400);
+      return;
+    }
 
-      if (!safeEqual(body.token, config.token)) {
-        response.send(res, response.error('UNAUTHORIZED', 'token 不正确'), 401);
-        return;
-      }
+    if (!safeEqual(body.token, config.token)) {
+      response.send(res, response.error('UNAUTHORIZED', 'token 不正确'), 401);
+      return;
+    }
 
-      pruneExpiredSessions();
-      const sessionId = generateSessionId();
-      activeSessions.set(sessionId, { createdAt: Date.now() });
+    pruneExpiredSessions();
+    const sessionId = generateSessionId();
+    activeSessions.set(sessionId, { createdAt: Date.now() });
 
-      const isHttps = req.connection && req.connection.encrypted;
-      const cookieFlags = 'Path=/; HttpOnly; SameSite=Strict' + (isHttps ? '; Secure' : '');
-      res.setHeader('Set-Cookie', 'walker_admin_sid=' + sessionId + '; ' + cookieFlags);
-      response.send(res, response.success({ authenticated: true }));
-    });
+    const isHttps = req.connection && req.connection.encrypted;
+    const cookieFlags = 'Path=/; HttpOnly; SameSite=Strict' + (isHttps ? '; Secure' : '');
+    res.setHeader('Set-Cookie', 'walker_admin_sid=' + sessionId + '; ' + cookieFlags);
+    response.send(res, response.success({ authenticated: true }));
   }
 
   return { statusHandler, loginHandler };
