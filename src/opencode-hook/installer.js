@@ -32,8 +32,18 @@ function installHookPlugin(options) {
   const targetPath = path.join(pluginsDir, PLUGIN_FILENAME);
 
   if (fs.existsSync(targetPath)) {
-    logger.info('hook plugin already exists, skip install', { path: targetPath });
-    return { installed: false, reason: 'already_exists', path: targetPath };
+    const walkerPort = opts.walkerPort || 8787;
+    try {
+      const existing = fs.readFileSync(targetPath, 'utf8');
+      const portMatch = existing.match(/localhost:(\d+)/);
+      if (portMatch && parseInt(portMatch[1], 10) === walkerPort) {
+        logger.info('hook plugin already exists, port matches, skip install', { path: targetPath, port: walkerPort });
+        return { installed: false, reason: 'already_exists', path: targetPath };
+      }
+      logger.info('hook plugin exists but port mismatch, re-installing', { path: targetPath, oldPort: portMatch ? portMatch[1] : null, newPort: walkerPort });
+    } catch (e) {
+      logger.warn('hook plugin exists but failed to read, re-installing', { path: targetPath, error: e.message });
+    }
   }
 
   try {
@@ -41,7 +51,8 @@ function installHookPlugin(options) {
       fs.mkdirSync(pluginsDir, { recursive: true });
     }
     const walkerPort = opts.walkerPort || 8787;
-    const source = getPluginSource(walkerPort);
+    const walkerToken = opts.walkerToken || '';
+    const source = getPluginSource(walkerPort, walkerToken);
     fs.writeFileSync(targetPath, source, 'utf8');
     logger.info('hook plugin installed', { path: targetPath, walkerPort });
     return { installed: true, path: targetPath };

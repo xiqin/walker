@@ -33,7 +33,12 @@ function isLoopback(req) {
  */
 function normalizePath(p) {
   if (!p) return '';
-  return p.replace(/\//g, '\\').toLowerCase().replace(/\\+$/, '');
+  const isWindows = process.platform === 'win32';
+  const normalized = p.trim().replace(/[\\/]+$/, '');
+  if (isWindows) {
+    return normalized.replace(/\//g, '\\').toLowerCase();
+  }
+  return normalized.replace(/\\/g, '/');
 }
 
 /**
@@ -45,7 +50,8 @@ function normalizePath(p) {
 function isExactOrSubdir(parent, child) {
   if (!parent || !child) return false;
   if (parent === child) return true;
-  return child.startsWith(parent + '\\');
+  const sep = process.platform === 'win32' ? '\\' : '/';
+  return child.startsWith(parent + sep);
 }
 
 /**
@@ -56,9 +62,7 @@ function isExactOrSubdir(parent, child) {
  * @returns {string|null} 匹配到的 routeKey
  */
 function findRouteKeyByCwd(ctx, cwd) {
-  const state = typeof ctx.sessionService._readNormalized === 'function'
-    ? ctx.sessionService._readNormalized()
-    : ctx.sessionService.stateStore.read();
+  const state = ctx.sessionService.stateStore.read();
   const routes = state.routes || {};
   const normalizedCwd = normalizePath(cwd);
 

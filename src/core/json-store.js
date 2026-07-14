@@ -1,5 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { createLogger } = require('./logger');
+
+const logger = createLogger('json-store');
 
 function cloneDefaultValue(value) {
   if (value === undefined) return undefined;
@@ -39,6 +42,7 @@ class JsonStore {
       const raw = fs.readFileSync(this.filePath, 'utf8');
       return JSON.parse(raw);
     } catch (e) {
+      logger.error('failed to read/persist file, using default', { filePath: this.filePath, err: e });
       return cloneDefaultValue(this.defaultValue);
     }
   }

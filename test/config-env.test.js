@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { loadEnvConfig } = require('../src/config/env');
 const { EDITABLE_ENV_KEYS } = require('../src/admin/config');
 
-test('loadEnvConfig 默认值正确', () => {
+test('loadEnvConfig 默认值正常', () => {
   const config = loadEnvConfig({ env: {} });
   assert.equal(config.feishuRouteMode, 'thread');
   assert.equal(config.walkerDataDir, '');
@@ -88,7 +88,7 @@ test('loadEnvConfig 长任务数值配置无效时回落默认值', () => {
   assert.equal(config.walkerMaxTurnTimeMins, 0);
 });
 
-test('loadEnvConfig 缺少飞书凭据时标记为空', () => {
+test('loadEnvConfig 缺少飞书凭据时标记为缺失', () => {
   const config = loadEnvConfig({ env: {} });
   assert.equal(config.feishuAppId, '');
   assert.equal(config.feishuAppSecret, '');
@@ -108,52 +108,52 @@ test('loadEnvConfig boolean 解析', () => {
 
 test('hook enabled 默认 true', () => {
   const config = loadEnvConfig({ env: {} });
-  assert.equal(config.walkerOpendcodeHookEnabled, true);
+  assert.equal(config.walkerOpencodeHookEnabled, true);
 });
 
 test('hook enabled 自定义值解析', () => {
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: 'false' } }).walkerOpendcodeHookEnabled, false);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: '0' } }).walkerOpendcodeHookEnabled, false);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: 'true' } }).walkerOpendcodeHookEnabled, true);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: '1' } }).walkerOpendcodeHookEnabled, true);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: 'false' } }).walkerOpencodeHookEnabled, false);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: '0' } }).walkerOpencodeHookEnabled, false);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: 'true' } }).walkerOpencodeHookEnabled, true);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HOOK_ENABLED: '1' } }).walkerOpencodeHookEnabled, true);
 });
 
 test('health poll 默认 5000', () => {
   const config = loadEnvConfig({ env: {} });
-  assert.equal(config.walkerOpendcodeHealthPollIntervalMs, 5000);
+  assert.equal(config.walkerOpencodeHealthPollIntervalMs, 5000);
 });
 
 test('health poll 自定义值解析', () => {
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '1000' } }).walkerOpendcodeHealthPollIntervalMs, 1000);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '30000' } }).walkerOpendcodeHealthPollIntervalMs, 30000);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '1000' } }).walkerOpencodeHealthPollIntervalMs, 1000);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '30000' } }).walkerOpencodeHealthPollIntervalMs, 30000);
 });
 
-test('health poll 无效值回落默认 5000', () => {
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '0' } }).walkerOpendcodeHealthPollIntervalMs, 5000);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '-1' } }).walkerOpendcodeHealthPollIntervalMs, 5000);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: 'abc' } }).walkerOpendcodeHealthPollIntervalMs, 5000);
+test('health poll 无效值回落默�?5000', () => {
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '0' } }).walkerOpencodeHealthPollIntervalMs, 5000);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: '-1' } }).walkerOpencodeHealthPollIntervalMs, 5000);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS: 'abc' } }).walkerOpencodeHealthPollIntervalMs, 5000);
 });
 
 test('exit action 默认 cancel', () => {
   const config = loadEnvConfig({ env: {} });
-  assert.equal(config.walkerOpendcodeExitAction, 'cancel');
+  assert.equal(config.walkerOpencodeExitAction, 'cancel');
 });
 
 test('exit action 自定义值解析', () => {
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_EXIT_ACTION: 'keep' } }).walkerOpendcodeExitAction, 'keep');
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_EXIT_ACTION: 'restart' } }).walkerOpendcodeExitAction, 'restart');
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_EXIT_ACTION: 'keep' } }).walkerOpencodeExitAction, 'keep');
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_EXIT_ACTION: 'restart' } }).walkerOpencodeExitAction, 'restart');
 });
 
 test('non focus output 默认 true', () => {
   const config = loadEnvConfig({ env: {} });
-  assert.equal(config.walkerOpendcodeNonFocusOutput, true);
+  assert.equal(config.walkerOpencodeNonFocusOutput, true);
 });
 
 test('non focus output 自定义值解析', () => {
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'false' } }).walkerOpendcodeNonFocusOutput, false);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: '0' } }).walkerOpendcodeNonFocusOutput, false);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'true' } }).walkerOpendcodeNonFocusOutput, true);
-  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'yes' } }).walkerOpendcodeNonFocusOutput, true);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'false' } }).walkerOpencodeNonFocusOutput, false);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: '0' } }).walkerOpencodeNonFocusOutput, false);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'true' } }).walkerOpencodeNonFocusOutput, true);
+  assert.equal(loadEnvConfig({ env: { WALKER_OPENCODE_NON_FOCUS_OUTPUT: 'yes' } }).walkerOpencodeNonFocusOutput, true);
 });
 
 test('hook 配置项在可编辑白名单中', () => {

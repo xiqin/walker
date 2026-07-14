@@ -41,9 +41,13 @@ class SessionService {
 
   _readNormalized() {
     const state = this.stateStore.read();
+    this._ensureState(state);
     const migrated = this._normalizeRoute(state);
     if (migrated) {
-      this.stateStore.update((s) => { this._normalizeRoute(s); });
+      this.stateStore.update((s) => {
+        this._ensureState(s);
+        this._normalizeRoute(s);
+      });
     }
     return state;
   }
@@ -209,7 +213,13 @@ class SessionService {
     });
   }
 
+  static UPDATEABLE_FIELDS = ['model', 'agentRef', 'title', 'cwd'];
+
   updateSessionField(sessionId, field, value) {
+    if (!SessionService.UPDATEABLE_FIELDS.includes(field)) {
+      logger.warn('updateSessionField rejected: field not allowed', { sessionId, field });
+      return;
+    }
     this.stateStore.update((state) => {
       this._ensureState(state);
       this._normalizeRoute(state);
@@ -218,7 +228,7 @@ class SessionService {
       session[field] = value;
       session.updatedAt = Date.now();
     });
-    logger.info('session field updated', { sessionId, field, value });
+    logger.info('session field updated', { sessionId, field });
   }
 
   recoverOnStartup() {
@@ -230,11 +240,12 @@ class SessionService {
       for (const id of Object.keys(s.sessions)) {
         const session = s.sessions[id];
         if (session.status === 'running' || session.status === 'error') {
+          const previousStatus = session.status;
           session.status = 'idle';
           session.errorMessage = null;
           session.updatedAt = Date.now();
           recovered.push(id);
-          logger.info('recovered session to idle on startup', { sessionId: id, previousStatus: session.status });
+          logger.info('recovered session to idle on startup', { sessionId: id, previousStatus });
         }
       }
     });
@@ -319,7 +330,9 @@ class SessionService {
       this._ensureState(s);
       this._normalizeRoute(s);
       const r = s.routes[routeKey];
-      if (!r) return;
+      if (!r) {
+        throw new Error('route not found during update: ' + routeKey);
+      }
       r.focusSessionId = sessionId;
       r.updatedAt = Date.now();
     });

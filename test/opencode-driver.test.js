@@ -39,7 +39,7 @@ class FakeSSEClient {
 describe('DriverRegistry', () => {
   it('注册 opencode driver', () => {
     const reg = new DriverRegistry();
-    const driver = new OpencodeDriver({});
+    const driver = new OpencodeDriver({ serverUrl: 'http://localhost:4096' });
     reg.register('opencode', driver);
     assert.equal(reg.get('opencode'), driver);
   });
@@ -51,7 +51,7 @@ describe('DriverRegistry', () => {
 
   it('列出已注册 driver', () => {
     const reg = new DriverRegistry();
-    reg.register('opencode', new OpencodeDriver({}));
+    reg.register('opencode', new OpencodeDriver({ serverUrl: 'http://localhost:4096' }));
     reg.register('claude', stubClaudeDriver());
     const list = reg.list();
     assert.deepEqual(list, ['opencode', 'claude']);

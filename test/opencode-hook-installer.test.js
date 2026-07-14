@@ -31,17 +31,30 @@ test('installHookPlugin 写入新 plugin 文件', () => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test('已存在 plugin 不覆盖', () => {
+test('已存在 plugin 且端口匹配时不覆盖', () => {
   const { tmpDir, pluginsDir } = createTempConfigDir();
   const targetPath = path.join(pluginsDir, 'walker-hook.js');
 
-  fs.writeFileSync(targetPath, '// existing user plugin\n', 'utf8');
+  fs.writeFileSync(targetPath, '// existing plugin with localhost:8787\n', 'utf8');
 
   const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
 
   assert.equal(result.installed, false);
   assert.equal(result.reason, 'already_exists');
-  assert.equal(fs.readFileSync(targetPath, 'utf8'), '// existing user plugin\n');
+  assert.equal(fs.readFileSync(targetPath, 'utf8'), '// existing plugin with localhost:8787\n');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('已存在 plugin 但端口不匹配时重新安装', () => {
+  const { tmpDir, pluginsDir } = createTempConfigDir();
+  const targetPath = path.join(pluginsDir, 'walker-hook.js');
+
+  fs.writeFileSync(targetPath, '// existing plugin with localhost:9000\n', 'utf8');
+
+  const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
+
+  assert.equal(result.installed, true);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

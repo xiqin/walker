@@ -101,7 +101,10 @@ function createAdminServer(options) {
       const httpServer = serverFactory ? serverFactory(handleRequest) : http.createServer(handleRequest);
 
       httpServer.on('error', (err) => {
-        if (server) return;
+        if (server) {
+          logger.error('admin server runtime error', { err });
+          return;
+        }
         reject(err);
       });
 
@@ -129,11 +132,21 @@ function createAdminServer(options) {
     }
 
     return new Promise((resolve) => {
-      server.close(() => {
+      let settled = false;
+      const done = (result) => {
+        if (settled) return;
+        settled = true;
         server = null;
         started = false;
-        resolve({ ok: true });
-      });
+        resolve(result);
+      };
+      server.close(() => done({ ok: true }));
+      setTimeout(() => {
+        if (server) {
+          try { server.closeAllConnections && server.closeAllConnections(); } catch (_) {}
+        }
+        done({ ok: true, forced: true });
+      }, 5000);
     });
   }
 

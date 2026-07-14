@@ -5,7 +5,9 @@ const { createLogger } = require('../core/logger');
 const logger = createLogger('windows-runtime');
 
 function escapeCmdArg(value) {
-  return String(value).replace(/([&|<>\^%!(\)" \t])/g, '^$1');
+  return String(value)
+    .replace(/[\r\n]/g, ' ')
+    .replace(/([&|<>\^%!(\)" \t])/g, '^$1');
 }
 
 /**

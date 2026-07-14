@@ -62,6 +62,26 @@ function describeAction(parsed, routeKey) {
       description: '删除指定会话',
       details: { sessionId: parsed.args[0] || '' },
     },
+    model: {
+      action: 'switch_model',
+      description: parsed.args[0] ? '切换当前会话模型' : '列出可用模型',
+      details: { modelId: parsed.args[0] || '' },
+    },
+    cancel: {
+      action: 'cancel_turn',
+      description: '取消当前正在进行的对话',
+      details: {},
+    },
+    status: {
+      action: 'show_status',
+      description: '查看当前会话状态',
+      details: {},
+    },
+    ps: {
+      action: 'show_status',
+      description: '/status 的别名',
+      details: {},
+    },
     agents: {
       action: 'list_agents',
       description: '列出可用的 Agent 类型',

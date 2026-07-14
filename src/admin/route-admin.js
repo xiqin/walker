@@ -104,7 +104,11 @@ function bindRoute(ctx, routeKey, sessionId) {
  * @returns {Object} 解绑结果
  */
 function unbindRoute(ctx, routeKey) {
-  ctx.sessionService.unbindRoute(routeKey);
+  try {
+    ctx.sessionService.unbindRoute(routeKey);
+  } catch (err) {
+    return { ok: false, error: { code: 'INTERNAL_ERROR', message: err.message } };
+  }
 
   recordEvent(ctx.eventStore, {
     type: 'route.bind',

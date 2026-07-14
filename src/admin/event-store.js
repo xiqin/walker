@@ -123,6 +123,9 @@ function recordMetric(storeOrName, nameOrValue, valueOrTime, maybeCreatedAt) {
     state.metrics[metricName] += Number.isFinite(amount) ? amount : 1;
   } else if (metricName === 'promptDurationMs') {
     state.metrics.promptDurationsMs.push(Number.isFinite(amount) ? amount : 0);
+    if (state.metrics.promptDurationsMs.length > MAX_METRIC_ENTRIES) {
+      state.metrics.promptDurationsMs.splice(0, state.metrics.promptDurationsMs.length - MAX_METRIC_ENTRIES);
+    }
   } else {
     throw new Error(`Unknown metric ${metricName}`);
   }
@@ -146,12 +149,12 @@ function hourStart(timestamp) {
 
 /**
  * 创建空指标桶
- * @param {number} minute - 整点小时时间戳
+ * @param {number} hour - 整点小时时间戳
  * @returns {Object} 空桶对象
  */
-function createEmptyBucket(minute) {
+function createEmptyBucket(hour) {
   return {
-    minute,
+    minute: hour,
     messages: 0,
     commands: 0,
     prompts: 0,
@@ -161,7 +164,7 @@ function createEmptyBucket(minute) {
 }
 
 /**
- * 从 store 的 metrics.entries 构建 60 分钟桶统计
+ * 从 store 的 metrics.entries 构建 60 小时桶统计
  * @param {Object} state - store 实例
  * @returns {Object[]} 桶数组，每个桶含整点时间戳和各指标累计值
  */
@@ -169,17 +172,17 @@ function buildBuckets(state) {
   const end = hourStart(state.now());
   const start = end - (59 * HOUR_MS);
   const buckets = [];
-  const byMinute = new Map();
+  const byHour = new Map();
 
-  for (let minute = start; minute <= end; minute += HOUR_MS) {
-    const bucket = createEmptyBucket(minute);
+  for (let hour = start; hour <= end; hour += HOUR_MS) {
+    const bucket = createEmptyBucket(hour);
     buckets.push(bucket);
-    byMinute.set(minute, bucket);
+    byHour.set(hour, bucket);
   }
 
   for (const entry of state.metrics.entries) {
-    const minute = hourStart(entry.createdAt);
-    const bucket = byMinute.get(minute);
+    const hour = hourStart(entry.createdAt);
+    const bucket = byHour.get(hour);
     if (!bucket) continue;
     if (METRIC_KEYS.includes(entry.name)) {
       bucket[entry.name] += entry.value;

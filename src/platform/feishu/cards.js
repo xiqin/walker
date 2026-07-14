@@ -22,6 +22,16 @@ const STATUS_TEMPLATE = {
 const MAX_ATTACHABLE_CARD_ITEMS = 10;
 
 /**
+ * 转义飞书 lark_md 中的特殊字符，防止用户可控内容破坏卡片布局
+ * @param {string} text - 需要转义的文本
+ * @returns {string} 转义后的安全文本
+ */
+function escapeLarkMd(text) {
+  if (!text) return '';
+  return String(text).replace(/([\\`*_\[\]])/g, '\\$1');
+}
+
+/**
  * 构建飞书卡片按钮的 value 字段，封装命令和会话 ID，可选携带 routeKey 用于回调精准路由
  * @param {string} cmd - 命令字符串，如 'cmd:/use'
  * @param {string} sessionId - 目标会话 ID
@@ -92,7 +102,7 @@ function renderSessionListCard(sessions, currentSessionId, routeKey) {
               tag: 'div',
               text: {
                 tag: 'lark_md',
-                content: emoji + ' **' + title + '**' + marker + ' `' + s.id.slice(0, 12) + '`'
+                content: emoji + ' **' + escapeLarkMd(title) + '**' + marker + ' `' + s.id.slice(0, 12) + '`'
                   + '\n' + agentLabel + ' · ' + cwdLabel
                   + '\n状态: ' + s.status + (timeLabel ? ' · ' + timeLabel : ''),
               },
@@ -190,7 +200,7 @@ function renderAttachableSessionCard(sessions, options) {
       tag: 'div',
       text: {
         tag: 'lark_md',
-        content: '**' + title + '** `' + session.id.slice(0, 12) + '`\n' + metaParts.join(' · '),
+        content: '**' + escapeLarkMd(title) + '** `' + session.id.slice(0, 12) + '`\n' + metaParts.join(' · '),
       },
     });
     elements.push({

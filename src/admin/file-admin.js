@@ -44,8 +44,19 @@ function readLogs(options) {
   }
 
   try {
-    const raw = fs.readFileSync(logPath, 'utf8');
-    const allLines = raw.split('\n').filter((line) => line.trim());
+    const stat = fs.statSync(logPath);
+    const fileSize = stat.size;
+    const readSize = Math.min(fileSize, maxLines * 2048);
+    const buffer = Buffer.alloc(readSize);
+    const fd = fs.openSync(logPath, 'r');
+    const startPos = Math.max(0, fileSize - readSize);
+    fs.readSync(fd, buffer, 0, readSize, startPos);
+    fs.closeSync(fd);
+    const raw = buffer.toString('utf8');
+    let allLines = raw.split('\n').filter((line) => line.trim());
+    if (startPos > 0 && allLines.length > 0) {
+      allLines = allLines.slice(1);
+    }
     const total = allLines.length;
     const recent = allLines.slice(-maxLines);
 

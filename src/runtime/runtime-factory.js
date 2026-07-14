@@ -14,6 +14,9 @@ function createRuntime(type, options) {
     case 'windows':
       return new WindowsRuntime(options);
     case 'wsl':
+      if (!options || !options.distro) {
+        throw new Error('WslRuntime requires distro configuration');
+      }
       return new WslRuntime(options);
     default:
       throw new Error('Unknown runtime type: ' + type);

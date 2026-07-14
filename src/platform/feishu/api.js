@@ -37,17 +37,30 @@ class FeishuApi {
     this.appSecret = appSecret;
     this.token = '';
     this.tokenExpiresAt = 0;
+    this._tokenPromise = null;
   }
 
   /**
    * 获取飞书租户访问令牌，缓存未过期时直接返回，否则重新请求
+   * 带并发去重保护，避免多个并发调用同时请求 token
    * @returns {Promise<string>} 租户访问令牌
    */
   async getTenantToken() {
     if (this.token && Date.now() < this.tokenExpiresAt) {
       return this.token;
     }
+    if (this._tokenPromise) {
+      return this._tokenPromise;
+    }
+    this._tokenPromise = this._fetchTenantToken();
+    try {
+      return await this._tokenPromise;
+    } finally {
+      this._tokenPromise = null;
+    }
+  }
 
+  async _fetchTenantToken() {
     const body = JSON.stringify({ app_id: this.appId, app_secret: this.appSecret });
     const result = await this._request('POST', 'open.feishu.cn', '/open-apis/auth/v3/tenant_access_token/internal', body);
 
@@ -56,8 +69,9 @@ class FeishuApi {
     }
 
     this.token = result.tenant_access_token;
-    this.tokenExpiresAt = Date.now() + (result.expire - 300) * 1000;
-    logger.info('tenant token refreshed', { expireIn: result.expire });
+    const expire = result.expire && result.expire > 300 ? result.expire : 7200;
+    this.tokenExpiresAt = Date.now() + (expire - 300) * 1000;
+    logger.info('tenant token refreshed', { expireIn: expire });
     return this.token;
   }
 
@@ -248,6 +262,11 @@ class FeishuApi {
         });
       });
       req.on('error', (err) => { reject(err); });
+      if (typeof req.setTimeout === 'function') {
+        req.setTimeout(30000, () => {
+          req.destroy(new Error('feishu api request timeout: ' + method + ' ' + path));
+        });
+      }
       if (body) { req.write(body); }
       req.end();
     });

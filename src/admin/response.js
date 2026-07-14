@@ -65,7 +65,7 @@ function parseQueryString(qs) {
     const eqIdx = pair.indexOf('=');
     if (eqIdx < 0) continue;
     const key = pair.slice(0, eqIdx);
-    result[key] = decodeURIComponent(pair.slice(eqIdx + 1));
+    result[key] = decodeURIComponent(pair.slice(eqIdx + 1).replace(/\+/g, ' '));
   }
   return result;
 }

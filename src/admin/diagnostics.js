@@ -183,7 +183,9 @@ async function checkOpenCode(ctx) {
   }
 
   try {
-    const ready = await driver.ensureReady();
+    const ready = typeof driver._checkHealth === 'function'
+      ? await driver._checkHealth()
+      : await driver.ensureReady();
     if (ready) {
       return {
         name: 'opencode',

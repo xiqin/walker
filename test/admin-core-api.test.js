@@ -146,6 +146,12 @@ function createFakeSessionService(initialSessions, initialRoutes) {
         sessionsData[id].errorMessage = msg;
       }
     },
+    updateSessionField(id, field, value) {
+      if (sessionsData[id]) {
+        sessionsData[id][field] = value;
+        sessionsData[id].updatedAt = Date.now();
+      }
+    },
   };
 }
 

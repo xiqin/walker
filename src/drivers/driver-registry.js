@@ -1,5 +1,8 @@
 'use strict';
 
+const { createLogger } = require('../core/logger');
+const logger = createLogger('driver-registry');
+
 /**
  * Agent 驱动注册表，管理所有可用的 Agent 驱动实例
  */
@@ -17,6 +20,9 @@ class DriverRegistry {
    * @param {AgentDriver} driver - 驱动实例
    */
   register(name, driver) {
+    if (this.drivers[name]) {
+      logger.warn('driver already registered, overwriting', { name });
+    }
     this.drivers[name] = driver;
   }
 
@@ -35,6 +41,21 @@ class DriverRegistry {
    */
   list() {
     return Object.keys(this.drivers);
+  }
+
+  /**
+   * 注销指定名称的驱动
+   * @param {string} name - 驱动名称
+   */
+  unregister(name) {
+    delete this.drivers[name];
+  }
+
+  /**
+   * 清空所有已注册的驱动
+   */
+  clear() {
+    this.drivers = {};
   }
 }
 

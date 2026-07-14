@@ -1092,6 +1092,7 @@ describe('MessageDispatcher /delete command', () => {
   it('/delete 在卡片回调无 messageId 时使用 chatId 回复', async () => {
     const mocks = makeMocks();
     mocks.sessionService.getSession = () => ({ id: 'wks_delete1', agent: 'opencode', agentRef: { opencodeSessionId: 'ses_delete1' } });
+    mocks.sessionService.listSessionsInRoute = () => [{ id: 'wks_delete1' }];
     let deletedSessionId = '';
     mocks.sessionService.deleteSession = (sessionId) => { deletedSessionId = sessionId; };
     const dispatcher = new MessageDispatcher({

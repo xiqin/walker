@@ -97,7 +97,7 @@ function createApp(config, deps) {
     promptHeartbeatIntervalMs: config.walkerPromptHeartbeatIntervalMs,
     promptHeartbeatStuckMs: config.walkerPromptHeartbeatStuckMs,
     maxTurnTimeMins: config.walkerMaxTurnTimeMins,
-    nonFocusOutput: config.walkerOpendcodeNonFocusOutput !== false,
+    nonFocusOutput: config.walkerOpencodeNonFocusOutput !== false,
   });
 
   const platform = new FeishuPlatformClass({
@@ -123,20 +123,25 @@ function createApp(config, deps) {
     },
     onCardAction: (action) => {
       const rawAction = action.action || '';
-      if (rawAction.startsWith('cmd:')) {
-        const cmd = parseCommand(rawAction.slice(4));
-        if (cmd.type === 'command') {
-          const routeKey = action.routeKey || buildRouteKey(action, config.feishuRouteMode || 'thread');
-          return dispatcher.handleCommand({
-            ...cmd,
-            routeKey,
-            chatId: action.chatId,
-            messageId: action.messageId,
-            openId: action.openId,
-          });
-        }
+      const cmd = parseCommand(rawAction.startsWith('cmd:') ? rawAction.slice(4) : rawAction);
+      if (cmd.type === 'command') {
+        const routeKey = action.routeKey || buildRouteKey(action, config.feishuRouteMode || 'thread');
+        return dispatcher.handleCommand({
+          ...cmd,
+          routeKey,
+          chatId: action.chatId,
+          messageId: action.messageId,
+          openId: action.openId,
+        });
       }
-      return dispatcher.handleCommand(action);
+      return dispatcher.handleIncomingMessage({
+        type: 'text',
+        text: rawAction,
+        routeKey: action.routeKey || buildRouteKey(action, config.feishuRouteMode || 'thread'),
+        chatId: action.chatId,
+        messageId: action.messageId,
+        openId: action.openId,
+      });
     },
   });
 
@@ -174,6 +179,7 @@ function createApp(config, deps) {
       return null;
     } catch (patchErr) {
       const strategy = card.handlePatchFailure(patchErr);
+      progressCards.delete(cardId);
       return strategy;
     }
   };
@@ -197,8 +203,8 @@ function createApp(config, deps) {
     sessionService,
     driverRegistry: registry,
     dispatcher,
-    pollIntervalMs: config.walkerOpendcodeHealthPollIntervalMs,
-    exitAction: config.walkerOpendcodeExitAction,
+    pollIntervalMs: config.walkerOpencodeHealthPollIntervalMs,
+    exitAction: config.walkerOpencodeExitAction,
     httpClient: opencodeDriver.httpClient,
   });
 
@@ -274,7 +280,8 @@ function createApp(config, deps) {
     const hookResult = installHookPlugin({
       opencodeConfigDir: config.opencodeConfigDir,
       walkerPort: adminConfig.port,
-      enabled: config.walkerOpendcodeHookEnabled !== false,
+      walkerToken: adminConfig.token || '',
+      enabled: config.walkerOpencodeHookEnabled !== false,
     });
     if (hookResult.installed) {
       logger.info('hook plugin installed', { path: hookResult.path });
@@ -300,11 +307,12 @@ function createApp(config, deps) {
   async function stop() {
     logger.info('walker stopping');
     healthPoller.stop();
+    platform.stop();
+    logger.info('feishu platform stopped');
     if (adminServer) {
       await adminServer.stop();
       logger.info('admin console stopped');
     }
-    platform.stop();
     logger.info('walker stopped');
   }
 
@@ -313,6 +321,7 @@ function createApp(config, deps) {
 
 function normalizeReplyCtx(replyCtx) {
   if (replyCtx && typeof replyCtx === 'object') return replyCtx;
+  if (replyCtx == null) return {};
   return { messageId: replyCtx };
 }
 

@@ -113,10 +113,16 @@ class FeishuPlatform {
 
   /**
    * 停止飞书 WebSocket 客户端连接
+   * @returns {Promise<void>}
    */
-  stop() {
+  async stop() {
     if (this.wsClient) {
-      try { this.wsClient.close(); } catch (_) {}
+      try {
+        const closeResult = this.wsClient.close();
+        if (closeResult && typeof closeResult.then === 'function') {
+          await closeResult;
+        }
+      } catch (_) {}
     }
     logger.info('feishu platform stopped');
   }

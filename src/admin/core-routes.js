@@ -181,6 +181,8 @@ function createCoreRoutes(appContext) {
           return;
         }
         send(res, success({ session: result.session, warning: result.warning }));
+      }).catch((err) => {
+        send(res, error('INTERNAL_ERROR', err.message), 500);
       });
     },
   });
@@ -199,6 +201,8 @@ function createCoreRoutes(appContext) {
           return;
         }
         send(res, success({ warning: result.warning }));
+      }).catch((err) => {
+        send(res, error('INTERNAL_ERROR', err.message), 500);
       });
     },
   });
@@ -418,8 +422,6 @@ function countBy(items, field) {
   }
   return result;
 }
-
-module.exports = { createCoreRoutes };
 
 function checkCwdExists(dirPath) {
   try {

@@ -47,9 +47,23 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
         if (settled) return;
         settled = true;
         cleanup();
-        let parsedData = {};
-        try { parsedData = JSON.parse(data); } catch (_) {}
-        resolve({ status: res.statusCode, data: parsedData });
+      let parsedData = {};
+      try {
+        parsedData = JSON.parse(data);
+      } catch (e) {
+        if (data && data.length > 0) {
+          console.error(JSON.stringify({
+            ts: new Date().toISOString(),
+            level: 'warn',
+            scope: 'http-helper',
+            message: 'response JSON parse failed',
+            statusCode: res.statusCode,
+            bodyLength: data.length,
+            bodyPreview: data.slice(0, 200),
+          }));
+        }
+      }
+      resolve({ status: res.statusCode, data: parsedData });
       });
     });
     req.on('error', fail);
@@ -99,7 +113,10 @@ function sseConnect(url, extraHeaders, options) {
       timer = null;
       if (signal) signal.removeEventListener('abort', abort);
     };
-    const abort = () => finish([], activeRes);
+    const abort = () => {
+      if (req && req.destroy) req.destroy();
+      finish([], activeRes);
+    };
     const finish = (events, res) => {
       if (settled) return;
       settled = true;
@@ -155,6 +172,8 @@ function sseConnect(url, extraHeaders, options) {
       const events = [];
       let buffer = '';
       let eventLines = [];
+      const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
+      const MAX_EVENTS = 10000;
 
       const dispatchEvent = () => {
         const dataLines = [];
@@ -192,6 +211,10 @@ function sseConnect(url, extraHeaders, options) {
 
       res.on('data', (chunk) => {
         buffer += chunk.toString();
+        if (buffer.length > MAX_BUFFER_SIZE || (collectEvents && events.length > MAX_EVENTS)) {
+          fail(new Error('SSE stream exceeded max buffer/event limit'));
+          return;
+        }
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 

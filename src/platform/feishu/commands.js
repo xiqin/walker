@@ -22,11 +22,16 @@ const COMMANDS = {
  * @returns {Object} 解析结果：{ type: 'text', text } 或 { type: 'command', name, args }
  */
 function parseCommand(text) {
-  if (!text || !text.startsWith('/')) {
+  if (!text) {
+    return { type: 'text', text: '' };
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('/')) {
     return { type: 'text', text: text || '' };
   }
 
-  const parts = text.trim().split(/\s+/);
+  const parts = trimmed.split(/\s+/);
   const name = parts[0].slice(1).toLowerCase();
   const args = parts.slice(1);
 

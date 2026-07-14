@@ -97,14 +97,8 @@ async function createSession(ctx, opts) {
           title: session.title,
           cwd: session.cwd,
         });
-        ctx.sessionService.stateStore.update((data) => {
-          if (!data.sessions) data.sessions = {};
-          if (data.sessions[session.id]) {
-            data.sessions[session.id].agentRef = agentRef;
-            data.sessions[session.id].status = 'running';
-            data.sessions[session.id].updatedAt = Date.now();
-          }
-        });
+        ctx.sessionService.updateSessionField(session.id, 'agentRef', agentRef);
+        ctx.sessionService.markRunning(session.id);
         session.agentRef = agentRef;
         session.status = 'running';
 

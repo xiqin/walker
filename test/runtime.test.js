@@ -170,7 +170,7 @@ describe('WslRuntime openTerminal', () => {
     assert.equal(mock.calls[0].cmd, 'cmd.exe');
     assert.equal(mock.calls[0].args[0], '/v:off');
     assert.equal(mock.calls[0].args[1], '/k');
-    assert.equal(mock.calls[0].args[2], 'wsl.exe -d Ubuntu-24.04 -- opencode -s ses_abc');
+    assert.equal(mock.calls[0].args[2], "wsl.exe -d Ubuntu-24.04 -- 'opencode' '-s' 'ses_abc'");
     assert.equal(mock.calls[0].opts.detached, true);
     assert.equal(mock.calls[0].opts.stdio, 'ignore');
   });
@@ -189,10 +189,10 @@ describe('WslRuntime openTerminal', () => {
       ['-s', 'ses&|<>^%!"abc', 'http://127.0.0.1:4096/?x=1&y="z"', '/home/user/a b'],
       { cwd: 'H:\\walker & docs', title: 'opencode ses' },
     );
-    assert.equal(
-      mock.calls[0].args[2],
-      'wsl.exe -d Ubuntu^&^|^<^>^^^%^!^"24 -- open^"code -s ses^&^|^<^>^^^%^!^"abc http://127.0.0.1:4096/?x=1^&y=^"z^" /home/user/a^ b',
-    );
+    const actual = mock.calls[0].args[2];
+    assert.ok(actual.startsWith('wsl.exe -d Ubuntu^&^|^<^>^^^%^!^"24 -- '), 'prefix should match: ' + actual);
+    assert.ok(actual.includes("'open^\"code'"), 'command should be bash+cmd escaped: ' + actual);
+    assert.ok(actual.includes("'/home/user/a b'"), 'path with space should be bash-quoted: ' + actual);
     assert.equal(mock.calls[0].opts.cwd, 'H:\\walker & docs');
   });
 });

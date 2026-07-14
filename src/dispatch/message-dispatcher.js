@@ -175,7 +175,7 @@ class MessageDispatcher {
     const next = prev.then(task, task);
     this._promptQueues.set(sessionId, next);
 
-    next.then(() => {
+    next.finally(() => {
       if (this._promptQueues.get(sessionId) === next) {
         this._promptQueues.delete(sessionId);
       }
@@ -453,6 +453,14 @@ class MessageDispatcher {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'Session not found: ' + targetId]);
       return { notFound: true };
     }
+    if (cmd.routeKey) {
+      const sessionsInRoute = this.sessionService.listSessionsInRoute(cmd.routeKey);
+      const belongs = sessionsInRoute.some((s) => s.id === targetId);
+      if (!belongs) {
+        await this._callFeishu('replyText', [this._replyCtx(cmd), 'Session ' + targetId + ' does not belong to this route']);
+        return { forbidden: true };
+      }
+    }
     const driver = this.driverRegistry.get(session.agent);
     if (driver && session.agentRef) {
       await driver.delete(session.agentRef);
@@ -522,14 +530,31 @@ class MessageDispatcher {
 
     let modelRef;
     if (modelId.includes('/')) {
-      const [provider, id] = modelId.split('/');
+      const parts = modelId.split('/');
+      const provider = parts[0];
+      const id = parts.slice(1).join('/');
       modelRef = { modelID: id, providerID: provider };
     } else {
       modelRef = { modelID: modelId };
     }
 
-    this.sessionService.updateSessionField(current.id, 'model', modelRef);
     const display = modelRef.providerID ? modelRef.providerID + '/' + modelRef.modelID : modelRef.modelID;
+
+    const driver = this.driverRegistry.get(current.agent || 'opencode');
+    if (driver && typeof driver.updateConfig === 'function') {
+      try {
+        await driver.ensureReady();
+        const configModel = modelRef.providerID
+          ? modelRef.providerID + '/' + modelRef.modelID
+          : modelRef.modelID;
+        await driver.updateConfig({ model: configModel });
+      } catch (err) {
+        logger.warn('failed to sync model to opencode config', { error: err.message, model: display });
+      }
+    }
+
+    this.sessionService.updateSessionField(current.id, 'model', modelRef);
+
     await this._callFeishu('replyText', [this._replyCtx(cmd), 'Model set to: ' + display + ' for session ' + current.id]);
     return { model: modelRef, sessionId: current.id };
   }
@@ -574,26 +599,6 @@ class MessageDispatcher {
   _formatSessionSummary(session) {
     const agentRef = (session && session.agentRef) || {};
     return (session.id || '') + ' (' + (session.agent || '') + ', ' + (session.status || '') + ', ' + (agentRef.opencodeSessionId || '') + ')';
-  }
-
-  _formatStatus(session) {
-    const turnState = this.turnStates.get(session.id);
-    const isRunning = !!turnState && !turnState.cancelled;
-    const model = this._formatModel(session.model || (this.defaultModel ? { modelID: this.defaultModel } : null));
-    const agentRef = session.agentRef || {};
-    const cwd = session.cwd || agentRef.cwd || this.defaultCwd || '';
-    return [
-      'Walker session id: ' + session.id,
-      'Agent: ' + (session.agent || ''),
-      'Status: ' + (session.status || ''),
-      'OpenCode session id: ' + (agentRef.opencodeSessionId || ''),
-      'Model: ' + model,
-      'CWD: ' + cwd,
-      'Current turn running: ' + (isRunning ? 'yes' : 'no'),
-      'Running time: ' + (isRunning ? this._formatDuration(Date.now() - turnState.startedAt) : '0 秒'),
-      'Last event time: ' + (turnState && turnState.lastEventAt ? new Date(turnState.lastEventAt).toISOString() : 'n/a'),
-      'Background watch: ' + (this.sessionWatchStops.has(session.id) ? 'yes' : 'no'),
-    ].join('\n');
   }
 
   _formatModel(model) {
@@ -825,6 +830,9 @@ class MessageDispatcher {
     this.sessionWatchStops.delete(sessionId);
     this.sessionWatchBuffers.delete(sessionId);
     this.sessionDeliveredTexts.delete(sessionId);
+    this._promptQueues.delete(sessionId);
+    this._routeLocks.delete(sessionId);
+    this.cancelledTurnSessions.delete(sessionId);
     this._stopPromptHeartbeat(sessionId);
     this._clearTurnState(sessionId);
   }

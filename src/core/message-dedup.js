@@ -6,7 +6,7 @@ const logger = createLogger('message-dedup');
 
 class MessageDedup {
   constructor(options) {
-    this.windowMs = options.windowMs || 300000;
+    this.windowMs = options.windowMs != null ? options.windowMs : 300000;
     this.entries = {};
     this._store = options.store || null;
     this._staleThresholdMs = options.staleThresholdMs || this.windowMs;
@@ -23,7 +23,7 @@ class MessageDedup {
   isDuplicate(key, createTime) {
     const now = Date.now();
 
-    if (createTime && this._staleThresholdMs > 0) {
+    if (createTime != null && this._staleThresholdMs > 0) {
       const elapsed = now - createTime;
       if (elapsed > this._staleThresholdMs) {
         logger.info('stale message rejected', { key, elapsedMs: elapsed });
@@ -35,9 +35,15 @@ class MessageDedup {
       this._cleanup(now);
     }
 
-    if (this.entries[key]) {
-      logger.info('duplicate message detected', { key });
-      return true;
+    const existing = this.entries[key];
+    if (existing) {
+      if (now - existing > this.windowMs) {
+        delete this.entries[key];
+        this._persist();
+      } else {
+        logger.info('duplicate message detected', { key });
+        return true;
+      }
     }
 
     this.entries[key] = now;

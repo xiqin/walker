@@ -8,10 +8,11 @@ const ULID_CHARS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
  * @returns {string} 前缀 + 时间编码 + 随机编码组成的唯一标识符
  */
 function createId(prefix) {
+  const safePrefix = typeof prefix === 'string' ? prefix : '';
   const ts = Date.now();
   const timePart = encodeUlidTime(ts);
   const randPart = randomUlid(10);
-  return prefix + timePart + randPart;
+  return safePrefix + timePart + randPart;
 }
 
 /**

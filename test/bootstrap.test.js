@@ -308,7 +308,7 @@ describe('createApp', () => {
     const app = createApp(config, deps);
     await app.start();
     await app.stop();
-    assert.deepEqual(stopped, ['admin', 'feishu']);
+    assert.deepEqual(stopped, ['feishu', 'admin']);
   });
 
   it('返回值包含 adminServer、runtime、attachmentService、eventStore', () => {

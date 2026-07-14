@@ -5,7 +5,30 @@ const { createLogger } = require('../core/logger');
 const logger = createLogger('wsl-runtime');
 
 function escapeCmdArg(value) {
-  return String(value).replace(/([&|<>\^%!(\)" \t])/g, '^$1');
+  return String(value)
+    .replace(/[\r\n]/g, ' ')
+    .replace(/([&|<>\^%!(\)" \t])/g, '^$1');
+}
+
+/**
+ * 转义 cmd.exe 特殊字符但不转义空格，用于 WSL bash 参数转义后的二次保护
+ * @param {string} value - 原始值
+ * @returns {string} cmd.exe 转义后的值
+ */
+function escapeCmdNoSpace(value) {
+  return String(value)
+    .replace(/[\r\n]/g, ' ')
+    .replace(/([&|<>\^%!(\)"])/g, '^$1');
+}
+
+/**
+ * 对 WSL 内 bash 命令的参数做安全转义：先用单引号包裹防 bash 解释，再对 cmd.exe 特殊字符做 ^ 转义
+ * @param {string} value - 原始值
+ * @returns {string} 安全转义后的参数
+ */
+function escapeBashArg(value) {
+  const bashQuoted = "'" + String(value).replace(/'/g, "'\\''") + "'";
+  return escapeCmdNoSpace(bashQuoted);
 }
 
 /**
@@ -64,10 +87,9 @@ class WslRuntime {
     const cwd = (options && options.cwd) || process.cwd();
     const title = (options && options.title) || 'Walker Session';
 
-    const wslCmdParts = [command, ...args];
-    const wslCmd = wslCmdParts.map(escapeCmdArg).join(' ');
-
-    const cmdArgs = ['/v:off', '/k', 'wsl.exe -d ' + escapeCmdArg(this.distro) + ' -- ' + wslCmd];
+    const bashCmd = [escapeBashArg(command), ...args.map(escapeBashArg)].join(' ');
+    const cmdSegment = 'wsl.exe -d ' + escapeCmdArg(this.distro) + ' -- ' + bashCmd;
+    const cmdArgs = ['/v:off', '/k', cmdSegment];
 
     logger.info('wsl openTerminal', { distro: this.distro, command, args, title });
 

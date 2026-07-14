@@ -15,7 +15,10 @@ function loadDotEnv(envPath) {
     const eqIdx = trimmed.indexOf('=');
     if (eqIdx < 1) continue;
     const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim();
+    let val = trimmed.slice(eqIdx + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
     if (!process.env[key]) {
       process.env[key] = val;
     }
@@ -86,21 +89,21 @@ function loadEnvConfig(options) {
     walkerPromptHeartbeatIntervalMs: parsePositiveInt(env.WALKER_PROMPT_HEARTBEAT_INTERVAL_MS, 60000),
     walkerPromptHeartbeatStuckMs: parsePositiveInt(env.WALKER_PROMPT_HEARTBEAT_STUCK_MS, 300000),
     walkerMaxTurnTimeMins: parsePositiveInt(env.WALKER_MAX_TURN_TIME_MINS, 0),
-    walkerDedupWindowMs: parseInt(env.WALKER_DEDUP_WINDOW_MS, 10) || 300000,
-    opencodePollInterval: parseInt(env.OPENCODE_POLL_INTERVAL, 10) || 500,
-    opencodeMaxPolls: parseInt(env.OPENCODE_MAX_POLLS, 10) || 20,
-    opencodePromptTimeoutMs: parseInt(env.OPENCODE_PROMPT_TIMEOUT_MS, 10) || 120000,
-    opencodeSseOpenTimeoutMs: parseInt(env.OPENCODE_SSE_OPEN_TIMEOUT_MS, 10) || 1000,
+    walkerDedupWindowMs: parsePositiveInt(env.WALKER_DEDUP_WINDOW_MS, 300000),
+    opencodePollInterval: parsePositiveInt(env.OPENCODE_POLL_INTERVAL, 500),
+    opencodeMaxPolls: parsePositiveInt(env.OPENCODE_MAX_POLLS, 20),
+    opencodePromptTimeoutMs: parsePositiveInt(env.OPENCODE_PROMPT_TIMEOUT_MS, 120000),
+    opencodeSseOpenTimeoutMs: parsePositiveInt(env.OPENCODE_SSE_OPEN_TIMEOUT_MS, 1000),
     admin: {
       enabled: parseBool(env.WALKER_ADMIN_ENABLED, true),
       host: env.WALKER_ADMIN_HOST || '127.0.0.1',
       port: parsePort(env.WALKER_ADMIN_PORT, 8787),
       token: env.WALKER_ADMIN_TOKEN || '',
     },
-    walkerOpendcodeHookEnabled: parseBool(env.WALKER_OPENCODE_HOOK_ENABLED, true),
-    walkerOpendcodeHealthPollIntervalMs: parsePositiveInt(env.WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS, 5000),
-    walkerOpendcodeExitAction: env.WALKER_OPENCODE_EXIT_ACTION || 'cancel',
-    walkerOpendcodeNonFocusOutput: parseBool(env.WALKER_OPENCODE_NON_FOCUS_OUTPUT, true),
+    walkerOpencodeHookEnabled: parseBool(env.WALKER_OPENCODE_HOOK_ENABLED, true),
+    walkerOpencodeHealthPollIntervalMs: parsePositiveInt(env.WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS, 5000),
+    walkerOpencodeExitAction: env.WALKER_OPENCODE_EXIT_ACTION || 'cancel',
+    walkerOpencodeNonFocusOutput: parseBool(env.WALKER_OPENCODE_NON_FOCUS_OUTPUT, true),
   };
 }
 

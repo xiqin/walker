@@ -92,7 +92,10 @@ function serveFile(res, filePath, response) {
       return;
     }
     const mime = getMimeType(filePath);
-    res.writeHead(200, { 'Content-Type': mime });
+    res.writeHead(200, {
+      'Content-Type': mime,
+      'Cache-Control': 'public, max-age=3600',
+    });
     res.end(data);
   });
 }

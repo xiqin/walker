@@ -4,6 +4,24 @@
  * 提供 /api/admin/auth/status 和 /api/admin/auth/login 接口辅助
  */
 
+const crypto = require('crypto');
+
+/** parseBody 最大请求体大小（1MB） */
+const MAX_BODY_SIZE = 1024 * 1024;
+
+/**
+ * 恒定时间比较两个字符串是否相等，防止时序攻击
+ * @param {string} a - 字符串 a
+ * @param {string} b - 字符串 b
+ * @returns {boolean}
+ */
+function safeEqual(a, b) {
+  const bufA = Buffer.from(String(a), 'utf8');
+  const bufB = Buffer.from(String(b), 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 /**
  * 从请求中提取 token：优先 Authorization Bearer 头，其次 cookie
  * @param {import('http').IncomingMessage} req - HTTP 请求
@@ -32,7 +50,7 @@ function extractToken(req) {
 function isAuthenticated(req, config) {
   if (!config.token) return true;
   const token = extractToken(req);
-  return token === config.token;
+  return safeEqual(token, config.token);
 }
 
 /**
@@ -66,14 +84,28 @@ function createAuthGuard(config, response) {
 }
 
 /**
- * 解析请求体 JSON 数据
+ * 解析请求体 JSON 数据，限制最大 1MB 防止 DoS
  * @param {import('http').IncomingMessage} req - HTTP 请求
  * @param {Function} callback - 回调函数 (body) => void
  */
 function parseBody(req, callback) {
   const chunks = [];
-  req.on('data', (chunk) => chunks.push(chunk));
+  let totalSize = 0;
+  let aborted = false;
+
+  req.on('data', (chunk) => {
+    if (aborted) return;
+    totalSize += chunk.length;
+    if (totalSize > MAX_BODY_SIZE) {
+      aborted = true;
+      callback(null);
+      req.destroy();
+      return;
+    }
+    chunks.push(chunk);
+  });
   req.on('end', () => {
+    if (aborted) return;
     try {
       const raw = Buffer.concat(chunks).toString('utf8');
       const body = raw ? JSON.parse(raw) : {};
@@ -81,6 +113,11 @@ function parseBody(req, callback) {
     } catch (_e) {
       callback(null);
     }
+  });
+  req.on('error', () => {
+    if (aborted) return;
+    aborted = true;
+    callback(null);
   });
 }
 
@@ -121,12 +158,14 @@ function createAuthHandlers(config, response) {
         return;
       }
 
-      if (body.token !== config.token) {
+      if (!safeEqual(body.token, config.token)) {
         response.send(res, response.error('UNAUTHORIZED', 'token 不正确'), 401);
         return;
       }
 
-      res.setHeader('Set-Cookie', 'walker_admin_token=' + config.token + '; Path=/; HttpOnly; SameSite=Strict');
+      const isHttps = req.connection && req.connection.encrypted;
+      const cookieFlags = 'Path=/; HttpOnly; SameSite=Strict' + (isHttps ? '; Secure' : '');
+      res.setHeader('Set-Cookie', 'walker_admin_token=' + config.token + '; ' + cookieFlags);
       response.send(res, response.success({ authenticated: true }));
     });
   }

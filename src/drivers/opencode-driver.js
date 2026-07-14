@@ -29,6 +29,9 @@ class OpencodeDriver extends AgentDriver {
     this.httpClient = options.httpClient || new DefaultHttpClient();
     this.sseClient = options.sseClient || new DefaultSSEClient();
     this.serverUrl = options.serverUrl || '';
+    if (!this.serverUrl) {
+      throw new Error('opencode-driver requires serverUrl');
+    }
     this.autostart = options.autostart !== undefined ? options.autostart : true;
     this.runtime = options.runtime || null;
     this.opencodeCmd = options.opencodeCmd || 'opencode';
@@ -36,6 +39,7 @@ class OpencodeDriver extends AgentDriver {
     this.maxPolls = options.maxPolls || 20;
     this.promptTimeoutMs = options.promptTimeoutMs || 120000;
     this.sseOpenTimeoutMs = options.sseOpenTimeoutMs || 1000;
+    this.watchTimeoutMs = options.watchTimeoutMs || 300000;
     this.watchers = new Map();
     this.suspendedWatches = new Set();
   }
@@ -148,6 +152,27 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  /**
+   * 更新 OpenCode 配置（PATCH /config），用于同步 TUI 显示的全局模型
+   * @param {Object} patch - 要合并的配置字段，例如 { model: 'anthropic/claude-sonnet-4-5' }
+   * @returns {Promise<Object>} 更新后的配置对象
+   */
+  async updateConfig(patch) {
+    const url = this._buildUrl('/config', {});
+    try {
+      const resp = await this.httpClient.request('PATCH', url, patch);
+      const status = resp && resp.status;
+      const responseSummary = this._summarizeResponse(resp);
+      if (typeof status === 'number' && (status < 200 || status >= 300)) {
+        throw new Error('HTTP ' + status + ' from ' + this.serverUrl + ': ' + responseSummary);
+      }
+      logger.info('opencode config updated', { patch });
+      return resp && resp.data !== undefined ? resp.data : resp;
+    } catch (err) {
+      throw new Error('Failed to update opencode config at ' + this.serverUrl + ': ' + err.message);
+    }
+  }
+
   _extractModelList(resp) {
     if (Array.isArray(resp)) return resp;
     if (!resp) return [];
@@ -255,9 +280,17 @@ class OpencodeDriver extends AgentDriver {
       });
       ssePromise.catch(() => {});
 
+      let sseOpenedFlag = false;
+      const sseOpenPromise = sseOpened.then(() => { sseOpenedFlag = true; }, () => {});
+
       await Promise.race([
-        sseOpened,
-        this._sleep(this.sseOpenTimeoutMs),
+        sseOpenPromise,
+        this._sleep(this.sseOpenTimeoutMs).then(() => {
+          if (!sseOpenedFlag) {
+            controller.abort();
+            throw new Error('SSE connection open timeout after ' + this.sseOpenTimeoutMs + 'ms');
+          }
+        }),
       ]);
 
       logger.info('opencode prompt start', {
@@ -307,8 +340,19 @@ class OpencodeDriver extends AgentDriver {
     const controller = new AbortController();
     const sseUrl = this._buildUrl('/event', { directory: sessionRef.cwd });
     logger.info('opencode watchSession starting', { sessionId, sseUrl, cwd: sessionRef.cwd });
+    let watchTimer = null;
+    const resetWatchTimer = () => {
+      if (watchTimer) clearTimeout(watchTimer);
+      watchTimer = setTimeout(() => {
+        logger.info('opencode watch timeout, aborting', { sessionId });
+        controller.abort();
+      }, this.watchTimeoutMs);
+      if (watchTimer.unref) watchTimer.unref();
+    };
+    resetWatchTimer();
     const watcher = {
       stop: () => {
+        if (watchTimer) { clearTimeout(watchTimer); watchTimer = null; }
         controller.abort();
         if (this._pollTimers && this._pollTimers.has(sessionId)) {
           clearInterval(this._pollTimers.get(sessionId));
@@ -326,6 +370,7 @@ class OpencodeDriver extends AgentDriver {
       collectEvents: false,
       onOpen: () => logger.info('opencode session watch opened', { sessionId, sseUrl }),
       onEvent: (raw) => {
+        resetWatchTimer();
         if (this.suspendedWatches.has(sessionId)) return;
         const event = this._mapSSEEvent(raw, sessionId);
         if (event && handlers && handlers.onEvent) {
@@ -486,12 +531,46 @@ class OpencodeDriver extends AgentDriver {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('stop requires sessionRef with opencodeSessionId');
     }
-    const url = this.serverUrl + '/session/' + sessionRef.opencodeSessionId + '/stop';
+    const url = this._buildUrl('/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/stop', {});
     try {
       await this.httpClient.request('POST', url, {});
       logger.info('opencode session stopped', { sessionId: sessionRef.opencodeSessionId });
     } catch (err) {
       logger.warn('opencode session stop failed', { error: err.message });
+    }
+  }
+
+  /**
+   * 取消指定 OpenCode 会话中正在进行的 prompt，不停止整个 session
+   * 通过 abort 当前 SSE 连接实现，不影响 session 状态
+   * @param {Object} sessionRef - 包含 opencodeSessionId 的会话引用
+   * @returns {Promise<void>}
+   */
+  async cancel(sessionRef) {
+    if (!sessionRef || !sessionRef.opencodeSessionId) {
+      throw new Error('cancel requires sessionRef with opencodeSessionId');
+    }
+    const sessionId = sessionRef.opencodeSessionId;
+    const watcher = this.watchers.get(sessionId);
+    if (watcher && typeof watcher.abort === 'function') {
+      try {
+        watcher.abort();
+        logger.info('opencode session prompt cancelled', { sessionId });
+      } catch (err) {
+        logger.warn('opencode session cancel failed', { error: err.message });
+      }
+    } else {
+      const controller = this.suspendedWatches && this.suspendedWatches.get(sessionId);
+      if (controller && typeof controller.abort === 'function') {
+        try {
+          controller.abort();
+          logger.info('opencode session prompt cancelled via suspended watch', { sessionId });
+        } catch (err) {
+          logger.warn('opencode session cancel failed', { error: err.message });
+        }
+      } else {
+        logger.info('opencode session cancel: no active prompt to cancel', { sessionId });
+      }
     }
   }
 
@@ -504,7 +583,7 @@ class OpencodeDriver extends AgentDriver {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('delete requires sessionRef with opencodeSessionId');
     }
-    const url = this.serverUrl + '/session/' + sessionRef.opencodeSessionId;
+    const url = this._buildUrl('/session/' + encodeURIComponent(sessionRef.opencodeSessionId), {});
     try {
       await this.httpClient.request('DELETE', url, null);
       logger.info('opencode session deleted', { sessionId: sessionRef.opencodeSessionId });
@@ -519,8 +598,13 @@ class OpencodeDriver extends AgentDriver {
    */
   async _checkHealth() {
     try {
-      const resp = await this.httpClient.request('GET', this.serverUrl + '/health', null);
-      return resp.status === 200;
+      const resp = await this.httpClient.request('GET', this._buildUrl('/health', {}), null);
+      if (resp.status === 200) return true;
+      if (resp.status >= 500) {
+        logger.warn('opencode server unhealthy but running', { status: resp.status });
+        return true;
+      }
+      return false;
     } catch (_) {
       return false;
     }

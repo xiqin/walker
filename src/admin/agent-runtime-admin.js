@@ -96,7 +96,7 @@ async function checkAgent(ctx, agentName) {
       healthy: false,
       agent: agentName,
       error: err.message,
-      config: agentName === 'opencode' ? {
+      config: agentName === 'opencode' && driver ? {
         serverUrl: driver.serverUrl || '',
         autostart: driver.autostart !== undefined ? driver.autostart : true,
       } : {},
