@@ -62,8 +62,7 @@ function isExactOrSubdir(parent, child) {
  * @returns {string|null} 匹配到的 routeKey
  */
 function findRouteKeyByCwd(ctx, cwd) {
-  const state = ctx.sessionService.stateStore.read();
-  const routes = state.routes || {};
+  const routes = ctx.sessionService.listRoutes();
   const normalizedCwd = normalizePath(cwd);
 
   const exactMatches = [];
@@ -106,11 +105,8 @@ function compareRouteCandidates(a, b) {
  * @returns {Object|null} 已存在的 Walker session 或 null
  */
 function findExistingSession(ctx, opencodeSessionId) {
-  const state = ctx.sessionService.stateStore.read();
-  const sessions = state.sessions || {};
-  for (const id of Object.keys(sessions)) {
-    const s = sessions[id];
-    if (!s || s.status === 'deleted') continue;
+  const sessions = ctx.sessionService.listSessions();
+  for (const s of sessions) {
     if (s.agentRef && s.agentRef.opencodeSessionId === opencodeSessionId) {
       return s;
     }
@@ -208,7 +204,7 @@ function createHookReceiverRoutes(ctx) {
         return;
       }
 
-      if (!isAuthenticated(req, adminConfig)) {
+      if (adminConfig.token && !isAuthenticated(req, adminConfig)) {
         send(res, error('UNAUTHORIZED', '需要有效的管理端 token'), 401);
         return;
       }

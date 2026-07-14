@@ -174,7 +174,7 @@ test('REQ-002: login 接口正确 token 返回成功并设置 cookie', async () 
     assert.equal(res.body.data.authenticated, true);
     assert.ok(res.headers['set-cookie']);
     const rawCookie = Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'][0] : res.headers['set-cookie'];
-    assert.ok(rawCookie.includes('walker_admin_token=login-token'));
+    assert.ok(rawCookie.includes('walker_admin_sid='));
   });
 });
 
@@ -452,8 +452,8 @@ test('extractToken 从 Authorization Bearer 头提取', () => {
 });
 
 test('extractToken 从 cookie 提取', () => {
-  const req = { headers: { cookie: 'walker_admin_token=cookie123; other=val' } };
-  assert.equal(extractToken(req), 'cookie123');
+  const req = { headers: { cookie: 'walker_admin_sid=sessionabc123; other=val' } };
+  assert.equal(extractToken(req), 'sessionabc123');
 });
 
 test('extractToken 空请求返回空串', () => {

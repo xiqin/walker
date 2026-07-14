@@ -78,7 +78,13 @@ function createApp(config, deps) {
   const dedup = new MessageDedupClass({ windowMs: config.walkerDedupWindowMs || 300000, store: dedupStore });
   const attachmentService = new AttachmentServiceClass({ dataDir });
 
-  const feishuApiRef = {};
+  const feishuApiTarget = {};
+  const feishuApiRef = new Proxy(feishuApiTarget, {
+    get(target, prop) {
+      if (prop in target) return target[prop];
+      return undefined;
+    },
+  });
   const progressCards = new Map();
 
   const dispatcher = new MessageDispatcherClass({
@@ -145,22 +151,22 @@ function createApp(config, deps) {
     },
   });
 
-  feishuApiRef.replyText = (replyCtx, text) => platform.api.replyText(normalizeReplyCtx(replyCtx), text);
-  feishuApiRef.sendText = (chatId, text) => platform.api.sendText(chatId, text);
-  feishuApiRef.replyCard = (replyCtx, card) => platform.api.replyCard(normalizeReplyCtx(replyCtx), card);
-  feishuApiRef.patchCard = (cardId, card) => platform.api.patchCard(cardId, card);
-  feishuApiRef.addReaction = (msgId, emoji) => platform.api.addReaction(msgId, emoji);
+  feishuApiTarget.replyText = (replyCtx, text) => platform.api.replyText(normalizeReplyCtx(replyCtx), text);
+  feishuApiTarget.sendText = (chatId, text) => platform.api.sendText(chatId, text);
+  feishuApiTarget.replyCard = (replyCtx, card) => platform.api.replyCard(normalizeReplyCtx(replyCtx), card);
+  feishuApiTarget.patchCard = (cardId, card) => platform.api.patchCard(cardId, card);
+  feishuApiTarget.addReaction = (msgId, emoji) => platform.api.addReaction(msgId, emoji);
 
   /** 发送未绑定引导卡片到飞书 */
-  feishuApiRef.sendUnboundGuide = (replyCtx, routeKey) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderUnboundRouteCard(routeKey));
+  feishuApiTarget.sendUnboundGuide = (replyCtx, routeKey) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderUnboundRouteCard(routeKey));
   /** 发送会话列表卡片到飞书 */
-  feishuApiRef.sendSessionList = (replyCtx, sessions, currentId, routeKey) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderSessionListCard(sessions, currentId, routeKey));
+  feishuApiTarget.sendSessionList = (replyCtx, sessions, currentId, routeKey) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderSessionListCard(sessions, currentId, routeKey));
   /** 发送可纳入 OpenCode 会话列表卡片到飞书 */
-  feishuApiRef.sendAttachableSessionList = (replyCtx, sessions, options) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderAttachableSessionCard(sessions, options));
+  feishuApiTarget.sendAttachableSessionList = (replyCtx, sessions, options) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderAttachableSessionCard(sessions, options));
   /** 发送错误提示卡片到飞书 */
-  feishuApiRef.sendErrorCard = (replyCtx, message) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderErrorCard(message));
+  feishuApiTarget.sendErrorCard = (replyCtx, message) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderErrorCard(message));
   /** 发送进度卡片并返回卡片消息 ID */
-  feishuApiRef.sendProgressCard = async (replyCtx, sessionId, initialEvent) => {
+  feishuApiTarget.sendProgressCard = async (replyCtx, sessionId, initialEvent) => {
     const card = new ProgressCard({ sessionId });
     if (initialEvent) card.append(initialEvent);
     const cardId = await platform.api.replyCard(normalizeReplyCtx(replyCtx), card.render());
@@ -168,7 +174,7 @@ function createApp(config, deps) {
     return cardId;
   };
   /** 更新进度卡片内容，返回 patch 失败时的策略 */
-  feishuApiRef.updateProgressCard = async (cardId, sessionId, agentEvent) => {
+  feishuApiTarget.updateProgressCard = async (cardId, sessionId, agentEvent) => {
     const card = progressCards.get(cardId) || new ProgressCard({ sessionId, cardMessageId: cardId });
     if (!progressCards.has(cardId)) progressCards.set(cardId, card);
     card.append(agentEvent);
@@ -307,7 +313,10 @@ function createApp(config, deps) {
   async function stop() {
     logger.info('walker stopping');
     healthPoller.stop();
-    platform.stop();
+    if (dispatcher && typeof dispatcher.destroy === 'function') {
+      dispatcher.destroy();
+    }
+    await platform.stop();
     logger.info('feishu platform stopped');
     if (adminServer) {
       await adminServer.stop();

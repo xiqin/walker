@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('./logger');
+const { IStore } = require('./store-interface');
 
 const logger = createLogger('json-store');
 
@@ -14,13 +15,14 @@ function cloneDefaultValue(value) {
  * update 为同步操作，在 Node.js 单线程事件循环中天然串行，不会出现 lost update
  * updateAsync 提供异步互斥版本，用于 await 后的异步调用场景
  */
-class JsonStore {
+class JsonStore extends IStore {
   /**
    * 初始化 JSON 存储实例
    * @param {string} filePath - JSON 文件的绝对路径
    * @param {*} defaultValue - 文件不存在时的默认值
    */
   constructor(filePath, defaultValue) {
+    super();
     this.filePath = filePath;
     this.defaultValue = defaultValue;
     this._queue = Promise.resolve();
@@ -57,6 +59,9 @@ class JsonStore {
       fs.mkdirSync(dir, { recursive: true });
     }
     const tmp = this.filePath + '.tmp';
+    if (fs.existsSync(tmp)) {
+      try { fs.unlinkSync(tmp); } catch (_) {}
+    }
     fs.writeFileSync(tmp, JSON.stringify(value, null, 2), 'utf8');
     fs.renameSync(tmp, this.filePath);
   }

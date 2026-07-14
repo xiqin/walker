@@ -11,7 +11,7 @@ function buildRouteKey(message, mode, platform) {
   const prefix = (platform != null && platform) || 'feishu';
 
   const chatId = msg.chatId || 'default';
-  const openId = msg.openId || chatId;
+  const openId = msg.openId;
 
   if (normalizedMode === 'thread') {
     const rootId = msg.rootId;
@@ -20,6 +20,7 @@ function buildRouteKey(message, mode, platform) {
   }
 
   if (normalizedMode === 'user') {
+    if (!openId) return prefix + ':' + chatId + ':channel';
     return prefix + ':' + chatId + ':' + openId;
   }
 

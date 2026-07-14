@@ -463,14 +463,14 @@ describe('OpencodeDriver prompt with SSE', () => {
 
     driver.watchSession(sessionRef, { onEvent: () => {} });
     await new Promise((resolve) => setImmediate(resolve));
-    const leaked = driver._pollTimers && driver._pollTimers.has('ses_abc');
+    const leaked = driver._sessionWatcher._pollTimers && driver._sessionWatcher._pollTimers.has('ses_abc');
     if (leaked) {
-      clearInterval(driver._pollTimers.get('ses_abc'));
-      driver._pollTimers.delete('ses_abc');
+      clearInterval(driver._sessionWatcher._pollTimers.get('ses_abc'));
+      driver._sessionWatcher._pollTimers.delete('ses_abc');
     }
 
     assert.equal(leaked, false);
-    assert.equal(driver.watchers.has('ses_abc'), false);
+    assert.equal(driver._sessionWatcher.watchers.has('ses_abc'), false);
   });
 
   it('watchSession 已通过 SSE 投递的 assistant 消息不会被轮询重复投递', async () => {
@@ -493,7 +493,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       },
     };
     const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096' });
-    driver._lastPolledMessageId = new Map([['ses_abc', 'msg0']]);
+    driver._sessionWatcher._lastPolledMessageId = new Map([['ses_abc', 'msg0']]);
 
     const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
     await new Promise((resolve) => setImmediate(resolve));

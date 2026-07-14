@@ -64,13 +64,14 @@ describe('MessageDedup', () => {
     assert.equal(dedup._staleThresholdMs, 300000);
   });
 
-  it('带 store 时持久化去重记录', () => {
+  it('带 store 时持久化去重记录', async () => {
     const tmpDir = path.join(os.tmpdir(), 'walker-dedup-test-' + Date.now());
     fs.mkdirSync(tmpDir, { recursive: true });
     const storePath = path.join(tmpDir, 'dedup.json');
     const store = new JsonStore(storePath, {});
     const dedup = new MessageDedup({ windowMs: 300000, store });
     dedup.isDuplicate('om_persist1');
+    await new Promise((r) => setTimeout(r, 1100));
     const stored = store.read();
     assert.ok(stored['om_persist1']);
     fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -49,17 +49,23 @@ function createMockSessionService(opts) {
 
 function createMockDispatcher() {
   const actions = [];
+  const _turnStates = new Map();
   return {
-    turnStates: new Map(),
+    turnStates: _turnStates,
     cancelledSessions: new Set(),
     stoppedSessions: new Set(),
     actions,
-    _cancelTurn(session, driver, turnState, options) {
-      actions.push({ type: 'cancelTurn', sessionId: session && session.id, options });
-      this.cancelledSessions.add(session && session.id);
-      if (turnState) turnState.cancelled = true;
+    getTurnState(sessionId) {
+      const ts = _turnStates.get(sessionId);
+      return ts ? { token: ts.token, cancelled: ts.cancelled } : null;
     },
-    _stopSessionWatch(sessionId) {
+    async cancelTurnBySessionId(sessionId, reason) {
+      actions.push({ type: 'cancelTurn', sessionId, reason });
+      this.cancelledSessions.add(sessionId);
+      const ts = _turnStates.get(sessionId);
+      if (ts) ts.cancelled = true;
+    },
+    stopSessionWatch(sessionId) {
       actions.push({ type: 'stopWatch', sessionId });
       this.stoppedSessions.add(sessionId);
     },

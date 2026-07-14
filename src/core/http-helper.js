@@ -115,13 +115,17 @@ function sseConnect(url, extraHeaders, options) {
     };
     const abort = () => {
       if (req && req.destroy) req.destroy();
-      finish([], activeRes);
+      finish([], activeRes, true);
     };
-    const finish = (events, res) => {
+    const finish = (events, res, wasAborted) => {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve(events);
+      if (wasAborted) {
+        reject(new Error('SSE connection aborted'));
+      } else {
+        resolve(events);
+      }
       if (res && res.destroy) res.destroy();
       if (req && req.destroy) req.destroy();
     };
@@ -170,6 +174,8 @@ function sseConnect(url, extraHeaders, options) {
         try { onOpen(res); } catch (_) {}
       }
       const events = [];
+      const { StringDecoder } = require('string_decoder');
+      const decoder = new StringDecoder('utf8');
       let buffer = '';
       let eventLines = [];
       const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
@@ -210,7 +216,7 @@ function sseConnect(url, extraHeaders, options) {
       };
 
       res.on('data', (chunk) => {
-        buffer += chunk.toString();
+        buffer += decoder.write(chunk);
         if (buffer.length > MAX_BUFFER_SIZE || (collectEvents && events.length > MAX_EVENTS)) {
           fail(new Error('SSE stream exceeded max buffer/event limit'));
           return;
@@ -224,6 +230,8 @@ function sseConnect(url, extraHeaders, options) {
       });
 
       res.on('end', () => {
+        const remaining = decoder.end();
+        if (remaining) buffer += remaining;
         if (buffer) processLine(buffer);
         if (eventLines.length > 0) dispatchEvent();
         finish(events, res);

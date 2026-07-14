@@ -91,14 +91,14 @@ class FeishuApi {
         msg_type: 'text',
         content: JSON.stringify({ text: chunks[0] }),
       }), token));
-      if (chunks.length === 1) return results[0];
-      if (!replyCtx.chatId) return results[0];
-      for (const chunk of chunks.slice(1)) {
-        results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
-          receive_id: replyCtx.chatId,
-          msg_type: 'text',
-          content: JSON.stringify({ text: chunk }),
-        }), token));
+      if (chunks.length > 1 && replyCtx.chatId) {
+        for (const chunk of chunks.slice(1)) {
+          results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+            receive_id: replyCtx.chatId,
+            msg_type: 'text',
+            content: JSON.stringify({ text: chunk }),
+          }), token));
+        }
       }
       return results;
     }
@@ -110,17 +110,11 @@ class FeishuApi {
           content: JSON.stringify({ text: chunk }),
         }), token));
       }
-      return results.length === 1 ? results[0] : results;
+      return results;
     }
     throw new Error('replyText: no messageId or chatId in replyCtx');
   }
 
-  /**
-   * 向指定群聊发送文本消息
-   * @param {string} chatId - 群聊 ID
-   * @param {string} text - 消息文本内容
-   * @returns {Promise<Object>} 飞书 API 返回结果
-   */
   async sendText(chatId, text) {
     const token = await this.getTenantToken();
     const results = [];
@@ -131,15 +125,9 @@ class FeishuApi {
         content: JSON.stringify({ text: chunk }),
       }), token));
     }
-    return results.length === 1 ? results[0] : results;
+    return results;
   }
 
-  /**
-   * 以卡片消息回复飞书消息或发送到指定群聊，返回卡片消息 ID
-   * @param {Object} replyCtx - 回复上下文，包含 messageId 或 chatId
-   * @param {Object} card - 飞书卡片 JSON 结构
-   * @returns {Promise<string>} 卡片消息 ID
-   */
   async replyCard(replyCtx, card) {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();

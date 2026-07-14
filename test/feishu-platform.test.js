@@ -58,7 +58,7 @@ function loadPlatformWithFakeLark(fake) {
 
 function createPlatform(FeishuPlatform, overrides) {
   return new FeishuPlatform({
-    config: { appId: 'cli_a', appSecret: 'sec', routeMode: 'thread' },
+    config: { feishuAppId: 'cli_a', feishuAppSecret: 'sec', feishuRouteMode: 'thread' },
     sessionService: {},
     onMessage: overrides && overrides.onMessage || (() => Promise.resolve()),
     onCardAction: overrides && overrides.onCardAction || (() => Promise.resolve()),

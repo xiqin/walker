@@ -15,6 +15,7 @@ class SessionService {
 
   _normalizeRoute(state) {
     this._ensureState(state);
+    if (state._schemaVersion >= 3) return false;
     let migrated = false;
     for (const routeKey of Object.keys(state.routes)) {
       const value = state.routes[routeKey];
@@ -35,6 +36,17 @@ class SessionService {
           migrated = true;
         }
       }
+    }
+    let allNormalized = true;
+    for (const routeKey of Object.keys(state.routes)) {
+      const v = state.routes[routeKey];
+      if (typeof v === 'string' || (v && !v.cwd && Array.isArray(v.sessions) && v.sessions.length > 0)) {
+        allNormalized = false;
+        break;
+      }
+    }
+    if (allNormalized && Object.keys(state.routes).length > 0) {
+      state._schemaVersion = 3;
     }
     return migrated;
   }
@@ -91,13 +103,12 @@ class SessionService {
     const state = this._readNormalized();
     const route = state.routes[routeKey];
     if (!route) return null;
-    const sessionId = route.focusSessionId;
+    const sessionId = typeof route === 'string' ? route : route.focusSessionId;
     if (!sessionId) return null;
     const session = state.sessions[sessionId];
     if (session && session.status !== 'deleted') return session;
     this.stateStore.update((s) => {
       this._ensureState(s);
-      this._normalizeRoute(s);
       delete s.routes[routeKey];
     });
     return null;
@@ -151,6 +162,11 @@ class SessionService {
   listSessions() {
     const state = this._readNormalized();
     return Object.values(state.sessions).filter((s) => s.status !== 'deleted');
+  }
+
+  listRoutes() {
+    const state = this._readNormalized();
+    return state.routes || {};
   }
 
   markRunning(sessionId) {
@@ -217,8 +233,7 @@ class SessionService {
 
   updateSessionField(sessionId, field, value) {
     if (!SessionService.UPDATEABLE_FIELDS.includes(field)) {
-      logger.warn('updateSessionField rejected: field not allowed', { sessionId, field });
-      return;
+      throw new Error('Field not allowed: ' + field + '. Allowed: ' + SessionService.UPDATEABLE_FIELDS.join(', '));
     }
     this.stateStore.update((state) => {
       this._ensureState(state);

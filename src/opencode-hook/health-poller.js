@@ -31,7 +31,9 @@ function createHealthPoller(options) {
   function track(sessionId, agentRef) {
     if (!sessionId || !agentRef) return;
     if (trackers.has(sessionId)) {
-      logger.warn('session already tracked, skip', { sessionId });
+      const existing = trackers.get(sessionId);
+      existing.agentRef = agentRef;
+      logger.info('session tracked, agentRef updated', { sessionId });
       return;
     }
     const entry = {
@@ -108,10 +110,11 @@ function createHealthPoller(options) {
       const routeKey = sessionService.getRouteForSession(sessionId);
 
       if (exitAction === 'cancel' && session && dispatcher) {
-        const turnState = dispatcher.turnStates ? dispatcher.turnStates.get(sessionId) : null;
+        const turnState = typeof dispatcher.getTurnState === 'function'
+          ? dispatcher.getTurnState(sessionId) : null;
         if (turnState && !turnState.cancelled) {
           try {
-            await dispatcher._cancelTurn(session, null, turnState, { reason: 'opencode-detached' });
+            await dispatcher.cancelTurnBySessionId(sessionId, 'opencode-detached');
           } catch (err) {
             logger.warn('cancel turn failed on detach', { sessionId, err: err && err.message ? err.message : String(err) });
           }
@@ -126,9 +129,9 @@ function createHealthPoller(options) {
         }
       }
 
-      if (dispatcher && typeof dispatcher._stopSessionWatch === 'function') {
+      if (dispatcher && typeof dispatcher.stopSessionWatch === 'function') {
         try {
-          dispatcher._stopSessionWatch(sessionId);
+          dispatcher.stopSessionWatch(sessionId);
         } catch (err) {
           logger.warn('stop session watch failed', { sessionId, err: err && err.message ? err.message : String(err) });
         }

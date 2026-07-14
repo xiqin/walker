@@ -50,7 +50,12 @@ function createLogger(scope) {
       }
     }
     try {
-      console.log(JSON.stringify(row));
+      const line = JSON.stringify(row);
+      if (typeof process.stderr.write === 'function') {
+        process.stderr.write(line + '\n');
+      } else {
+        console.log(line);
+      }
     } catch (_) {
       console.log(JSON.stringify({ ts: row.ts, level: row.level, scope: row.scope, message: row.message, error: 'log serialization failed' }));
     }

@@ -79,29 +79,34 @@ class AgentDriver {
 /**
  * Agent 事件，封装 Agent 返回的各种类型事件数据
  */
+const EVENT_TYPE_TEXT = 'text';
+const EVENT_TYPE_REASONING = 'reasoning';
+const EVENT_TYPE_TOOL_USE = 'tool_use';
+const EVENT_TYPE_ERROR = 'error';
+const EVENT_TYPE_STATUS = 'status';
+const EVENT_TYPE_DONE = 'done';
+
 class AgentEvent {
-  /**
-   * 创建 Agent 事件
-   * @param {string} type - 事件类型（text/reasoning/tool_use/error/status/done）
-   * @param {Object} data - 事件数据
-   */
+  static DATA_SCHEMAS = {
+    [EVENT_TYPE_TEXT]: { text: 'string', delta: 'boolean?' },
+    [EVENT_TYPE_REASONING]: { text: 'string' },
+    [EVENT_TYPE_TOOL_USE]: { name: 'string', input: 'object?', output: 'string?', status: 'string?' },
+    [EVENT_TYPE_ERROR]: { message: 'string' },
+    [EVENT_TYPE_STATUS]: { status: 'string' },
+    [EVENT_TYPE_DONE]: { reason: 'string?' },
+  };
+
   constructor(type, data) {
     this.type = type;
     this.data = data;
   }
 }
 
-/** 事件类型常量：文本输出 */
-AgentEvent.TYPE_TEXT = 'text';
-/** 事件类型常量：推理过程 */
-AgentEvent.TYPE_REASONING = 'reasoning';
-/** 事件类型常量：工具调用（含结果，status 字段区分进行中/完成/错误） */
-AgentEvent.TYPE_TOOL_USE = 'tool_use';
-/** 事件类型常量：错误 */
-AgentEvent.TYPE_ERROR = 'error';
-/** 事件类型常量：状态变更 */
-AgentEvent.TYPE_STATUS = 'status';
-/** 事件类型常量：完成 */
-AgentEvent.TYPE_DONE = 'done';
+AgentEvent.TYPE_TEXT = EVENT_TYPE_TEXT;
+AgentEvent.TYPE_REASONING = EVENT_TYPE_REASONING;
+AgentEvent.TYPE_TOOL_USE = EVENT_TYPE_TOOL_USE;
+AgentEvent.TYPE_ERROR = EVENT_TYPE_ERROR;
+AgentEvent.TYPE_STATUS = EVENT_TYPE_STATUS;
+AgentEvent.TYPE_DONE = EVENT_TYPE_DONE;
 
 module.exports = { AgentDriver, AgentEvent };

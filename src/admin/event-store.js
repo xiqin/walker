@@ -143,7 +143,7 @@ function recordMetric(storeOrName, nameOrValue, valueOrTime, maybeCreatedAt) {
  */
 function hourStart(timestamp) {
   const date = new Date(timestamp);
-  date.setUTCMinutes(0, 0, 0);
+  date.setMinutes(0, 0, 0);
   return date.getTime();
 }
 

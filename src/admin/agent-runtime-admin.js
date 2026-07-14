@@ -51,18 +51,8 @@ function listAgents(ctx) {
  * @returns {{ isStub: boolean, message: string }|null}
  */
 function detectStubDriver(driver) {
-  const methods = ['ensureReady', 'createSession', 'prompt', 'stop', 'delete'];
-  for (const method of methods) {
-    const fn = driver[method];
-    if (!fn) continue;
-    try {
-      const source = fn.toString();
-      if (source.includes('not implemented') || source.includes('stub')) {
-        return { isStub: true, message: 'stub driver not implemented' };
-      }
-    } catch (_e) {
-      continue;
-    }
+  if (driver && driver._isStub === true) {
+    return { isStub: true, message: 'stub driver not implemented' };
   }
   return null;
 }
@@ -92,14 +82,14 @@ async function checkAgent(ctx, agentName) {
     };
   } catch (err) {
     return {
-      ok: true,
+      ok: false,
       healthy: false,
       agent: agentName,
       error: err.message,
-      config: agentName === 'opencode' && driver ? {
+      config: driver ? (agentName === 'opencode' ? {
         serverUrl: driver.serverUrl || '',
         autostart: driver.autostart !== undefined ? driver.autostart : true,
-      } : {},
+      } : {}) : {},
     };
   }
 }

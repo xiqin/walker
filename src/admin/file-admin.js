@@ -12,8 +12,9 @@ const MAX_LOG_LINES = 500;
  * @returns {string|null} 解析后的安全绝对路径，穿越时返回 null
  */
 function safeResolve(rootDir, relativePath) {
+  const normalizedRoot = rootDir.endsWith(path.sep) ? rootDir.slice(0, -1) : rootDir;
   const resolved = path.resolve(rootDir, relativePath);
-  if (!resolved.startsWith(rootDir + path.sep) && resolved !== rootDir) {
+  if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
     return null;
   }
   return resolved;

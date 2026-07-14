@@ -62,6 +62,10 @@ class MessageDispatcher {
    * @returns {Promise<string>} 处理结果标识（duplicate/unbound/error/prompted）
    */
   async handleIncomingMessage(event) {
+    if (this._destroyed) {
+      logger.warn('dispatcher destroyed, ignoring incoming message');
+      return 'destroyed';
+    }
     logger.info('incoming text message received', {
       messageId: event.messageId,
       chatId: event.chatId,
@@ -238,6 +242,11 @@ class MessageDispatcher {
    */
   async _cmdNew(cmd) {
     const routeKey = cmd.routeKey;
+    const current = this.sessionService.getCurrent(routeKey);
+    if (current) {
+      const pendingPrompt = this._promptQueues.get(current.id);
+      if (pendingPrompt) await pendingPrompt.catch(() => {});
+    }
     const messageId = cmd.messageId;
     const agentName = cmd.args[0] || this.defaultAgent;
     const title = cmd.args[1] || '';
@@ -271,6 +280,11 @@ class MessageDispatcher {
    */
   async _cmdAttach(cmd) {
     const routeKey = cmd.routeKey;
+    const current = this.sessionService.getCurrent(routeKey);
+    if (current) {
+      const pendingPrompt = this._promptQueues.get(current.id);
+      if (pendingPrompt) await pendingPrompt.catch(() => {});
+    }
     const targetOpencodeSessionId = cmd.args[0] || '';
     const driver = this.driverRegistry.get('opencode');
 
@@ -1102,6 +1116,43 @@ class MessageDispatcher {
       messageId: source && source.messageId,
       chatId: source && source.chatId,
     };
+  }
+
+  destroy() {
+    for (const [sessionId, stopFn] of this.sessionWatchStops) {
+      try { if (typeof stopFn === 'function') stopFn(); } catch (_) {}
+    }
+    this.sessionWatchStops.clear();
+    for (const [sessionId, stopFn] of this.promptHeartbeatStops) {
+      try { if (typeof stopFn === 'function') stopFn(); } catch (_) {}
+    }
+    this.promptHeartbeatStops.clear();
+    this.sessionWatchBuffers.clear();
+    this.sessionDeliveredTexts.clear();
+    this.turnStates.clear();
+    this.cancelledTurnSessions.clear();
+    this._promptQueues.clear();
+    this._routeLocks.clear();
+    this._destroyed = true;
+    logger.info('dispatcher destroyed, all resources cleaned');
+  }
+
+  getTurnState(sessionId) {
+    const turnState = this.turnStates.get(sessionId);
+    return turnState ? { token: turnState.token, cancelled: turnState.cancelled } : null;
+  }
+
+  async cancelTurnBySessionId(sessionId, reason) {
+    const session = this.sessionService.getSession(sessionId);
+    if (!session) return;
+    const turnState = this.turnStates.get(sessionId);
+    if (!turnState || turnState.cancelled) return;
+    const driver = this.driverRegistry.get(session.agent);
+    await this._cancelTurn(session, driver, turnState, { reason: reason || 'external' });
+  }
+
+  stopSessionWatch(sessionId) {
+    this._stopSessionWatch(sessionId);
   }
 }
 

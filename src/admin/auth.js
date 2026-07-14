@@ -6,6 +6,21 @@
 
 const crypto = require('crypto');
 
+const SESSION_ID_BYTES = 32;
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const activeSessions = new Map();
+
+function generateSessionId() {
+  return crypto.randomBytes(SESSION_ID_BYTES).toString('hex');
+}
+
+function pruneExpiredSessions() {
+  const now = Date.now();
+  for (const [sid, entry] of activeSessions) {
+    if (now - entry.createdAt > SESSION_TTL_MS) activeSessions.delete(sid);
+  }
+}
+
 /** parseBody 最大请求体大小（1MB） */
 const MAX_BODY_SIZE = 1024 * 1024;
 
@@ -34,8 +49,10 @@ function extractToken(req) {
   }
 
   const cookieHeader = (req.headers && req.headers.cookie) || '';
-  const match = cookieHeader.match(/walker_admin_token=([^;]+)/);
-  if (match) return match[1].trim();
+  const sidMatch = cookieHeader.match(/walker_admin_sid=([^;]+)/);
+  if (sidMatch) return sidMatch[1].trim();
+  const legacyMatch = cookieHeader.match(/walker_admin_token=([^;]+)/);
+  if (legacyMatch) return legacyMatch[1].trim();
 
   return '';
 }
@@ -50,6 +67,10 @@ function extractToken(req) {
 function isAuthenticated(req, config) {
   if (!config.token) return true;
   const token = extractToken(req);
+
+  pruneExpiredSessions();
+  if (activeSessions.has(token)) return true;
+
   return safeEqual(token, config.token);
 }
 
@@ -163,9 +184,13 @@ function createAuthHandlers(config, response) {
         return;
       }
 
+      pruneExpiredSessions();
+      const sessionId = generateSessionId();
+      activeSessions.set(sessionId, { createdAt: Date.now() });
+
       const isHttps = req.connection && req.connection.encrypted;
       const cookieFlags = 'Path=/; HttpOnly; SameSite=Strict' + (isHttps ? '; Secure' : '');
-      res.setHeader('Set-Cookie', 'walker_admin_token=' + config.token + '; ' + cookieFlags);
+      res.setHeader('Set-Cookie', 'walker_admin_sid=' + sessionId + '; ' + cookieFlags);
       response.send(res, response.success({ authenticated: true }));
     });
   }

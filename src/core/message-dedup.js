@@ -12,6 +12,8 @@ class MessageDedup {
     this._staleThresholdMs = options.staleThresholdMs || this.windowMs;
     this._cleanupThreshold = options.cleanupThreshold || 200;
     this._lastCleanup = 0;
+    this._persistTimer = null;
+    this._persistDirty = false;
     if (this._store) {
       const stored = this._store.read();
       if (stored && typeof stored === 'object') {
@@ -68,7 +70,13 @@ class MessageDedup {
   }
 
   _persist() {
-    if (this._store) {
+    if (!this._store) return;
+    this._persistDirty = true;
+    if (this._persistTimer) return;
+    this._persistTimer = setTimeout(() => {
+      this._persistTimer = null;
+      if (!this._persistDirty) return;
+      this._persistDirty = false;
       this._store.update((data) => {
         Object.assign(data, this.entries);
         for (const key of Object.keys(data)) {
@@ -77,6 +85,9 @@ class MessageDedup {
           }
         }
       });
+    }, 1000);
+    if (this._persistTimer && typeof this._persistTimer.unref === 'function') {
+      this._persistTimer.unref();
     }
   }
 }

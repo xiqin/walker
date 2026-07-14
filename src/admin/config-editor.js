@@ -21,6 +21,9 @@ function parseEnvKey(line) {
  */
 function stringifyEnvValue(value) {
   const str = String(value);
+  if (/[\r\n]/.test(str)) {
+    throw new Error('Environment value cannot contain newlines');
+  }
   if (str.includes(' ') || str.includes('#') || str.includes('=') || str.includes('"') || str.includes("'")) {
     return '"' + str.replace(/"/g, '\\"') + '"';
   }
@@ -34,6 +37,13 @@ function stringifyEnvValue(value) {
  * @returns {{ restartRequired: boolean, updatedKeys: string[] }}
  */
 function updateDotEnv(envPath, updates) {
+  if (!envPath || typeof envPath !== 'string') {
+    throw new Error('envPath must be a non-empty string');
+  }
+  const resolved = require('path').resolve(envPath);
+  if (resolved.includes('..')) {
+    throw new Error('envPath must not contain path traversal');
+  }
   const entries = updates || {};
   const keys = Object.keys(entries);
   for (const key of keys) {

@@ -91,10 +91,13 @@ function serveFile(res, filePath, response) {
       response.send(res, response.error('NOT_FOUND', '文件未找到'), 404);
       return;
     }
+    const crypto = require('crypto');
+    const etag = '"' + crypto.createHash('md5').update(data).digest('hex').slice(0, 16) + '"';
     const mime = getMimeType(filePath);
     res.writeHead(200, {
       'Content-Type': mime,
       'Cache-Control': 'public, max-age=3600',
+      'ETag': etag,
     });
     res.end(data);
   });

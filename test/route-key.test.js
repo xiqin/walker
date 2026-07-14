@@ -37,7 +37,7 @@ test('chatId 缺失时使用 default', () => {
   assert.equal(buildRouteKey(msg, 'user'), 'feishu:default:ou_user');
 });
 
-test('openId 缺失时 user 模式回退到 chatId', () => {
+test('openId 缺失时 user 模式回退到 channel', () => {
   const msg = { chatId: 'oc_abc' };
-  assert.equal(buildRouteKey(msg, 'user'), 'feishu:oc_abc:oc_abc');
+  assert.equal(buildRouteKey(msg, 'user'), 'feishu:oc_abc:channel');
 });

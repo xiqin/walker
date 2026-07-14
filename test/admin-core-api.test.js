@@ -203,6 +203,7 @@ function createFakeOpencodeDriver(overrides) {
 function createFakeStubDriver(name) {
   return {
     name,
+    _isStub: true,
     ensureReady: async () => { throw new Error(name + ' driver is not implemented yet. This is a stub for future extension.'); },
     createSession: async () => { throw new Error(name + ' driver is not implemented yet.'); },
     resumeSession: async () => { throw new Error(name + ' driver is not implemented yet.'); },
@@ -698,7 +699,7 @@ test('REQ-010: checkAgent 对 opencode 返回不健康结果', async () => {
   });
 
   const result = await agentRuntimeAdmin.checkAgent(ctx, 'opencode');
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, false);
   assert.equal(result.healthy, false);
   assert.ok(result.error);
 });

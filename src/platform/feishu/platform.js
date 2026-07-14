@@ -25,16 +25,16 @@ class FeishuPlatform {
     this.onMessage = onMessage;
     this.onCardAction = onCardAction;
     this.wsClient = null;
-    this.api = new FeishuApi({ appId: config.appId || config.feishuAppId, appSecret: config.appSecret || config.feishuAppSecret });
+    this.api = new FeishuApi({ appId: config.feishuAppId, appSecret: config.feishuAppSecret });
   }
 
   /**
    * 启动飞书 WebSocket 客户端，注册消息接收和卡片交互事件处理器
    */
   async start() {
-    const appId = this.config.appId || this.config.feishuAppId;
-    const appSecret = this.config.appSecret || this.config.feishuAppSecret;
-    const routeMode = this.config.routeMode || this.config.feishuRouteMode;
+    const appId = this.config.feishuAppId;
+    const appSecret = this.config.feishuAppSecret;
+    const routeMode = this.config.feishuRouteMode || 'thread';
 
     if (!appId || !appSecret) {
       throw new Error('FEISHU_APP_ID and FEISHU_APP_SECRET are required');

@@ -51,13 +51,6 @@ function errorCodeToStatus(errorCode) {
   return map[errorCode] || 400;
 }
 
-module.exports = { success, error, send, errorCodeToStatus, parseQueryString };
-
-/**
- * 解析 URL 查询字符串为键值对象
- * @param {string} qs - 查询字符串
- * @returns {Object} 键值对对象
- */
 function parseQueryString(qs) {
   const result = {};
   if (!qs) return result;
@@ -69,3 +62,5 @@ function parseQueryString(qs) {
   }
   return result;
 }
+
+module.exports = { success, error, send, errorCodeToStatus, parseQueryString };
