@@ -40,9 +40,11 @@ function updateDotEnv(envPath, updates) {
   if (!envPath || typeof envPath !== 'string') {
     throw new Error('envPath must be a non-empty string');
   }
-  const resolved = require('path').resolve(envPath);
-  if (resolved.includes('..')) {
-    throw new Error('envPath must not contain path traversal');
+  const thePath = require('path');
+  const resolved = thePath.resolve(envPath);
+  const dirname = thePath.dirname(resolved);
+  if (!thePath.isAbsolute(dirname)) {
+    throw new Error('envPath must resolve to an absolute path');
   }
   const entries = updates || {};
   const keys = Object.keys(entries);

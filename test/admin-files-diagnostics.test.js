@@ -235,7 +235,7 @@ test('REQ-012: PATCH config 写入 allowlist 字段并返回 restartRequired', a
   const ctx = buildAppContext({ envPath });
   const routes = createConfigRoutes(ctx);
   const result = await callRoute(routes, 'PATCH', '/api/admin/config', {
-    WALKER_ADMIN_HOST: '0.0.0.0',
+    WALKER_ADMIN_HOST: 'localhost',
   });
 
   assert.equal(result.statusCode, 200);
@@ -244,7 +244,7 @@ test('REQ-012: PATCH config 写入 allowlist 字段并返回 restartRequired', a
   assert.ok(result.body.data.updatedKeys.includes('WALKER_ADMIN_HOST'));
 
   const updatedEnv = fs.readFileSync(envPath, 'utf8');
-  assert.match(updatedEnv, /^WALKER_ADMIN_HOST=0\.0\.0\.0/m);
+  assert.match(updatedEnv, /^WALKER_ADMIN_HOST=localhost/m);
 });
 
 test('REQ-012: PATCH config 拒绝 allowlist 外字段', async () => {
@@ -261,6 +261,22 @@ test('REQ-012: PATCH config 拒绝 allowlist 外字段', async () => {
   assert.equal(result.statusCode, 400);
   assert.equal(result.body.ok, false);
   assert.match(result.body.error.message, /not editable/);
+});
+
+test('REQ-012: PATCH config 非 loopback host 无 token 被拒绝', async () => {
+  const envPath = path.join(tmpDir, 't4-nonloopback', '.env');
+  fs.mkdirSync(path.dirname(envPath), { recursive: true });
+  fs.writeFileSync(envPath, 'WALKER_ADMIN_HOST=127.0.0.1\n', 'utf8');
+
+  const ctx = buildAppContext({ envPath });
+  const routes = createConfigRoutes(ctx);
+  const result = await callRoute(routes, 'PATCH', '/api/admin/config', {
+    WALKER_ADMIN_HOST: '0.0.0.0',
+  });
+
+  assert.equal(result.statusCode, 400);
+  assert.equal(result.body.ok, false);
+  assert.match(result.body.error.message, /WALKER_ADMIN_TOKEN/);
 });
 
 test('REQ-012: PATCH config 无效请求体返回 400', async () => {
@@ -908,7 +924,7 @@ test('REQ-026: 配置更新事件写入 eventStore', async () => {
   const store = createEventStore();
   const ctx = buildAppContext({ envPath, eventStore: store });
   const routes = createConfigRoutes(ctx);
-  await callRoute(routes, 'PATCH', '/api/admin/config', { WALKER_ADMIN_HOST: '0.0.0.0' });
+  await callRoute(routes, 'PATCH', '/api/admin/config', { WALKER_ADMIN_HOST: 'localhost' });
 
   const events = store.events.filter((e) => e.type === 'config.update');
   assert.ok(events.length >= 1);

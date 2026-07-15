@@ -67,6 +67,12 @@ function loadEnvConfig(options) {
     return Number.isFinite(num) && num > 0 ? num : defaultVal;
   }
 
+  function normalizeEmoji(val, defaultVal) {
+    const raw = val != null ? String(val).trim() : '';
+    if (!raw) return defaultVal;
+    return raw.toLowerCase() === 'none' ? '' : raw;
+  }
+
   return {
     feishuAppId,
     feishuAppSecret,
@@ -83,8 +89,8 @@ function loadEnvConfig(options) {
     opencodeModel: env.OPENCODE_MODEL || '',
     opencodeAgent: env.OPENCODE_AGENT || '',
     feishuProgressStyle: env.FEISHU_PROGRESS_STYLE || 'card',
-    feishuReactionEmoji: env.FEISHU_REACTION_EMOJI || 'OnIt',
-    feishuDoneEmoji: env.FEISHU_DONE_EMOJI || 'none',
+    feishuReactionEmoji: normalizeEmoji(env.FEISHU_REACTION_EMOJI, 'OnIt'),
+    feishuDoneEmoji: normalizeEmoji(env.FEISHU_DONE_EMOJI, ''),
     walkerPromptHeartbeatInitialMs: parsePositiveInt(env.WALKER_PROMPT_HEARTBEAT_INITIAL_MS, 30000),
     walkerPromptHeartbeatIntervalMs: parsePositiveInt(env.WALKER_PROMPT_HEARTBEAT_INTERVAL_MS, 60000),
     walkerPromptHeartbeatStuckMs: parsePositiveInt(env.WALKER_PROMPT_HEARTBEAT_STUCK_MS, 300000),
@@ -94,6 +100,8 @@ function loadEnvConfig(options) {
     opencodeMaxPolls: parsePositiveInt(env.OPENCODE_MAX_POLLS, 20),
     opencodePromptTimeoutMs: parsePositiveInt(env.OPENCODE_PROMPT_TIMEOUT_MS, 120000),
     opencodeSseOpenTimeoutMs: parsePositiveInt(env.OPENCODE_SSE_OPEN_TIMEOUT_MS, 1000),
+    opencodeMessagePollIntervalMs: parsePositiveInt(env.OPENCODE_MESSAGE_POLL_INTERVAL_MS, 3000),
+    opencodeConfigDir: env.OPENCODE_CONFIG_DIR || '',
     admin: {
       enabled: parseBool(env.WALKER_ADMIN_ENABLED, true),
       host: env.WALKER_ADMIN_HOST || '127.0.0.1',

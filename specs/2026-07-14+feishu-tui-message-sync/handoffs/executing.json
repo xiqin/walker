@@ -1,0 +1,28 @@
+{
+  "status": "done",
+  "summary": "三个 task 全部完成并通过 review。T1: thread route fallback 逻辑确认正确+4测试。T2: watcher _resumePolling handlers 传递修复确认+4测试。T3: 集成测试5个用例覆盖双向链路+去重+隔离。全量测试620/620通过。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js",
+    "src/drivers/opencode-session-watcher.js",
+    "test/opencode-driver.test.js",
+    "test/integration-feishu-tui-sync.test.js",
+    "specs/2026-07-14+feishu-tui-message-sync/test-report.md"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "ea57b22e8570fba15da7df99db331ce46a7e1dd1ee6759af86145df7d9db85c0",
+    "spec.md": "b5fc3f5d86309fb1a9c55c6ed42f5d33daa3ff8a4d42503e9ab25c2b9882523f",
+    "tasks/": "28f1fbbab458a301e4f2f8024c27ec90d890202eb40105a801be04a6398c5625"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-14+feishu-tui-message-sync/test-report.md": "a05c962df90bcb3f8ea35412b696df9780971b59bffdb2ef11270b0575e8ce70",
+    "src/dispatch/message-dispatcher.js": "aae63afd831973d4782000dee9d4330ed0d388238371ce74e9a99c6eab0025bc",
+    "src/drivers/opencode-session-watcher.js": "81da6451f8cc02762655630ac04b8df679458372c5b2220a172c4872d110da49",
+    "test/integration-feishu-tui-sync.test.js": "4168aaa131f35585d88dd4597cc92b79d7027e3e096597ab3addcb49d35a0b78",
+    "test/message-dispatcher.test.js": "d6dea9c6106794b53ab87fb121ea98b1c42ebd82ac3c014d1b51931a30679c36",
+    "test/opencode-driver.test.js": "2d1eea5abbfb9b004b0fd12b30a27079c9415b3a5a7840419d5a01ab9026c9db"
+  },
+  "written_at": "2026-07-14T09:02:06.210Z"
+}

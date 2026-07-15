@@ -170,6 +170,70 @@ test('重复上报同一 session 幂等返回', async () => {
   }
 });
 
+test('重复上报同一 session 时修正 serverUrl 和 cwd，并保留 agentRef 扩展字段', async () => {
+  const ctx = createCtx();
+  try {
+    const routeKey = 'feishu:oc_refresh:ou_user';
+    const cwd = 'H:\\walker';
+    ctx.sessionService.setRouteCwd(routeKey, cwd);
+    const routes = createHookReceiverRoutes(ctx);
+
+    const first = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
+      opencodeBaseUrl: 'http://127.0.0.1:4096',
+      sessionId: 'oc_sess_refresh',
+      cwd,
+    });
+    ctx.sessionService.updateSessionField(first.parsed.data.sessionId, 'agentRef', {
+      ...ctx.sessionService.getSession(first.parsed.data.sessionId).agentRef,
+      workspace: 'main',
+    });
+    const second = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
+      opencodeBaseUrl: 'http://127.0.0.1:54321',
+      sessionId: 'oc_sess_refresh',
+      cwd: 'H:\\walker\\subdir',
+    });
+
+    assert.equal(second.parsed.data.sessionId, first.parsed.data.sessionId);
+    const session = ctx.sessionService.getSession(first.parsed.data.sessionId);
+    assert.deepEqual(session.agentRef, {
+      opencodeSessionId: 'oc_sess_refresh',
+      serverUrl: 'http://127.0.0.1:54321',
+      workspace: 'main',
+    });
+    assert.equal(session.cwd, 'H:\\walker\\subdir');
+  } finally {
+    fs.rmSync(ctx.tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('活跃会话上报后成为匹配 route 的焦点', async () => {
+  const ctx = createCtx();
+  try {
+    const routeKey = 'feishu:oc_active:ou_user';
+    const cwd = 'H:\\walker';
+    ctx.sessionService.setRouteCwd(routeKey, cwd);
+    const routes = createHookReceiverRoutes(ctx);
+
+    const first = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
+      opencodeBaseUrl: 'http://127.0.0.1:4100',
+      sessionId: 'oc_sess_first',
+      cwd,
+    });
+    await callRoute(routes, 'POST', '/opencode/hook/session-created', {
+      opencodeBaseUrl: 'http://127.0.0.1:4200',
+      sessionId: 'oc_sess_active',
+      cwd,
+      active: true,
+    });
+
+    const focused = ctx.sessionService.getCurrent(routeKey);
+    assert.equal(focused.agentRef.opencodeSessionId, 'oc_sess_active');
+    assert.notEqual(focused.id, first.parsed.data.sessionId);
+  } finally {
+    fs.rmSync(ctx.tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('无匹配 cwd 时创建游离 session', async () => {
   const ctx = createCtx();
   try {
@@ -742,7 +806,7 @@ test('opencodeBaseUrl 为空且无 defaultOpencodeUrl 时 fallback 到 localhost
   }
 });
 
-test('opencodeBaseUrl 非空时优先使用上报值', async () => {
+test('opencodeBaseUrl 非空时优先使用上报 loopback 值', async () => {
   const ctx = createCtx({ defaultOpencodeUrl: 'http://localhost:4096' });
   try {
     const routeKey = 'feishu:oc_priority:ou_user';
@@ -751,7 +815,7 @@ test('opencodeBaseUrl 非空时优先使用上报值', async () => {
 
     const routes = createHookReceiverRoutes(ctx);
     const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
-      opencodeBaseUrl: 'http://192.168.1.100:8080',
+      opencodeBaseUrl: 'http://127.0.0.1:8080',
       sessionId: 'oc_priority_url',
       cwd: cwd,
     });
@@ -761,7 +825,63 @@ test('opencodeBaseUrl 非空时优先使用上报值', async () => {
 
     const sessionsInRoute = ctx.sessionService.listSessionsInRoute(routeKey);
     assert.equal(sessionsInRoute.length, 1);
-    assert.equal(sessionsInRoute[0].agentRef.serverUrl, 'http://192.168.1.100:8080');
+    assert.equal(sessionsInRoute[0].agentRef.serverUrl, 'http://127.0.0.1:8080');
+  } finally {
+    fs.rmSync(ctx.tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('opencodeBaseUrl 非 loopback 地址被拒绝', async () => {
+  const ctx = createCtx();
+  try {
+    const routes = createHookReceiverRoutes(ctx);
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
+      opencodeBaseUrl: 'http://192.168.1.100:8080',
+      sessionId: 'oc_bad_url',
+      cwd: 'H:\\walker',
+    });
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(parsed.ok, false);
+    assert.ok(parsed.error.message.includes('opencodeBaseUrl'));
+  } finally {
+    fs.rmSync(ctx.tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('opencodeBaseUrl 匹配已配置的 defaultOpencodeUrl 主机时放行', async () => {
+  const ctx = createCtx({ defaultOpencodeUrl: 'http://opencode.internal:4096' });
+  try {
+    const routeKey = 'feishu:oc_custom:ou_user';
+    const cwd = 'H:\\walker';
+    ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+    const routes = createHookReceiverRoutes(ctx);
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
+      opencodeBaseUrl: 'http://opencode.internal:4096',
+      sessionId: 'oc_custom_url',
+      cwd: cwd,
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(parsed.ok, true);
+  } finally {
+    fs.rmSync(ctx.tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('opencodeBaseUrl 非 http/https scheme 被拒绝', async () => {
+  const ctx = createCtx();
+  try {
+    const routes = createHookReceiverRoutes(ctx);
+    const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
+      opencodeBaseUrl: 'ftp://127.0.0.1:4096',
+      sessionId: 'oc_ftp_url',
+      cwd: 'H:\\walker',
+    });
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(parsed.ok, false);
   } finally {
     fs.rmSync(ctx.tmpDir, { recursive: true, force: true });
   }

@@ -1,0 +1,44 @@
+{
+  "task_id": "executing",
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005"
+  ],
+  "review_fixture_adjustment": "旧插件升级夹具由版本 0 修正为版本 1，继续验证自动升级到版本 2",
+  "production_code_changed_during_review": false,
+  "target_test": {
+    "command": "node --test test/opencode-hook-installer.test.js",
+    "result": "15 pass, 0 fail",
+    "evidence": "evidence/review-target-test.log",
+    "sha256": "8DDBE22B7A9E21967940B9C8635741F98454A09174A1E329D54DB7376CCAA6CE"
+  },
+  "full_test": {
+    "command": "npm test",
+    "result": "639 pass, 0 fail, 42 suites",
+    "evidence": "evidence/review-verification.log",
+    "sha256": "6651EF437D1DE19B583829D6F4FF6E387A4687FADF299897B18CA56F063FF8B8"
+  },
+  "diff_check": "passed",
+  "status": "done",
+  "summary": "T1 已完成：生成插件模板升级为版本 2，以事件驱动 activeSessionId 处理根级 session.created 和 tui.session.select，过滤内部子会话，并保持新活动会话的 register/poll/prompt/idle/error 归属正确。审查阶段仅将旧插件升级测试夹具从版本 0 精确修正为版本 1，生产代码未追加修改；修正后目标测试 15/15、完整 npm test 639/639、git diff --check 均通过。",
+  "artifacts": [
+    "src/opencode-hook/plugin-template.js",
+    "test/opencode-hook-installer.test.js",
+    "specs/2026-07-15-opencode-new-session-sync/test-report.md"
+  ],
+  "stage": "executing",
+  "basis_fingerprints": {
+    "plan.md": "c47f5f5afed191a1d2b11f966d46d69a828521ee08ec9d607fae3d4ef4d5ded3",
+    "spec.md": "5b5efd33f744a6647f16a814df01209c68306fe77beb71424b63b091e1c28de9",
+    "tasks/": "68019731218926d8da2572440291844369eed87beba9347195dd776ee6981d46"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-15-opencode-new-session-sync/test-report.md": "024a76d1c8325026472372db65a6e2fd67dec3007d22d4962aceca1a2146dff5",
+    "src/opencode-hook/plugin-template.js": "1975731af5926081585ca4c85e17c9a61072106e7441c4e333af2101807ebc88",
+    "test/opencode-hook-installer.test.js": "d2c7465d0e4691d0fa309d7d0b6a9626d23bb9b9c1012adb5dd05c0554d41ce4"
+  },
+  "written_at": "2026-07-15T06:04:38.702Z"
+}

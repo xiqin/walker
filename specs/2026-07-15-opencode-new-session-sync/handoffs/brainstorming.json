@@ -1,0 +1,31 @@
+{
+  "decisions": [
+    "插件维护 activeSessionId，切换事件优先于可能滞后的 api.route.current",
+    "监听 session.created 与 tui.session.select",
+    "session.created 仅接受无 parentID 的根会话",
+    "旧 Walker session 保留，新 session 成为路由焦点",
+    "插件模板版本从 1 升级到 2"
+  ],
+  "open_questions": [],
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005"
+  ],
+  "status": "done",
+  "summary": "已确认事件驱动的活动会话方案：/new 创建根会话及 TUI 选择已有会话时自动注册并绑定 Walker；过滤带 parentID 的内部子会话；模板版本升至 2；不修改服务端 bridge、飞书路由或 API。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "5b5efd33f744a6647f16a814df01209c68306fe77beb71424b63b091e1c28de9"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "5b5efd33f744a6647f16a814df01209c68306fe77beb71424b63b091e1c28de9"
+  },
+  "written_at": "2026-07-15T05:41:09.044Z"
+}

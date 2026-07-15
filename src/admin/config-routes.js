@@ -6,6 +6,12 @@ const { buildConfigSummary } = require('./config');
 const { updateDotEnv } = require('./config-editor');
 const { recordEvent } = require('./event-store');
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+
+function isLoopbackHost(host) {
+  return LOOPBACK_HOSTS.has(host);
+}
+
 /**
  * 创建配置管理路由列表
  * GET /api/admin/config 返回脱敏配置摘要
@@ -40,10 +46,28 @@ function createConfigRoutes(appContext) {
     method: 'PATCH',
     pattern: '/api/admin/config',
     handler: async function configPatchHandler(req, res) {
-      const body = await parseBody(req);
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (err) {
+        if (err.code === 'PAYLOAD_TOO_LARGE') {
+          send(res, error('PAYLOAD_TOO_LARGE', err.message), 413);
+          return;
+        }
+        send(res, error('BAD_REQUEST', '无效请求体'), 400);
+        return;
+      }
       if (!body || typeof body !== 'object') {
         send(res, error('BAD_REQUEST', '请求体需为 JSON 对象'), 400);
         return;
+      }
+
+      if (body.WALKER_ADMIN_HOST && !isLoopbackHost(body.WALKER_ADMIN_HOST)) {
+        const currentToken = process.env.WALKER_ADMIN_TOKEN || '';
+        if (!currentToken) {
+          send(res, error('BAD_REQUEST', '将 WALKER_ADMIN_HOST 设为非 loopback 地址时必须先配置 WALKER_ADMIN_TOKEN'), 400);
+          return;
+        }
       }
 
       const envPath = ctx.envPath || require('path').join(process.cwd(), '.env');

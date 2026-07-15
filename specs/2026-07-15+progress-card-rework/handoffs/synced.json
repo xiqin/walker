@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "图后端 codegraph 索引已反映本次进度卡片重构改动（formatAgentEvent text 返回空、append 跳过 text、render 追加中性提示、_renderEvents card 分支统一 replyText、_renderCardProgress 跳过 TYPE_TEXT）。索引新鲜无 stale。本次为一般性代码变更，不更新 memory 和入口文件。npm test 649/649 通过。",
+  "artifacts": [
+    "index-sync-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "055aa14d119b2afbaef5d697e02ee77703d128608abc1c5ba623b293b51b873e",
+    "spec.md": "3ce9961a9578af9c0c0ea19e1ee07320f3c695512d626ee4663b8acf9a4fa693"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-15T07:27:07.487Z"
+}

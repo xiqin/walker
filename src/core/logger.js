@@ -5,8 +5,20 @@
  */
 
 const LEVEL_PRIORITY = { error: 0, warn: 1, info: 2, debug: 3 };
-const CURRENT_LEVEL = (process.env.WALKER_LOG_LEVEL || 'info').toLowerCase();
-const CURRENT_PRIORITY = LEVEL_PRIORITY[CURRENT_LEVEL] != null ? LEVEL_PRIORITY[CURRENT_LEVEL] : 2;
+let _currentPriority = null;
+
+function getCurrentPriority() {
+  if (_currentPriority === null) {
+    const level = (process.env.WALKER_LOG_LEVEL || 'info').toLowerCase();
+    _currentPriority = LEVEL_PRIORITY[level] != null ? LEVEL_PRIORITY[level] : 2;
+  }
+  return _currentPriority;
+}
+
+function setLogLevel(level) {
+  const lower = (level || 'info').toLowerCase();
+  _currentPriority = LEVEL_PRIORITY[lower] != null ? LEVEL_PRIORITY[lower] : 2;
+}
 const SENSITIVE_KEYS = ['token', 'secret', 'password', 'authorization', 'apikey', 'api_key'];
 
 function maskSensitive(obj) {
@@ -33,7 +45,7 @@ function createLogger(scope) {
    */
   function log(level, message, extra) {
     const priority = LEVEL_PRIORITY[level] != null ? LEVEL_PRIORITY[level] : 2;
-    if (priority > CURRENT_PRIORITY) return;
+    if (priority > getCurrentPriority()) return;
     const row = {
       ts: new Date().toISOString(),
       level,
@@ -69,4 +81,4 @@ function createLogger(scope) {
   };
 }
 
-module.exports = { createLogger };
+module.exports = { createLogger, setLogLevel };

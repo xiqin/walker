@@ -1,0 +1,16 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "确认 _resumePolling 传递 watcher._handlers 而非嵌套 { onEvent: watcher._handlers }；新增 4 个测试覆盖 resume 回调、pending 游标、stopWatch 清理和去重",
+  "artifacts": ["src/drivers/opencode-session-watcher.js", "test/opencode-driver.test.js"],
+  "exported_interfaces": [
+    {
+      "name": "OpencodeSessionWatcher",
+      "path": "src/drivers/opencode-session-watcher.js",
+      "signature": "constructor(options: { pollIntervalMs?: number, ... })"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-002", "REQ-003"],
+  "notes": "源码已有三处修复：1) _resumePolling 传 watcher._handlers；2) pollIntervalMs 可配置；3) timer.unref()。Reviewer 建议统一 unref 风格、加大 pending 测试等待余量（均非阻塞）"
+}

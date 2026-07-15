@@ -163,5 +163,105 @@
     "skill": "loom-verification-before-completion",
     "passed": true,
     "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-14+feishu-tui-message-sync",
+    "timestamp": "2026-07-14T09:07:53.318Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-14+feishu-tui-message-sync",
+    "timestamp": "2026-07-14T09:11:02.180Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-14+feishu-tui-message-sync",
+    "timestamp": "2026-07-14T09:14:54.547Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-opencode-new-session-sync",
+    "timestamp": "2026-07-15T05:56:09.922Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error 以上报 `ses_new` | PASS |",
+      "error 收尾，不会被误归属到新活动会话。",
+      "fail; 42 suites`"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-opencode-new-session-sync",
+    "timestamp": "2026-07-15T05:58:34.291Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error 以上报 `ses_new` | PASS |",
+      "error 收尾，不会被误归属到新活动会话。",
+      "fail; 42 suites`"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-opencode-new-session-sync",
+    "timestamp": "2026-07-15T06:04:58.828Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error 以上报 `ses_new` | PASS |",
+      "error 收尾，不会被误归属到新活动会话。",
+      "fail; 42 suites`"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15+progress-card-rework",
+    "timestamp": "2026-07-15T07:23:06.574Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15+progress-card-rework",
+    "timestamp": "2026-07-15T07:23:32.422Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15+progress-card-rework",
+    "timestamp": "2026-07-15T07:24:59.897Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15+progress-card-rework",
+    "timestamp": "2026-07-15T07:26:35.445Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0"
+    ]
   }
 ]

@@ -192,7 +192,7 @@ class FeishuApi {
     try {
       const token = await this.getTenantToken();
       return await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + messageId + '/reactions', JSON.stringify({
-        reaction_type: { emoji: emoji },
+        reaction_type: { emoji_type: emoji },
       }), token);
     } catch (err) {
       logger.warn('add reaction failed', { messageId, emoji, error: err.message });

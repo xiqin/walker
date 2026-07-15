@@ -100,7 +100,8 @@ class AttachmentService {
    * @throws {Error} 当前未实现，调用方应捕获并降级处理
    */
   async sendOutbound(feishuApi, chatId, filePath, caption) {
-    throw new Error('sendOutbound is not implemented yet. This is a stub for future extension.');
+    logger.warn('sendOutbound called: outbound attachment sending is not supported in this version', { chatId, filePath });
+    throw new Error('sendOutbound is not supported in this version. Outbound attachments are outside current product scope.');
   }
 }
 

@@ -1,0 +1,25 @@
+{
+  "decisions": [
+    "最终回答无论长短均通过普通文本发送",
+    "进度卡片不承载最终回答",
+    "卡片层和 Dispatcher 层均忽略 TYPE_TEXT",
+    "仅 replyText 明确成功后记录 deliveredText",
+    "不额外追加 TYPE_DONE",
+    "多分片中途失败导致部分重复不在本次范围"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确认飞书进度卡片重构方案：卡片忽略 TYPE_TEXT，仅展示过程状态；card 模式由 _renderEvents 唯一通过 replyText 发送完整最终文本；发送成功后才记录 deliveredText；卡片不可用不走 legacy 重复回退；复用现有 done 事件，完成提示为中性的“✅ 处理完成”。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "3ce9961a9578af9c0c0ea19e1ee07320f3c695512d626ee4663b8acf9a4fa693"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "3ce9961a9578af9c0c0ea19e1ee07320f3c695512d626ee4663b8acf9a4fa693"
+  },
+  "written_at": "2026-07-15T07:05:13.577Z"
+}

@@ -11,6 +11,12 @@ const fileAdmin = require('./file-admin');
 const diagnostics = require('./diagnostics');
 const routeAdmin = require('./route-admin');
 
+function sanitizeHeaderFilename(name) {
+  if (!name || typeof name !== 'string') return 'download';
+  const safe = name.replace(/[\r\n"]/g, '_');
+  return safe || 'download';
+}
+
 /**
  * 创建维护管理路由列表
  * 覆盖日志读取、附件操作、数据导出、备份、清理和健康检查
@@ -82,7 +88,7 @@ function createMaintenanceRoutes(appContext) {
 
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${params.filename}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeHeaderFilename(params.filename)}"`,
         'Content-Length': result.data.length,
       });
       res.end(result.data);
@@ -224,7 +230,17 @@ function createMaintenanceRoutes(appContext) {
         return;
       }
 
-      const body = await parseBody(req);
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (err) {
+        if (err.code === 'PAYLOAD_TOO_LARGE') {
+          send(res, error('PAYLOAD_TOO_LARGE', err.message), 413);
+          return;
+        }
+        send(res, error('BAD_REQUEST', '无效请求体'), 400);
+        return;
+      }
       if (!body || body.confirmed !== true) {
         send(res, error('BAD_REQUEST', '清理操作需要 confirmed=true 确认'), 400);
         return;

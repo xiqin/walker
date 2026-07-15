@@ -119,12 +119,18 @@ function parseBody(req, callback) {
   const chunks = [];
   let totalSize = 0;
   let aborted = false;
+  let payloadTooLarge = false;
 
   let resolvePromise;
-  const promise = callback ? null : new Promise((resolve) => { resolvePromise = resolve; });
+  let rejectPromise;
+  const promise = callback ? null : new Promise((resolve, reject) => { resolvePromise = resolve; rejectPromise = reject; });
   const done = (body) => {
     if (callback) callback(body);
     else if (resolvePromise) resolvePromise(body);
+  };
+  const fail = (err) => {
+    if (callback) callback(null);
+    else if (rejectPromise) rejectPromise(err);
   };
 
   req.on('data', (chunk) => {
@@ -132,7 +138,7 @@ function parseBody(req, callback) {
     totalSize += chunk.length;
     if (totalSize > MAX_BODY_SIZE) {
       aborted = true;
-      done(null);
+      payloadTooLarge = true;
       req.destroy();
       return;
     }
@@ -149,6 +155,10 @@ function parseBody(req, callback) {
     }
   });
   req.on('error', () => {
+    if (aborted && payloadTooLarge) {
+      fail(Object.assign(new Error('请求体超过 1MB 限制'), { code: 'PAYLOAD_TOO_LARGE' }));
+      return;
+    }
     if (aborted) return;
     aborted = true;
     done(null);
@@ -188,7 +198,17 @@ function createAuthHandlers(config, response) {
       return;
     }
 
-    const body = await parseBody(req);
+    let body;
+    try {
+      body = await parseBody(req);
+    } catch (err) {
+      if (err.code === 'PAYLOAD_TOO_LARGE') {
+        response.send(res, response.error('PAYLOAD_TOO_LARGE', err.message), 413);
+        return;
+      }
+      response.send(res, response.error('BAD_REQUEST', '请求体需包含 token 字段'), 400);
+      return;
+    }
     if (!body || typeof body.token !== 'string') {
       response.send(res, response.error('BAD_REQUEST', '请求体需包含 token 字段'), 400);
       return;

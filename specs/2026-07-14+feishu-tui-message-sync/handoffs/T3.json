@@ -1,0 +1,10 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "创建集成测试覆盖双向消息链路：入站 thread fallback + 出站 watch sendText + 去重 + chat 隔离 + session 隔离。修复了 reviewer 指出的 driverRegistry hack 和 cwd 硬编码问题。5/5 测试通过。",
+  "artifacts": ["test/integration-feishu-tui-sync.test.js"],
+  "exported_interfaces": [],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-001", "REQ-002", "REQ-003"],
+  "notes": "使用真实 SessionService + JsonStore + stub driver。watch handlers 通过 stub 捕获后直接注入事件，验证 dispatcher 对 watch 事件的处理逻辑。用例5 直接调用 _handleWatchedSessionEvent 绕过 watch 注册链路，因为同 route 多 session 的独立触发难以通过 stub driver 实现。"
+}

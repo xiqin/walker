@@ -1,0 +1,57 @@
+{
+  "verdict": "PASS",
+  "commands": [
+    {
+      "command": "node --test test/opencode-hook-installer.test.js",
+      "exit_code": 0,
+      "result": "15 pass, 0 fail",
+      "evidence": "evidence/target-test.log",
+      "sha256": "EFBE7E6616AD118924837CECAF8FA1912BA6EEFCB63470A2704DA63DAFE66380"
+    },
+    {
+      "command": "npm test",
+      "exit_code": 0,
+      "result": "639 pass, 0 fail, 42 suites",
+      "evidence": "evidence/verification.log",
+      "sha256": "1D00403727056376E5B6FAAB53B621ECB03D1EEA22AA1E171C77643652A58814"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "no output"
+    }
+  ],
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005"
+  ],
+  "residual_risks": [
+    "未执行真实飞书与交互式 OpenCode TUI 的人工端到端操作；运行级测试已模拟完整事件与 loopback API 数据流。",
+    "verify-artifacts.mjs 的本机 skill 依赖缺失，自动产物校验不可用；已手工执行同等检查。"
+  ],
+  "status": "done",
+  "summary": "验证通过：目标回归测试 15/15，npm test 完整 check 639/639，git diff --check 与占位符扫描通过；REQ-001 至 REQ-005 均有实现和运行级测试证据，未发现规格漂移。verify-artifacts.mjs 因本机 skill 安装缺失 artifact-checker.js 无法启动，已在报告中记录并手工完成同等检查。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md",
+    "evidence/verification.log",
+    "evidence/target-test.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "c47f5f5afed191a1d2b11f966d46d69a828521ee08ec9d607fae3d4ef4d5ded3",
+    "spec.md": "5b5efd33f744a6647f16a814df01209c68306fe77beb71424b63b091e1c28de9",
+    "test-report.md": "024a76d1c8325026472372db65a6e2fd67dec3007d22d4962aceca1a2146dff5"
+  },
+  "artifact_fingerprints": {
+    "evidence/target-test.log": "efbe7e6616ad118924837cecaf8fa1912ba6eefcb63470a2704da63dafe66380",
+    "evidence/verification.log": "1d00403727056376e5b6faab53b621ecb03d1eea22aa1e171c77643652a58814",
+    "test-report.md": "024a76d1c8325026472372db65a6e2fd67dec3007d22d4962aceca1a2146dff5",
+    "verify-report.md": "bfc49b702da0f7a3ba94900b30c80420417f9c9f93a3335872165fadf4fd868e"
+  },
+  "written_at": "2026-07-15T05:54:55.706Z"
+}

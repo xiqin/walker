@@ -2,6 +2,12 @@
 
 const http = require('http');
 const https = require('https');
+const { createLogger } = require('./logger');
+
+const logger = createLogger('http-helper');
+
+const DEFAULT_TIMEOUT_MS = 0;
+const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 
 /**
  * 发送 HTTP/HTTPS 请求并返回 JSON 响应，支持自定义头部
@@ -10,7 +16,8 @@ const https = require('https');
  * @param {Object|null} body - 请求体对象，为 null 时不发送
  * @param {Object} [extraHeaders] - 额外请求头部
  * @param {Object} [requestOptions] - 请求选项
- * @param {number} [requestOptions.timeoutMs] - 请求最大等待时间，超时后拒绝
+ * @param {number} [requestOptions.timeoutMs] - 请求最大等待时间（默认 0 即无限），超时后拒绝
+ * @param {number} [requestOptions.maxBodyBytes] - 响应体最大字节数，超过后销毁请求（默认 10MB）
  * @returns {Promise<Object>} 包含 status 和 data 的响应对象
  */
 function httpRequest(method, url, body, extraHeaders, requestOptions) {
@@ -18,7 +25,8 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
   const client = parsed.protocol === 'https:' ? https : http;
   const isBody = body !== null && body !== undefined;
   const headers = Object.assign({ 'Content-Type': 'application/json' }, extraHeaders || {});
-  const timeoutMs = requestOptions && requestOptions.timeoutMs;
+  const timeoutMs = (requestOptions && requestOptions.timeoutMs) || DEFAULT_TIMEOUT_MS;
+  const maxBodyBytes = (requestOptions && requestOptions.maxBodyBytes) || DEFAULT_MAX_BODY_BYTES;
   const options = {
     method,
     hostname: parsed.hostname,
@@ -42,7 +50,20 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
     };
     const req = client.request(options, (res) => {
       let data = '';
-      res.on('data', (chunk) => { data += chunk; });
+      let bodyBytes = 0;
+      let bodyExceeded = false;
+      res.on('data', (chunk) => {
+        if (bodyExceeded) return;
+        bodyBytes += chunk.length;
+        if (bodyBytes > maxBodyBytes) {
+          bodyExceeded = true;
+          const err = new Error(method + ' ' + url + ' response body exceeded ' + maxBodyBytes + ' bytes');
+          res.destroy();
+          fail(err);
+          return;
+        }
+        data += chunk;
+      });
       res.on('end', () => {
         if (settled) return;
         settled = true;
@@ -52,22 +73,18 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
         parsedData = JSON.parse(data);
       } catch (e) {
         if (data && data.length > 0) {
-          console.error(JSON.stringify({
-            ts: new Date().toISOString(),
-            level: 'warn',
-            scope: 'http-helper',
-            message: 'response JSON parse failed',
+          logger.warn('response JSON parse failed', {
             statusCode: res.statusCode,
             bodyLength: data.length,
             bodyPreview: data.slice(0, 200),
-          }));
+          });
         }
       }
       resolve({ status: res.statusCode, data: parsedData });
       });
     });
     req.on('error', fail);
-    if (timeoutMs && timeoutMs > 0) {
+    if (timeoutMs > 0) {
       timer = setTimeout(() => {
         const err = new Error(method + ' ' + url + ' timed out after ' + timeoutMs + 'ms');
         req.destroy(err);
@@ -204,7 +221,9 @@ function sseConnect(url, extraHeaders, options) {
             finish(events, res);
             return true;
           }
-        } catch (_) {}
+        } catch (_) {
+          logger.debug('SSE event JSON parse failed', { dataLines: dataLines.length });
+        }
         return false;
       };
 

@@ -5,6 +5,14 @@ const { createLogger } = require('./logger');
 const logger = createLogger('message-dedup');
 
 class MessageDedup {
+  /**
+   * @param {Object} options
+   * @param {number} [options.windowMs=300000] - 去重窗口（毫秒）
+   * @param {Object} [options.store] - 持久化存储后端，需实现 read()/update(mutator) 接口。
+   *   可用后端：JsonStore（文件持久化）、InMemoryStore（纯内存，见 store-interface.js）
+   * @param {number} [options.staleThresholdMs] - 陈旧消息阈值
+   * @param {number} [options.cleanupThreshold=200] - 触发清理的条目数阈值
+   */
   constructor(options) {
     this.windowMs = options.windowMs != null ? options.windowMs : 300000;
     this.entries = {};

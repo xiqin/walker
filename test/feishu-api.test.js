@@ -112,6 +112,26 @@ test('FeishuApi addReaction 捕获异步失败', async () => {
   await assert.doesNotReject(api.addReaction('om_1', 'DONE'));
 });
 
+test('FeishuApi addReaction 使用飞书要求的 emoji_type 字段', async () => {
+  const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+  api.token = 'tenant-token';
+  api.tokenExpiresAt = Date.now() + 60000;
+  let request;
+  api._request = async (method, host, path, body, token) => {
+    request = { method, host, path, body, token };
+    return { code: 0 };
+  };
+
+  await api.addReaction('om_1', 'OnIt');
+
+  assert.equal(request.method, 'POST');
+  assert.equal(request.path, '/open-apis/im/v1/messages/om_1/reactions');
+  assert.deepEqual(JSON.parse(request.body), {
+    reaction_type: { emoji_type: 'OnIt' },
+  });
+  assert.equal(Object.hasOwn(JSON.parse(request.body).reaction_type, 'emoji'), false);
+});
+
 test('FeishuApi sendText 将超长文本拆成多条消息完整发送', async () => {
   const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
   api.token = 'tenant-token';

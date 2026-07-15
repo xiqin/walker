@@ -1,0 +1,53 @@
+{
+  "task_order": [
+    "T1",
+    "T2"
+  ],
+  "parallel_batches": [
+    [
+      "T1",
+      "T2"
+    ]
+  ],
+  "validation": [
+    "validate-plan.mjs passed",
+    "loom tasks --validate passed"
+  ],
+  "requirements_covered": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006",
+    "REQ-007",
+    "REQ-008",
+    "REQ-009",
+    "REQ-010",
+    "REQ-011",
+    "REQ-012",
+    "REQ-013",
+    "REQ-014"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已将实现拆分为两个无文件冲突、可并行执行的任务：T1 修改 ProgressCard 及其单测，忽略 TYPE_TEXT 并渲染中性完成提示；T2 修改 MessageDispatcher 及其单测，card 模式跳过文本卡片更新、统一 replyText 发送并仅成功后记录 deliveredText。计划结构校验与 loom 文件冲突检测均通过。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "055aa14d119b2afbaef5d697e02ee77703d128608abc1c5ba623b293b51b873e",
+    "spec.md": "3ce9961a9578af9c0c0ea19e1ee07320f3c695512d626ee4663b8acf9a4fa693",
+    "tasks/": "edfc6a805b356bd2fc33b9bfd1b7aa0e0b5c5603d945b76884535f6c34597a68"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "055aa14d119b2afbaef5d697e02ee77703d128608abc1c5ba623b293b51b873e",
+    "tasks/T1.md": "7c1b54d7f1658320cf18c12dd0deee7e2818a8e14516b5325ee0d76694e70a14",
+    "tasks/T2.md": "397f04c11bd77746b7dfee8aa7a9edd3b99cf93e143f4a28860d1c1d0d332187"
+  },
+  "written_at": "2026-07-15T07:09:09.639Z"
+}

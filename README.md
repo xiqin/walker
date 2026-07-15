@@ -61,7 +61,7 @@ WALKER_OPENCODE_NON_FOCUS_OUTPUT=true
 | `FEISHU_ROUTE_MODE` | `thread` | 路由模式：`thread`（按消息线程）、`user`（按用户）、`channel`（按群） |
 | `FEISHU_PROGRESS_STYLE` | `card` | 进度样式：`card`（结构化卡片）或 `legacy`（逐条文本） |
 | `FEISHU_REACTION_EMOJI` | `OnIt` | 收到消息时表情回复，`none` 禁用 |
-| `FEISHU_DONE_EMOJI` | `none` | Agent 完成时表情回复，`none` 禁用 |
+| `FEISHU_DONE_EMOJI` | 空 | Agent 完成时表情回复，`none` 禁用 |
 | `WALKER_DEFAULT_AGENT` | `opencode` | 默认 Agent 类型 |
 | `WALKER_DEFAULT_RUNTIME` | `windows` | 运行时：`windows` 或 `wsl` |
 | `WALKER_DEFAULT_CWD` | 当前目录 | Agent 工作目录 |

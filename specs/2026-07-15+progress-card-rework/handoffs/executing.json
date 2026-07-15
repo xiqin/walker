@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "实施完成：T1 修改 progress-card.js，T2 修改 message-dispatcher.js，下游同步 bootstrap.test.js 和 integration-feishu-tui-sync.test.js。test-report.md verdict: PASS，npm test 649/649 通过。",
+  "artifacts": [
+    "test-report.md"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "055aa14d119b2afbaef5d697e02ee77703d128608abc1c5ba623b293b51b873e",
+    "spec.md": "3ce9961a9578af9c0c0ea19e1ee07320f3c695512d626ee4663b8acf9a4fa693",
+    "tasks/": "edfc6a805b356bd2fc33b9bfd1b7aa0e0b5c5603d945b76884535f6c34597a68"
+  },
+  "artifact_fingerprints": {
+    "test-report.md": "132be264b5efcd26ac0e6137f4116eae0fb1c2c4a1915b2895a8476c1d78dba1"
+  },
+  "written_at": "2026-07-15T07:22:55.286Z"
+}

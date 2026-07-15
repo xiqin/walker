@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const MAX_LOG_LINES = 500;
+const MAX_LOG_LINES_CAP = 5000;
 
 /**
  * 安全解析路径并验证其在指定根目录内，防止路径穿越
@@ -14,7 +15,23 @@ const MAX_LOG_LINES = 500;
 function safeResolve(rootDir, relativePath) {
   const normalizedRoot = rootDir.endsWith(path.sep) ? rootDir.slice(0, -1) : rootDir;
   const resolved = path.resolve(rootDir, relativePath);
-  if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
+  let realRoot;
+  try {
+    realRoot = fs.realpathSync(normalizedRoot);
+  } catch (_) {
+    realRoot = normalizedRoot;
+  }
+  let realResolved;
+  try {
+    realResolved = fs.realpathSync(resolved);
+  } catch (_) {
+    realResolved = resolved;
+  }
+  if (process.platform === 'win32') {
+    realRoot = realRoot.toLowerCase();
+    realResolved = realResolved.toLowerCase();
+  }
+  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
     return null;
   }
   return resolved;
@@ -35,7 +52,7 @@ function readLogs(options) {
   const opts = options || {};
   const dataDir = opts.dataDir || '';
   const stream = opts.stream || 'out';
-  const maxLines = opts.lines || MAX_LOG_LINES;
+  const maxLines = Math.min(Math.max(opts.lines || MAX_LOG_LINES, 1), MAX_LOG_LINES_CAP);
 
   const logFileName = stream === 'err' ? 'walker-err.log' : 'walker-out.log';
   const logPath = path.join(dataDir, 'logs', logFileName);

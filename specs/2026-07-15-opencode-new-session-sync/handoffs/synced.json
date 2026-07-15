@@ -1,0 +1,42 @@
+{
+  "graph_backend": "codegraph",
+  "graph_status": "fresh",
+  "graph_stats": {
+    "files": 88,
+    "nodes": 949,
+    "edges": 4872
+  },
+  "memory_entry_id": "5792babf",
+  "entry_docs_updated": false,
+  "checks": [
+    {
+      "command": "loom index",
+      "result": "Already up to date"
+    },
+    {
+      "command": "loom index --check",
+      "result": "Index is up to date"
+    },
+    {
+      "command": "git diff --check -- scoped files",
+      "result": "pass"
+    },
+    {
+      "command": "placeholder scan index-update-report.md",
+      "result": "pass"
+    }
+  ],
+  "status": "done",
+  "summary": "synced 阶段完成：CodeGraph 通过 loom index/--check 确认索引最新（88 files、949 nodes、4,872 edges），当前版本 2 TUI bridge 源码与影响范围可查询；新增 1 条 OpenCode /new 会话事件踩坑记忆并导出 MEMORY.md；未引入新入口、命令、配置或流程约定，无需更新入口文档。",
+  "artifacts": [
+    "index-update-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "c47f5f5afed191a1d2b11f966d46d69a828521ee08ec9d607fae3d4ef4d5ded3",
+    "spec.md": "5b5efd33f744a6647f16a814df01209c68306fe77beb71424b63b091e1c28de9"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-15T06:07:25.520Z"
+}

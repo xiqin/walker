@@ -1,0 +1,43 @@
+{
+  "root_cause_hypotheses": [
+    {
+      "id": "H1",
+      "issue": "飞书入站不显示 TUI",
+      "cause": "thread route 与 attach 的群根 route 不一致，dispatcher 原先只查精确 route"
+    },
+    {
+      "id": "H2",
+      "issue": "TUI 回复等下一条飞书消息才推送",
+      "cause": "watcher resume 时将 handlers 错误嵌套为 {onEvent: handlers}，轮询事件无法调用原始 callback"
+    }
+  ],
+  "validation": [
+    "validate-plan.mjs passed",
+    "loom tasks --validate passed"
+  ],
+  "worktree_warning": "相关目标文件已有用户/并行工作的未提交改动，执行阶段只增补并保留现有差异。",
+  "status": "done",
+  "summary": "已定位两条高概率故障边界并形成三任务计划：T1 验证/修复 thread route 到同群根 route 的受限回退；T2 验证/修复 OpencodeSessionWatcher suspend/resume 后原始 handlers 丢失；T3 用独立集成测试串起双向链路并运行全量验证。计划保护当前工作区已有未提交改动，要求先对 HEAD 旧实现建立 red-capable feedback loop。计划模板校验与 loom 文件冲突检测均通过。",
+  "artifacts": [
+    "spec.md",
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "ea57b22e8570fba15da7df99db331ce46a7e1dd1ee6759af86145df7d9db85c0",
+    "spec.md": "b5fc3f5d86309fb1a9c55c6ed42f5d33daa3ff8a4d42503e9ab25c2b9882523f",
+    "tasks/": "28f1fbbab458a301e4f2f8024c27ec90d890202eb40105a801be04a6398c5625"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "ea57b22e8570fba15da7df99db331ce46a7e1dd1ee6759af86145df7d9db85c0",
+    "spec.md": "b5fc3f5d86309fb1a9c55c6ed42f5d33daa3ff8a4d42503e9ab25c2b9882523f",
+    "tasks/T1.md": "2ef4ef8da4e7134c1cbb93fb137669cbf96c4f6387b74a629712ae2d6e4b2c2e",
+    "tasks/T2.md": "b8b8c83f5942d78a02098cc96c11e848827e64ec41befd62c378a7720e244c88",
+    "tasks/T3.md": "d79d07bbfa377b59594d74b9ad8a87776a1e83ee6b9022962cf4016814349df7"
+  },
+  "written_at": "2026-07-14T08:41:03.528Z"
+}

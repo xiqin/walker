@@ -1,0 +1,11 @@
+{
+  "task_id": "T1",
+  "spec_dir": "H:\\walker\\specs\\2026-07-15-opencode-new-session-sync",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-07-15T05:47:18.634Z",
+  "updated_at": "2026-07-15T05:48:05.832Z",
+  "last_reviewer_result": null,
+  "blocker": null
+}

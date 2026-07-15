@@ -11,6 +11,9 @@ const { createRouter, isAdminApiPath } = require('./router');
 const { success, error, send } = require('./response');
 const { createAuthGuard, createAuthHandlers } = require('./auth');
 const { handleStatic } = require('./static');
+const { createLogger } = require('../core/logger');
+
+const logger = createLogger('admin-server');
 
 /**
  * 创建 AdminServer 实例

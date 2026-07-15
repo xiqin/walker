@@ -1,0 +1,28 @@
+{
+  "fixed_point": "HEAD (ec09a7b)",
+  "review_scope": [
+    "src/opencode-hook/plugin-template.js",
+    "test/opencode-hook-installer.test.js"
+  ],
+  "standards_findings": 1,
+  "spec_findings": 1,
+  "blockers": 0,
+  "known_low_risk": "REQ-005 升级测试夹具使用版本 0，而规格描述版本 1；生产升级行为由完整内容比较保证",
+  "verification": {
+    "npm_test": "639 pass, 0 fail",
+    "target_test": "15 pass, 0 fail"
+  },
+  "status": "done",
+  "summary": "已基于当前 HEAD 固定点完成 Standards + Spec 双轴预审查并生成审查请求。无阻断项；唯一低风险发现是 REQ-005 的升级测试夹具使用版本 0 而非精确版本 1，installer 的完整内容比较仍保证版本 1 会升级。审查范围严格限定为插件模板与对应测试；完整测试 639/639、目标测试 15/15 的既有验证证据已引用。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "c47f5f5afed191a1d2b11f966d46d69a828521ee08ec9d607fae3d4ef4d5ded3",
+    "spec.md": "5b5efd33f744a6647f16a814df01209c68306fe77beb71424b63b091e1c28de9"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-15T05:58:05.894Z"
+}

@@ -19,7 +19,7 @@ test('loadEnvConfig 默认值正常', () => {
   assert.equal(config.opencodeAgent, '');
   assert.equal(config.feishuProgressStyle, 'card');
   assert.equal(config.feishuReactionEmoji, 'OnIt');
-  assert.equal(config.feishuDoneEmoji, 'none');
+  assert.equal(config.feishuDoneEmoji, '');
   assert.equal(config.walkerPromptHeartbeatInitialMs, 30000);
   assert.equal(config.walkerPromptHeartbeatIntervalMs, 60000);
   assert.equal(config.walkerPromptHeartbeatStuckMs, 300000);
@@ -93,6 +93,18 @@ test('loadEnvConfig 缺少飞书凭据时标记为缺失', () => {
   assert.equal(config.feishuAppId, '');
   assert.equal(config.feishuAppSecret, '');
   assert.equal(config.feishuConfigSource, 'missing');
+});
+
+test('loadEnvConfig emoji 为 none 时归一化为空字符串', () => {
+  const config = loadEnvConfig({ env: { FEISHU_REACTION_EMOJI: 'none', FEISHU_DONE_EMOJI: 'NONE' } });
+  assert.equal(config.feishuReactionEmoji, '');
+  assert.equal(config.feishuDoneEmoji, '');
+});
+
+test('loadEnvConfig emoji 缺省时使用默认值', () => {
+  const config = loadEnvConfig({ env: {} });
+  assert.equal(config.feishuReactionEmoji, 'OnIt');
+  assert.equal(config.feishuDoneEmoji, '');
 });
 
 test('loadEnvConfig boolean 解析', () => {

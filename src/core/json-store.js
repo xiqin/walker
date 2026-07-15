@@ -16,35 +16,40 @@ function cloneDefaultValue(value) {
  * updateAsync 提供异步互斥版本，用于 await 后的异步调用场景
  */
 class JsonStore extends IStore {
-  /**
-   * 初始化 JSON 存储实例
-   * @param {string} filePath - JSON 文件的绝对路径
-   * @param {*} defaultValue - 文件不存在时的默认值
-   */
   constructor(filePath, defaultValue) {
     super();
     this.filePath = filePath;
     this.defaultValue = defaultValue;
     this._queue = Promise.resolve();
+    this._corrupted = false;
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
   }
 
-  /**
-   * 读取 JSON 文件内容，文件不存在或解析失败时返回默认值
-   * @returns {*} 文件中的数据或默认值
-   */
   read() {
     if (!fs.existsSync(this.filePath)) {
       return cloneDefaultValue(this.defaultValue);
     }
     try {
       const raw = fs.readFileSync(this.filePath, 'utf8');
-      return JSON.parse(raw);
+      const data = JSON.parse(raw);
+      this._corrupted = false;
+      return data;
     } catch (e) {
       logger.error('failed to read/persist file, using default', { filePath: this.filePath, err: e });
+      if (!this._corrupted) {
+        this._corrupted = true;
+        const ts = Date.now();
+        const backupPath = this.filePath + '.corrupt.' + ts;
+        try {
+          fs.renameSync(this.filePath, backupPath);
+          logger.warn('corrupted file backed up', { original: this.filePath, backup: backupPath });
+        } catch (backupErr) {
+          logger.error('failed to backup corrupted file', { filePath: this.filePath, err: backupErr });
+        }
+      }
       return cloneDefaultValue(this.defaultValue);
     }
   }
@@ -72,19 +77,19 @@ class JsonStore extends IStore {
    * @param {Function} mutator - 接收当前数据并就地修改的函数
    */
   update(mutator) {
+    if (this._corrupted) {
+      logger.warn('updating from corrupted fallback — data loss may occur', { filePath: this.filePath });
+    }
     const current = this.read();
     mutator(current);
     this.write(current);
   }
 
-  /**
-   * 异步互斥更新：读取当前数据，通过变异函数修改后写回
-   * 并发调用排队执行，避免异步 await 后的 read-mutate-write lost update
-   * @param {Function} mutator - 接收当前数据并就地修改的函数
-   * @returns {Promise<void>}
-   */
   updateAsync(mutator) {
     const task = () => {
+      if (this._corrupted) {
+        logger.warn('updating from corrupted fallback — data loss may occur', { filePath: this.filePath });
+      }
       const current = this.read();
       mutator(current);
       this.write(current);

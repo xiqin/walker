@@ -35,6 +35,7 @@ async function main() {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
+  // 保活定时器：保持事件循环活跃，防止 Node.js 在无 I/O 时自动退出
   setInterval(() => {}, 60000);
 
   try {

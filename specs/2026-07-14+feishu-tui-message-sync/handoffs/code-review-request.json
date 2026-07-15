@@ -1,0 +1,17 @@
+{
+  "status": "done",
+  "summary": "审查请求已生成。双轴预审查无 blocker：Standards 发现 1 个非阻塞（timer.unref 风格不一致），Spec 无发现。620/620 测试通过，编译通过。",
+  "artifacts": [
+    "specs/2026-07-14+feishu-tui-message-sync/review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "ea57b22e8570fba15da7df99db331ce46a7e1dd1ee6759af86145df7d9db85c0",
+    "spec.md": "b5fc3f5d86309fb1a9c55c6ed42f5d33daa3ff8a4d42503e9ab25c2b9882523f"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-14+feishu-tui-message-sync/review-request.md": "757b8b81ae54dd609fbe9b3a97516c840ba8d82e1d1f8c5f444e5415d81a6eef"
+  },
+  "written_at": "2026-07-14T09:10:18.496Z"
+}

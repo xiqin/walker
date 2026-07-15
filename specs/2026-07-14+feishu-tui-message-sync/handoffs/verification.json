@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "验证通过：编译4/4通过，全量620/620测试通过，无占位符，spec覆盖完整。调整verify-report.md格式以匹配模板。",
+  "artifacts": [
+    "specs/2026-07-14+feishu-tui-message-sync/verify-report.md"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "ea57b22e8570fba15da7df99db331ce46a7e1dd1ee6759af86145df7d9db85c0",
+    "spec.md": "b5fc3f5d86309fb1a9c55c6ed42f5d33daa3ff8a4d42503e9ab25c2b9882523f",
+    "test-report.md": "a05c962df90bcb3f8ea35412b696df9780971b59bffdb2ef11270b0575e8ce70"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-14+feishu-tui-message-sync/verify-report.md": "bfb863b931c0f38b75f9fa122bf558d5625b9f9f28e76b2b571eb9df5d254484"
+  },
+  "written_at": "2026-07-14T09:07:47.452Z"
+}

@@ -1,0 +1,10 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "确认 handleIncomingMessage 的 thread route 回退逻辑已正确实现；新增 4 个测试覆盖回退命中、线程优先、双重未绑定和 agentRef 正确性",
+  "artifacts": ["src/dispatch/message-dispatcher.js", "test/message-dispatcher.test.js"],
+  "exported_interfaces": [],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-001", "REQ-003"],
+  "notes": "源码无需修改，fallback 已正确。回退条件：!current && routeMode==='thread' && event.rootId && event.chatId。{ ...event, rootId: '' } 保留 chatId 保证同群。Reviewer 建议加注释说明同群不变量、补充 routeMode='user' 和 chatId 缺失的回归测试（非阻塞）"
+}

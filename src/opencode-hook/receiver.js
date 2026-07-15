@@ -12,6 +12,26 @@ const { createLogger } = require('../core/logger');
 
 const logger = createLogger('hook-receiver');
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+
+function isValidOpencodeUrl(url, defaultOpencodeUrl) {
+  if (!url) return true;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (_) {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  if (LOOPBACK_HOSTS.has(parsed.hostname)) return true;
+  if (defaultOpencodeUrl) {
+    let defaultParsed;
+    try { defaultParsed = new URL(defaultOpencodeUrl); } catch (_) { return false; }
+    if (parsed.hostname === defaultParsed.hostname && parsed.port === defaultParsed.port) return true;
+  }
+  return false;
+}
+
 /**
  * 判断请求来源是否为 loopback 地址
  * @param {import('http').IncomingMessage} req - HTTP 请求
@@ -122,6 +142,7 @@ function findExistingSession(ctx, opencodeSessionId) {
  * @param {string} params.opencodeBaseUrl - OpenCode 服务器地址
  * @param {string} params.sessionId - OpenCode session ID
  * @param {string} params.cwd - OpenCode 工作目录
+ * @param {boolean} [params.active] - 是否由当前活跃会话触发
  * @returns {{ sessionId: string, routeKey: string|null }}
  */
 function _autoEnrollSession(ctx, params) {
@@ -132,7 +153,26 @@ function _autoEnrollSession(ctx, params) {
 
   const existing = findExistingSession(ctx, opencodeSessionId);
   if (existing) {
-    const routeKey = ctx.sessionService.getRouteForSession(existing.id);
+    const nextAgentRef = {
+      ...(existing.agentRef || {}),
+      opencodeSessionId,
+      serverUrl: opencodeBaseUrl,
+    };
+    if (!existing.agentRef || existing.agentRef.serverUrl !== opencodeBaseUrl) {
+      ctx.sessionService.updateSessionField(existing.id, 'agentRef', nextAgentRef);
+    }
+    if (cwd && existing.cwd !== cwd) {
+      ctx.sessionService.updateSessionField(existing.id, 'cwd', cwd);
+    }
+
+    let routeKey = ctx.sessionService.getRouteForSession(existing.id);
+    if (!routeKey) {
+      routeKey = findRouteKeyByCwd(ctx, cwd);
+      if (routeKey) ctx.sessionService.addSessionToRoute(routeKey, existing.id, cwd);
+    }
+    if (routeKey && params.active === true) {
+      ctx.sessionService.setFocus(routeKey, existing.id);
+    }
     logger.info('session already enrolled, idempotent return', {
       walkerSessionId: existing.id,
       opencodeSessionId,
@@ -159,6 +199,9 @@ function _autoEnrollSession(ctx, params) {
 
   if (routeKey) {
     ctx.sessionService.addSessionToRoute(routeKey, session.id, cwd);
+    if (params.active === true) {
+      ctx.sessionService.setFocus(routeKey, session.id);
+    }
     logger.info('session enrolled to route', {
       walkerSessionId: session.id,
       opencodeSessionId,
@@ -209,7 +252,17 @@ function createHookReceiverRoutes(ctx) {
         return;
       }
 
-      const body = await parseBody(req);
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (err) {
+        if (err.code === 'PAYLOAD_TOO_LARGE') {
+          send(res, error('PAYLOAD_TOO_LARGE', err.message), 413);
+          return;
+        }
+        send(res, error('BAD_REQUEST', '无效请求体'), 400);
+        return;
+      }
       if (!body) {
         send(res, error('BAD_REQUEST', '无效请求体'), 400);
         return;
@@ -218,6 +271,7 @@ function createHookReceiverRoutes(ctx) {
       const opencodeBaseUrl = body.opencodeBaseUrl || '';
       const sessionId = body.sessionId;
       const cwd = body.cwd;
+      const active = body.active === true;
 
       if (!sessionId) {
         send(res, error('BAD_REQUEST', '缺少 sessionId'), 400);
@@ -228,8 +282,15 @@ function createHookReceiverRoutes(ctx) {
         return;
       }
 
+      const defaultOpencodeUrl = (ctx && ctx.defaultOpencodeUrl) || 'http://localhost:4096';
+      const effectiveUrl = opencodeBaseUrl || defaultOpencodeUrl;
+      if (opencodeBaseUrl && !isValidOpencodeUrl(opencodeBaseUrl, defaultOpencodeUrl)) {
+        send(res, error('BAD_REQUEST', 'opencodeBaseUrl 只允许 loopback 地址或已配置的 OpenCode 服务地址'), 400);
+        return;
+      }
+
       try {
-        const result = _autoEnrollSession(ctx, { opencodeBaseUrl, sessionId, cwd });
+        const result = _autoEnrollSession(ctx, { opencodeBaseUrl, sessionId, cwd, active });
         send(res, success({ ok: true, sessionId: result.sessionId, routeKey: result.routeKey }));
       } catch (err) {
         logger.error('auto enroll session failed', { err, sessionId, cwd });
@@ -245,6 +306,7 @@ module.exports = {
   createHookReceiverRoutes,
   _autoEnrollSession,
   isLoopback,
+  isValidOpencodeUrl,
   findRouteKeyByCwd,
   findExistingSession,
   normalizePath,

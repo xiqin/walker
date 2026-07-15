@@ -1,0 +1,39 @@
+{
+  "tasks": [
+    "T1"
+  ],
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005"
+  ],
+  "dependencies": "单任务，无依赖与文件写入冲突",
+  "verification": [
+    "node --test test/opencode-hook-installer.test.js",
+    "npm test"
+  ],
+  "validation": [
+    "validate-plan.mjs 通过",
+    "loom tasks --validate 无冲突"
+  ],
+  "status": "done",
+  "summary": "实现计划收敛为单一集成任务 T1：先用生成插件运行级测试覆盖滞后 route 下的 /new、已有会话选择、子会话过滤和新会话双向事件归属，再最小修改插件模板并升级版本 2；服务端 bridge 与 API 不变。计划校验及 owns 冲突检测均通过。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "c47f5f5afed191a1d2b11f966d46d69a828521ee08ec9d607fae3d4ef4d5ded3",
+    "spec.md": "5b5efd33f744a6647f16a814df01209c68306fe77beb71424b63b091e1c28de9",
+    "tasks/": "68019731218926d8da2572440291844369eed87beba9347195dd776ee6981d46"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "c47f5f5afed191a1d2b11f966d46d69a828521ee08ec9d607fae3d4ef4d5ded3",
+    "tasks/T1.md": "2e3015e8e56a86ef803f50e02c4b89de4a10c379f7ea77da21fa69eed8229b47"
+  },
+  "written_at": "2026-07-15T05:43:48.506Z"
+}

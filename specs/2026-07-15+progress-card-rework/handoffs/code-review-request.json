@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "双轴预审查 Standards + Spec 均 0 findings。已生成 review-request.md，包含变更统计、主要变更、重点关注、自测情况、变更详情和审查重点。npm test 649/649 通过。下一阶段为 review-gate 人工审批。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "055aa14d119b2afbaef5d697e02ee77703d128608abc1c5ba623b293b51b873e",
+    "spec.md": "3ce9961a9578af9c0c0ea19e1ee07320f3c695512d626ee4663b8acf9a4fa693"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-15T07:24:39.244Z"
+}
