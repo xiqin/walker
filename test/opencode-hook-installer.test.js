@@ -55,13 +55,13 @@ test('已存在旧版 TUI plugin 即使端口匹配也会升级', () => {
   const { tmpDir } = createTempConfigDir();
   const targetPath = path.join(tmpDir, 'walker-tui-plugin.js');
 
-  fs.writeFileSync(targetPath, '// Walker TUI bridge version: 0\n// existing plugin with localhost:8787\n', 'utf8');
+  fs.writeFileSync(targetPath, '// Walker TUI bridge version: 2\n// existing plugin with localhost:8787\n', 'utf8');
 
   const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
 
   assert.equal(result.installed, true);
   const content = fs.readFileSync(targetPath, 'utf8');
-  assert.ok(content.includes('Walker TUI bridge version: 1'));
+  assert.ok(content.includes('Walker TUI bridge version: 3'));
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -254,6 +254,92 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
     });
     const errorRequest = requests.find((request) => request.url.endsWith('/events'));
     assert.equal(errorRequest.body.error.message, 'Model not found: cpa/gpt-5.6-sol');
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('生成的 TUI plugin 在 route 滞后时跟随根会话创建和 TUI 会话选择', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const handlers = new Map();
+  const promptCalls = [];
+  const navigateCalls = [];
+  let dispose;
+  let newSessionDeliveryReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    let data = {};
+    if (String(url).endsWith('/poll') && body.sessionId === 'ses_new' && !newSessionDeliveryReturned) {
+      newSessionDeliveryReturned = true;
+      data = { delivery: { deliveryId: 'del_new', sessionId: 'ses_new', text: '新会话消息' } };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: {
+        current: { name: 'session', params: { sessionID: 'ses_old' } },
+        navigate: (name, params) => { navigateCalls.push({ name, params }); },
+      },
+      client: {
+        session: {
+          promptAsync: async (input) => { promptCalls.push(input); return { data: null }; },
+        },
+      },
+      event: { on: (type, handler) => handlers.set(type, handler) },
+      state: {
+        path: { directory: 'H:\\walker' },
+        session: {
+          messages: () => [{ id: 'msg_new', role: 'assistant' }],
+          status: () => ({ type: 'idle' }),
+        },
+        part: () => [{ type: 'text', text: '新会话回复' }],
+      },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => requests.some((request) => request.url.endsWith('/register')));
+    assert.equal(typeof handlers.get('session.created'), 'function');
+    assert.equal(typeof handlers.get('tui.session.select'), 'function');
+
+    await handlers.get('session.created')({
+      properties: { sessionID: 'ses_child', info: { id: 'ses_child', parentID: 'ses_old' } },
+    });
+    assert.equal(requests.some((request) => request.url.endsWith('/register') && request.body.sessionId === 'ses_child'), false);
+
+    await handlers.get('session.created')({
+      properties: { sessionID: 'ses_new', info: { id: 'ses_new' } },
+    });
+    await waitFor(() => promptCalls.length === 1);
+    assert.deepEqual(navigateCalls[0], { name: 'session', params: { sessionID: 'ses_new' } });
+    assert.equal(promptCalls[0].sessionID, 'ses_new');
+    assert.equal(promptCalls[0].parts[0].text, '新会话消息');
+    assert.ok(requests.some((request) => request.url.endsWith('/register') && request.body.sessionId === 'ses_new'));
+    assert.ok(requests.some((request) => request.url.endsWith('/poll') && request.body.sessionId === 'ses_new'));
+
+    await handlers.get('session.idle')({ properties: { sessionID: 'ses_new' } });
+    const eventRequest = requests.find((request) => request.url.endsWith('/events'));
+    assert.equal(eventRequest.body.sessionId, 'ses_new');
+    assert.equal(eventRequest.body.deliveryId, 'del_new');
+
+    await handlers.get('session.error')({
+      properties: { sessionID: 'ses_new', error: { message: '新会话失败' } },
+    });
+    const errorRequest = requests.filter((request) => request.url.endsWith('/events')).at(-1);
+    assert.equal(errorRequest.body.sessionId, 'ses_new');
+    assert.equal(errorRequest.body.error.message, '新会话失败');
+
+    await handlers.get('tui.session.select')({ properties: { sessionID: 'ses_existing' } });
+    await waitFor(() => requests.some((request) => request.url.endsWith('/register') && request.body.sessionId === 'ses_existing'));
+    assert.ok(requests.some((request) => request.url.endsWith('/poll') && request.body.sessionId === 'ses_existing'));
   } finally {
     if (dispose) await dispose();
     global.fetch = originalFetch;
