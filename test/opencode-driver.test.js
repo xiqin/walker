@@ -245,6 +245,38 @@ describe('OpencodeDriver createSession', () => {
 describe('OpencodeDriver prompt with SSE', () => {
   const sessionRef = { opencodeSessionId: 'ses_abc', serverUrl: 'http://localhost:4096', cwd: '/home/user/project' };
 
+  it('tui-bridge session 委托本地 TUI bridge，不访问 HTTP 或 SSE', async () => {
+    const calls = [];
+    const bridge = {
+      prompt: async (ref, text, options) => {
+        calls.push({ method: 'prompt', ref, text, options });
+        return [new (require('../src/drivers/agent-driver').AgentEvent)('done', { reason: 'idle' })];
+      },
+      watchSession: (ref, handlers) => {
+        calls.push({ method: 'watchSession', ref, handlers });
+        return () => {};
+      },
+      stop: async (ref) => { calls.push({ method: 'stop', ref }); },
+      cancel: async (ref) => { calls.push({ method: 'cancel', ref }); },
+      delete: async (ref) => { calls.push({ method: 'delete', ref }); },
+    };
+    const http = new FakeHttpClient({});
+    const sse = new FakeSSEClient([]);
+    const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096', tuiBridge: bridge });
+    const ref = { opencodeSessionId: 'ses_local', transport: 'tui-bridge', runtimeId: 'runtime-1' };
+
+    await driver.prompt(ref, 'hello', { model: 'm1' });
+    const stopWatch = driver.watchSession(ref, { onEvent: () => {} });
+    await driver.stop(ref);
+    await driver.cancel(ref);
+    await driver.delete(ref);
+    stopWatch();
+
+    assert.deepEqual(calls.map((call) => call.method), ['prompt', 'watchSession', 'stop', 'cancel', 'delete']);
+    assert.equal(http.calls.length, 0);
+    assert.equal(sse.calls.length, 0);
+  });
+
   it('prompt 发送消息并通过 SSE 接收事件映射为 AgentEvent', async () => {
     const sseEvents = [
       { type: 'message.part.updated', properties: { sessionID: 'ses_abc', part: { type: 'text', text: 'Hello world' } } },
@@ -268,6 +300,21 @@ describe('OpencodeDriver prompt with SSE', () => {
     assert.equal(events[1].type, 'tool_use');
     assert.equal(events[1].data.name, 'Bash');
     assert.equal(events[2].type, 'done');
+  });
+
+  it('prompt 和 SSE 使用 sessionRef 指定的 OpenCode 服务', async () => {
+    const remoteRef = { ...sessionRef, serverUrl: 'http://127.0.0.1:54321' };
+    const sseEvents = [
+      { type: 'session.status', properties: { sessionID: 'ses_abc', status: { type: 'idle' } } },
+    ];
+    const http = new FakeHttpClient({});
+    const sse = new FakeSSEClient(sseEvents);
+    const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096' });
+
+    await driver.prompt(remoteRef, 'hello');
+
+    assert.equal(http.calls[0].url, 'http://127.0.0.1:54321/session/ses_abc/prompt_async?directory=%2Fhome%2Fuser%2Fproject');
+    assert.equal(sse.calls[0].url, 'http://127.0.0.1:54321/event?directory=%2Fhome%2Fuser%2Fproject');
   });
 
   it('先建立 SSE 订阅再提交 prompt，避免错过短生命周期事件', async () => {
@@ -451,6 +498,23 @@ describe('OpencodeDriver prompt with SSE', () => {
     if (typeof stopWatch === 'function') stopWatch();
   });
 
+  it('watchSession 使用 sessionRef 指定的 OpenCode 服务', async () => {
+    const remoteRef = { ...sessionRef, serverUrl: 'http://127.0.0.1:54321' };
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        return [];
+      },
+    };
+    const driver = new OpencodeDriver({ httpClient: new FakeHttpClient({}), sseClient: sse, serverUrl: 'http://localhost:4096' });
+
+    const stopWatch = driver.watchSession(remoteRef, { onEvent: () => {} });
+
+    assert.equal(sse.calls[0].url, 'http://127.0.0.1:54321/event?directory=%2Fhome%2Fuser%2Fproject');
+    if (typeof stopWatch === 'function') stopWatch();
+  });
+
   it('watchSession 的 SSE 结束后会清理后台轮询定时器', async () => {
     const sse = {
       calls: [],
@@ -503,6 +567,201 @@ describe('OpencodeDriver prompt with SSE', () => {
     assert.equal(textEvents.length, 1);
     assert.equal(textEvents[0].data.text, '终端回复');
   });
+
+  it('watchSession resume 后继续用原始回调投递轮询消息', async () => {
+    const delivered = [];
+    let messages = [
+      { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
+    ];
+    const http = {
+      calls: [],
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+          return { status: 200, data: messages };
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        return new Promise(() => {});
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      messagePollIntervalMs: 1000,
+    });
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    driver._sessionWatcher.suspend(sessionRef);
+    messages = messages.concat({
+      info: { id: 'msg1', role: 'assistant', time: { completed: Date.now() } },
+      parts: [{ type: 'text', text: '恢复后的回复' }],
+    });
+
+    driver._sessionWatcher.resume(sessionRef);
+    await new Promise((resolve) => setImmediate(resolve));
+    if (typeof stopWatch === 'function') stopWatch();
+
+    const textEvents = delivered.filter((event) => event.type === 'text');
+    assert.equal(textEvents.length, 1);
+    assert.equal(textEvents[0].data.text, '恢复后的回复');
+  });
+
+  it('pending assistant 消息完成后可投递，游标不跳过', async () => {
+    const delivered = [];
+    let messages = [
+      { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
+    ];
+    const http = {
+      calls: [],
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+          return { status: 200, data: messages };
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        return new Promise(() => {});
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      messagePollIntervalMs: 1000,
+    });
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    driver._sessionWatcher.suspend(sessionRef);
+    messages = messages.concat({
+      info: { id: 'msg1', role: 'assistant', time: {} },
+      parts: [{ type: 'text', text: '进行中的回复' }],
+    });
+
+    driver._sessionWatcher.resume(sessionRef);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const textBeforeComplete = delivered.filter((e) => e.type === 'text');
+    assert.equal(textBeforeComplete.length, 0, 'pending 消息不应投递');
+
+    messages = [
+      { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
+      { info: { id: 'msg1', role: 'assistant', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '已完成的回复' }] },
+    ];
+
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    if (typeof stopWatch === 'function') stopWatch();
+
+    const textEvents = delivered.filter((e) => e.type === 'text');
+    assert.equal(textEvents.length, 1, 'completed 后应投递');
+    assert.equal(textEvents[0].data.text, '已完成的回复');
+  });
+
+  it('stopWatch 清理轮询定时器，不再投递消息', async () => {
+    const delivered = [];
+    let pollCount = 0;
+    const messages = [
+      { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
+      { info: { id: 'msg1', role: 'assistant', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '回复1' }] },
+    ];
+    const http = {
+      calls: [],
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+          pollCount++;
+          return { status: 200, data: messages };
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        return new Promise(() => {});
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      messagePollIntervalMs: 200,
+    });
+    driver._sessionWatcher._lastPolledMessageId = new Map([['ses_abc', 'msg0']]);
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    if (typeof stopWatch === 'function') stopWatch();
+    assert.ok(!driver._sessionWatcher._pollTimers.has('ses_abc'), '定时器应已清理');
+    assert.ok(!driver._sessionWatcher.watchers.has('ses_abc'), 'watcher 应已移除');
+
+    const countAfterStop = pollCount;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.equal(pollCount, countAfterStop, 'stop 后不应再轮询');
+  });
+
+  it('resume 后不重复投递已处理的消息', async () => {
+    const delivered = [];
+    let messages = [
+      { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
+      { info: { id: 'msg1', role: 'assistant', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '回复1' }] },
+    ];
+    const http = {
+      calls: [],
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+          return { status: 200, data: messages };
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        return new Promise(() => {});
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      messagePollIntervalMs: 200,
+    });
+    driver._sessionWatcher._lastPolledMessageId = new Map([['ses_abc', 'msg0']]);
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const firstTextCount = delivered.filter((e) => e.type === 'text').length;
+    assert.equal(firstTextCount, 1, '初始应投递一条');
+
+    driver._sessionWatcher.suspend(sessionRef);
+    driver._sessionWatcher.resume(sessionRef);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    if (typeof stopWatch === 'function') stopWatch();
+
+    const textEvents = delivered.filter((e) => e.type === 'text');
+    assert.equal(textEvents.length, 1, 'resume 后不应重复投递');
+  });
 });
 
 describe('OpencodeDriver stop and delete', () => {
@@ -526,6 +785,22 @@ describe('OpencodeDriver stop and delete', () => {
     await driver.delete(sessionRef);
     assert.equal(http.calls[0].method, 'DELETE');
     assert.ok(http.calls[0].url.includes('/session/ses_abc'));
+  });
+
+  it('session scoped 请求使用 sessionRef.serverUrl', async () => {
+    const remoteRef = { opencodeSessionId: 'ses_abc', serverUrl: 'http://127.0.0.1:54321', cwd: '/tmp/project' };
+    const http = new FakeHttpClient({
+      'GET http://127.0.0.1:54321/session/ses_abc/message': { status: 200, data: [] },
+      'POST http://127.0.0.1:54321/session/ses_abc/stop': { status: 204, data: null },
+      'DELETE http://127.0.0.1:54321/session/ses_abc': { status: 204, data: null },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    await driver.getSessionMessages(remoteRef);
+    await driver.stop(remoteRef);
+    await driver.delete(remoteRef);
+
+    assert.ok(http.calls.every((call) => call.url.startsWith('http://127.0.0.1:54321/')));
   });
 });
 

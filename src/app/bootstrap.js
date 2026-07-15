@@ -21,6 +21,8 @@ const { createAdminServerFromContext } = require('../admin/index');
 const { installHookPlugin } = require('../opencode-hook/installer');
 const { createHookReceiverRoutes } = require('../opencode-hook/receiver');
 const { createHealthPoller } = require('../opencode-hook/health-poller');
+const { OpencodeTuiBridge } = require('../opencode-tui-bridge/bridge');
+const { createTuiBridgeRoutes } = require('../opencode-tui-bridge/routes');
 const path = require('path');
 
 const logger = createLogger('bootstrap');
@@ -37,6 +39,7 @@ function createApp(config, deps) {
   const SessionServiceClass = deps.SessionService || SessionService;
   const JsonStoreClass = deps.JsonStore || JsonStore;
   const OpencodeDriverClass = deps.OpencodeDriver || OpencodeDriver;
+  const OpencodeTuiBridgeClass = deps.OpencodeTuiBridge || OpencodeTuiBridge;
   const stubClaude = deps.stubClaudeDriver || stubClaudeDriver;
   const stubCodex = deps.stubCodexDriver || stubCodexDriver;
   const DriverRegistryClass = deps.DriverRegistry || DriverRegistry;
@@ -58,6 +61,11 @@ function createApp(config, deps) {
     distro: config.walkerWslDistro || 'Ubuntu-24.04',
   });
 
+  const tuiBridge = new OpencodeTuiBridgeClass({
+    sessionService,
+    promptTimeoutMs: config.opencodePromptTimeoutMs || 120000,
+  });
+
   const opencodeDriver = new OpencodeDriverClass({
     serverUrl: config.opencodeServerUrl || 'http://localhost:4096',
     autostart: config.opencodeServerAutostart,
@@ -67,6 +75,8 @@ function createApp(config, deps) {
     maxPolls: config.opencodeMaxPolls || 20,
     promptTimeoutMs: config.opencodePromptTimeoutMs || 120000,
     sseOpenTimeoutMs: config.opencodeSseOpenTimeoutMs || 1000,
+    messagePollIntervalMs: config.opencodeMessagePollIntervalMs || 3000,
+    tuiBridge,
   });
 
   const registry = new DriverRegistryClass();
@@ -105,12 +115,19 @@ function createApp(config, deps) {
     maxTurnTimeMins: config.walkerMaxTurnTimeMins,
     nonFocusOutput: config.walkerOpencodeNonFocusOutput !== false,
   });
+  if (tuiBridge && typeof tuiBridge.setOnSessionEnrolled === 'function') {
+    tuiBridge.setOnSessionEnrolled(({ sessionId }) => {
+      if (dispatcher && typeof dispatcher.ensureWatchForSession === 'function') {
+        dispatcher.ensureWatchForSession(sessionId);
+      }
+    });
+  }
 
   const platform = new FeishuPlatformClass({
     config: {
-      appId: config.feishuAppId,
-      appSecret: config.feishuAppSecret,
-      routeMode: config.feishuRouteMode || 'thread',
+      feishuAppId: config.feishuAppId,
+      feishuAppSecret: config.feishuAppSecret,
+      feishuRouteMode: config.feishuRouteMode || 'thread',
     },
     sessionService,
     onMessage: (event) => {
@@ -235,7 +252,7 @@ function createApp(config, deps) {
           healthPoller.track(sessionId, session.agentRef);
         }
       },
-    });
+    }).concat(createTuiBridgeRoutes({ bridge: tuiBridge, config: adminConfig }));
     return createAdminServerFn({
       sessionService,
       registry,
@@ -264,6 +281,7 @@ function createApp(config, deps) {
     for (const session of sessions) {
       if (!session || session.status === 'deleted') continue;
       if (!session.agentRef || !session.agentRef.opencodeSessionId) continue;
+      if (session.agentRef.transport === 'tui-bridge') continue;
       if (typeof sessionService.getRouteForSession !== 'function') continue;
       const routeKey = sessionService.getRouteForSession(session.id);
       if (!routeKey) continue;
@@ -316,6 +334,7 @@ function createApp(config, deps) {
     if (dispatcher && typeof dispatcher.destroy === 'function') {
       dispatcher.destroy();
     }
+    if (tuiBridge && typeof tuiBridge.close === 'function') tuiBridge.close();
     await platform.stop();
     logger.info('feishu platform stopped');
     if (adminServer) {
@@ -325,7 +344,7 @@ function createApp(config, deps) {
     logger.info('walker stopped');
   }
 
-  return { start, stop, platform, dispatcher, sessionService, registry, adminServer, runtime, attachmentService, eventStore, healthPoller };
+  return { start, stop, platform, dispatcher, sessionService, registry, adminServer, runtime, attachmentService, eventStore, healthPoller, tuiBridge };
 }
 
 function normalizeReplyCtx(replyCtx) {

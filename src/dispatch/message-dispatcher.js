@@ -78,10 +78,25 @@ class MessageDispatcher {
       return 'duplicate';
     }
 
-    const routeKey = event.routeKey || buildRouteKey(event, this.routeMode);
+    let routeKey = event.routeKey || buildRouteKey(event, this.routeMode);
     logger.info('message accepted by dedup', { messageId: event.messageId, routeKey });
 
-    const current = this.sessionService.getCurrent(routeKey);
+    let current = this.sessionService.getCurrent(routeKey);
+    if (!current && this.routeMode === 'thread' && event.rootId && event.chatId) {
+      const fallbackRouteKey = buildRouteKey({ ...event, rootId: '' }, this.routeMode);
+      if (fallbackRouteKey !== routeKey) {
+        const fallbackCurrent = this.sessionService.getCurrent(fallbackRouteKey);
+        if (fallbackCurrent) {
+          logger.info('thread route unbound, falling back to chat root route', {
+            messageId: event.messageId,
+            routeKey,
+            fallbackRouteKey,
+          });
+          routeKey = fallbackRouteKey;
+          current = fallbackCurrent;
+        }
+      }
+    }
 
     if (!current) {
       logger.info('route not bound, sending guide card', { routeKey });

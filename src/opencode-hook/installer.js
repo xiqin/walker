@@ -3,62 +3,81 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { pathToFileURL } = require('url');
 const { createLogger } = require('../core/logger');
 const { getPluginSource } = require('./plugin-template');
 
 const logger = createLogger('hook-installer');
+const PLUGIN_FILENAME = 'walker-tui-plugin.js';
+const LEGACY_PLUGIN_FILENAME = 'walker-hook.js';
+const LEGACY_MARKER = 'Walker auto-attach hook plugin';
 
-const PLUGIN_FILENAME = 'walker-hook.js';
-
-/**
- * 安装 hook plugin 到 opencode 全局 plugins 目录
- * @param {Object} options - 安装选项
- * @param {string} [options.opencodeConfigDir] - opencode 配置目录，默认为 ~/.config/opencode
- * @param {number} [options.walkerPort] - Walker 监听端口，默认 8787
- * @param {boolean} [options.enabled] - 是否启用安装，默认 true
- * @returns {{ installed: boolean, path?: string, reason?: string }}
- */
 function installHookPlugin(options) {
   const opts = options || {};
-  const enabled = opts.enabled !== false;
-
-  if (enabled === false) {
-    logger.info('hook plugin install skipped: disabled');
+  if (opts.enabled === false) {
+    logger.info('TUI bridge plugin install skipped: disabled');
     return { installed: false, reason: 'disabled' };
   }
 
   const configDir = opts.opencodeConfigDir || path.join(os.homedir(), '.config', 'opencode');
-  const pluginsDir = path.join(configDir, 'plugins');
-  const targetPath = path.join(pluginsDir, PLUGIN_FILENAME);
+  const targetPath = path.join(configDir, PLUGIN_FILENAME);
+  const configPath = path.join(configDir, 'tui.json');
+  const legacyPath = path.join(configDir, 'plugins', LEGACY_PLUGIN_FILENAME);
+  const source = getPluginSource(opts.walkerPort || 8787, opts.walkerToken || '');
+  const pluginUrl = pathToFileURL(targetPath).href;
 
-  if (fs.existsSync(targetPath)) {
-    const walkerPort = opts.walkerPort || 8787;
+  let tuiConfig = {};
+  if (fs.existsSync(configPath)) {
     try {
-      const existing = fs.readFileSync(targetPath, 'utf8');
-      const portMatch = existing.match(/localhost:(\d+)/);
-      if (portMatch && parseInt(portMatch[1], 10) === walkerPort) {
-        logger.info('hook plugin already exists, port matches, skip install', { path: targetPath, port: walkerPort });
-        return { installed: false, reason: 'already_exists', path: targetPath };
-      }
-      logger.info('hook plugin exists but port mismatch, re-installing', { path: targetPath, oldPort: portMatch ? portMatch[1] : null, newPort: walkerPort });
-    } catch (e) {
-      logger.warn('hook plugin exists but failed to read, re-installing', { path: targetPath, error: e.message });
+      tuiConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch (err) {
+      logger.error('failed to parse existing tui.json; refusing to overwrite it', { path: configPath, error: err.message });
+      return { installed: false, reason: 'error', error: err.message, path: targetPath };
+    }
+  }
+  if (!tuiConfig || typeof tuiConfig !== 'object' || Array.isArray(tuiConfig)) tuiConfig = {};
+  const plugins = Array.isArray(tuiConfig.plugin) ? tuiConfig.plugin.slice() : [];
+  const configChanged = !plugins.includes(pluginUrl);
+  if (configChanged) plugins.push(pluginUrl);
+  tuiConfig.plugin = plugins;
+
+  let pluginChanged = true;
+  if (fs.existsSync(targetPath)) {
+    try {
+      pluginChanged = fs.readFileSync(targetPath, 'utf8') !== source;
+    } catch (_) {
+      pluginChanged = true;
     }
   }
 
   try {
-    if (!fs.existsSync(pluginsDir)) {
-      fs.mkdirSync(pluginsDir, { recursive: true });
+    fs.mkdirSync(configDir, { recursive: true });
+    if (pluginChanged) fs.writeFileSync(targetPath, source, 'utf8');
+    if (configChanged || !fs.existsSync(configPath)) {
+      fs.writeFileSync(configPath, JSON.stringify(tuiConfig, null, 2) + '\n', 'utf8');
     }
-    const walkerPort = opts.walkerPort || 8787;
-    const walkerToken = opts.walkerToken || '';
-    const source = getPluginSource(walkerPort, walkerToken);
-    fs.writeFileSync(targetPath, source, 'utf8');
-    logger.info('hook plugin installed', { path: targetPath, walkerPort });
+    removeLegacyPlugin(legacyPath);
+    if (!pluginChanged) {
+      logger.info('TUI bridge plugin already current', { path: targetPath });
+      return { installed: false, reason: 'already_exists', path: targetPath };
+    }
+    logger.info('TUI bridge plugin installed', { path: targetPath, port: opts.walkerPort || 8787 });
     return { installed: true, path: targetPath };
   } catch (err) {
-    logger.error('hook plugin install failed', { err });
+    logger.error('TUI bridge plugin install failed', { err });
     return { installed: false, reason: 'error', error: err.message, path: targetPath };
+  }
+}
+
+function removeLegacyPlugin(legacyPath) {
+  if (!fs.existsSync(legacyPath)) return;
+  try {
+    const existing = fs.readFileSync(legacyPath, 'utf8');
+    if (!existing.includes(LEGACY_MARKER)) return;
+    fs.unlinkSync(legacyPath);
+    logger.info('removed legacy Walker server hook', { path: legacyPath });
+  } catch (err) {
+    logger.warn('failed to remove legacy Walker server hook', { path: legacyPath, error: err.message });
   }
 }
 

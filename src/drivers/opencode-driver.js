@@ -1,10 +1,14 @@
 'use strict';
 
 const { AgentDriver, AgentEvent } = require('./agent-driver');
-const { httpRequest, sseConnect } = require('../core/http-helper');
 const { createLogger } = require('../core/logger');
 const { mapSSEEvent, isTerminalSSEEvent } = require('./opencode-sse-adapter');
 const { OpencodeSessionWatcher } = require('./opencode-session-watcher');
+const {
+  DefaultHttpClient, DefaultSSEClient, buildUrl, summarizeResponse,
+  extractModelList, extractSessionList, extractMessageList,
+  extractProjectList, normalizeSessionSummary,
+} = require('./opencode-http-client');
 
 const logger = createLogger('opencode-driver');
 
@@ -24,11 +28,13 @@ class OpencodeDriver extends AgentDriver {
     this.maxPolls = options.maxPolls || 20;
     this.promptTimeoutMs = options.promptTimeoutMs || 120000;
     this.sseOpenTimeoutMs = options.sseOpenTimeoutMs || 1000;
+    this.tuiBridge = options.tuiBridge || null;
 
     this._sessionWatcher = new OpencodeSessionWatcher({
       sseClient: this.sseClient,
-      buildUrl: (path, query) => this._buildUrl(path, query),
+      buildUrl: (path, query, sessionRef) => this._buildUrl(path, query, sessionRef),
       watchTimeoutMs: options.watchTimeoutMs || 300000,
+      pollIntervalMs: options.messagePollIntervalMs || 3000,
       getSessionMessages: (ref) => this.getSessionMessages(ref),
     });
   }
@@ -80,7 +86,7 @@ class OpencodeDriver extends AgentDriver {
       }
       logger.info('opencode session created', { opencodeSessionId: sessionId });
 
-      await this._openTerminalForSession(sessionId, options.cwd);
+      await this._openTerminalForSession(sessionId, cwd);
 
       return {
         opencodeSessionId: sessionId,
@@ -146,9 +152,13 @@ class OpencodeDriver extends AgentDriver {
       throw new Error('prompt requires sessionRef with opencodeSessionId');
     }
 
+    if (this._isTuiBridge(sessionRef)) {
+      return this.tuiBridge.prompt(sessionRef, text, options);
+    }
+
     const sessionId = sessionRef.opencodeSessionId;
     this._sessionWatcher.suspend(sessionRef);
-    const promptUrl = this._buildUrl('/session/' + sessionId + '/prompt_async', { directory: sessionRef.cwd });
+    const promptUrl = this._buildUrl('/session/' + sessionId + '/prompt_async', { directory: sessionRef.cwd }, sessionRef);
     const body = { parts: [{ type: 'text', text }] };
     if (options && options.model) {
       const m = options.model;
@@ -160,7 +170,7 @@ class OpencodeDriver extends AgentDriver {
     }
 
     const events = [];
-    const sseUrl = this._buildUrl('/event', { directory: sessionRef.cwd });
+    const sseUrl = this._buildUrl('/event', { directory: sessionRef.cwd }, sessionRef);
     let markSSEOpen;
     const sseOpened = new Promise((resolve) => { markSSEOpen = resolve; });
 
@@ -228,7 +238,9 @@ class OpencodeDriver extends AgentDriver {
             const last = messages[messages.length - 1];
             this._sessionWatcher.setLastPolledMessageId(sessionId, last.info ? last.info.id : last.id);
           }
-        } catch (_) {}
+        } catch (e) {
+          logger.debug('failed to refresh last polled message after prompt', { sessionId, error: e.message });
+        }
       }
       this._sessionWatcher.resume(sessionRef);
     }
@@ -237,14 +249,17 @@ class OpencodeDriver extends AgentDriver {
   }
 
   watchSession(sessionRef, handlers) {
+    if (this._isTuiBridge(sessionRef)) return this.tuiBridge.watchSession(sessionRef, handlers);
     return this._sessionWatcher.watch(sessionRef, handlers);
   }
 
   suspendWatch(sessionRef) {
+    if (this._isTuiBridge(sessionRef)) return;
     this._sessionWatcher.suspend(sessionRef);
   }
 
   resumeWatch(sessionRef) {
+    if (this._isTuiBridge(sessionRef)) return;
     this._sessionWatcher.resume(sessionRef);
   }
 
@@ -252,8 +267,9 @@ class OpencodeDriver extends AgentDriver {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('getSessionMessages requires sessionRef with opencodeSessionId');
     }
+    if (this._isTuiBridge(sessionRef)) return [];
     const sessionId = sessionRef.opencodeSessionId;
-    const url = this._buildUrl('/session/' + sessionId + '/message', {});
+    const url = this._buildUrl('/session/' + sessionId + '/message', {}, sessionRef);
     const resp = await this.httpClient.request('GET', url);
     return this._extractMessageList(resp);
   }
@@ -262,7 +278,8 @@ class OpencodeDriver extends AgentDriver {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('stop requires sessionRef with opencodeSessionId');
     }
-    const url = this._buildUrl('/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/stop', {});
+    if (this._isTuiBridge(sessionRef)) return this.tuiBridge.stop(sessionRef);
+    const url = this._buildUrl('/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/stop', {}, sessionRef);
     try {
       await this.httpClient.request('POST', url, {});
       logger.info('opencode session stopped', { sessionId: sessionRef.opencodeSessionId });
@@ -275,6 +292,7 @@ class OpencodeDriver extends AgentDriver {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('cancel requires sessionRef with opencodeSessionId');
     }
+    if (this._isTuiBridge(sessionRef)) return this.tuiBridge.cancel(sessionRef);
     const sessionId = sessionRef.opencodeSessionId;
     if (this._sessionWatcher.hasActiveWatch(sessionId)) {
       this._sessionWatcher.stopWatch(sessionId);
@@ -288,7 +306,8 @@ class OpencodeDriver extends AgentDriver {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('delete requires sessionRef with opencodeSessionId');
     }
-    const url = this._buildUrl('/session/' + encodeURIComponent(sessionRef.opencodeSessionId), {});
+    if (this._isTuiBridge(sessionRef)) return this.tuiBridge.delete(sessionRef);
+    const url = this._buildUrl('/session/' + encodeURIComponent(sessionRef.opencodeSessionId), {}, sessionRef);
     try {
       await this.httpClient.request('DELETE', url, null);
       logger.info('opencode session deleted', { sessionId: sessionRef.opencodeSessionId });
@@ -327,61 +346,24 @@ class OpencodeDriver extends AgentDriver {
     return match ? parseInt(match[1], 10) : 4096;
   }
 
-  _buildUrl(pathname, query) {
-    const url = new URL(pathname, this.serverUrl);
-    for (const [key, value] of Object.entries(query || {})) {
-      if (value) url.searchParams.set(key, value);
-    }
-    return url.toString();
+  _buildUrl(pathname, query, sessionRef) {
+    const serverUrl = (sessionRef && sessionRef.serverUrl) || this.serverUrl;
+    return buildUrl(serverUrl, pathname, query);
   }
 
-  _extractModelList(resp) {
-    if (Array.isArray(resp)) return resp;
-    if (!resp) return [];
-    if (Array.isArray(resp.data)) return resp.data;
-    if (resp.data && Array.isArray(resp.data.data)) return resp.data.data;
-    if (resp.data && Array.isArray(resp.data.models)) return resp.data.models;
-    return [];
+  _isTuiBridge(sessionRef) {
+    return !!(sessionRef && sessionRef.transport === 'tui-bridge' && this.tuiBridge);
   }
 
-  _extractSessionList(resp) {
-    if (Array.isArray(resp)) return resp;
-    if (!resp) return [];
-    if (Array.isArray(resp.data)) return resp.data;
-    if (resp.data && Array.isArray(resp.data.sessions)) return resp.data.sessions;
-    if (resp.data && Array.isArray(resp.data.items)) return resp.data.items;
-    if (Array.isArray(resp.sessions)) return resp.sessions;
-    if (Array.isArray(resp.items)) return resp.items;
-    return [];
-  }
+  _extractModelList(resp) { return extractModelList(resp); }
 
-  _extractMessageList(resp) {
-    if (Array.isArray(resp)) return resp;
-    if (!resp) return [];
-    if (Array.isArray(resp.data)) return resp.data;
-    if (Array.isArray(resp.messages)) return resp.messages;
-    return [];
-  }
+  _extractSessionList(resp) { return extractSessionList(resp); }
 
-  _extractProjectList(resp) {
-    const data = (resp && resp.data) || resp || [];
-    return Array.isArray(data) ? data : [];
-  }
+  _extractMessageList(resp) { return extractMessageList(resp); }
 
-  _normalizeSessionSummary(raw, fallbackCwd) {
-    raw = raw || {};
-    const id = raw.id || raw.sessionID || raw.sessionId || '';
-    const status = raw.status && typeof raw.status === 'object' ? raw.status.type : raw.status;
-    const time = raw.time && typeof raw.time === 'object' ? raw.time : {};
-    const updatedAt = raw.updatedAt || raw.updated || raw.timeUpdated || time.updated || time.updatedAt || null;
-    return {
-      id,
-      title: raw.title || raw.name || (id ? 'opencode ' + id.slice(0, 12) : 'opencode session'),
-      status: status || 'unknown',
-      cwd: raw.cwd || raw.directory || raw.path || (raw.workspace && raw.workspace.path) || fallbackCwd || '',
-      updatedAt: updatedAt || null,
-    };
-  }
+  _extractProjectList(resp) { return extractProjectList(resp); }
+
+  _normalizeSessionSummary(raw, fallbackCwd) { return normalizeSessionSummary(raw, fallbackCwd); }
 
   async _openTerminalForSession(sessionId, cwd) {
     if (!this.runtime || typeof this.runtime.openTerminal !== 'function') {
@@ -395,7 +377,7 @@ class OpencodeDriver extends AgentDriver {
     try {
       await this.runtime.openTerminal(this.opencodeCmd, args, {
         cwd: cwd || process.cwd(),
-        title: 'opencode ' + sessionId.slice(0, 12),
+        title: 'opencode ' + (sessionId ? sessionId.slice(0, 12) : 'session'),
       });
       logger.info('terminal window opened for session', { sessionId });
     } catch (err) {
@@ -403,15 +385,7 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
-  _summarizeResponse(resp) {
-    if (resp === undefined) return 'undefined response';
-    try {
-      const text = JSON.stringify(resp);
-      return text && text.length > 500 ? text.slice(0, 500) + '...' : text;
-    } catch (_) {
-      return String(resp);
-    }
-  }
+  _summarizeResponse(resp) { return summarizeResponse(resp); }
 
   async _listSessionsForDirectory(cwd) {
     const url = this._buildUrl('/session', { directory: cwd });
@@ -453,16 +427,4 @@ class OpencodeDriver extends AgentDriver {
   }
 }
 
-class DefaultHttpClient {
-  async request(method, url, body) {
-    return httpRequest(method, url, body);
-  }
-}
-
-class DefaultSSEClient {
-  async connect(url, options) {
-    return sseConnect(url, null, options);
-  }
-}
-
-module.exports = { OpencodeDriver, DefaultHttpClient, DefaultSSEClient };
+module.exports = { OpencodeDriver };

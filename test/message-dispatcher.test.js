@@ -134,6 +134,130 @@ describe('MessageDispatcher unbound route', () => {
 });
 
 describe('MessageDispatcher bound route prompt', () => {
+  it('线程消息未命中时回退到群聊根 route 的焦点 session', async () => {
+    const mocks = makeMocks();
+    const getCurrentCalls = [];
+    mocks.sessionService.getCurrent = (routeKey) => {
+      getCurrentCalls.push(routeKey);
+      if (routeKey === 'feishu:oc_chat1:root:oc_chat1') {
+        return { id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } };
+      }
+      return null;
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_thread_msg1', openId: 'ou_user1', text: '线程里发的消息',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_thread_root1',
+      routeKey: 'feishu:oc_chat1:root:om_thread_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.deepEqual(getCurrentCalls, [
+      'feishu:oc_chat1:root:om_thread_root1',
+      'feishu:oc_chat1:root:oc_chat1',
+    ]);
+    assert.equal(mocks.driver.promptCalls.length, 1);
+    assert.equal(mocks.driver.promptCalls[0].text, '线程里发的消息');
+    assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:oc_chat1']);
+  });
+
+  it('已绑定线程 route 优先，不回退到群聊根 route', async () => {
+    const mocks = makeMocks();
+    const getCurrentCalls = [];
+    const threadSession = { id: 'wks_thread1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_thread1', serverUrl: 'http://localhost:4096' } };
+    const rootSession = { id: 'wks_root1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_root1', serverUrl: 'http://localhost:4096' } };
+    mocks.sessionService.getCurrent = (routeKey) => {
+      getCurrentCalls.push(routeKey);
+      if (routeKey === 'feishu:oc_chat1:root:om_thread_root1') return threadSession;
+      if (routeKey === 'feishu:oc_chat1:root:oc_chat1') return rootSession;
+      return null;
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_thread_priority1', openId: 'ou_user1', text: '线程消息',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_thread_root1',
+      routeKey: 'feishu:oc_chat1:root:om_thread_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.deepEqual(getCurrentCalls, ['feishu:oc_chat1:root:om_thread_root1']);
+    assert.equal(mocks.driver.promptCalls.length, 1);
+    assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_thread1');
+    assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_thread_root1']);
+  });
+
+  it('线程 route 和群聊根 route 都未绑定时发送引导卡片', async () => {
+    const mocks = makeMocks();
+    const getCurrentCalls = [];
+    mocks.sessionService.getCurrent = (routeKey) => {
+      getCurrentCalls.push(routeKey);
+      return null;
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_double_unbound1', openId: 'ou_user1', text: '无人绑定',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_thread_root1',
+      routeKey: 'feishu:oc_chat1:root:om_thread_root1',
+    });
+
+    assert.equal(result, 'unbound');
+    assert.deepEqual(getCurrentCalls, [
+      'feishu:oc_chat1:root:om_thread_root1',
+      'feishu:oc_chat1:root:oc_chat1',
+    ]);
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'sendUnboundGuide'));
+  });
+
+  it('回退后 driver.prompt 使用回退 route 的 session agentRef', async () => {
+    const mocks = makeMocks();
+    const fallbackSession = { id: 'wks_fallback1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_fallback1', serverUrl: 'http://localhost:4096' } };
+    mocks.sessionService.getCurrent = (routeKey) => {
+      if (routeKey === 'feishu:oc_chat2:root:oc_chat2') return fallbackSession;
+      return null;
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat2', messageId: 'om_fallback_agentref1', openId: 'ou_user1', text: '回退后消息',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_thread_root2',
+      routeKey: 'feishu:oc_chat2:root:om_thread_root2',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.equal(mocks.driver.promptCalls.length, 1);
+    assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_fallback1');
+  });
+
   it('绑定 session 的消息投递给 driver 并更新进度卡片', async () => {
     const mocks = makeMocks();
     mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } });

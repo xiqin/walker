@@ -11,6 +11,7 @@ class OpencodeSessionWatcher {
     this.sseClient = options.sseClient;
     this.buildUrl = options.buildUrl;
     this.watchTimeoutMs = options.watchTimeoutMs || 300000;
+    this.pollIntervalMs = options.pollIntervalMs || 3000;
     this.getSessionMessages = options.getSessionMessages;
 
     this.watchers = new Map();
@@ -27,7 +28,7 @@ class OpencodeSessionWatcher {
     if (this.watchers.has(sessionId)) return this.watchers.get(sessionId).stop;
 
     const controller = new AbortController();
-    const sseUrl = this.buildUrl('/event', { directory: sessionRef.cwd });
+    const sseUrl = this.buildUrl('/event', { directory: sessionRef.cwd }, sessionRef);
     logger.info('opencode watchSession starting', { sessionId, sseUrl, cwd: sessionRef.cwd });
 
     let watchTimer = null;
@@ -115,7 +116,7 @@ class OpencodeSessionWatcher {
     if (!sessionId || !this.watchers.has(sessionId)) return;
     if (this._pollTimers && this._pollTimers.has(sessionId)) return;
     const watcher = this.watchers.get(sessionId);
-    this._startMessagePolling(sessionRef, { onEvent: watcher._handlers }, watcher._signal);
+    this._startMessagePolling(sessionRef, watcher._handlers, watcher._signal);
   }
 
   stopWatch(sessionId) {
@@ -155,7 +156,7 @@ class OpencodeSessionWatcher {
 
   _startMessagePolling(sessionRef, handlers, signal) {
     const sessionId = sessionRef.opencodeSessionId;
-    const pollIntervalMs = 3000;
+    const pollIntervalMs = this.pollIntervalMs;
     const self = this;
     let polling = false;
 
@@ -231,6 +232,7 @@ class OpencodeSessionWatcher {
 
     poll();
     const timer = setInterval(poll, pollIntervalMs);
+    if (timer.unref) timer.unref();
     this._pollTimers.set(sessionId, timer);
   }
 }
