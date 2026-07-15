@@ -29,7 +29,7 @@ function formatAgentEvent(event) {
   const message = d.message || event.message;
   switch (event.type) {
     case 'text':
-      return truncateText(text, MAX_TEXT_LEN);
+      return '';
     case 'reasoning':
       return '🤔 ' + truncateText(text, MAX_TEXT_LEN);
     case 'tool_use':
@@ -84,13 +84,11 @@ class ProgressCard {
       return;
     }
     const formatted = formatAgentEvent(event);
-    if (!formatted) return;
-    if (event.type === 'text' && event.data && event.data.delta && this.entryTypes[this.entryTypes.length - 1] === 'text') {
-      const lastIndex = this.entries.length - 1;
-      this.entries[lastIndex] = truncateText(this.entries[lastIndex] + formatted, MAX_TEXT_LEN);
+    if (event.type === 'text') {
       this._updatePhase(event);
       return;
     }
+    if (!formatted) return;
     this.entries.push(formatted);
     this.entryTypes.push(event.type);
     if (this.entries.length > MAX_EVENT_LINES) {
@@ -136,6 +134,13 @@ class ProgressCard {
       elements.push({
         tag: 'div',
         text: { tag: 'lark_md', content: entry },
+      });
+    }
+
+    if (this.done) {
+      elements.push({
+        tag: 'div',
+        text: { tag: 'lark_md', content: '✅ 处理完成' },
       });
     }
 

@@ -31,7 +31,7 @@ function makeFeishuStub() {
   const calls = [];
   return {
     calls,
-    replyText: (replyCtx, text) => { calls.push({ type: 'replyText', replyCtx, text }); },
+    replyText: (replyCtx, text) => { calls.push({ type: 'replyText', replyCtx, text }); return [{ message_id: 'om_reply_' + calls.length }]; },
     sendText: (chatId, text) => { calls.push({ type: 'sendText', chatId, text }); },
     replyCard: (replyCtx, card) => { calls.push({ type: 'replyCard', replyCtx, card }); return 'om_card_' + calls.length; },
     patchCard: (cardId, card) => { calls.push({ type: 'patchCard', cardId, card }); },
@@ -263,12 +263,11 @@ describe('飞书-TUI 双向链路集成测试', () => {
       assert.equal(networkCalls, 0, 'bridge session 不应访问独立 OpenCode HTTP/SSE');
 
       const renderedReply = feishuApi.calls.find((call) => {
-        return call.type === 'updateProgressCard'
-          && call.agentEvent
-          && call.agentEvent.type === AgentEvent.TYPE_TEXT
-          && call.agentEvent.data.text === 'embedded assistant reply';
+        return call.type === 'replyText'
+          && call.text
+          && call.text.includes('embedded assistant reply');
       });
-      assert.ok(renderedReply, '飞书进度卡片应收到 embedded TUI 的回答');
+      assert.ok(renderedReply, '飞书应通过普通文本消息收到 embedded TUI 的回答');
 
       bridge.reportEvents({
         runtimeId,

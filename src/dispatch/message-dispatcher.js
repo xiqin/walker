@@ -660,10 +660,17 @@ class MessageDispatcher {
     const displayEvents = this._coalesceDisplayEvents(events, event.text);
     if (this.progressStyle === 'card') {
       await this._renderCardProgress(session, event, displayEvents, progressCardId);
+      const fullText = this._textFromDisplayEvents(displayEvents);
+      if (fullText) {
+        const replyResult = await this._callFeishu('replyText', [this._replyCtx(event), fullText], null);
+        if (replyResult) {
+          this._rememberDeliveredText(session.id, fullText);
+        }
+      }
     } else {
       await this._renderLegacyProgress(event, displayEvents);
+      this._rememberDeliveredText(session.id, this._textFromDisplayEvents(displayEvents));
     }
-    this._rememberDeliveredText(session.id, this._textFromDisplayEvents(displayEvents));
   }
 
   /**
@@ -677,11 +684,11 @@ class MessageDispatcher {
     let cardId = progressCardId || await this._callFeishu('sendProgressCard', [this._replyCtx(event), session.id], null);
 
     if (!cardId) {
-      await this._renderLegacyProgress(event, displayEvents);
       return;
     }
 
     for (const agentEvent of displayEvents) {
+      if (agentEvent.type === AgentEvent.TYPE_TEXT) continue;
       this._touchTurnState(this.turnStates.get(session.id));
       const rendered = await this._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null);
       if (rendered && rendered.strategy === 'new_message') {

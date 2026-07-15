@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ProgressCard, formatAgentEvent, truncateText } = require('../src/platform/feishu/progress-card');
+const { ProgressCard, formatAgentEvent, truncateText, MAX_TEXT_LEN } = require('../src/platform/feishu/progress-card');
 
 test('ProgressCard 初始状态为 thinking', () => {
   const pc = new ProgressCard({ sessionId: 'wks_test' });
@@ -45,16 +45,34 @@ test('ProgressCard append done 事件后保留已有内容并切换完成', () =
   pc.append({ type: 'done', data: { reason: 'idle' } });
   const card = pc.render();
   assert.equal(card.header.template, 'green');
-  assert.ok(card.elements.some((el) => el.text.content.includes('最终回答')));
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('最终回答')));
+  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('✅ 处理完成')));
 });
 
-test('ProgressCard 连续 text delta 事件合并为一段回答', () => {
+test('ProgressCard 忽略普通 text 事件', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'text', text: '不应该出现在卡片里' });
+  const card = pc.render();
+  assert.ok(!pc.entries.includes('不应该出现在卡片里'));
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('不应该出现在卡片里')));
+});
+
+test('ProgressCard 忽略 delta text 事件', () => {
   const pc = new ProgressCard({ sessionId: 'wks_test' });
   pc.append({ type: 'text', data: { text: '你', delta: true } });
   pc.append({ type: 'text', data: { text: '好', delta: true } });
   const card = pc.render();
-  assert.equal(card.elements.length, 1);
-  assert.ok(card.elements[0].text.content.includes('你好'));
+  assert.equal(pc.entries.length, 0);
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('你好')));
+});
+
+test('ProgressCard 连续 text delta 事件不进入卡片', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'text', data: { text: '你', delta: true } });
+  pc.append({ type: 'text', data: { text: '好', delta: true } });
+  const card = pc.render();
+  assert.equal(card.elements.length, 0);
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('你好')));
 });
 
 test('ProgressCard error 事件切换到 red 模板', () => {
@@ -70,7 +88,9 @@ test('ProgressCard append 多个事件后渲染包含所有内容', () => {
   pc.append({ type: 'tool_use', name: 'Read', status: 'done' });
   pc.append({ type: 'text', text: '第二段' });
   const card = pc.render();
-  assert.ok(card.elements.length >= 3);
+  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('Read')));
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('第一段')));
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('第二段')));
 });
 
 test('ProgressCard patchFailed 时返回新消息指令', () => {
@@ -80,9 +100,9 @@ test('ProgressCard patchFailed 时返回新消息指令', () => {
   assert.equal(result.strategy, 'new_message');
 });
 
-test('formatAgentEvent text 事件', () => {
+test('formatAgentEvent text 事件返回空字符串', () => {
   const formatted = formatAgentEvent({ type: 'text', text: 'hello' });
-  assert.ok(formatted.includes('hello'));
+  assert.equal(formatted, '');
 });
 
 test('formatAgentEvent tool_use 事件', () => {
@@ -95,9 +115,18 @@ test('formatAgentEvent error 事件', () => {
   assert.ok(formatted.includes('oops'));
 });
 
-test('formatAgentEvent reasoning 事件', () => {
+test('formatAgentEvent reasoning 事件保持 🤔 前缀', () => {
   const formatted = formatAgentEvent({ type: 'reasoning', text: '分析中' });
   assert.ok(formatted.includes('分析中'));
+  assert.ok(formatted.startsWith('🤔 '));
+});
+
+test('formatAgentEvent reasoning 长文本保留前缀并截断', () => {
+  const long = 'x'.repeat(MAX_TEXT_LEN + 100);
+  const formatted = formatAgentEvent({ type: 'reasoning', text: long });
+  assert.ok(formatted.startsWith('🤔 '));
+  assert.ok(formatted.endsWith('...'));
+  assert.ok(formatted.length <= '🤔 '.length + MAX_TEXT_LEN + '...'.length);
 });
 
 test('truncateText 长文本被截断', () => {
@@ -115,4 +144,15 @@ test('truncateText 短文本不截断', () => {
 test('ProgressCard getCardId 返回卡片标识', () => {
   const pc = new ProgressCard({ sessionId: 'wks_test', cardMessageId: 'om_card1' });
   assert.equal(pc.getCardId(), 'om_card1');
+});
+
+test('ProgressCard done 后显示中性完成提示', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'text', text: '一段回答' });
+  pc.append({ type: 'done' });
+  const card = pc.render();
+  assert.equal(card.header.template, 'green');
+  assert.equal(card.header.title.content, '完成');
+  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('✅ 处理完成')));
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('一段回答')));
 });

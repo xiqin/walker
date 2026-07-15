@@ -169,7 +169,7 @@ describe('createApp', () => {
           this.api = {
             replyCard: async (_ctx, card) => { calls.push({ type: 'replyCard', card }); return 'om_card1'; },
             patchCard: async (cardId, card) => { calls.push({ type: 'patchCard', cardId, card }); },
-            replyText: async () => {},
+            replyText: async (replyCtx, text) => { calls.push({ type: 'replyText', replyCtx, text }); return [{ message_id: 'om_reply1' }]; },
             addReaction: async () => {},
           };
         }
@@ -208,7 +208,10 @@ describe('createApp', () => {
     });
 
     const lastPatch = calls.filter((call) => call.type === 'patchCard').at(-1);
-    assert.ok(lastPatch.card.elements.some((el) => el.text.content.includes('我是 opencode')));
+    assert.ok(lastPatch.card.header.template === 'green');
+    const replyTextCall = calls.find((call) => call.type === 'replyText' && call.text && call.text.includes('我是 opencode'));
+    assert.ok(replyTextCall, '最终回答应通过普通文本消息发送');
+    assert.ok(!lastPatch.card.elements.some((el) => el.text.content.includes('我是 opencode')), '最终回答不应进入卡片');
     assert.equal(lastPatch.card.header.template, 'green');
   });
 
