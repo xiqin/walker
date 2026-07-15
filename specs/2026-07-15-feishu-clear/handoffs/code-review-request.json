@@ -1,0 +1,31 @@
+{
+  "fixed_point": "HEAD~1 (8ec1572)",
+  "pre_review": {
+    "blockers": 0,
+    "spec_findings": 0,
+    "spec_worst": "none",
+    "standards_findings": 2,
+    "standards_worst": "warning",
+    "warnings": [
+      "T2 关联 register 与 control 顺序发送而非并发（bridge 支持任意顺序，功能不受影响）",
+      "executeClearDelivery 失败路径少量重复代码可抽取"
+    ]
+  },
+  "status": "done",
+  "summary": "完成 Standards + Spec 双轴预审查。Standards 0 阻断 2 警告（均已记录），Spec 0 发现。变更 13 文件 +2532/-21，全部对应 /clear 功能。fixed point HEAD~1。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "933200fad8b0915309f5e2ea421a86fb13f3bfc962b3832e7abbb0fe70a32a3d",
+    "spec.md": "771277be69b230d05dfaa9cdc58938f0548ba4cf13a7eb33c85d09f4c1b752fc"
+  },
+  "artifact_fingerprints": {
+    "test-report.md": "5aabd0f0de8eaa922ef1723259ac2f5b9ebf45fd601b797b69b50714b4918d6a",
+    "verify-report.md": "867d53a3531cd000639680333689d6027eab08faff0e29aaa6e7ea83965bd35d"
+  },
+  "written_at": "2026-07-15T09:17:09.406Z"
+}

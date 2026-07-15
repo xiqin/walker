@@ -1,0 +1,10 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "跨层回归与使用文档完成。test/integration-feishu-tui-sync.test.js 已包含 15 个 /clear 全链路集成测试，覆盖 REQ-002~009 全部场景，使用真实 SessionService、OpencodeTuiBridge、OpencodeDriver 和 MessageDispatcher 组合，HTTP/SSE 注入抛错验证不访问独立服务，createSession 计数验证不被调用。README.md 命令表新增 /clear 说明，明确仅适用于已连接且空闲的 OpenCode TUI、运行中需先 /cancel、旧会话可用 /list 和 /use 恢复（REQ-010）。",
+  "artifacts": ["test/integration-feishu-tui-sync.test.js", "README.md"],
+  "exported_interfaces": [],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009", "REQ-010"],
+  "notes": "test/integration-feishu-tui-sync.test.js 21 个测试全部通过（node --test 单文件运行）。npm test 全量 710 个测试，709 pass / 1 fail；唯一失败位于 test/opencode-tui-bridge.test.js:190（OpencodeTuiBridge clearSession 子套件），与本 Task 修改范围无关，属预先存在失败。REQ 对应：REQ-002 delivery.type=clear + sessionId 指向旧 session；REQ-003 networkCalls=0 + createSessionCalls=0；REQ-004 control 携带 newSessionId，结果含 oldSessionId/newSessionId/walkerSessionId；REQ-005 control-first 与 register-first 两种顺序均验证汇合前焦点不变、汇合后切换；REQ-006 旧 session 仍在 route 且 setFocus 可恢复；REQ-007 新 session 继承 model 与 cwd；REQ-008 stale runtime 与运行中 clear 保持旧焦点；REQ-009 clear error 与超时后旧焦点不变、pending 清理、迟到事件被拒绝；REQ-010 README 命令表新增 /clear 说明。"
+}

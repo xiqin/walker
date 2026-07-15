@@ -10,6 +10,7 @@ const COMMANDS = {
   status: { desc: '查看当前会话状态', usage: '/status' },
   ps: { desc: '/status 的别名', usage: '/ps' },
   delete: { desc: '删除指定会话', usage: '/delete <session_id>' },
+  clear: { desc: '在当前 TUI 新建空上下文并保留旧会话', usage: '/clear' },
   model: { desc: '列出可用模型或切换当前会话模型', usage: '/model | /model <model_id>' },
   agents: { desc: '列出可用的 Agent 类型', usage: '/agents' },
   runtime: { desc: '查看当前运行时环境', usage: '/runtime' },

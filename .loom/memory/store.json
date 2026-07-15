@@ -1,6 +1,38 @@
 {
   "entries": [
     {
+      "id": "1d675b65",
+      "type": "踩坑",
+      "content": "TUI bridge clear 汇合状态机：_tryCompleteClear 中不能检查 runtime.currentSessionId !== oldSessionId，因为 clear 期间普通 register 合法更新 currentSessionId 后会导致 clear 误判失败。正确做法是仅依靠 controlDeliveryId 绑定 + control result 的 sessionId 一致性检查来保障两阶段提交正确性。另外 _preflightClear 中 _callFeishu 必须 await，否则 fire-and-forget 的 Promise reject 会产生未处理 rejection。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-15T09:20:29.380Z"
+    },
+    {
+      "id": "349943f1",
+      "type": "决策",
+      "content": "飞书 /clear 命令采用 TUI bridge 控制消息方案：当前 TUI 通过本地 SDK api.client.session.create() 创建新顶层 session 并 api.route.navigate() 导航，同 runtimeId 重新注册后更新原 route 焦点；旧会话保留，新会话继承旧 session.model 和 cwd；不调用 openTerminal，不改变 /new 行为。关联 register 携带 controlDeliveryId 精确绑定 clear pending，支持 control result 与 register 任意顺序到达，两阶段原子提交。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-15T09:20:23.726Z"
+    },
+    {
       "id": "5ca0f33c",
       "type": "踩坑",
       "content": "OpenCode TUI bridge 在 /new 后即使 promptAsync 成功且 Walker 日志显示 driver prompt completed eventCount>0，也不代表消息在当前 TUI route 可见。插件必须跟踪根 session.created/tui.session.select，并在投递目标 session 与 api.route.current 不一致时先调用 api.route.navigate('session', { sessionID })，再调用 promptAsync。",

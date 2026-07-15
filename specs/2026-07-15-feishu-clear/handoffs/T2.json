@@ -1,0 +1,13 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "升级 TUI bridge plugin 版本 3→4，使旧版本在 Walker 启动时自动更新。plugin-template.js 新增 extractSessionId 辅助函数支持 result.data.id/result.id/result.sessionID/result.sessionId 四种 SDK 返回形态。executeDelivery 按 delivery.type 分派：type==='clear' 走 executeClearDelivery，缺少 type 继续按 prompt 处理。clear handler 在 create 前设置 activeClear 状态并缓冲 session.created/tui.session.select 事件；调用 api.client.session.create({ title }) 创建独立顶层 session（不传 parent、不 fork/summarize/delete）；提取新 session ID 后只抑制与新 ID 对应的普通自动注册。导航成功后并发发送带 controlDeliveryId 的关联 register 和 { control: { type: 'clear', newSessionId } } control result（不依赖顺序），reportEvents 的 sessionId 始终用旧 session id。两者都成功后更新 activeSessionId 和注册缓存，再 flush 非 clear 缓冲事件；clear 不加入 activeDeliveries prompt 状态。create/ID 提取/navigate/register/control 任意阶段失败均发送 error 上报；已导航时最佳努力 navigate 回旧 session，回滚失败追加手工切回提示。新增 13 个测试覆盖 clear 成功、关联 register、session.created 早于 create 返回、自动注册抑制、两种上报顺序、四种 ID 形态、各阶段错误与回滚、旧 prompt 兼容、无关手工事件。",
+  "artifacts": [
+    "src/opencode-hook/plugin-template.js",
+    "test/opencode-hook-installer.test.js"
+  ],
+  "exported_interfaces": [],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-002", "REQ-003", "REQ-004", "REQ-009"],
+  "notes": "1) plugin 版本从 3 提升到 4，已安装旧版本在 Walker 启动时由 installHookPlugin 自动更新。2) extractSessionId 支持四种返回形态优先级：result.data.id > result.id > result.sessionID > result.sessionId，全部缺失时报错。3) clear handler 并发发送 control 和 register（顺序不固定），bridge 侧 T1 的两阶段汇合状态机支持任意到达顺序。4) reportEvents 的 sessionId 必须是旧 session id（T1 reviewer W1 约束已遵守）。5) activeClear 状态仅存在于 clear 期间，完成后立即清空并 flush 缓冲事件；clear 不进入 activeDeliveries。6) 回滚仅在实际已 navigate 成功后触发（navigated=true），create 失败或 navigate 抛异常时不回滚。7) postNavigate 失败场景：control 或 register post 请求返回非 ok 时触发回滚到旧 session。"
+}

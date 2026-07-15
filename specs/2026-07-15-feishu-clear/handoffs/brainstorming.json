@@ -1,0 +1,29 @@
+{
+  "decisions": [
+    "采用 TUI bridge clear 控制消息，不注入 `/new` 文本",
+    "插件通过 api.client.session.create() 创建顶层 session，并通过 api.route.navigate() 导航",
+    "只有控制结果和同 runtime 新 session 注册均完成后 `/clear` 才成功",
+    "旧会话保留，新 Walker session 加入原 route 并继承 model/cwd",
+    "运行中拒绝并要求先 `/cancel`；非 TUI、失联和超时明确报错",
+    "不改变现有 `/new`，不调用 openTerminal",
+    "修订：clear register 通过 controlDeliveryId 精确关联，不误关联手工切换",
+    "修订：两阶段提交，汇合完成前不改变 runtime/Walker session/route 焦点",
+    "修订：插件导航失败回滚原 TUI 会话；迟到或未知关联 register 不降级普通注册"
+  ],
+  "open_questions": [],
+  "approval": "用户已批准进入规划（修订版已再次通过自审与校验）",
+  "status": "done",
+  "summary": "已批准飞书 `/clear` 规格：采用 TUI bridge 控制消息，由当前 TUI 本地 SDK 创建顶层 session 并导航；同 runtime 通过 controlDeliveryId 关联注册后更新原 route 焦点。旧会话保留，新会话继承 model/cwd；仅支持空闲且在线的 tui-bridge session；控制结果与 register 支持任意顺序；两阶段提交保证失败前不产生半提交会话；失败回滚原 TUI 会话且不切换旧焦点；不得打开新终端。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "771277be69b230d05dfaa9cdc58938f0548ba4cf13a7eb33c85d09f4c1b752fc"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "771277be69b230d05dfaa9cdc58938f0548ba4cf13a7eb33c85d09f4c1b752fc"
+  },
+  "written_at": "2026-07-15T09:30:00.000Z"
+}

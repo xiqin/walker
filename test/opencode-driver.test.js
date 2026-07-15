@@ -904,3 +904,69 @@ describe('OpencodeDriver listModels', () => {
     await assert.rejects(() => driver.listModels(), /Failed to list models/);
   });
 });
+
+describe('OpencodeDriver clearSession', () => {
+  it('TUI clear 只委托 bridge', async () => {
+    const calls = [];
+    const bridge = {
+      clearSession: async (ref) => {
+        calls.push({ method: 'clearSession', ref });
+        return {
+          runtimeId: ref.runtimeId,
+          oldSessionId: 'ses_old',
+          newSessionId: 'ses_new',
+          walkerSessionId: 'wks_new',
+        };
+      },
+    };
+    const http = new FakeHttpClient({});
+    const sse = new FakeSSEClient([]);
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096', tuiBridge: bridge,
+    });
+    const ref = { opencodeSessionId: 'ses_old', transport: 'tui-bridge', runtimeId: 'runtime-1' };
+
+    const result = await driver.clearSession(ref);
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, 'clearSession');
+    assert.equal(calls[0].ref, ref);
+    assert.equal(result.newSessionId, 'ses_new');
+    assert.equal(result.walkerSessionId, 'wks_new');
+    assert.equal(http.calls.length, 0, 'clearSession 不得访问 HTTP');
+  });
+
+  it('拒绝非 TUI ref 且不调用 HTTP create 或打开终端', async () => {
+    const http = new FakeHttpClient({});
+    const sse = new FakeSSEClient([]);
+    const runtime = {
+      spawn: () => ({ pid: 1, unref: () => {} }),
+      openTerminal: async () => { throw new Error('不应打开终端'); },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096', runtime,
+    });
+    const ref = { opencodeSessionId: 'ses_old', serverUrl: 'http://localhost:4096' };
+
+    await assert.rejects(
+      () => driver.clearSession(ref),
+      /tui-bridge|transport/i,
+    );
+    assert.equal(http.calls.length, 0, '非 TUI ref 不应触发 HTTP 调用');
+  });
+
+  it('TUI ref 但未配置 tuiBridge 时抛错', async () => {
+    const http = new FakeHttpClient({});
+    const sse = new FakeSSEClient([]);
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096',
+    });
+    const ref = { opencodeSessionId: 'ses_old', transport: 'tui-bridge', runtimeId: 'runtime-1' };
+
+    await assert.rejects(
+      () => driver.clearSession(ref),
+      /tuiBridge|tui-bridge|not configured|未配置/i,
+    );
+    assert.equal(http.calls.length, 0);
+  });
+});

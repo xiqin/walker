@@ -1,0 +1,41 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "扩展 OpencodeTuiBridge 实现 clear 控制协议与两阶段汇合状态机：prompt delivery 显式携带 type=prompt；新增 clearSession 投递 clear 控制并复用 runtime 在线/心跳/当前 session 一致性校验；同一 runtime 同时只允许一个 clear pending；带 controlDeliveryId 的 register 仅暂存新 OpenCode session 元数据，不提前创建 Walker session、不更新 runtime 当前 session、不按 cwd 自动选 route、不设置焦点、不触发普通 enrollment 回调；control result 与关联 register 任意顺序到达后，单一完成函数 _tryCompleteClear 原子提交 runtime 当前 session、创建或复用 Walker session、加入原 route、继承旧 model、设置焦点并触发 enrollment；超时、error、cancel、dispose、close 路径均通过 _failClear/_failClearsForRuntime 清理 pending 且不提交部分状态；OpencodeDriver.clearSession 拒绝非 TUI ref 并直接委托 bridge，不调用 HTTP create 或 _openTerminalForSession。",
+  "artifacts": [
+    "src/opencode-tui-bridge/bridge.js",
+    "src/drivers/opencode-driver.js",
+    "test/opencode-tui-bridge.test.js",
+    "test/opencode-driver.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "OpencodeTuiBridge.clearSession",
+      "path": "src/opencode-tui-bridge/bridge.js",
+      "signature": "clearSession(sessionRef: { transport: 'tui-bridge', runtimeId: string, opencodeSessionId: string }): Promise<{ runtimeId, oldSessionId, newSessionId, walkerSessionId }>"
+    },
+    {
+      "name": "OpencodeTuiBridge.register (controlDeliveryId)",
+      "path": "src/opencode-tui-bridge/bridge.js",
+      "signature": "register({ runtimeId, sessionId, cwd, controlDeliveryId, opencodeVersion? }): { staged: true, controlDeliveryId } — 关联 clear 的暂存注册，不创建 Walker session 或改变焦点"
+    },
+    {
+      "name": "OpencodeTuiBridge.reportEvents (control)",
+      "path": "src/opencode-tui-bridge/bridge.js",
+      "signature": "reportEvents({ runtimeId, sessionId, deliveryId, control: { type: 'clear', newSessionId } | error }) — 识别 clear control 结果，error 立即失败，成功等待关联 register"
+    },
+    {
+      "name": "OpencodeDriver.clearSession",
+      "path": "src/drivers/opencode-driver.js",
+      "signature": "clearSession(sessionRef): Promise<clearResult> — 仅 TUI ref，直接委托 bridge.clearSession，禁止 HTTP create 或 openTerminal"
+    },
+    {
+      "name": "delivery.type",
+      "path": "src/opencode-tui-bridge/bridge.js",
+      "signature": "poll 返回的 delivery 现显式携带 type: 'prompt' | 'clear'；缺少 type 时插件按 prompt 处理（兼容约定）"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-002", "REQ-003", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009"],
+  "notes": "1) clearSession 返回的 Promise 只有在 control result 和相同 deliveryId+runtimeId+newSessionId 的关联 register 都完成后才 resolve；T2 的插件需并发发送关联 register 与 control success 以支持任意到达顺序。2) 带 controlDeliveryId 的 register 是 clear 专用暂存，未知/过期/不匹配的 controlDeliveryId 会被拒绝且不回退为普通 register；T2 插件抑制 clear 自身触发的普通自动注册，只用 controlDeliveryId 关联。3) poll 返回的 clear delivery 结构为 { deliveryId, type: 'clear', sessionId }（旧 session id）；T2 插件识别后调用 api.client.session.create() 和 api.route.navigate()。4) control result 通过现有 reportEvents endpoint 上报，结构为 { runtimeId, sessionId: 旧id, deliveryId, control: { type: 'clear', newSessionId } }，失败时用 error 字段。5) 新 Walker session 继承旧 session 的 model 字段（若旧 session 无 model 则不设置）；cwd 使用关联 register 上报的 cwd。6) _lastClearDeliveryId 字段保留供调试，非公共 API。7) clearPending 不持久化，Walker 重启时请求失败，旧 session 和 route 数据保持不变。"
+}

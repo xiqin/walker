@@ -115,6 +115,20 @@ test('parseCommand /ps', () => {
   assert.deepEqual(result.args, []);
 });
 
+test('parseCommand /clear 无参数', () => {
+  const result = parseCommand('/clear');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'clear');
+  assert.deepEqual(result.args, []);
+});
+
+test('parseCommand /clear 带参数仍解析为 clear 命令', () => {
+  const result = parseCommand('/clear extra');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'clear');
+  assert.deepEqual(result.args, ['extra']);
+});
+
 test('COMMANDS 包含所有需要的命令', () => {
   const names = Object.keys(COMMANDS);
   assert.ok(names.includes('new'));
@@ -130,6 +144,7 @@ test('COMMANDS 包含所有需要的命令', () => {
   assert.ok(names.includes('cancel'));
   assert.ok(names.includes('status'));
   assert.ok(names.includes('ps'));
+  assert.ok(names.includes('clear'));
 });
 
 test('formatHelp 包含新增命令', () => {
@@ -140,4 +155,10 @@ test('formatHelp 包含新增命令', () => {
   assert.match(help, /查看当前会话状态/);
   assert.match(help, /\/ps/);
   assert.match(help, /\/status 的别名/);
+});
+
+test('formatHelp 包含 /clear 命令说明', () => {
+  const help = formatHelp();
+  assert.match(help, /\/clear/);
+  assert.match(help, /新建空上下文/);
 });

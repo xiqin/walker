@@ -161,10 +161,13 @@ detached 后的处理：
 | `/status` | 查看当前会话绑定的 Walker session、Agent、状态、OpenCode session、模型、工作目录、当前 turn 运行状态、运行时长、最近事件时间和后台 watch 状态 |
 | `/ps` | `/status` 的等价别名 |
 | `/cancel` | 取消当前正在执行的 turn，保留 Walker session 并回到 `idle` |
+| `/clear` | 在当前 OpenCode TUI 会话新建空上下文并保留旧会话（仅适用于已连接且空闲的 OpenCode TUI；运行中请先 `/cancel`；旧会话可通过 `/list` 查看、`/use <id>` 恢复） |
 | `/stop` | 停止当前 session |
 | `/delete <session_id>` | 删除指定 session |
 | `/agents` | 列出可用 Agent 类型 |
 | `/help` | 命令帮助 |
+
+Walker 启动时会更新 OpenCode TUI plugin。若更新涉及 `/clear` 等桥接协议，已运行的 OpenCode TUI 不会热加载新 plugin，必须退出并重新启动该 TUI；仅重启 Walker 不足以使旧 TUI 获得新能力。
 
 ## 长任务控制
 

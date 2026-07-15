@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "synced 阶段完成：CodeGraph 通过 loom index/--check 确认索引最新（88 files、970 nodes、5,364 edges），clear 相关符号可查询；新增 1 条决策记忆和 1 条踩坑记忆并导出 MEMORY.md；README 命令表已在 T4 更新，AGENTS.md 无需变更。",
+  "artifacts": [
+    "index-update-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "933200fad8b0915309f5e2ea421a86fb13f3bfc962b3832e7abbb0fe70a32a3d",
+    "spec.md": "771277be69b230d05dfaa9cdc58938f0548ba4cf13a7eb33c85d09f4c1b752fc"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-15T09:20:52.721Z"
+}

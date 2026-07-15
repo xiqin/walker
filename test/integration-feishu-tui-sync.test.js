@@ -417,4 +417,476 @@ describe('飞书-TUI 双向链路集成测试', () => {
       assert.ok(session2Duplicates.length <= 1, 'session2 输出不应重复发送');
     });
   });
+
+  describe('飞书 /clear 全链路集成', () => {
+    function makeClearHarness(opts) {
+      opts = opts || {};
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-feishu-clear-'));
+      const stateStore = new JsonStore(path.join(tmpDir, 'state.json'), {});
+      const sessionService = new SessionService({ stateStore });
+      const chatId = opts.chatId || 'oc_chat_clear';
+      const routeKey = opts.routeKey || buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = opts.cwd || process.cwd();
+      const runtimeId = opts.runtimeId || 'runtime-clear-e2e';
+      const opencodeSessionId = opts.opencodeSessionId || 'ses_old_e2e';
+      const model = opts.model || { modelID: 'gpt-4o' };
+
+      sessionService.setRouteCwd(routeKey, cwd);
+
+      const bridge = new OpencodeTuiBridge({
+        sessionService,
+        promptTimeoutMs: opts.promptTimeoutMs || 1500,
+        runtimeStaleMs: opts.runtimeStaleMs || 60000,
+      });
+      bridge.register({
+        runtimeId,
+        sessionId: opencodeSessionId,
+        cwd,
+        opencodeVersion: '1.17.20',
+        bridgeProtocolVersion: 2,
+      });
+      const walkerSession = sessionService.getCurrent(routeKey);
+      if (model) sessionService.updateSessionField(walkerSession.id, 'model', model);
+
+      let networkCalls = 0;
+      let createSessionCalls = 0;
+      const driver = new OpencodeDriver({
+        serverUrl: 'http://localhost:4096',
+        tuiBridge: bridge,
+        httpClient: {
+          request: async () => {
+            networkCalls++;
+            throw new Error('clear bridge must not use HTTP');
+          },
+        },
+        sseClient: {
+          connect: async () => {
+            networkCalls++;
+            throw new Error('clear bridge must not use SSE');
+          },
+        },
+      });
+      const realCreateSession = driver.createSession.bind(driver);
+      driver.createSession = async (...args) => {
+        createSessionCalls++;
+        return realCreateSession(...args);
+      };
+
+      const feishuApi = makeFeishuStub();
+      dispatcher = new MessageDispatcher({
+        sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      return {
+        tmpDir, sessionService, bridge, driver, feishuApi, dispatcher,
+        routeKey, chatId, cwd, runtimeId, opencodeSessionId, walkerSession, model,
+        networkCalls, createSessionCalls,
+        getNetworkCalls: () => networkCalls,
+        getCreateSessionCalls: () => createSessionCalls,
+        cleanup() {
+          if (dispatcher) { dispatcher.destroy(); dispatcher = null; }
+          bridge.close();
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        },
+        async sendClear(messageId) {
+          return dispatcher.handleCommand({
+            name: 'clear',
+            routeKey,
+            chatId,
+            messageId: messageId || ('om_clear_' + Math.random().toString(36).slice(2, 8)),
+          });
+        },
+      };
+    }
+
+    async function pollClearDelivery(h) {
+      return pollDelivery(h.bridge, h.runtimeId, h.opencodeSessionId, 1000);
+    }
+
+    function completeClear(h, delivery, newSessionId, order) {
+      const newSes = newSessionId || 'ses_new_e2e';
+      const registerPayload = {
+        runtimeId: h.runtimeId,
+        sessionId: newSes,
+        cwd: h.cwd,
+        controlDeliveryId: delivery.deliveryId,
+        opencodeVersion: '1.17.20',
+      };
+      const controlPayload = {
+        runtimeId: h.runtimeId,
+        sessionId: h.opencodeSessionId,
+        deliveryId: delivery.deliveryId,
+        control: { type: 'clear', newSessionId: newSes },
+      };
+      if (order === 'control-first') {
+        h.bridge.reportEvents(controlPayload);
+        h.bridge.register(registerPayload);
+      } else if (order === 'register-first') {
+        h.bridge.register(registerPayload);
+        h.bridge.reportEvents(controlPayload);
+      } else {
+        h.bridge.register(registerPayload);
+        h.bridge.reportEvents(controlPayload);
+      }
+      return newSes;
+    }
+
+    it('飞书 /clear 在当前 TUI 创建空上下文（control 携带新 session ID）', async () => {
+      const h = makeClearHarness();
+      try {
+        const clearPromise = h.sendClear();
+        const delivery = await pollClearDelivery(h);
+        assert.equal(delivery.type, 'clear', 'delivery 类型应为 clear');
+        assert.equal(delivery.sessionId, h.opencodeSessionId, 'delivery 指向旧 OpenCode session');
+
+        const newSes = completeClear(h, delivery, 'ses_new_a');
+
+        const result = await clearPromise;
+        assert.ok(result.cleared, 'handleCommand 应返回 cleared:true');
+        assert.equal(result.oldSessionId, h.opencodeSessionId);
+        assert.equal(result.newSessionId, newSes);
+        assert.ok(result.walkerSessionId, '应返回新 walker session id');
+
+        const reply = h.feishuApi.calls.find((c) => c.type === 'replyText' && c.text && c.text.includes('Cleared session'));
+        assert.ok(reply, '应回复 clear 成功消息');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('clear 全链路不访问独立服务或 createSession', async () => {
+      const h = makeClearHarness();
+      try {
+        const clearPromise = h.sendClear();
+        const delivery = await pollClearDelivery(h);
+        completeClear(h, delivery, 'ses_new_nohost');
+        await clearPromise;
+
+        assert.equal(h.getNetworkCalls(), 0, 'clear 不应访问独立 OpenCode HTTP/SSE');
+        assert.equal(h.getCreateSessionCalls(), 0, 'clear 不应调用 driver.createSession()');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    for (const order of ['control-first', 'register-first']) {
+      it('关联 register 与 control 完成后 route 焦点切换（' + order + '）', async () => {
+        const h = makeClearHarness();
+        try {
+          const clearPromise = h.sendClear();
+          const delivery = await pollClearDelivery(h);
+
+          const currentBefore = h.sessionService.getCurrent(h.routeKey);
+          assert.equal(currentBefore.agentRef.opencodeSessionId, h.opencodeSessionId,
+            order + ': 汇合前 route 焦点应保持旧 session');
+          assert.equal(h.bridge.runtimes.get(h.runtimeId).currentSessionId, h.opencodeSessionId,
+            order + ': 汇合前 runtime 当前 session 应保持旧 session');
+
+          const newSes = completeClear(h, delivery, 'ses_new_order', order);
+          await clearPromise;
+
+          const currentAfter = h.sessionService.getCurrent(h.routeKey);
+          assert.equal(currentAfter.agentRef.opencodeSessionId, newSes,
+            order + ': 汇合后 route 焦点应切换到新 session');
+          assert.equal(h.bridge.runtimes.get(h.runtimeId).currentSessionId, newSes,
+            order + ': 汇合后 runtime 当前 session 应为新 session');
+        } finally {
+          h.cleanup();
+        }
+      });
+    }
+
+    it('clear 后旧 session 仍在 route 且可通过 setFocus 恢复', async () => {
+      const h = makeClearHarness();
+      try {
+        const clearPromise = h.sendClear();
+        const delivery = await pollClearDelivery(h);
+        const newSes = completeClear(h, delivery, 'ses_new_keep');
+        await clearPromise;
+
+        const sessionsInRoute = h.sessionService.listSessionsInRoute(h.routeKey);
+        const oldStillInRoute = sessionsInRoute.find((s) => s.agentRef && s.agentRef.opencodeSessionId === h.opencodeSessionId);
+        assert.ok(oldStillInRoute, '旧 session 应保留在 route 中');
+        assert.notEqual(oldStillInRoute.status, 'stopped', '旧 session 不应被 stop');
+        assert.notEqual(oldStillInRoute.status, 'deleted', '旧 session 不应被 delete');
+
+        h.sessionService.setFocus(h.routeKey, oldStillInRoute.id);
+        const restored = h.sessionService.getCurrent(h.routeKey);
+        assert.equal(restored.id, oldStillInRoute.id, '旧 session 可通过 setFocus 恢复为焦点');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('新 session 继承 model 与 cwd', async () => {
+      const h = makeClearHarness({ model: { modelID: 'claude-3.5-sonnet' } });
+      try {
+        const clearPromise = h.sendClear();
+        const delivery = await pollClearDelivery(h);
+        const newSes = completeClear(h, delivery, 'ses_new_inherit');
+        const result = await clearPromise;
+
+        const newWalker = h.sessionService.getSession(result.walkerSessionId);
+        assert.deepEqual(newWalker.model, { modelID: 'claude-3.5-sonnet' }, '新 session 应继承旧 model');
+        assert.equal(newWalker.cwd, h.cwd, '新 session cwd 应来自关联 register');
+        assert.equal(newWalker.agentRef.opencodeSessionId, newSes, '新 session agentRef 指向新 OpenCode session');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('注入无关普通 register 不阻断 clear 且不提前改变原 route 焦点', async () => {
+      const h = makeClearHarness();
+      try {
+        const clearPromise = h.sendClear();
+        const delivery = await pollClearDelivery(h);
+
+        h.bridge.register({
+          runtimeId: h.runtimeId,
+          sessionId: 'ses_unrelated',
+          cwd: h.cwd,
+          opencodeVersion: '1.17.20',
+        });
+
+        const currentAfterUnrelated = h.sessionService.getCurrent(h.routeKey);
+        assert.notEqual(currentAfterUnrelated.agentRef.opencodeSessionId, h.opencodeSessionId,
+          '普通 register 会聚焦自己的新 session（与 clear 无关）');
+
+        const runtimeCurrent = h.bridge.runtimes.get(h.runtimeId).currentSessionId;
+        assert.equal(runtimeCurrent, 'ses_unrelated',
+          '普通 register 更新 runtime 当前 session');
+
+        completeClear(h, delivery, 'ses_new_isolated');
+        const result = await clearPromise;
+        assert.equal(result.newSessionId, 'ses_new_isolated',
+          'clear 仍可在普通 register 后完成');
+        const finalCurrent = h.sessionService.getCurrent(h.routeKey);
+        assert.equal(finalCurrent.agentRef.opencodeSessionId, 'ses_new_isolated',
+          'clear 完成后焦点切换到新 session');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('错误关联 ID 的 register 被拒绝且不回退为普通注册', async () => {
+      const h = makeClearHarness();
+      try {
+        const clearPromise = h.sendClear();
+        const delivery = await pollClearDelivery(h);
+
+        assert.throws(
+          () => h.bridge.register({
+            runtimeId: h.runtimeId,
+            sessionId: 'ses_unknown',
+            cwd: h.cwd,
+            controlDeliveryId: 'del_nonexistent',
+          }),
+          /unknown|controlDeliveryId|关联|过期|expired/i,
+          '未知 controlDeliveryId 应被拒绝',
+        );
+
+        const current = h.sessionService.getCurrent(h.routeKey);
+        assert.equal(current.agentRef.opencodeSessionId, h.opencodeSessionId,
+          '被拒绝的 register 不应改变 route 焦点');
+
+        completeClear(h, delivery, 'ses_new_reject');
+        await clearPromise;
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('同一 runtime 并发 clear 在投递前失败且只创建一个新 OpenCode session', async () => {
+      const h = makeClearHarness();
+      try {
+        const first = h.sendClear('om_clear_concurrent_1');
+        const delivery = await pollClearDelivery(h);
+        assert.ok(delivery, '第一个 clear 应投递 delivery');
+
+        const secondResult = await h.sendClear('om_clear_concurrent_2');
+        assert.ok(secondResult.busy || secondResult.rejected || secondResult.error,
+          '第二个 clear 应在投递前被拒绝');
+
+        const replyCalls = h.feishuApi.calls.filter((c) => c.type === 'replyText');
+        const rejectReply = replyCalls.find((c) => c.text && /clear|在途|in progress|in flight/i.test(c.text));
+        assert.ok(rejectReply, '应回复并发 clear 拒绝消息');
+
+        completeClear(h, delivery, 'ses_new_concurrent');
+        await first;
+
+        const newSessions = h.sessionService.listSessions().filter((s) =>
+          s.agentRef && s.agentRef.opencodeSessionId === 'ses_new_concurrent');
+        assert.equal(newSessions.length, 1, '只创建一个新 Walker session');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('stale runtime 与运行中 clear 保持旧焦点', async () => {
+      const h = makeClearHarness({ runtimeStaleMs: 50 });
+      try {
+        await new Promise((r) => setTimeout(r, 80));
+        const result = await h.sendClear();
+        assert.ok(result.error, 'stale runtime 时应返回错误');
+
+        const current = h.sessionService.getCurrent(h.routeKey);
+        assert.equal(current.agentRef.opencodeSessionId, h.opencodeSessionId,
+          'stale runtime 时旧焦点不变');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('运行中 /clear 在 route lock 外立即提示先 /cancel', async () => {
+      const h = makeClearHarness();
+      try {
+        const current = h.sessionService.getCurrent(h.routeKey);
+        h.sessionService.markRunning(current.id);
+        h.dispatcher.turnStates.set(current.id, { token: 1, cancelled: false });
+
+        const result = await h.sendClear();
+        assert.ok(result.busy || result.rejected, '运行中应立即拒绝');
+
+        const reply = h.feishuApi.calls.find((c) => c.type === 'replyText' && c.text && /cancel/i.test(c.text));
+        assert.ok(reply, '应提示先执行 /cancel');
+
+        h.dispatcher.turnStates.delete(current.id);
+        h.sessionService.markIdle(current.id);
+
+        const stillCurrent = h.sessionService.getCurrent(h.routeKey);
+        assert.equal(stillCurrent.agentRef.opencodeSessionId, h.opencodeSessionId,
+          '运行中拒绝后旧焦点不变，且不会自动执行 clear');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('clear error 可恢复（旧焦点不变，pending 清理）', async () => {
+      const h = makeClearHarness();
+      try {
+        const errorPromise = h.sendClear('om_clear_err_1');
+        const delivery = await pollClearDelivery(h);
+        h.bridge.reportEvents({
+          runtimeId: h.runtimeId,
+          sessionId: h.opencodeSessionId,
+          deliveryId: delivery.deliveryId,
+          error: 'SDK create failed',
+        });
+        const errorResult = await errorPromise;
+        assert.ok(errorResult.error, '插件 error 应返回错误');
+
+        const currentAfterError = h.sessionService.getCurrent(h.routeKey);
+        assert.equal(currentAfterError.agentRef.opencodeSessionId, h.opencodeSessionId,
+          'error 后旧焦点不变');
+        assert.equal(h.bridge._clearPending.size, 0, 'error 后 pending 应清理');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('clear 超时可恢复（旧焦点不变，pending 清理）', async () => {
+      const h = makeClearHarness({ promptTimeoutMs: 50 });
+      try {
+        const timeoutPromise = h.sendClear('om_clear_timeout_1');
+        const keepAlive = setInterval(() => {}, 10);
+        const timeoutResult = await timeoutPromise;
+        clearInterval(keepAlive);
+        assert.ok(timeoutResult.error, '超时应返回错误，实际: ' + JSON.stringify(timeoutResult));
+
+        assert.equal(h.bridge._clearPending.size, 0, '超时后 pending 应清理');
+        const currentAfterTimeout = h.sessionService.getCurrent(h.routeKey);
+        assert.equal(currentAfterTimeout.agentRef.opencodeSessionId, h.opencodeSessionId,
+          '超时后旧焦点不变');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('超时后迟到 control 与关联 register 均不切换焦点', async () => {
+      const h = makeClearHarness({ promptTimeoutMs: 100 });
+      try {
+        const timeoutPromise = h.sendClear('om_clear_late_1');
+        const delivery = await pollClearDelivery(h);
+        const keepAlive = setInterval(() => {}, 10);
+        await timeoutPromise;
+        clearInterval(keepAlive);
+
+        assert.throws(
+          () => h.bridge.reportEvents({
+            runtimeId: h.runtimeId,
+            sessionId: h.opencodeSessionId,
+            deliveryId: delivery.deliveryId,
+            control: { type: 'clear', newSessionId: 'ses_late' },
+          }),
+          /unknown|过期|expired|delivery/i,
+          '超时后迟到 control 应被拒绝',
+        );
+        assert.throws(
+          () => h.bridge.register({
+            runtimeId: h.runtimeId,
+            sessionId: 'ses_late',
+            cwd: h.cwd,
+            controlDeliveryId: delivery.deliveryId,
+          }),
+          /unknown|过期|expired|controlDeliveryId/i,
+          '超时后迟到 register 应被拒绝',
+        );
+
+        const current = h.sessionService.getCurrent(h.routeKey);
+        assert.equal(current.agentRef.opencodeSessionId, h.opencodeSessionId,
+          '迟到事件不切换焦点');
+      } finally {
+        h.cleanup();
+      }
+    });
+
+    it('clear 后现有 prompt 双向链路仍正常工作', async () => {
+      const h = makeClearHarness();
+      try {
+        const clearPromise = h.sendClear('om_clear_then_prompt');
+        const delivery = await pollClearDelivery(h);
+        const newSes = completeClear(h, delivery, 'ses_new_then_prompt');
+        await clearPromise;
+        await new Promise((r) => setTimeout(r, 0));
+
+        const promptResult = h.dispatcher.handleIncomingMessage({
+          messageId: 'om_msg_after_clear',
+          chatId: h.chatId,
+          text: 'hello after clear',
+        });
+
+        const runtimeBeforePoll = h.bridge.runtimes.get(h.runtimeId);
+        const newDelivery = await pollDelivery(h.bridge, h.runtimeId, newSes, 3000);
+        const runtime = h.bridge.runtimes.get(h.runtimeId);
+        const pendingEntry = h.bridge.pending.get(newDelivery.deliveryId);
+        assert.ok(newDelivery, '应拿到 prompt delivery');
+        assert.equal(newDelivery.type, 'prompt', 'clear 后 prompt delivery 类型应为 prompt');
+        assert.equal(newDelivery.text, 'hello after clear');
+        assert.equal(newDelivery.sessionId, newSes);
+        assert.ok(pendingEntry, 'pending 应有该 delivery 条目');
+
+        h.bridge.reportEvents({
+          runtimeId: h.runtimeId,
+          sessionId: newSes,
+          deliveryId: newDelivery.deliveryId,
+          events: [
+            { type: AgentEvent.TYPE_TEXT, data: { text: 'reply after clear' } },
+            { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+          ],
+        });
+
+        assert.equal(await promptResult, 'prompted');
+
+        const reply = h.feishuApi.calls.find((c) =>
+          c.type === 'replyText' && c.text && c.text.includes('reply after clear'));
+        assert.ok(reply, 'clear 后 prompt 回复应回到飞书');
+      } finally {
+        h.cleanup();
+      }
+    });
+  });
 });

@@ -215,7 +215,7 @@ class MessageDispatcher {
   }
 
   /**
-   * 处理飞书命令（/new、/attach、/list、/use、/current、/stop、/delete、/help、/agents、/runtime）
+   * 处理飞书命令（/new、/attach、/list、/use、/current、/stop、/cancel、/status、/ps、/delete、/clear、/model、/help、/agents、/runtime）
    * @param {Object} cmd - 命令对象，包含 name、args、routeKey、messageId、chatId 等字段
    * @returns {Promise<Object>} 命令执行结果
    */
@@ -230,6 +230,11 @@ class MessageDispatcher {
       const handlers = {
         new: () => this._enqueueRouteLock(cmd.routeKey, () => this._withRouteTouch(cmd.routeKey, () => this._cmdNew(cmd))),
         attach: () => this._enqueueRouteLock(cmd.routeKey, () => this._withRouteTouch(cmd.routeKey, () => this._cmdAttach(cmd))),
+        clear: async () => {
+          const preflight = await this._preflightClear(cmd);
+          if (preflight) return preflight;
+          return this._enqueueRouteLock(cmd.routeKey, () => this._withRouteTouch(cmd.routeKey, () => this._cmdClear(cmd)));
+        },
         model: () => this._withRouteTouch(cmd.routeKey, () => this._cmdModel(cmd)),
         cancel: () => this._withRouteTouch(cmd.routeKey, () => this._cmdCancel(cmd)),
         status: () => this._withRouteTouch(cmd.routeKey, () => this._cmdStatus(cmd)),
@@ -261,6 +266,83 @@ class MessageDispatcher {
       }
       return result;
     });
+  }
+
+  /**
+   * /clear 锁外快速预检：无绑定、session running、活动 turn 或未完成 prompt queue 时立即回复
+   * @param {Object} cmd - 命令对象
+   * @returns {Promise<Object|null>} 拒绝时返回结果对象，通过时返回 null
+   */
+  async _preflightClear(cmd) {
+    const routeKey = cmd.routeKey;
+    const current = this.sessionService.getCurrent(routeKey);
+    if (!current) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound to this conversation. Use /new or /attach first.']);
+      return { noSession: true };
+    }
+    if (current.status === 'running') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'Session is running. Run /cancel before /clear.']);
+      return { busy: true, rejected: true };
+    }
+    if (this.turnStates.has(current.id)) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'An active turn is in progress. Run /cancel before /clear.']);
+      return { busy: true, rejected: true };
+    }
+    if (this._promptQueues.get(current.id)) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'A prompt is still pending. Run /cancel before /clear.']);
+      return { busy: true, rejected: true };
+    }
+    const driver = this.driverRegistry.get(current.agent);
+    if (driver && typeof driver.hasClearPending === 'function' && current.agentRef && driver.hasClearPending(current.agentRef)) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'A clear is already in progress on this TUI runtime.']);
+      return { busy: true, rejected: true };
+    }
+    return null;
+  }
+
+  /**
+   * /clear 命令：在当前 TUI session 新建空上下文，保留旧会话
+   */
+  async _cmdClear(cmd) {
+    const routeKey = cmd.routeKey;
+    const current = this.sessionService.getCurrent(routeKey);
+    if (!current) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound to this conversation. Use /new or /attach first.']);
+      return { noSession: true };
+    }
+    if (current.status === 'running') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'Session is running. Run /cancel before /clear.']);
+      return { busy: true, rejected: true };
+    }
+    if (this.turnStates.has(current.id)) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'An active turn is in progress. Run /cancel before /clear.']);
+      return { busy: true, rejected: true };
+    }
+    if (this._promptQueues.get(current.id)) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'A prompt is still pending. Run /cancel before /clear.']);
+      return { busy: true, rejected: true };
+    }
+
+    if (current.agent !== 'opencode') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '/clear only supports opencode TUI sessions.']);
+      return { rejected: true };
+    }
+    const agentRef = current.agentRef;
+    if (!agentRef || agentRef.transport !== 'tui-bridge' || !agentRef.opencodeSessionId) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '/clear requires a TUI bridge session. Run /new or /attach first.']);
+      return { rejected: true };
+    }
+
+    const driver = this.driverRegistry.get(current.agent);
+    if (!driver || typeof driver.clearSession !== 'function') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'Current agent driver does not support clearSession.']);
+      return { rejected: true };
+    }
+
+    const result = await driver.clearSession(agentRef);
+    const text = 'Cleared session ' + current.id + ' (opencode ' + result.oldSessionId + ') → new session ' + result.walkerSessionId + ' (opencode ' + result.newSessionId + '). TUI window kept.';
+    await this._callFeishu('replyText', [this._replyCtx(cmd), text]);
+    return { cleared: true, oldSessionId: result.oldSessionId, newSessionId: result.newSessionId, walkerSessionId: result.walkerSessionId };
   }
 
   /**

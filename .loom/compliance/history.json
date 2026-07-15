@@ -263,5 +263,41 @@
     "violations": [
       "fail 0"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-feishu-clear",
+    "timestamp": "2026-07-15T09:16:39.718Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "failClear 清理；`plugin-template.js:267-283` 回滚+手工切回 | `test/opencode-tui-bridge.test.js` error/超时/迟到；集成测试 11/12/13 | PASS |",
+      "fail: 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-feishu-clear",
+    "timestamp": "2026-07-15T09:17:46.481Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "failClear 清理；`plugin-template.js:267-283` 回滚+手工切回 | `test/opencode-tui-bridge.test.js` error/超时/迟到；集成测试 11/12/13 | PASS |",
+      "fail: 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-feishu-clear",
+    "timestamp": "2026-07-15T09:19:53.614Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |",
+      "failClear 清理；`plugin-template.js:267-283` 回滚+手工切回 | `test/opencode-tui-bridge.test.js` error/超时/迟到；集成测试 11/12/13 | PASS |",
+      "fail: 0"
+    ]
   }
 ]

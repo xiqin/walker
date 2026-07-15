@@ -1,0 +1,43 @@
+{
+  "review_fixes": [
+    "clear register 通过 controlDeliveryId 精确关联",
+    "Walker runtime 与 route 使用两阶段原子提交",
+    "失败或超时不创建半提交 Walker session",
+    "插件导航后失败执行最佳努力回滚",
+    "create 返回前缓冲 session 自动事件",
+    "同 runtime 并发 clear 立即拒绝",
+    "dispatcher 锁外快速检查并锁内复检"
+  ],
+  "validation": [
+    "validate-plan.mjs: Checked 4 task file(s)",
+    "loom tasks --validate: No file conflicts detected",
+    "占位符扫描无命中"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已根据方案审查修订 `/clear` 规格与计划：使用 `controlDeliveryId` 明确关联 clear register；关联 register 仅暂存 OpenCode 元数据，不提前创建 Walker session或改变 runtime/route；control success 与关联 register 汇合后原子提交。插件从 create 前缓冲自动 session 事件，失败时最佳努力导航回旧 session；同 runtime 只允许一个 clear。dispatcher 改为 route lock 外即时空闲检查、锁内重新读取并复检，避免运行中请求排队后自动执行。",
+  "artifacts": [
+    "spec.md",
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "933200fad8b0915309f5e2ea421a86fb13f3bfc962b3832e7abbb0fe70a32a3d",
+    "spec.md": "771277be69b230d05dfaa9cdc58938f0548ba4cf13a7eb33c85d09f4c1b752fc",
+    "tasks/": "8a9b895aadab7c3e853ea3b679e7e7239c3957841c89bdbd013950dccb444941"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "933200fad8b0915309f5e2ea421a86fb13f3bfc962b3832e7abbb0fe70a32a3d",
+    "spec.md": "771277be69b230d05dfaa9cdc58938f0548ba4cf13a7eb33c85d09f4c1b752fc",
+    "tasks/T1.md": "e43bf6deab10f7822ea6a52b1c39feff6ba61cb54bd2ceb8962db47eced95e70",
+    "tasks/T2.md": "65141f396e4e3e1b09a31d807563f6fd193b6ffe2a916db7132a2b3aa7a7084c",
+    "tasks/T3.md": "e8bfdfe66e18b64acd9bd08c786394cf052f253814808b0cf5792b0b13862f55",
+    "tasks/T4.md": "a38091ca7a4aff2f19e8e08b1b0111281a73d946daa647c0784dc458df1938d4"
+  },
+  "written_at": "2026-07-15T08:22:47.178Z"
+}

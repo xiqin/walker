@@ -316,6 +316,25 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  async clearSession(sessionRef) {
+    if (!sessionRef || !sessionRef.opencodeSessionId) {
+      throw new Error('clearSession requires sessionRef with opencodeSessionId');
+    }
+    if (!this._isTuiBridge(sessionRef)) {
+      throw new Error('clearSession only supports tui-bridge transport');
+    }
+    if (!this.tuiBridge || typeof this.tuiBridge.clearSession !== 'function') {
+      throw new Error('OpencodeDriver clearSession requires configured tuiBridge');
+    }
+    return this.tuiBridge.clearSession(sessionRef);
+  }
+
+  hasClearPending(sessionRef) {
+    if (!this._isTuiBridge(sessionRef) || !this.tuiBridge) return false;
+    if (typeof this.tuiBridge.hasClearPending !== 'function') return false;
+    return this.tuiBridge.hasClearPending(sessionRef);
+  }
+
   async _checkHealth() {
     try {
       const resp = await this.httpClient.request('GET', this._buildUrl('/health', {}), null);

@@ -1813,3 +1813,329 @@ describe('MessageDispatcher ensureWatchForSession', () => {
     assert.equal(watchCallCount, 1, '重复调用 ensureWatchForSession 不应重复 watch');
   });
 });
+
+function makeClearMocks(overrides) {
+  const mocks = makeMocks();
+  const session = Object.assign({
+    id: 'wks_clear1',
+    agent: 'opencode',
+    status: 'idle',
+    agentRef: {
+      opencodeSessionId: 'ses_clear1',
+      transport: 'tui-bridge',
+      runtimeId: 'rt_clear1',
+    },
+  }, overrides && overrides.session);
+  mocks.sessionService.getCurrent = () => session;
+  mocks.sessionService.getSession = (id) => id === session.id ? session : null;
+  mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
+  mocks.sessionService.listSessionsInRoute = () => [session];
+  mocks.driver.createSessionCalls = [];
+  mocks.driver.createSession = async () => {
+    mocks.driver.createSessionCalls.push(true);
+    return { opencodeSessionId: 'ses_should_not', serverUrl: 'http://localhost:4096' };
+  };
+  mocks.driver.clearSessionCalls = [];
+  mocks.driver.clearSession = async (agentRef) => {
+    mocks.driver.clearSessionCalls.push(agentRef);
+    return {
+      runtimeId: 'rt_clear1',
+      oldSessionId: 'ses_clear1',
+      newSessionId: 'ses_clear2',
+      walkerSessionId: 'wks_clear2',
+    };
+  };
+  mocks.driver.openTerminalCalls = [];
+  mocks.driver.openTerminal = async () => { mocks.driver.openTerminalCalls.push(true); };
+  mocks.driver.updateConfigCalls = [];
+  mocks.driver.updateConfig = async () => { mocks.driver.updateConfigCalls.push(true); };
+  mocks.driver.stop = async () => {};
+  mocks.driver.delete = async () => {};
+  mocks.sessionService.stopSessionCalls = [];
+  mocks.sessionService.stopSession = () => { mocks.sessionService.stopSessionCalls.push(true); };
+  mocks.sessionService.deleteSessionCalls = [];
+  mocks.sessionService.deleteSession = () => { mocks.sessionService.deleteSessionCalls.push(true); };
+  mocks.sessionService.updateConfigCalls = [];
+  mocks.sessionService.updateSessionField = () => {};
+  return mocks;
+}
+
+function clearCmd(extra) {
+  return Object.assign({
+    type: 'command', name: 'clear', args: [],
+    routeKey: 'feishu:oc_chat1:om_root1',
+    messageId: 'om_clear1', chatId: 'oc_chat1',
+  }, extra || {});
+}
+
+describe('MessageDispatcher /clear command', () => {
+  it('/clear 成功时调用 driver.clearSession 并回复旧新 session ID，保持当前 TUI 窗口', async () => {
+    const mocks = makeClearMocks();
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.cleared, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 1);
+    assert.equal(mocks.driver.clearSessionCalls[0].opencodeSessionId, 'ses_clear1');
+    assert.equal(mocks.driver.createSessionCalls.length, 0, '不得调用 driver.createSession');
+    assert.equal(mocks.driver.openTerminalCalls.length, 0, '不得调用 runtime.openTerminal');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply, '应回复成功消息');
+    assert.match(reply.text, /ses_clear1/);
+    assert.match(reply.text, /ses_clear2/);
+    assert.match(reply.text, /wks_clear2/);
+  });
+
+  it('/clear 不调用 stop/delete 旧 session', async () => {
+    const mocks = makeClearMocks();
+    mocks.driver.stop = async () => { mocks.driver.stopCalls = (mocks.driver.stopCalls || 0) + 1; };
+    mocks.driver.delete = async () => { mocks.driver.deleteCalls = (mocks.driver.deleteCalls || 0) + 1; };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(mocks.sessionService.stopSessionCalls.length, 0, '不应调用 stopSession');
+    assert.equal(mocks.sessionService.deleteSessionCalls.length, 0, '不应调用 deleteSession');
+    assert.equal(mocks.driver.stopCalls || 0, 0, '不应调用 driver.stop');
+    assert.equal(mocks.driver.deleteCalls || 0, 0, '不应调用 driver.delete');
+  });
+
+  it('/clear 不修改旧 session model 或全局配置', async () => {
+    const mocks = makeClearMocks();
+    const updateFields = [];
+    mocks.sessionService.updateSessionField = (sid, field, value) => { updateFields.push({ sid, field, value }); };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(mocks.driver.updateConfigCalls.length, 0, '不应调用 driver.updateConfig');
+    const modelUpdates = updateFields.filter((u) => u.field === 'model');
+    assert.equal(modelUpdates.length, 0, '不应修改旧 session model');
+  });
+
+  it('/clear 无绑定 session 时锁外立即拒绝，不排队等待 route lock', async () => {
+    const mocks = makeClearMocks();
+    mocks.sessionService.getCurrent = () => null;
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.noSession, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 0);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply);
+    assert.match(reply.text, /\/new|\/attach/);
+  });
+
+  it('/clear 非 TUI transport 时锁外立即拒绝', async () => {
+    const mocks = makeClearMocks({
+      session: { agentRef: { opencodeSessionId: 'ses_clear1', transport: 'http', serverUrl: 'http://localhost:4096' } },
+    });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.error || result.rejected, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 0);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText' || c.type === 'sendErrorCard');
+    assert.ok(reply);
+  });
+
+  it('/clear session running 时锁外立即拒绝并提示先 /cancel', async () => {
+    const mocks = makeClearMocks({
+      session: { status: 'running' },
+    });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.busy || result.rejected, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 0);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText' || c.type === 'sendErrorCard');
+    assert.ok(reply);
+    assert.match(reply.text || reply.message, /\/cancel/);
+  });
+
+  it('/clear 存在活动 turn state 时锁外立即拒绝', async () => {
+    const mocks = makeClearMocks();
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+    dispatcher.turnStates.set('wks_clear1', { token: 1, startedAt: Date.now(), lastEventAt: Date.now(), cancelled: false });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.busy || result.rejected, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 0);
+  });
+
+  it('/clear 存在未完成 prompt queue 时锁外立即拒绝', async () => {
+    const mocks = makeClearMocks();
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+    let resolvePrompt;
+    mocks.driver.prompt = async () => new Promise((resolve) => { resolvePrompt = resolve; });
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_clear_prompt1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const result = await dispatcher.handleCommand(clearCmd({ messageId: 'om_clear_during_prompt1' }));
+
+    assert.equal(result.busy || result.rejected, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 0);
+
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    await pending;
+    assert.equal(mocks.driver.clearSessionCalls.length, 0, 'prompt 完成后不应自动执行 clear');
+  });
+
+  it('/clear 锁内复检焦点变化时拒绝执行', async () => {
+    const mocks = makeClearMocks();
+    let getCurrentCalls = 0;
+    const originalSession = mocks.sessionService.getCurrent();
+    mocks.sessionService.getCurrent = () => {
+      getCurrentCalls += 1;
+      if (getCurrentCalls >= 2) return null;
+      return originalSession;
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.noSession || result.rejected || result.error, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 0);
+  });
+
+  it('/clear 锁内复检状态变为 running 时拒绝执行', async () => {
+    const mocks = makeClearMocks();
+    const session = mocks.sessionService.getCurrent();
+    let getCurrentCalls = 0;
+    mocks.sessionService.getCurrent = () => {
+      getCurrentCalls += 1;
+      if (getCurrentCalls >= 2) session.status = 'running';
+      return session;
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.busy || result.rejected, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 0);
+  });
+
+  it('/clear driver 缺少 clearSession 能力时拒绝执行', async () => {
+    const mocks = makeClearMocks();
+    delete mocks.driver.clearSession;
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.rejected || result.error, true);
+    assert.equal(mocks.driver.createSessionCalls.length, 0, '禁止回退到 createSession');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText' || c.type === 'sendErrorCard');
+    assert.ok(reply);
+  });
+
+  it('/clear bridge 失败时返回错误卡片且不伪报成功', async () => {
+    const mocks = makeClearMocks();
+    mocks.driver.clearSession = async () => { throw new Error('bridge clear failed'); };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.error, 'command_failed');
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard' && (c.message || '').includes('bridge clear failed')));
+    const successReply = mocks.feishuApi.calls.find(c => c.type === 'replyText' && /ses_clear2/.test(c.text));
+    assert.equal(!!successReply, false, '不应伪报成功');
+  });
+
+  it('/clear agent 非 opencode 时拒绝执行', async () => {
+    const mocks = makeClearMocks({
+      session: { agent: 'claude', agentRef: { opencodeSessionId: 'ses_clear1', transport: 'tui-bridge', runtimeId: 'rt_clear1' } },
+    });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand(clearCmd());
+
+    assert.equal(result.rejected || result.error, true);
+    assert.equal(mocks.driver.clearSessionCalls.length, 0);
+  });
+});

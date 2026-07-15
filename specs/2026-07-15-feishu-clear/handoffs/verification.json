@@ -1,0 +1,24 @@
+{
+  "status": "done",
+  "summary": "验证通过：npm test 710/710 pass，占位符扫描无命中，类型一致性、Drift Check 均通过，spec REQ-001..010 全部 PASS。verify-report.md verdict=PASS。",
+  "artifacts": [
+    "verify-report.md",
+    "evidence/verification.log",
+    "test-report.md",
+    "evidence/test.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "933200fad8b0915309f5e2ea421a86fb13f3bfc962b3832e7abbb0fe70a32a3d",
+    "spec.md": "771277be69b230d05dfaa9cdc58938f0548ba4cf13a7eb33c85d09f4c1b752fc",
+    "test-report.md": "5aabd0f0de8eaa922ef1723259ac2f5b9ebf45fd601b797b69b50714b4918d6a"
+  },
+  "artifact_fingerprints": {
+    "evidence/test.log": "956c7d83a5bab64aef7905817af41c3dc85a70d9d8e4254fd42c40d4ba3c2b41",
+    "evidence/verification.log": "04bf818131e9428f74081650bd848042e8ae23a6f7ba98cc803655872ab1d9da",
+    "test-report.md": "5aabd0f0de8eaa922ef1723259ac2f5b9ebf45fd601b797b69b50714b4918d6a",
+    "verify-report.md": "867d53a3531cd000639680333689d6027eab08faff0e29aaa6e7ea83965bd35d"
+  },
+  "written_at": "2026-07-15T09:16:35.919Z"
+}

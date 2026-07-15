@@ -1,0 +1,31 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "将 /clear 命令注册到飞书命令表并在 dispatcher 中通过锁外 preflight 快速检查与 route lock 内复检，安全执行当前 TUI session 的 clear 操作。新增 clear 命令定义、_preflightClear 锁外预检、_cmdClear 锁内复检与执行，校验无绑定、agent 身份、tui-bridge transport、running 状态、活动 turn 和未完成 prompt queue，仅调用 driver.clearSession，禁止回退 createSession 或 openTerminal。",
+  "artifacts": [
+    "src/platform/feishu/commands.js",
+    "src/dispatch/message-dispatcher.js",
+    "test/feishu-commands.test.js",
+    "test/message-dispatcher.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "COMMANDS.clear",
+      "file": "src/platform/feishu/commands.js",
+      "description": "clear 命令定义：{ desc: '在当前 TUI 新建空上下文并保留旧会话', usage: '/clear' }，无参数"
+    },
+    {
+      "name": "MessageDispatcher._preflightClear",
+      "file": "src/dispatch/message-dispatcher.js",
+      "description": "锁外快速预检：无绑定、running、活动 turn 或未完成 prompt queue 时立即回复拒绝，不进入 route lock 排队"
+    },
+    {
+      "name": "MessageDispatcher._cmdClear",
+      "file": "src/dispatch/message-dispatcher.js",
+      "description": "锁内复检后执行 clear：重新读取 route 焦点，重复无绑定/running/turn/prompt queue 校验，校验 agent=opencode 和 transport=tui-bridge，调用 driver.clearSession(agentRef)，成功回复旧新 session ID"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-001", "REQ-003", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009"],
+  "notes": "1) /new 行为与实现路径未改变，clear 与 /new、/attach 共用 _enqueueRouteLock + _withRouteTouch 串行化路径。2) preflight 通过后仍进入 route lock，锁内 _cmdClear 重新读取 current，不使用 preflight 缓存的 session 对象。3) 任一空闲检查失败时提示先执行 /cancel，不等待、不自动取消、不在 prompt 结束后自动执行 clear。4) driver.clearSession 失败时沿 handleCommand 的 catch 路径发送错误卡片，不伪报成功。5) 不调用 stop/delete/updateConfig/openTerminal。6) 全量回归 695 测试通过。"
+}
