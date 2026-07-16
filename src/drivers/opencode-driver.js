@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 const { AgentDriver, AgentEvent } = require('./agent-driver');
 const { createLogger } = require('../core/logger');
 const { mapSSEEvent, isTerminalSSEEvent } = require('./opencode-sse-adapter');
@@ -29,6 +32,10 @@ class OpencodeDriver extends AgentDriver {
     this.promptTimeoutMs = options.promptTimeoutMs || 120000;
     this.sseOpenTimeoutMs = options.sseOpenTimeoutMs || 1000;
     this.tuiBridge = options.tuiBridge || null;
+    this._hasModelStateOverride = Object.prototype.hasOwnProperty.call(options, 'modelState');
+    this.modelState = options.modelState;
+    const stateRoot = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+    this.modelStatePath = options.modelStatePath || path.join(stateRoot, 'opencode', 'model.json');
 
     this._sessionWatcher = new OpencodeSessionWatcher({
       sseClient: this.sseClient,
@@ -110,46 +117,69 @@ class OpencodeDriver extends AgentDriver {
     const url = this._buildUrl('/api/model', {});
     try {
       const resp = await this.httpClient.request('GET', url, null);
-      const configuredKeys = await this._listConfiguredModelKeys();
-      const models = this._extractModelList(resp);
-      return models.map((m) => this._normalizeModel(m, configuredKeys)).filter((m) => m.id && m.enabled);
+      const runtimeModels = this._extractModelList(resp);
+      const modelState = await this._loadModelState();
+      const recentModels = this._extractRecentModels(modelState);
+      const models = this._mergeRecentModels(recentModels, runtimeModels);
+      return models.map((m) => this._normalizeModel(m)).filter((m) => m.id && m.enabled);
     } catch (err) {
       throw new Error('Failed to list models at ' + this.serverUrl + ': ' + err.message);
     }
   }
 
-  async _listConfiguredModelKeys() {
-    const url = this._buildUrl('/config', {});
+  async _loadModelState() {
+    if (this._hasModelStateOverride) return this.modelState;
     try {
-      const config = await this.httpClient.request('GET', url, null);
-      return this._extractConfiguredModelKeys(config);
+      const content = await fs.readFile(this.modelStatePath, 'utf8');
+      return JSON.parse(content);
     } catch (_) {
-      return new Set();
+      return null;
     }
   }
 
-  _extractConfiguredModelKeys(config) {
-    const keys = new Set();
-    const value = config && config.data && typeof config.data === 'object' ? config.data : config;
-    const providers = value && value.provider;
-    if (!providers || typeof providers !== 'object') return keys;
-    for (const [providerID, provider] of Object.entries(providers)) {
-      const models = provider && provider.models;
-      if (!models || typeof models !== 'object') continue;
-      for (const modelID of Object.keys(models)) {
-        keys.add(providerID + '/' + modelID);
+  _extractRecentModels(modelState) {
+    const recent = modelState && Array.isArray(modelState.recent) ? modelState.recent : [];
+    const models = [];
+    for (const model of recent) {
+      const providerID = model && (model.providerID || model.provider);
+      const modelID = model && (model.modelID || model.id);
+      if (!providerID || !modelID) continue;
+      models.push({ providerID, id: modelID, name: modelID, groups: ['recent'] });
+    }
+    return models;
+  }
+
+  _mergeRecentModels(recentModels, runtimeModels) {
+    const runtimeByKey = new Map(runtimeModels.map((model) => [this._modelKey(model), model]));
+    const seen = new Set();
+    const merged = [];
+    for (const model of recentModels) {
+      const key = this._modelKey(model);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const runtimeModel = runtimeByKey.get(key);
+      if (!runtimeModel) {
+        merged.push(model);
+        continue;
       }
+      runtimeByKey.delete(key);
+      const groups = this._normalizeModelGroups(runtimeModel);
+      if (!groups.includes('recent')) groups.push('recent');
+      merged.push({ ...runtimeModel, groups });
     }
-    return keys;
+    return merged.concat([...runtimeByKey.values()]);
   }
 
-  _normalizeModel(m, configuredKeys) {
+  _modelKey(model) {
+    const provider = model && (model.providerID || model.provider) || '';
+    const id = model && (model.id || model.modelID) || '';
+    return provider + '/' + id;
+  }
+
+  _normalizeModel(m) {
     const groups = this._normalizeModelGroups(m);
     const id = m.id || m.modelID || '';
     const provider = m.providerID || m.provider || '';
-    if (configuredKeys && configuredKeys.has(provider + '/' + id) && !groups.includes('configured')) {
-      groups.push('configured');
-    }
     return {
       id,
       name: m.name || m.modelName || '',

@@ -875,7 +875,7 @@ describe('OpencodeDriver listModels', () => {
         ],
       },
     });
-    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', modelState: null });
 
     const models = await driver.listModels();
 
@@ -916,7 +916,7 @@ describe('OpencodeDriver listModels', () => {
         ],
       },
     });
-    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', modelState: null });
 
     const models = await driver.listModels();
 
@@ -937,46 +937,69 @@ describe('OpencodeDriver listModels', () => {
     assert.equal(models[2].source, 'opencode');
   });
 
-  it('将 OpenCode 配置中的自定义 provider 模型标记为 configured', async () => {
+  it('合并本地 Recent 与 /api/model，且不读取其它模型源', async () => {
     const http = new FakeHttpClient({
       'GET http://localhost:4096/api/model': {
         status: 200,
         data: [
-          { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', providerID: 'anthropic' },
-          { id: 'gpt-5.5', name: 'GPT-5.5', providerID: 'fastai' },
+          {
+            id: 'gpt-5.6-sol',
+            name: 'GPT 5.6 Sol',
+            providerID: 'cpa',
+          },
+          { id: 'runtime-only', name: 'Runtime Only', providerID: 'anthropic' },
         ],
       },
-      'GET http://localhost:4096/config': {
-        status: 200,
-        data: {
-          provider: {
-            fastai: { models: { 'gpt-5.5': { name: 'GPT-5.5' } } },
-          },
-        },
+    });
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:4096',
+      modelState: {
+        recent: [
+          { providerID: 'cpa', modelID: 'gpt-5.6-sol' },
+          { providerID: 'kscc', modelID: 'glm-5.2' },
+          { providerID: 'cpa', modelID: 'gpt-5.6-sol' },
+        ],
       },
     });
-    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
 
     const models = await driver.listModels();
 
-    assert.deepEqual(models[0].groups, []);
-    assert.deepEqual(models[1].groups, ['configured']);
+    assert.deepEqual(models.map((model) => model.provider + '/' + model.id), [
+      'cpa/gpt-5.6-sol',
+      'kscc/glm-5.2',
+      'anthropic/runtime-only',
+    ]);
+    assert.equal(models[0].name, 'GPT 5.6 Sol');
+    assert.deepEqual(models[0].groups, ['recent']);
+    assert.equal(models[1].name, 'glm-5.2');
+    assert.deepEqual(models[1].groups, ['recent']);
+    assert.deepEqual(models[2].groups, []);
+    assert.deepEqual(http.calls.map((call) => call.method + ' ' + call.url), [
+      'GET http://localhost:4096/api/model',
+    ]);
   });
 
-  it('配置读取失败时仍返回模型列表', async () => {
+  it('本地模型状态不可用时仅返回 /api/model', async () => {
     const http = new FakeHttpClient({
       'GET http://localhost:4096/api/model': {
         status: 200,
         data: [{ id: 'claude-sonnet-5', name: 'Claude Sonnet 5', providerID: 'anthropic' }],
       },
-      'GET http://localhost:4096/config': { error: new Error('config unavailable') },
     });
-    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:4096',
+      modelStatePath: 'Z:\\missing\\opencode-model.json',
+    });
 
     const models = await driver.listModels();
 
     assert.equal(models.length, 1);
     assert.equal(models[0].id, 'claude-sonnet-5');
+    assert.deepEqual(http.calls.map((call) => call.method + ' ' + call.url), [
+      'GET http://localhost:4096/api/model',
+    ]);
   });
 
   it('过滤 disabled 或无 id 模型并保留 deprecated 状态', async () => {
@@ -990,7 +1013,7 @@ describe('OpencodeDriver listModels', () => {
         ],
       },
     });
-    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', modelState: null });
 
     const models = await driver.listModels();
 
@@ -1006,7 +1029,7 @@ describe('OpencodeDriver listModels', () => {
         { modelID: 'gemini-pro', modelName: 'Gemini Pro', provider: 'google' },
       ],
     });
-    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', modelState: null });
 
     const models = await driver.listModels();
 
@@ -1020,7 +1043,7 @@ describe('OpencodeDriver listModels', () => {
     const http = new FakeHttpClient({
       'GET http://localhost:4096/api/model': { error: new Error('connection refused') },
     });
-    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', modelState: null });
 
     await assert.rejects(() => driver.listModels(), /Failed to list models/);
   });
