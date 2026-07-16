@@ -262,6 +262,7 @@ class MessageDispatcher {
         help: () => this._cmdHelp(cmd),
         agents: () => this._cmdAgents(cmd),
         runtime: () => this._cmdRuntime(cmd),
+        permit: () => this._cmdPermit(cmd),
       };
       const handler = handlers[cmd.name];
       if (handler) return await handler();
@@ -712,6 +713,39 @@ class MessageDispatcher {
     return { model: modelRef, sessionId: current.id };
   }
 
+  async _cmdPermit(cmd) {
+    const args = cmd.args || [];
+    if (args.length < 2) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '用法: /permit <permissionId> <allow|deny>']);
+      return { error: 'missing_args' };
+    }
+    const permissionId = args[0];
+    const response = args[1];
+    if (response !== 'allow' && response !== 'deny') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '参数错误: 只接受 allow 或 deny。用法: /permit <permissionId> <allow|deny>']);
+      return { error: 'invalid_response' };
+    }
+    const current = this.sessionService.getCurrent(cmd.routeKey);
+    if (!current) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound to this conversation.']);
+      return { noSession: true };
+    }
+    const driver = this.driverRegistry.get(current.agent);
+    if (!driver || typeof driver.replyPermission !== 'function') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '当前 agent 不支持权限回复']);
+      return { error: 'driver_not_supported' };
+    }
+    try {
+      await driver.replyPermission(current.agentRef, permissionId, response, false);
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '已' + (response === 'allow' ? '允许' : '拒绝') + '权限请求 ' + permissionId]);
+      return { replied: permissionId, response };
+    } catch (err) {
+      logger.warn('permit command failed', { permissionId, error: err && err.message });
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '权限不存在或已过期: ' + permissionId]);
+      return { error: 'reply_failed' };
+    }
+  }
+
   _formatModelListText(models) {
     if (!models || models.length === 0) return 'No models available.';
     const active = models.filter((m) => m.status !== 'deprecated');
@@ -910,6 +944,8 @@ class MessageDispatcher {
 
     for (const agentEvent of displayEvents) {
       if (agentEvent.type === AgentEvent.TYPE_TEXT) continue;
+      if (agentEvent.type === AgentEvent.TYPE_PERMISSION || agentEvent.type === AgentEvent.TYPE_PERMISSION_REPLIED) continue;
+      if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
       this._touchTurnState(this.turnStates.get(session.id));
       const rendered = await this._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null);
       if (rendered && rendered.strategy === 'new_message') {
@@ -1283,8 +1319,51 @@ class MessageDispatcher {
       }
       return;
     }
+    if (agentEvent.type === AgentEvent.TYPE_PERMISSION) {
+      this._handlePermissionEvent(session, chatId, agentEvent);
+      return;
+    }
+    if (agentEvent.type === AgentEvent.TYPE_PERMISSION_REPLIED) {
+      this._handlePermissionRepliedEvent(session, chatId, agentEvent);
+      return;
+    }
     buffer.push(agentEvent);
     this.sessionWatchBuffers.set(session.id, buffer);
+  }
+
+  _handlePermissionEvent(session, chatId, agentEvent) {
+    if (!this.permissionCardIds) this.permissionCardIds = new Map();
+    const permissionId = agentEvent.data && agentEvent.data.id;
+    const routeKey = this.sessionService && typeof this.sessionService.getRouteForSession === 'function'
+      ? this.sessionService.getRouteForSession(session.id) : '';
+    const card = {
+      data: agentEvent.data,
+      sessionId: session.id,
+      routeKey: routeKey,
+    };
+    const existingCardId = this.permissionCardIds.get(permissionId);
+    if (existingCardId) {
+      this._sendFeishu('patchCard', [existingCardId, require('../platform/feishu/cards').buildPermissionCard(agentEvent, session.id, routeKey)], { sessionId: session.id, permissionId });
+      return;
+    }
+    const replyCtx = { chatId: chatId };
+    this._callFeishu('replyCard', [replyCtx, require('../platform/feishu/cards').buildPermissionCard(agentEvent, session.id, routeKey)], null, { sessionId: session.id, permissionId })
+      .then((cardId) => {
+        if (cardId) this.permissionCardIds.set(permissionId, cardId);
+      })
+      .catch((err) => {
+        logger.warn('permission card send failed', { sessionId: session.id, permissionId, error: err && err.message });
+      });
+  }
+
+  _handlePermissionRepliedEvent(session, chatId, agentEvent) {
+    const permissionId = agentEvent.data && agentEvent.data.permissionId;
+    const response = agentEvent.data && agentEvent.data.response;
+    if (!this.permissionCardIds || !permissionId) return;
+    const existingCardId = this.permissionCardIds.get(permissionId);
+    if (existingCardId) {
+      this._sendFeishu('patchCard', [existingCardId, require('../platform/feishu/cards').buildPermissionRepliedCard(permissionId, response)], { sessionId: session.id, permissionId });
+    }
   }
 
   _isFocusSession(session) {

@@ -2999,3 +2999,106 @@ describe('MessageDispatcher AbortSignal and transport recovery', () => {
     assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text && c.text.includes('late prompt text')), false, '取消后 prompt 迟到结果不应渲染到飞书');
   });
 });
+
+describe('MessageDispatcher permission handling', () => {
+  it('TYPE_PERMISSION 事件触发权限卡片发送', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } });
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:root:om_root1';
+    mocks.feishuApi.replyCard = (replyCtx, card) => { mocks.feishuApi.calls.push({ type: 'replyCard', replyCtx, card }); return 'om_perm_card1'; };
+    const dispatcher = new MessageDispatcher(mocks);
+    const session = { id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } };
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_PERMISSION, {
+      id: 'perm_abc', type: 'bash', title: '执行 rm 命令',
+    }));
+    await new Promise((resolve) => setImmediate(resolve));
+    const cardCall = mocks.feishuApi.calls.find((c) => c.type === 'replyCard');
+    assert.ok(cardCall, '应调用 replyCard 发送权限卡片');
+    assert.equal(cardCall.card.header.title.content, '权限确认请求');
+    assert.equal(cardCall.card.header.template, 'red');
+  });
+
+  it('TYPE_PERMISSION_REPLIED 更新原权限卡片', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:root:om_root1';
+    mocks.feishuApi.replyCard = () => 'om_perm_card1';
+    const dispatcher = new MessageDispatcher(mocks);
+    const session = { id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } };
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_PERMISSION, { id: 'perm_abc', title: 'test' }));
+    await new Promise((resolve) => setImmediate(resolve));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_PERMISSION_REPLIED, { permissionId: 'perm_abc', response: 'allow' }));
+    const patchCall = mocks.feishuApi.calls.find((c) => c.type === 'patchCard');
+    assert.ok(patchCall, '应调用 patchCard 更新权限卡片');
+    assert.equal(patchCall.card.header.title.content, '权限已处理');
+  });
+
+  it('/permit allow 正确调用 replyPermission', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } });
+    let replyCalls = [];
+    mocks.driver.replyPermission = async (sessionRef, permissionId, response, remember) => {
+      replyCalls.push({ sessionRef, permissionId, response, remember });
+    };
+    const dispatcher = new MessageDispatcher(mocks);
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'permit', args: ['perm_abc', 'allow'],
+      routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cmd1', chatId: 'oc_chat1',
+    });
+    assert.equal(replyCalls.length, 1);
+    assert.equal(replyCalls[0].permissionId, 'perm_abc');
+    assert.equal(replyCalls[0].response, 'allow');
+    assert.equal(result.replied, 'perm_abc');
+  });
+
+  it('/permit deny 正确调用 replyPermission', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } });
+    let replyCalls = [];
+    mocks.driver.replyPermission = async (sessionRef, permissionId, response, remember) => {
+      replyCalls.push({ sessionRef, permissionId, response, remember });
+    };
+    const dispatcher = new MessageDispatcher(mocks);
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'permit', args: ['perm_abc', 'deny'],
+      routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cmd1', chatId: 'oc_chat1',
+    });
+    assert.equal(replyCalls[0].response, 'deny');
+    assert.equal(result.replied, 'perm_abc');
+  });
+
+  it('/permit 缺少参数返回用法提示', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: {} });
+    const dispatcher = new MessageDispatcher(mocks);
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'permit', args: ['perm_abc'],
+      routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cmd1', chatId: 'oc_chat1',
+    });
+    assert.equal(result.error, 'missing_args');
+    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('用法')));
+  });
+
+  it('/permit 非法 response 返回错误', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: {} });
+    const dispatcher = new MessageDispatcher(mocks);
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'permit', args: ['perm_abc', 'maybe'],
+      routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cmd1', chatId: 'oc_chat1',
+    });
+    assert.equal(result.error, 'invalid_response');
+  });
+
+  it('/permit replyPermission 失败提示权限不存在', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } });
+    mocks.driver.replyPermission = async () => { throw new Error('server 404'); };
+    const dispatcher = new MessageDispatcher(mocks);
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'permit', args: ['perm_abc', 'allow'],
+      routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cmd1', chatId: 'oc_chat1',
+    });
+    assert.equal(result.error, 'reply_failed');
+    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('权限不存在或已过期')));
+  });
+});

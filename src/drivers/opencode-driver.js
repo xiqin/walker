@@ -517,6 +517,31 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  async replyPermission(sessionRef, permissionId, response, remember) {
+    if (!sessionRef || !sessionRef.opencodeSessionId) {
+      throw new Error('replyPermission requires sessionRef with opencodeSessionId');
+    }
+    if (!permissionId) {
+      throw new Error('replyPermission requires permissionId');
+    }
+    if (this._isTuiBridge(sessionRef)) {
+      throw new Error('replyPermission is not supported for tui-bridge transport');
+    }
+    const url = this._buildUrl(
+      '/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/permissions/' + encodeURIComponent(permissionId),
+      {},
+      sessionRef
+    );
+    const body = { response: response, remember: remember !== undefined ? remember : false };
+    try {
+      await this.httpClient.request('POST', url, body);
+      logger.info('opencode permission replied', { sessionId: sessionRef.opencodeSessionId, permissionId, response });
+    } catch (err) {
+      logger.warn('opencode permission reply failed', { error: err.message, permissionId });
+      throw err;
+    }
+  }
+
   async clearSession(sessionRef) {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('clearSession requires sessionRef with opencodeSessionId');

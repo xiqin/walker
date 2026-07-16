@@ -7,6 +7,8 @@ const {
   renderModelListCard,
   renderHelpCard,
   renderErrorCard,
+  buildPermissionCard,
+  buildPermissionRepliedCard,
   buildButtonValue,
   buildCommandValue,
 } = require('../src/platform/feishu/cards');
@@ -349,4 +351,82 @@ test('renderErrorCard 显示错误信息', () => {
   assert.equal(card.header.template, 'red');
   const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
   assert.ok(textEl.text.content.includes('session not found'));
+});
+
+test('buildPermissionCard header 红色且标题为权限确认请求', () => {
+  const card = buildPermissionCard(
+    { data: { id: 'perm_1', type: 'bash', title: '执行 bash 命令' } },
+    'wks_session1'
+  );
+  assert.equal(card.header.template, 'red');
+  assert.equal(card.header.title.content, '权限确认请求');
+});
+
+test('buildPermissionCard body 包含权限标题', () => {
+  const card = buildPermissionCard(
+    { data: { id: 'perm_1', title: '执行 rm 命令' } },
+    'wks_session1'
+  );
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('执行 rm 命令'));
+});
+
+test('buildPermissionCard 包含允许和拒绝按钮', () => {
+  const card = buildPermissionCard(
+    { data: { id: 'perm_1', title: 'test' } },
+    'wks_session1',
+    'route_key_1'
+  );
+  const buttons = collectButtons(card);
+  assert.ok(buttons.some((b) => b.text.content === '允许' && b.type === 'primary'));
+  assert.ok(buttons.some((b) => b.text.content === '拒绝' && b.type === 'danger'));
+});
+
+test('buildPermissionCard 按钮 value 携带 permit 命令', () => {
+  const card = buildPermissionCard(
+    { data: { id: 'perm_abc', title: 'test' } },
+    'wks_s1',
+    'rk1'
+  );
+  const buttons = collectButtons(card);
+  const allowBtn = buttons.find((b) => b.text.content === '允许');
+  assert.match(allowBtn.value.action, /cmd:\/permit perm_abc allow/);
+  assert.match(allowBtn.value.action, /wks_s1/);
+  assert.equal(allowBtn.value.routeKey, 'rk1');
+  const denyBtn = buttons.find((b) => b.text.content === '拒绝');
+  assert.match(denyBtn.value.action, /cmd:\/permit perm_abc deny/);
+});
+
+test('buildPermissionCard 缺少 title 时显示未知权限请求', () => {
+  const card = buildPermissionCard(
+    { data: { id: 'perm_1' } },
+    'wks_s1'
+  );
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('未知权限请求'));
+});
+
+test('buildPermissionCard metadata 显示命令信息', () => {
+  const card = buildPermissionCard(
+    { data: { id: 'perm_1', type: 'bash', title: '执行命令', metadata: { command: 'npm test' } } },
+    'wks_s1'
+  );
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('npm test'));
+});
+
+test('buildPermissionRepliedCard header 灰色且显示已处理', () => {
+  const card = buildPermissionRepliedCard('perm_abc', 'allow');
+  assert.equal(card.header.template, 'default');
+  assert.equal(card.header.title.content, '权限已处理');
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('已允许'));
+  assert.ok(textEl.text.content.includes('perm\\_abc'));
+});
+
+test('buildPermissionRepliedCard deny 显示已拒绝', () => {
+  const card = buildPermissionRepliedCard('perm_abc', 'deny');
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('已拒绝'));
+  assert.ok(textEl.text.content.includes('perm\\_abc'));
 });

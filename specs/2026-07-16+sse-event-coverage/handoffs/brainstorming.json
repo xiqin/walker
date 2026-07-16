@@ -1,0 +1,16 @@
+{
+  "stage": "brainstorming",
+  "status": "done",
+  "summary": "确认全量映射 OpenCode 1.17.20 SSE 事件到飞书。核心是 permission.updated 权限确认链路（飞书卡片按钮回调 OpenCode 答复端点），其次 todo/compacted/file-edited/step/command 在进度卡片分级展示，session 生命周期/消息撤回用于内部同步，installation/lsp/vcs/tui/pty 静默丢弃。新增 11 种 AgentEvent 类型，1 个 replyPermission driver 方法，1 个 /permit 命令。",
+  "artifacts": ["spec.md"],
+  "decisions": [
+    "权限交互：飞书卡片按钮回调（复用 card.action 机制）",
+    "权限超时：依赖 OpenCode 自身超时，walker 不设超时",
+    "todo.updated：进度卡片条目展示",
+    "session.compacted：进度卡片提示条目",
+    "file.edited/session.diff：折叠摘要显示",
+    "未识别 part.type：按重要性分级（step 显示进度，file/patch 显示摘要，其余静默）",
+    "不实现权限 remember 功能、飞书侧超时、完整 diff 展示"
+  ],
+  "open_questions": []
+}

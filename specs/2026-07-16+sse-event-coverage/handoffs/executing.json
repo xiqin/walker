@@ -1,0 +1,32 @@
+{
+  "status": "done",
+  "summary": "T1-T7 全部实现完成。新增 11 种 AgentEvent 类型，mapSSEEvent 全量映射 31 种 SSE 事件，replyPermission 方法，权限卡片渲染+/permit 命令+dispatcher 权限处理+bootstrap 绑定。900 测试全部通过（新增 64 个）。",
+  "artifacts": [
+    "src/drivers/agent-driver.js",
+    "src/drivers/opencode-sse-adapter.js",
+    "src/drivers/opencode-driver.js",
+    "src/platform/feishu/progress-card.js",
+    "src/platform/feishu/cards.js",
+    "src/platform/feishu/commands.js",
+    "src/dispatch/message-dispatcher.js",
+    "src/app/bootstrap.js"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "5d377f59977304eb3ba60c8b506dbbd421471b1b3db3b3a602fd95a79763c01d",
+    "spec.md": "1fc7339be41822cd60db71f5198c9f4387196433c25cee576db8bdf52a20f357",
+    "tasks/": "2fc9d91313207c1872978687bef59aec6c35e7b440b7a1d917c796b1876b5efa"
+  },
+  "artifact_fingerprints": {
+    "src/app/bootstrap.js": "08f9d1e56c65b01e88b611595b72be4c2cf30ed6542e7b44d786379bfb59a182",
+    "src/dispatch/message-dispatcher.js": "39e1191b11c477b397c1adacf1bcf85542d06738745bab79188dca6457298b6a",
+    "src/drivers/agent-driver.js": "5895591652710adf4677f197fe3e35846d7e2fc176e301d3baf2acb96a90fd26",
+    "src/drivers/opencode-driver.js": "d9aa10258ef6504ba4032bbe0bfdb8b7b21d253d84dff69a725585ac02e39b06",
+    "src/drivers/opencode-sse-adapter.js": "4ee6a3efd8bc06f767b65b55f42c0c9b408aad1a3efd9a3feb3a60baf95a9ff5",
+    "src/platform/feishu/cards.js": "5500cff317769b52a019a969a38e1481d7dc8eaef37b2de11af7059bb2b32936",
+    "src/platform/feishu/commands.js": "0de3b07a6f99835c8cdde5feb8aa6bf9404ce78323acdca02083a849d406dbbc",
+    "src/platform/feishu/progress-card.js": "490e10391a9c4f2bde97b75abdc9365992edb3e9952db52d809cbc7f9d426f8c"
+  },
+  "written_at": "2026-07-16T12:42:11.831Z"
+}

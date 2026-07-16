@@ -156,3 +156,61 @@ test('ProgressCard done 后显示中性完成提示', () => {
   assert.ok(card.elements.some((el) => el.text && el.text.content.includes('✅ 处理完成')));
   assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('一段回答')));
 });
+
+test('formatAgentEvent permission 返回空字符串', () => {
+  assert.equal(formatAgentEvent({ type: 'permission', data: { title: 'test' } }), '');
+});
+
+test('formatAgentEvent permission_replied 返回空字符串', () => {
+  assert.equal(formatAgentEvent({ type: 'permission_replied', data: {} }), '');
+});
+
+test('formatAgentEvent todo 显示完成数', () => {
+  const ev = { type: 'todo', data: { todos: [
+    { id: 't1', status: 'completed' },
+    { id: 't2', status: 'pending' },
+    { id: 't3', status: 'completed' },
+  ] } };
+  assert.equal(formatAgentEvent(ev), '📋 待办: 2/3 完成');
+});
+
+test('formatAgentEvent compacted 显示上下文压缩', () => {
+  assert.equal(formatAgentEvent({ type: 'compacted', data: {} }), '🗜️ 上下文已压缩');
+});
+
+test('formatAgentEvent file_edited 显示文件路径', () => {
+  const ev = { type: 'file_edited', data: { path: '/src/app.js' } };
+  assert.equal(formatAgentEvent(ev), '📝 已编辑 /src/app.js');
+});
+
+test('formatAgentEvent session_diff 显示 diff 摘要', () => {
+  const ev = { type: 'session_diff', data: { filesCount: 3, linesAdded: 20, linesRemoved: 5 } };
+  assert.equal(formatAgentEvent(ev), '📊 diff: 3 文件, +20 -5');
+});
+
+test('formatAgentEvent step-start 显示步骤开始', () => {
+  const ev = { type: 'step', data: { partType: 'step-start', stepId: 'step_1' } };
+  assert.equal(formatAgentEvent(ev), '▶ 步骤: step_1');
+});
+
+test('formatAgentEvent step-finish 显示步骤完成', () => {
+  const ev = { type: 'step', data: { partType: 'step-finish', stepId: 'step_1' } };
+  assert.equal(formatAgentEvent(ev), '✅ 步骤: step_1 完成');
+});
+
+test('formatAgentEvent message_removed 返回空字符串', () => {
+  assert.equal(formatAgentEvent({ type: 'message_removed', data: {} }), '');
+});
+
+test('formatAgentEvent command_executed 显示命令结果', () => {
+  const ev = { type: 'command_executed', data: { command: 'npm test', exitCode: 0 } };
+  assert.equal(formatAgentEvent(ev), '⬇ 命令: npm test (exit 0)');
+});
+
+test('formatAgentEvent session_lifecycle 返回空字符串', () => {
+  assert.equal(formatAgentEvent({ type: 'session_lifecycle', data: { action: 'created' } }), '');
+});
+
+test('formatAgentEvent server_connected 返回空字符串', () => {
+  assert.equal(formatAgentEvent({ type: 'server_connected', data: {} }), '');
+});

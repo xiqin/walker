@@ -162,3 +162,26 @@ test('formatHelp 包含 /clear 命令说明', () => {
   assert.match(help, /\/clear/);
   assert.match(help, /新建空上下文/);
 });
+
+test('parseCommand /permit perm_abc allow', () => {
+  const result = parseCommand('/permit perm_abc allow');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'permit');
+  assert.deepEqual(result.args, ['perm_abc', 'allow']);
+});
+
+test('parseCommand /permit perm_abc deny', () => {
+  const result = parseCommand('/permit perm_abc deny');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'permit');
+  assert.deepEqual(result.args, ['perm_abc', 'deny']);
+});
+
+test('COMMANDS 包含 permit 条目', () => {
+  assert.ok(COMMANDS.permit);
+  assert.ok(COMMANDS.permit.desc);
+  assert.ok(COMMANDS.permit.usage);
+  assert.match(COMMANDS.permit.usage, /permissionId/);
+  assert.match(COMMANDS.permit.usage, /allow/);
+  assert.match(COMMANDS.permit.usage, /deny/);
+});

@@ -433,6 +433,59 @@ function renderErrorCard(message) {
   };
 }
 
+/**
+ * 构建权限确认交互卡片，包含允许/拒绝按钮
+ * @param {Object} permissionEvent - TYPE_PERMISSION AgentEvent 的 data
+ * @param {string} sessionId - 会话 ID
+ * @param {string} [routeKey] - 路由键
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
+function buildPermissionCard(permissionEvent, sessionId, routeKey) {
+  const data = permissionEvent.data || permissionEvent;
+  const title = data.title || '未知权限请求';
+  const permissionId = data.id || '';
+  const metaLines = [];
+  if (data.type) metaLines.push('**类型**: ' + escapeLarkMd(data.type));
+  if (data.metadata) {
+    const meta = data.metadata;
+    if (meta.command) metaLines.push('**命令**: `' + escapeLarkMd(meta.command) + '`');
+    if (meta.tool) metaLines.push('**工具**: ' + escapeLarkMd(meta.tool));
+    if (meta.path) metaLines.push('**路径**: ' + escapeLarkMd(meta.path));
+  }
+  const content = '**' + escapeLarkMd(title) + '**' + (metaLines.length ? '\n' + metaLines.join('\n') : '');
+
+  return {
+    config: { wide_screen_mode: true, update_multi: true },
+    header: { title: { tag: 'plain_text', content: '权限确认请求' }, template: 'red' },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content } },
+      { tag: 'action', actions: [
+        { tag: 'button', text: { tag: 'plain_text', content: '允许' }, type: 'primary',
+          value: buildButtonValue('cmd:/permit ' + permissionId + ' allow', sessionId, routeKey) },
+        { tag: 'button', text: { tag: 'plain_text', content: '拒绝' }, type: 'danger',
+          value: buildButtonValue('cmd:/permit ' + permissionId + ' deny', sessionId, routeKey) },
+      ] },
+    ],
+  };
+}
+
+/**
+ * 构建权限已回复卡片，更新原权限卡片状态
+ * @param {string} permissionId - 权限请求 ID
+ * @param {string} response - 回复结果 allow/deny
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
+function buildPermissionRepliedCard(permissionId, response) {
+  const action = response === 'allow' ? '已允许' : '已拒绝';
+  return {
+    config: { wide_screen_mode: true, update_multi: true },
+    header: { title: { tag: 'plain_text', content: '权限已处理' }, template: 'default' },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content: action + '权限请求 `' + escapeLarkMd(permissionId) + '`' } },
+    ],
+  };
+}
+
 module.exports = {
   renderSessionListCard,
   renderUnboundRouteCard,
@@ -440,6 +493,8 @@ module.exports = {
   renderModelListCard,
   renderHelpCard,
   renderErrorCard,
+  buildPermissionCard,
+  buildPermissionRepliedCard,
   buildButtonValue,
   buildCommandValue,
   STATUS_EMOJI,

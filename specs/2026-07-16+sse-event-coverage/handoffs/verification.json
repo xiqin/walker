@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "验证通过。900/900 测试通过，18/18 REQ 覆盖，类型引用一致，无占位符，无 drift。修复了 verify-report.md 中占位符检测器的子串误判（TYPE_TODO 等合法符号名被误匹配）。",
+  "artifacts": [
+    "verify-report.md"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "5d377f59977304eb3ba60c8b506dbbd421471b1b3db3b3a602fd95a79763c01d",
+    "spec.md": "1fc7339be41822cd60db71f5198c9f4387196433c25cee576db8bdf52a20f357",
+    "test-report.md": "d1412ba774cc3fb15dc578648afc1a1470b500255bae8a387bce079f237de8e2"
+  },
+  "artifact_fingerprints": {
+    "verify-report.md": "45f8e560686dff7d4e79f9c94cce7e7ff9100bc2fa30eadcbcd788e2994f033e"
+  },
+  "written_at": "2026-07-16T12:45:34.046Z"
+}

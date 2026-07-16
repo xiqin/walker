@@ -587,4 +587,41 @@ describe('createApp', () => {
     assert.equal(dispatcherOptions.promptHeartbeatStuckMs, 90000);
     assert.equal(dispatcherOptions.maxTurnTimeMins, 45);
   });
+
+  it('sendPermissionCard 绑定为函数并调用 replyCard', async () => {
+    const calls = [];
+    const app = makeModelCardApp(calls, {
+      replyCard: async (replyCtx, card) => {
+        calls.push({ type: 'replyCard', replyCtx, card });
+        return 'om_perm_card1';
+      },
+    });
+    assert.equal(typeof app.dispatcher.feishuApi.sendPermissionCard, 'function');
+    const result = await app.dispatcher.feishuApi.sendPermissionCard(
+      { messageId: 'om_msg1', chatId: 'oc_chat1' },
+      { data: { id: 'perm_1', title: '执行 bash 命令' } },
+      'wks_s1',
+      'route_key_1'
+    );
+    assert.equal(result, 'om_perm_card1');
+    const replyCall = calls.find((c) => c.type === 'replyCard');
+    assert.ok(replyCall);
+    assert.equal(replyCall.card.header.title.content, '权限确认请求');
+  });
+
+  it('patchPermissionCard 绑定为函数并调用 patchCard', async () => {
+    const calls = [];
+    const app = makeModelCardApp(calls, {
+      patchCard: async (cardId, card) => {
+        calls.push({ type: 'patchCard', cardId, card });
+        return { ok: true };
+      },
+    });
+    assert.equal(typeof app.dispatcher.feishuApi.patchPermissionCard, 'function');
+    await app.dispatcher.feishuApi.patchPermissionCard('om_perm_card1', 'perm_1', 'allow');
+    const patchCall = calls.find((c) => c.type === 'patchCard');
+    assert.ok(patchCall);
+    assert.equal(patchCall.cardId, 'om_perm_card1');
+    assert.equal(patchCall.card.header.title.content, '权限已处理');
+  });
 });

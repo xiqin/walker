@@ -11,7 +11,7 @@ const { createRuntime } = require('../runtime/runtime-factory');
 const { MessageDispatcher } = require('../dispatch/message-dispatcher');
 const { AttachmentService } = require('../dispatch/attachment-service');
 const { FeishuPlatform } = require('../platform/feishu/platform');
-const { renderUnboundRouteCard, renderSessionListCard, renderAttachableSessionCard, renderModelListCard, renderHelpCard, renderErrorCard } = require('../platform/feishu/cards');
+const { renderUnboundRouteCard, renderSessionListCard, renderAttachableSessionCard, renderModelListCard, renderHelpCard, renderErrorCard, buildPermissionCard, buildPermissionRepliedCard } = require('../platform/feishu/cards');
 const { ProgressCard } = require('../platform/feishu/progress-card');
 const { parseCommand } = require('../platform/feishu/commands');
 const { buildRouteKey } = require('../core/route-key');
@@ -198,6 +198,10 @@ function createApp(config, deps) {
   feishuApiTarget.sendHelpCard = (replyCtx, commands, options) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderHelpCard(commands, options));
   /** 发送错误提示卡片到飞书 */
   feishuApiTarget.sendErrorCard = (replyCtx, message) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderErrorCard(message));
+  /** 发送权限确认卡片到飞书 */
+  feishuApiTarget.sendPermissionCard = (replyCtx, permissionEvent, sessionId, routeKey) => platform.api.replyCard(normalizeReplyCtx(replyCtx), buildPermissionCard(permissionEvent, sessionId, routeKey));
+  /** 更新权限卡片为已处理状态 */
+  feishuApiTarget.patchPermissionCard = (cardId, permissionId, response) => platform.api.patchCard(cardId, buildPermissionRepliedCard(permissionId, response));
   /** 发送进度卡片并返回卡片消息 ID */
   feishuApiTarget.sendProgressCard = async (replyCtx, sessionId, initialEvent) => {
     const card = new ProgressCard({ sessionId });
@@ -227,6 +231,7 @@ function createApp(config, deps) {
     'replyText', 'sendText', 'replyCard', 'patchCard', 'addReaction',
     'sendUnboundGuide', 'sendSessionList', 'sendAttachableSessionList',
     'sendModelList', 'sendHelpCard', 'sendErrorCard', 'sendProgressCard', 'updateProgressCard',
+    'sendPermissionCard', 'patchPermissionCard',
   ];
   for (const method of requiredFeishuMethods) {
     if (typeof feishuApiRef[method] !== 'function') {

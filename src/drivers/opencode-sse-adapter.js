@@ -1,6 +1,8 @@
 'use strict';
 
 const { AgentEvent } = require('./agent-driver');
+const { createLogger } = require('../core/logger');
+const logger = createLogger('opencode-sse-adapter');
 
 function normalizeSSEEvent(raw) {
   if (raw && raw.payload && raw.payload.type) return raw.payload;
@@ -69,6 +71,29 @@ function mapSSEEvent(raw, sessionId) {
         status: part.isError ? 'error' : 'done',
       });
     }
+    if (part.type === 'step-start' || part.type === 'step-finish') {
+      return new AgentEvent(AgentEvent.TYPE_STEP, { partType: part.type, stepId: part.stepId || part.id || '' });
+    }
+    if (part.type === 'file') {
+      return new AgentEvent(AgentEvent.TYPE_FILE_EDITED, {
+        path: part.path || part.file || part.name || '',
+        action: part.action || 'edit',
+        linesAdded: part.linesAdded,
+        linesRemoved: part.linesRemoved,
+      });
+    }
+    if (part.type === 'patch') {
+      return new AgentEvent(AgentEvent.TYPE_FILE_EDITED, {
+        path: part.path || part.file || part.name || '',
+        action: 'patch',
+        linesAdded: part.linesAdded,
+        linesRemoved: part.linesRemoved,
+      });
+    }
+    if (part.type === 'snapshot' || part.type === 'agent' || part.type === 'retry' || part.type === 'compaction' || part.type === 'subtask') {
+      logger.debug('opencode-sse-adapter: 静默记录 part.type', { partType: part.type });
+      return null;
+    }
   }
 
   if (type === 'session.error') {
@@ -78,6 +103,93 @@ function mapSSEEvent(raw, sessionId) {
     return new AgentEvent(AgentEvent.TYPE_ERROR, { message: errMsg });
   }
 
+  if (type === 'permission.updated') {
+    return new AgentEvent(AgentEvent.TYPE_PERMISSION, {
+      id: props.id || props.permissionId || '',
+      type: props.type || '',
+      title: props.title || '',
+      metadata: props.metadata || null,
+      sessionID: props.sessionID || props.sessionId || '',
+      messageID: props.messageID || props.messageId || '',
+      callID: props.callID || props.callId || undefined,
+    });
+  }
+
+  if (type === 'permission.replied') {
+    return new AgentEvent(AgentEvent.TYPE_PERMISSION_REPLIED, {
+      permissionId: props.permissionId || props.id || '',
+      response: props.response || '',
+    });
+  }
+
+  if (type === 'todo.updated') {
+    return new AgentEvent(AgentEvent.TYPE_TODO, { todos: props.todos || [] });
+  }
+
+  if (type === 'session.compacted') {
+    return new AgentEvent(AgentEvent.TYPE_COMPACTED, {
+      sessionID: props.sessionID || props.sessionId || '',
+    });
+  }
+
+  if (type === 'file.edited') {
+    return new AgentEvent(AgentEvent.TYPE_FILE_EDITED, {
+      path: props.path || '',
+      action: props.action || 'edit',
+      linesAdded: props.linesAdded,
+      linesRemoved: props.linesRemoved,
+    });
+  }
+
+  if (type === 'session.diff') {
+    return new AgentEvent(AgentEvent.TYPE_SESSION_DIFF, {
+      diff: props.diff || '',
+      filesCount: props.filesCount || 0,
+      linesAdded: props.linesAdded || 0,
+      linesRemoved: props.linesRemoved || 0,
+    });
+  }
+
+  if (type === 'message.removed' || type === 'message.part.removed') {
+    return new AgentEvent(AgentEvent.TYPE_MESSAGE_REMOVED, {
+      messageId: props.messageID || props.messageId || '',
+      partId: props.partID || props.partId || undefined,
+    });
+  }
+
+  if (type === 'command.executed') {
+    return new AgentEvent(AgentEvent.TYPE_COMMAND_EXECUTED, {
+      command: props.command || '',
+      exitCode: props.exitCode !== undefined ? props.exitCode : -1,
+    });
+  }
+
+  if (type === 'session.created' || type === 'session.updated' || type === 'session.deleted') {
+    const action = type.replace('session.', '');
+    return new AgentEvent(AgentEvent.TYPE_SESSION_LIFECYCLE, {
+      action: action,
+      session: props.session || props,
+    });
+  }
+
+  if (type === 'server.connected') {
+    return new AgentEvent(AgentEvent.TYPE_SERVER_CONNECTED, {});
+  }
+
+  const silentDiscard = [
+    'installation.updated', 'installation.update-available',
+    'lsp.client.diagnostics', 'lsp.updated',
+    'vcs.branch.updated', 'file.watcher.updated',
+    'tui.prompt.append', 'tui.command.execute', 'tui.toast.show',
+    'pty.created', 'pty.updated', 'pty.exited', 'pty.deleted',
+    'server.instance.disposed',
+  ];
+  if (silentDiscard.includes(type)) {
+    logger.debug('opencode-sse-adapter: 丢弃事件', { type });
+    return null;
+  }
+
+  logger.debug('opencode-sse-adapter: 未知事件类型', { type });
   return null;
 }
 

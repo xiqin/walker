@@ -34,12 +34,41 @@ function formatAgentEvent(event) {
       return '🤔 ' + truncateText(text, MAX_TEXT_LEN);
     case 'tool_use':
       return '🔧 ' + name + (status === 'done' ? ' ✓' : status === 'error' ? ' ✗' : ' ⏳');
-    case 'error':
+    case 'error': {
       const errMsg = error ? (error.message || error) : 'unknown error';
       return '❌ ' + truncateText(errMsg, MAX_TEXT_LEN);
+    }
     case 'status':
       return message ? truncateText(message, MAX_TEXT_LEN) : '';
     case 'done':
+      return '';
+    case 'permission':
+      return '';
+    case 'permission_replied':
+      return '';
+    case 'todo': {
+      const todos = d.todos || [];
+      const total = todos.length;
+      const doneCount = todos.filter((t) => t.status === 'completed' || t.status === 'done').length;
+      return '📋 待办: ' + doneCount + '/' + total + ' 完成';
+    }
+    case 'compacted':
+      return '🗜️ 上下文已压缩';
+    case 'file_edited':
+      return '📝 已编辑 ' + (d.path || '文件');
+    case 'session_diff':
+      return '📊 diff: ' + (d.filesCount || 0) + ' 文件, +' + (d.linesAdded || 0) + ' -' + (d.linesRemoved || 0);
+    case 'step':
+      if (d.partType === 'step-start') return '▶ 步骤: ' + (d.stepId || '');
+      if (d.partType === 'step-finish') return '✅ 步骤: ' + (d.stepId || '') + ' 完成';
+      return '';
+    case 'message_removed':
+      return '';
+    case 'command_executed':
+      return '⬇ 命令: ' + (d.command || '') + ' (exit ' + (d.exitCode !== undefined ? d.exitCode : -1) + ')';
+    case 'session_lifecycle':
+      return '';
+    case 'server_connected':
       return '';
     default:
       return '';

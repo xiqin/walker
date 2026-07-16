@@ -788,6 +788,46 @@ describe('OpencodeDriver stop and delete', () => {
     assert.ok(http.calls[0].url.includes('/session/ses_abc'));
   });
 
+  it('replyPermission 调用 POST /session/:id/permissions/:permissionId', async () => {
+    const http = new FakeHttpClient({
+      'POST http://localhost:4096/session/ses_abc/permissions/perm_123': { status: 200, data: {} },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    await driver.replyPermission(sessionRef, 'perm_123', 'allow');
+    assert.equal(http.calls[0].method, 'POST');
+    assert.ok(http.calls[0].url.includes('/session/ses_abc/permissions/perm_123'));
+    assert.equal(http.calls[0].body.response, 'allow');
+    assert.equal(http.calls[0].body.remember, false);
+  });
+
+  it('replyPermission remember 参数传递', async () => {
+    const http = new FakeHttpClient({
+      'POST http://localhost:4096/session/ses_abc/permissions/perm_123': { status: 200, data: {} },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    await driver.replyPermission(sessionRef, 'perm_123', 'deny', true);
+    assert.equal(http.calls[0].body.response, 'deny');
+    assert.equal(http.calls[0].body.remember, true);
+  });
+
+  it('replyPermission 缺少 sessionRef 抛错', async () => {
+    const driver = new OpencodeDriver({ serverUrl: 'http://localhost:4096' });
+    await assert.rejects(() => driver.replyPermission(null, 'perm_123', 'allow'), { message: /sessionRef/ });
+  });
+
+  it('replyPermission 缺少 permissionId 抛错', async () => {
+    const driver = new OpencodeDriver({ serverUrl: 'http://localhost:4096' });
+    await assert.rejects(() => driver.replyPermission(sessionRef, '', 'allow'), { message: /permissionId/ });
+  });
+
+  it('replyPermission HTTP 失败时抛错', async () => {
+    const http = new FakeHttpClient({
+      'POST http://localhost:4096/session/ses_abc/permissions/perm_123': { error: new Error('server error') },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+    await assert.rejects(() => driver.replyPermission(sessionRef, 'perm_123', 'allow'), { message: /server error/ });
+  });
+
   it('session scoped 请求使用 sessionRef.serverUrl', async () => {
     const remoteRef = { opencodeSessionId: 'ses_abc', serverUrl: 'http://127.0.0.1:54321', cwd: '/tmp/project' };
     const http = new FakeHttpClient({

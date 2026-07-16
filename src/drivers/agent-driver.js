@@ -96,6 +96,17 @@ const EVENT_TYPE_TOOL_USE = 'tool_use';
 const EVENT_TYPE_ERROR = 'error';
 const EVENT_TYPE_STATUS = 'status';
 const EVENT_TYPE_DONE = 'done';
+const EVENT_TYPE_PERMISSION = 'permission';
+const EVENT_TYPE_PERMISSION_REPLIED = 'permission_replied';
+const EVENT_TYPE_TODO = 'todo';
+const EVENT_TYPE_COMPACTED = 'compacted';
+const EVENT_TYPE_FILE_EDITED = 'file_edited';
+const EVENT_TYPE_SESSION_DIFF = 'session_diff';
+const EVENT_TYPE_STEP = 'step';
+const EVENT_TYPE_MESSAGE_REMOVED = 'message_removed';
+const EVENT_TYPE_COMMAND_EXECUTED = 'command_executed';
+const EVENT_TYPE_SESSION_LIFECYCLE = 'session_lifecycle';
+const EVENT_TYPE_SERVER_CONNECTED = 'server_connected';
 
 class AgentEvent {
   static DATA_SCHEMAS = {
@@ -105,6 +116,17 @@ class AgentEvent {
     [EVENT_TYPE_ERROR]: { message: 'string' },
     [EVENT_TYPE_STATUS]: { status: 'string' },
     [EVENT_TYPE_DONE]: { reason: 'string?' },
+    [EVENT_TYPE_PERMISSION]: { id: 'string', type: 'string', title: 'string', metadata: 'object?', sessionID: 'string', messageID: 'string', callID: 'string?' },
+    [EVENT_TYPE_PERMISSION_REPLIED]: { permissionId: 'string', response: 'string' },
+    [EVENT_TYPE_TODO]: { todos: 'object[]' },
+    [EVENT_TYPE_COMPACTED]: { sessionID: 'string' },
+    [EVENT_TYPE_FILE_EDITED]: { path: 'string', action: 'string', linesAdded: 'number?', linesRemoved: 'number?' },
+    [EVENT_TYPE_SESSION_DIFF]: { diff: 'string', filesCount: 'number', linesAdded: 'number', linesRemoved: 'number' },
+    [EVENT_TYPE_STEP]: { partType: 'string', stepId: 'string?' },
+    [EVENT_TYPE_MESSAGE_REMOVED]: { messageId: 'string', partId: 'string?' },
+    [EVENT_TYPE_COMMAND_EXECUTED]: { command: 'string', exitCode: 'number' },
+    [EVENT_TYPE_SESSION_LIFECYCLE]: { action: 'string', session: 'object' },
+    [EVENT_TYPE_SERVER_CONNECTED]: {},
   };
 
   constructor(type, data) {
@@ -119,5 +141,16 @@ AgentEvent.TYPE_TOOL_USE = EVENT_TYPE_TOOL_USE;
 AgentEvent.TYPE_ERROR = EVENT_TYPE_ERROR;
 AgentEvent.TYPE_STATUS = EVENT_TYPE_STATUS;
 AgentEvent.TYPE_DONE = EVENT_TYPE_DONE;
+AgentEvent.TYPE_PERMISSION = EVENT_TYPE_PERMISSION;
+AgentEvent.TYPE_PERMISSION_REPLIED = EVENT_TYPE_PERMISSION_REPLIED;
+AgentEvent.TYPE_TODO = EVENT_TYPE_TODO;
+AgentEvent.TYPE_COMPACTED = EVENT_TYPE_COMPACTED;
+AgentEvent.TYPE_FILE_EDITED = EVENT_TYPE_FILE_EDITED;
+AgentEvent.TYPE_SESSION_DIFF = EVENT_TYPE_SESSION_DIFF;
+AgentEvent.TYPE_STEP = EVENT_TYPE_STEP;
+AgentEvent.TYPE_MESSAGE_REMOVED = EVENT_TYPE_MESSAGE_REMOVED;
+AgentEvent.TYPE_COMMAND_EXECUTED = EVENT_TYPE_COMMAND_EXECUTED;
+AgentEvent.TYPE_SESSION_LIFECYCLE = EVENT_TYPE_SESSION_LIFECYCLE;
+AgentEvent.TYPE_SERVER_CONNECTED = EVENT_TYPE_SERVER_CONNECTED;
 
 module.exports = { AgentDriver, AgentEvent };
