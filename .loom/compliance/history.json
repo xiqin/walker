@@ -299,5 +299,38 @@
       "failClear 清理；`plugin-template.js:267-283` 回滚+手工切回 | `test/opencode-tui-bridge.test.js` error/超时/迟到；集成测试 11/12/13 | PASS |",
       "fail: 0"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-model-switch-fixes",
+    "timestamp": "2026-07-15T10:11:19.149Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail，exit 0 |",
+      "fail: 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-model-switch-fixes",
+    "timestamp": "2026-07-15T10:12:48.521Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail，exit 0 |",
+      "fail: 0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-15-model-switch-fixes",
+    "timestamp": "2026-07-15T10:13:24.350Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail，exit 0 |",
+      "fail: 0"
+    ]
   }
 ]

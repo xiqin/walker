@@ -1,0 +1,28 @@
+{
+  "status": "done",
+  "summary": "T1/T2 实施完成。SessionService.createSession 支持 model 参数；_cmdModel 移除全局 updateConfig 改为模型目录验证并规范化；_cmdNew 继承当前/default 模型；_enqueuePrompt 规范化 model；TUI clear 直接传 model。全量 724/724 测试通过。",
+  "artifacts": [
+    "src/core/session-service.js",
+    "src/dispatch/message-dispatcher.js",
+    "src/opencode-tui-bridge/bridge.js",
+    "test/message-dispatcher.test.js",
+    "test/opencode-tui-bridge.test.js",
+    "test/session-service.test.js"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "12fea1574efb1ad6b1f9a072b94e11a36fdbae4fe59a4bbf7c9a5f3ce41c6a43",
+    "spec.md": "60bcfbbfe3a0aa656f2e61a4f6fe5489b3f68c819167970462979186ec6b2a30",
+    "tasks/": "a2e337c5f7adecb124ee1a11da30d4ff638f92e1b8ad4632a8ae1c86daa30ad9"
+  },
+  "artifact_fingerprints": {
+    "src/core/session-service.js": "ffd75ca50ba3626d39180287ba5f1ffae7be357928ff0f986e67d1e1d0683ec5",
+    "src/dispatch/message-dispatcher.js": "cdeffa72656d3af1e7cb1ca7663cd363e1312469460b150ec9878aef19ce980b",
+    "src/opencode-tui-bridge/bridge.js": "6d488c20386df251b2f94cf87355a6893a0dc59ceaf184feef33bc1b5b82f832",
+    "test/message-dispatcher.test.js": "77e370534ea2c979adcf21a180b7459b59775c2fc31126b409e377f10aff96e7",
+    "test/opencode-tui-bridge.test.js": "2fd09800268d9b9f8178674938c7b1a3cc96efb2b258682db6aeec5ef4c13ee3",
+    "test/session-service.test.js": "0670c224719f8a38adde725ac4fa6f131e5a90baa68aa6b60979bbfbf0efc6fb"
+  },
+  "written_at": "2026-07-15T10:06:52.801Z"
+}

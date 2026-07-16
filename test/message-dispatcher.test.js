@@ -30,8 +30,8 @@ function makeMocks() {
     createSession: async () => ({ opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' }),
     listSessions: async () => [],
     watchSession: () => () => {},
-    prompt: async (agentRef, text) => {
-      driver.promptCalls.push({ agentRef, text });
+    prompt: async (agentRef, text, options) => {
+      driver.promptCalls.push({ agentRef, text, model: options && options.model });
       return [new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })];
     },
     stop: async () => {},
@@ -996,6 +996,103 @@ describe('MessageDispatcher /new command', () => {
     assert.equal(result.error, 'command_failed');
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard' && c.message.includes('driver boot failed')));
   });
+
+  it('/new 继承当前焦点 session 的模型', async () => {
+    const mocks = makeMocks();
+    const created = {};
+    mocks.sessionService.getCurrent = () => ({
+      id: 'wks_cur1', agent: 'opencode', status: 'idle',
+      model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' },
+    });
+    mocks.sessionService.createSession = (opts) => {
+      created.opts = opts;
+      return { id: 'wks_new1', agent: opts.agent || 'opencode', status: 'created', route: opts.route, agentRef: opts.agentRef };
+    };
+    const driverCreateCalls = [];
+    mocks.driver.createSession = async (opts) => {
+      driverCreateCalls.push(opts);
+      return { opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_inherit1', chatId: 'oc_chat1',
+    });
+
+    assert.deepEqual(driverCreateCalls[0].model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+    assert.deepEqual(created.opts.model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+  });
+
+  it('/new 无当前 session 时继承 defaultModel 对象', async () => {
+    const mocks = makeMocks();
+    const created = {};
+    mocks.sessionService.getCurrent = () => null;
+    mocks.sessionService.createSession = (opts) => {
+      created.opts = opts;
+      return { id: 'wks_new1', agent: opts.agent || 'opencode', status: 'created', route: opts.route, agentRef: opts.agentRef };
+    };
+    const driverCreateCalls = [];
+    mocks.driver.createSession = async (opts) => {
+      driverCreateCalls.push(opts);
+      return { opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultModel: 'anthropic/claude-sonnet-4',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_inherit2', chatId: 'oc_chat1',
+    });
+
+    assert.deepEqual(driverCreateCalls[0].model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+    assert.deepEqual(created.opts.model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+  });
+
+  it('/new 无当前 session 且无 defaultModel 时不传 model', async () => {
+    const mocks = makeMocks();
+    const created = {};
+    mocks.sessionService.getCurrent = () => null;
+    mocks.sessionService.createSession = (opts) => {
+      created.opts = opts;
+      return { id: 'wks_new1', agent: opts.agent || 'opencode', status: 'created', route: opts.route, agentRef: opts.agentRef };
+    };
+    const driverCreateCalls = [];
+    mocks.driver.createSession = async (opts) => {
+      driverCreateCalls.push(opts);
+      return { opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_inherit3', chatId: 'oc_chat1',
+    });
+
+    assert.equal(driverCreateCalls[0].model, null);
+    assert.equal(created.opts.model, null);
+  });
 });
 
 describe('MessageDispatcher command error boundary', () => {
@@ -1457,11 +1554,15 @@ describe('MessageDispatcher /model command', () => {
     assert.ok(reply.text.includes('gpt-4o'));
   });
 
-  it('/model <model_id> 设置当前会话模型', async () => {
+  it('/model <model_id> 设置当前会话模型并通过目录补全 providerID', async () => {
     const mocks = makeMocks();
     const updatedFields = [];
     mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', model: '' });
     mocks.sessionService.updateSessionField = (sid, field, value) => { updatedFields.push({ sid, field, value }); };
+    mocks.driver.listModels = async () => [
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic', status: 'active', enabled: true },
+      { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', status: 'active', enabled: true },
+    ];
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
 
     const result = await dispatcher.handleCommand({
@@ -1469,11 +1570,11 @@ describe('MessageDispatcher /model command', () => {
       messageId: 'om_model_set', chatId: 'oc_chat1',
     });
 
-    assert.deepEqual(result.model, { modelID: 'claude-sonnet-4' });
+    assert.deepEqual(result.model, { modelID: 'claude-sonnet-4', providerID: 'anthropic' });
     assert.equal(result.sessionId, 'wks_bound1');
-    assert.deepEqual(updatedFields[0], { sid: 'wks_bound1', field: 'model', value: { modelID: 'claude-sonnet-4' } });
+    assert.deepEqual(updatedFields[0], { sid: 'wks_bound1', field: 'model', value: { modelID: 'claude-sonnet-4', providerID: 'anthropic' } });
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.ok(reply.text.includes('claude-sonnet-4'));
+    assert.ok(reply.text.includes('anthropic/claude-sonnet-4'));
   });
 
   it('/model provider/model_id 指定 provider', async () => {
@@ -1481,6 +1582,9 @@ describe('MessageDispatcher /model command', () => {
     const updatedFields = [];
     mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', model: '' });
     mocks.sessionService.updateSessionField = (sid, field, value) => { updatedFields.push({ sid, field, value }); };
+    mocks.driver.listModels = async () => [
+      { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'cpa', status: 'active', enabled: true },
+    ];
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
 
     const result = await dispatcher.handleCommand({
@@ -1492,6 +1596,59 @@ describe('MessageDispatcher /model command', () => {
     assert.deepEqual(updatedFields[0], { sid: 'wks_bound1', field: 'model', value: { modelID: 'gpt-5.5', providerID: 'cpa' } });
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply.text.includes('cpa/gpt-5.5'));
+  });
+
+  it('/model <unknown_id> 模型目录无匹配时拒绝', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', model: '' });
+    mocks.driver.listModels = async () => [
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic', status: 'active', enabled: true },
+    ];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'model', args: ['unknown-model'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_unknown', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.error, 'Model not found: unknown-model. Use /model to list available models.');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply.text.includes('not found'));
+  });
+
+  it('/model <ambiguous_id> 跨 provider 重名时提示用完整 ID', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', model: '' });
+    mocks.driver.listModels = async () => [
+      { id: 'shared-model', name: 'Shared A', provider: 'anthropic', status: 'active', enabled: true },
+      { id: 'shared-model', name: 'Shared B', provider: 'openai', status: 'active', enabled: true },
+    ];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'model', args: ['shared-model'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_ambig', chatId: 'oc_chat1',
+    });
+
+    assert.ok(result.error.includes('Multiple models match'));
+    assert.ok(result.error.includes('anthropic/shared-model'));
+    assert.ok(result.error.includes('openai/shared-model'));
+  });
+
+  it('/model <provider/model_id> 目录中无匹配时拒绝', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', model: '' });
+    mocks.driver.listModels = async () => [
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic', status: 'active', enabled: true },
+    ];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'model', args: ['unknown/gpt-9'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_badprov', chatId: 'oc_chat1',
+    });
+
+    assert.ok(result.error.includes('not found'));
   });
 
   it('/model <model_id> 无绑定会话时提示先创建', async () => {
@@ -2137,5 +2294,89 @@ describe('MessageDispatcher /clear command', () => {
 
     assert.equal(result.rejected || result.error, true);
     assert.equal(mocks.driver.clearSessionCalls.length, 0);
+  });
+});
+
+describe('MessageDispatcher model resolution on prompt', () => {
+  function setupPromptMocks(sessionModel, defaultModel) {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_cur1', agent: 'opencode', status: 'idle',
+      agentRef: { opencodeSessionId: 'ses_cur1', serverUrl: 'http://localhost:4096' },
+    };
+    if (sessionModel !== undefined) session.model = sessionModel;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    const opts = {
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    };
+    if (defaultModel !== undefined) opts.defaultModel = defaultModel;
+    const dispatcher = new MessageDispatcher(opts);
+    return { mocks, dispatcher, session };
+  }
+
+  it('prompt 时使用 session.model 对象', async () => {
+    const { mocks, dispatcher } = setupPromptMocks({ providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_prompt_obj1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.deepEqual(mocks.driver.promptCalls[0].model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+  });
+
+  it('prompt 时 session.model 为 string 时规范化为对象（向后兼容）', async () => {
+    const { mocks, dispatcher } = setupPromptMocks('anthropic/claude-sonnet-4');
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_prompt_str1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.deepEqual(mocks.driver.promptCalls[0].model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+  });
+
+  it('prompt 时 session.model 为裸 string 时规范化为无 providerID 对象', async () => {
+    const { mocks, dispatcher } = setupPromptMocks('claude-sonnet-4');
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_prompt_bare1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.deepEqual(mocks.driver.promptCalls[0].model, { providerID: '', modelID: 'claude-sonnet-4' });
+  });
+
+  it('prompt 时无 session.model 且有 defaultModel 时规范化为对象', async () => {
+    const { mocks, dispatcher } = setupPromptMocks(undefined, 'anthropic/claude-sonnet-4');
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_prompt_dm1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.deepEqual(mocks.driver.promptCalls[0].model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+  });
+
+  it('prompt 时无 session.model 且无 defaultModel 时 model 为 null', async () => {
+    const { mocks, dispatcher } = setupPromptMocks(undefined);
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_prompt_nomodel1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(mocks.driver.promptCalls[0].model, null);
   });
 });

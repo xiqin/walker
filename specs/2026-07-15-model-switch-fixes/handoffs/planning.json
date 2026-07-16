@@ -1,0 +1,37 @@
+{
+  "task_order": [
+    "T1",
+    "T2"
+  ],
+  "validation": [
+    "validate-plan passed",
+    "loom tasks --validate passed"
+  ],
+  "constraints": [
+    "session.model 持久化为对象",
+    "/model 不调用 updateConfig",
+    "未限定 provider 必须唯一匹配"
+  ],
+  "status": "done",
+  "summary": "完成模型切换修复规格与两阶段串行计划：T1 扩展 SessionService 创建时原子保存模型；T2 实现模型目录验证、移除全局配置副作用、/new/defaultModel/clear 类型一致继承及回归测试。validate-plan 与 loom tasks 冲突检测均通过。",
+  "artifacts": [
+    "spec.md",
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "12fea1574efb1ad6b1f9a072b94e11a36fdbae4fe59a4bbf7c9a5f3ce41c6a43",
+    "spec.md": "60bcfbbfe3a0aa656f2e61a4f6fe5489b3f68c819167970462979186ec6b2a30",
+    "tasks/": "a2e337c5f7adecb124ee1a11da30d4ff638f92e1b8ad4632a8ae1c86daa30ad9"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "12fea1574efb1ad6b1f9a072b94e11a36fdbae4fe59a4bbf7c9a5f3ce41c6a43",
+    "spec.md": "60bcfbbfe3a0aa656f2e61a4f6fe5489b3f68c819167970462979186ec6b2a30",
+    "tasks/T1.md": "bbc788deeac17a13182397798e9c54875e019b045c9a3fa526a8b292ae4edbcf",
+    "tasks/T2.md": "7e867847160edb49320bd1813b0fab06fd390da07537935fd3d9674920cccd73"
+  },
+  "written_at": "2026-07-15T10:00:32.168Z"
+}

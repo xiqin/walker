@@ -261,6 +261,114 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
   }
 });
 
+test('prompt delivery 携带 model 时 promptAsync 收到 model 参数', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const handlers = new Map();
+  const promptCalls = [];
+  let dispose;
+  let deliveryReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), options, body });
+    let data = {};
+    if (String(url).endsWith('/poll') && !deliveryReturned) {
+      deliveryReturned = true;
+      data = {
+        delivery: {
+          deliveryId: 'del_model',
+          sessionId: 'ses_model',
+          text: '用指定模型回复',
+          model: { providerID: 'kscc', modelID: 'glm-5.1' },
+        },
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      app: { version: '1.17.20' },
+      route: { current: { name: 'session', params: { sessionID: 'ses_model' } } },
+      client: {
+        session: {
+          promptAsync: async (input) => { promptCalls.push(input); return { data: null }; },
+        },
+      },
+      event: { on: (type, handler) => handlers.set(type, handler) },
+      state: {
+        path: { directory: 'H:\\walker' },
+        session: {
+          messages: () => [{ id: 'msg_model', role: 'assistant' }],
+          status: () => ({ type: 'idle' }),
+        },
+        part: () => [{ type: 'text', text: '模型回复' }],
+      },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => promptCalls.length === 1);
+    assert.equal(promptCalls[0].sessionID, 'ses_model');
+    assert.equal(promptCalls[0].parts[0].text, '用指定模型回复');
+    assert.deepEqual(promptCalls[0].model, { providerID: 'kscc', modelID: 'glm-5.1' });
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('prompt delivery 不带 model 时 promptAsync 不传 model 参数', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const promptCalls = [];
+  let dispose;
+  let deliveryReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url) => {
+    let data = {};
+    if (String(url).endsWith('/poll') && !deliveryReturned) {
+      deliveryReturned = true;
+      data = { delivery: { deliveryId: 'del_nomodel', sessionId: 'ses_nomodel', text: '无模型' } };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      app: { version: '1.17.20' },
+      route: { current: { name: 'session', params: { sessionID: 'ses_nomodel' } } },
+      client: {
+        session: {
+          promptAsync: async (input) => { promptCalls.push(input); return { data: null }; },
+        },
+      },
+      event: { on: () => {} },
+      state: {
+        path: { directory: 'H:\\walker' },
+        session: {
+          messages: () => [{ id: 'msg_nomodel', role: 'assistant' }],
+          status: () => ({ type: 'idle' }),
+        },
+        part: () => [{ type: 'text', text: '回复' }],
+      },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => promptCalls.length === 1);
+    assert.equal(promptCalls[0].sessionID, 'ses_nomodel');
+    assert.ok(!promptCalls[0].hasOwnProperty('model'), '不应携带 model 属性');
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
 test('生成的 TUI plugin 在 route 滞后时跟随根会话创建和 TUI 会话选择', async () => {
   const source = getPluginSource(8787);
   const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');

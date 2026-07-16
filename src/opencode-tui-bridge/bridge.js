@@ -346,6 +346,7 @@ class OpencodeTuiBridge {
         agentRef,
       };
       if (clearPending.routeKey) createOpts.route = clearPending.routeKey;
+      if (clearPending.oldModel) createOpts.model = clearPending.oldModel;
       newWalkerSession = this.sessionService.createSession(createOpts);
     } else {
       if (newWalkerSession.cwd !== cwd) {
@@ -354,10 +355,9 @@ class OpencodeTuiBridge {
       if (!sameBridgeRef(newWalkerSession.agentRef, agentRef)) {
         this.sessionService.updateSessionField(newWalkerSession.id, 'agentRef', agentRef);
       }
-    }
-
-    if (clearPending.oldModel && !newWalkerSession.model) {
-      this.sessionService.updateSessionField(newWalkerSession.id, 'model', clearPending.oldModel);
+      if (clearPending.oldModel && !newWalkerSession.model) {
+        this.sessionService.updateSessionField(newWalkerSession.id, 'model', clearPending.oldModel);
+      }
     }
 
     if (clearPending.routeKey) {

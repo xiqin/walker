@@ -77,13 +77,13 @@ describe('OpencodeTuiBridge', () => {
       const enrolled = h.bridge.register({ runtimeId: 'runtime-2', sessionId: 'ses_local', cwd: 'H:\\walker' });
       const session = h.sessionService.getSession(enrolled.sessionId);
 
-      const promptPromise = h.bridge.prompt(session.agentRef, '来自飞书', { model: 'model-a' });
+      const promptPromise = h.bridge.prompt(session.agentRef, '来自飞书', { model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' } });
       const delivery = h.bridge.poll({ runtimeId: 'runtime-2', sessionId: 'ses_local' });
 
       assert.ok(delivery);
       assert.equal(delivery.sessionId, 'ses_local');
       assert.equal(delivery.text, '来自飞书');
-      assert.equal(delivery.model, 'model-a');
+      assert.deepEqual(delivery.model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
 
       h.bridge.reportEvents({
         runtimeId: 'runtime-2',
@@ -381,7 +381,7 @@ describe('OpencodeTuiBridge clearSession', () => {
   });
 
   it('新 Walker session 继承旧模型与关联注册 cwd', async () => {
-    const h = setupClearHarness({ oldModel: 'gpt-5-custom', cwd: 'D:\\projects\\alpha' });
+    const h = setupClearHarness({ oldModel: { providerID: 'cpa', modelID: 'gpt-5-custom' }, cwd: 'D:\\projects\\alpha' });
     try {
       const clearPromise = h.bridge.clearSession(h.tuiSession.agentRef);
       const delivery = h.bridge.poll({ runtimeId: 'runtime-clear', sessionId: 'ses_old' });
@@ -396,7 +396,7 @@ describe('OpencodeTuiBridge clearSession', () => {
       const result = await clearPromise;
 
       const newWalker = h.sessionService.getSession(result.walkerSessionId);
-      assert.equal(newWalker.model, 'gpt-5-custom', '应继承旧 session 模型');
+      assert.deepEqual(newWalker.model, { providerID: 'cpa', modelID: 'gpt-5-custom' }, '应继承旧 session 模型');
       assert.equal(newWalker.cwd, newCwd, '应使用关联 register 上报的 cwd');
       assert.deepEqual(newWalker.agentRef, {
         opencodeSessionId: 'ses_new', transport: 'tui-bridge', runtimeId: 'runtime-clear',

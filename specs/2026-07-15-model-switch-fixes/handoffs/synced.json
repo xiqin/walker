@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "索引同步完成：codegraph 已新鲜（88 files, 975 nodes），新增方法已索引；结构化记忆已记录模型切换决策；入口文件无变更。",
+  "artifacts": [
+    "index-sync-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "12fea1574efb1ad6b1f9a072b94e11a36fdbae4fe59a4bbf7c9a5f3ce41c6a43",
+    "spec.md": "60bcfbbfe3a0aa656f2e61a4f6fe5489b3f68c819167970462979186ec6b2a30"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-15T10:13:52.447Z"
+}

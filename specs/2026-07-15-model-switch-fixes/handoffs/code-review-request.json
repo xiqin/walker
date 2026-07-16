@@ -1,0 +1,17 @@
+{
+  "status": "done",
+  "summary": "完成 Standards + Spec 双轴预审查（0 findings），生成 review-request.md，占位符已清除。变更统计 7 files +405/-39，全量 724/724 通过。等待 review-gate 人工审批。",
+  "artifacts": [
+    "specs/2026-07-15-model-switch-fixes/review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "12fea1574efb1ad6b1f9a072b94e11a36fdbae4fe59a4bbf7c9a5f3ce41c6a43",
+    "spec.md": "60bcfbbfe3a0aa656f2e61a4f6fe5489b3f68c819167970462979186ec6b2a30"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-15-model-switch-fixes/review-request.md": "debf36ec5bdf6b0952799c3cec82d528c86af998dc126f396429428ff0a0c126"
+  },
+  "written_at": "2026-07-15T10:12:43.943Z"
+}

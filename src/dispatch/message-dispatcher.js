@@ -157,7 +157,7 @@ class MessageDispatcher {
           : null;
         const stopHeartbeat = this._startPromptHeartbeat(session, progressCardId);
         const turnState = this._startTurnState(session, event, driver, agentRef, token, progressCardId, stopHeartbeat);
-        const model = session.model || (this.defaultModel ? { modelID: this.defaultModel } : null);
+        const model = this._resolveSessionModel(session);
         const events = await driver.prompt(agentRef, event.text, { model });
         if (this._isTurnCancelled(sessionId, token)) {
           this._clearTurnState(sessionId, token);
@@ -366,7 +366,8 @@ class MessageDispatcher {
     }
 
     await driver.ensureReady();
-    const agentRef = await driver.createSession({ title, cwd: this.defaultCwd });
+    const inheritedModel = this._resolveInheritedModel(current);
+    const agentRef = await driver.createSession({ title, cwd: this.defaultCwd, model: inheritedModel });
 
     const session = this.sessionService.createSession({
       route: routeKey,
@@ -375,6 +376,7 @@ class MessageDispatcher {
       runtime: this.runtimeType,
       cwd: this.defaultCwd,
       agentRef,
+      model: inheritedModel,
     });
 
     logger.info('new session created via /new', { sessionId: session.id, agent: agentName, routeKey });
@@ -650,35 +652,59 @@ class MessageDispatcher {
       return { noSession: true };
     }
 
-    let modelRef;
-    if (modelId.includes('/')) {
-      const parts = modelId.split('/');
-      const provider = parts[0];
-      const id = parts.slice(1).join('/');
-      modelRef = { modelID: id, providerID: provider };
-    } else {
-      modelRef = { modelID: modelId };
-    }
-
-    const display = modelRef.providerID ? modelRef.providerID + '/' + modelRef.modelID : modelRef.modelID;
-
     const driver = this.driverRegistry.get(current.agent || 'opencode');
-    if (driver && typeof driver.updateConfig === 'function') {
-      try {
-        await driver.ensureReady();
-        const configModel = modelRef.providerID
-          ? modelRef.providerID + '/' + modelRef.modelID
-          : modelRef.modelID;
-        await driver.updateConfig({ model: configModel });
-      } catch (err) {
-        logger.warn('failed to sync model to opencode config', { error: err.message, model: display });
-      }
+    if (!driver || typeof driver.listModels !== 'function') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), 'Model listing not available for current agent.']);
+      return { error: 'list_models_not_supported' };
     }
+    await driver.ensureReady();
+    const models = await driver.listModels();
+    const resolved = this._resolveModelRef(modelId, models);
+    if (resolved.error) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), resolved.error]);
+      return { error: resolved.error };
+    }
+    const modelRef = resolved.model;
+    const display = modelRef.providerID
+      ? modelRef.providerID + '/' + modelRef.modelID
+      : modelRef.modelID;
 
     this.sessionService.updateSessionField(current.id, 'model', modelRef);
 
     await this._callFeishu('replyText', [this._replyCtx(cmd), 'Model set to: ' + display + ' for session ' + current.id]);
     return { model: modelRef, sessionId: current.id };
+  }
+
+  /**
+   * 根据输入和模型目录解析规范化模型引用
+   * @param {string} input - 用户输入（可能是 modelID 或 provider/modelID）
+   * @param {Array<Object>} models - driver.listModels() 返回的模型目录
+   * @returns {Object} - { model: {providerID, modelID} } 或 { error: string }
+   */
+  _resolveModelRef(input, models) {
+    const activeModels = (models || []).filter((m) => m && m.status !== 'deprecated' && m.enabled !== false);
+    if (input.includes('/')) {
+      const parts = input.split('/');
+      const provider = parts[0];
+      const id = parts.slice(1).join('/');
+      const hit = activeModels.find((m) => m.provider === provider && m.id === id);
+      if (!hit) {
+        return { error: 'Model not found: ' + input + '. Use /model to list available models.' };
+      }
+      return { model: { providerID: provider, modelID: id } };
+    }
+    const matches = activeModels.filter((m) => m.id === input);
+    if (matches.length === 0) {
+      return { error: 'Model not found: ' + input + '. Use /model to list available models.' };
+    }
+    if (matches.length === 1) {
+      return { model: { providerID: matches[0].provider || '', modelID: matches[0].id } };
+    }
+    const providers = Array.from(new Set(matches.map((m) => m.provider).filter(Boolean)));
+    return {
+      error: 'Multiple models match "' + input + '". Use provider/modelID, e.g. ' +
+        providers.map((p) => p + '/' + input).join(' or ') + '.',
+    };
   }
 
   async _cmdRuntime(cmd) {
@@ -728,6 +754,59 @@ class MessageDispatcher {
     if (typeof model === 'string') return model;
     if (model.providerID && model.modelID) return model.providerID + '/' + model.modelID;
     return model.modelID || '';
+  }
+
+  /**
+   * 解析 defaultModel（可能是 string 或对象）为规范化对象
+   * @returns {Object|null} - { providerID, modelID } 或 null
+   */
+  _normalizeDefaultModel() {
+    const dm = this.defaultModel;
+    if (!dm) return null;
+    if (typeof dm === 'object') {
+      return { providerID: dm.providerID || '', modelID: dm.modelID || '' };
+    }
+    const str = String(dm);
+    if (str.includes('/')) {
+      const parts = str.split('/');
+      return { providerID: parts[0], modelID: parts.slice(1).join('/') };
+    }
+    return { providerID: '', modelID: str };
+  }
+
+  /**
+   * 从 session.model 或 defaultModel 解析用于 prompt 的规范化模型对象
+   * 兼容历史 string 类型 session.model，仅在读取边界规范化，不做持久化迁移
+   * @param {Object} session - 会话对象
+   * @returns {Object|null} - { providerID, modelID } 或 null
+   */
+  _resolveSessionModel(session) {
+    if (session && session.model) {
+      const m = session.model;
+      if (typeof m === 'string') {
+        if (m.includes('/')) {
+          const parts = m.split('/');
+          return { providerID: parts[0], modelID: parts.slice(1).join('/') };
+        }
+        return { providerID: '', modelID: m };
+      }
+      if (m && typeof m === 'object') {
+        return { providerID: m.providerID || '', modelID: m.modelID || '' };
+      }
+    }
+    return this._normalizeDefaultModel();
+  }
+
+  /**
+   * /new 时解析继承模型：优先当前焦点 session.model，否则 defaultModel
+   * @param {Object} current - 当前焦点 session
+   * @returns {Object|null} - { providerID, modelID } 或 null
+   */
+  _resolveInheritedModel(current) {
+    if (current && current.model) {
+      return this._resolveSessionModel(current);
+    }
+    return this._normalizeDefaultModel();
   }
 
   /**

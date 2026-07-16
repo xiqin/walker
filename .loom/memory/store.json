@@ -1,6 +1,22 @@
 {
   "entries": [
     {
+      "id": "34fd657a",
+      "type": "决策",
+      "content": "飞书 /model 不再修改 OpenCode 全局配置，只更新当前 Walker session；切换前通过 driver.listModels() 验证并规范化为 {providerID, modelID} 对象。/new 继承当前 session 或 defaultModel 模型。TUI /clear 直接在 createSession 传 model 对象，避免二次 updateSessionField。session.model 统一为对象，读取边界兼容 string 但不做持久化迁移。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-15T10:13:40.865Z"
+    },
+    {
       "id": "1d675b65",
       "type": "踩坑",
       "content": "TUI bridge clear 汇合状态机：_tryCompleteClear 中不能检查 runtime.currentSessionId !== oldSessionId，因为 clear 期间普通 register 合法更新 currentSessionId 后会导致 clear 误判失败。正确做法是仅依靠 controlDeliveryId 绑定 + control result 的 sessionId 一致性检查来保障两阶段提交正确性。另外 _preflightClear 中 _callFeishu 必须 await，否则 fire-and-forget 的 Promise reject 会产生未处理 rejection。",

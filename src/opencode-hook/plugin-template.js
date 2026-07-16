@@ -172,10 +172,14 @@ async function tui(api) {
       if (currentSessionId(api) !== sessionId) {
         api.route.navigate('session', { sessionID: sessionId });
       }
-      const result = await api.client.session.promptAsync({
+      const promptParams = {
         sessionID: sessionId,
         parts: [{ type: 'text', text: delivery.text || '' }],
-      });
+      };
+      if (delivery.model) {
+        promptParams.model = delivery.model;
+      }
+      const result = await api.client.session.promptAsync(promptParams);
       if (result && result.error) throw new Error(errorMessage(result.error));
     } catch (error) {
       activeDeliveries.delete(sessionId);

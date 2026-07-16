@@ -64,7 +64,7 @@ class SessionService {
     return state;
   }
 
-  createSession({ route, agent, title, runtime, cwd, agentRef }) {
+  createSession({ route, agent, title, runtime, cwd, agentRef, model }) {
     const id = createId('wks_');
     const session = {
       id,
@@ -78,6 +78,9 @@ class SessionService {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+    if (model && typeof model === 'object') {
+      session.model = { providerID: model.providerID, modelID: model.modelID };
+    }
 
     this.stateStore.update((state) => {
       this._ensureState(state);

@@ -1,0 +1,22 @@
+{
+  "status": "done",
+  "summary": "验证通过。npm test 724/724 PASS，exit 0。占位符扫描无命中。类型一致性、最终一致性、Drift Check 全部 PASS。REQ-001..007 全覆盖。constitution 未定义 BUILD_CMD/VET_CMD（Node.js 无编译）。verify-report.md verdict=PASS，evidence-sha256=76e51d2c031861749f7c5474dad7b611452b7723bdbc9db857e0666a5d533364。",
+  "artifacts": [
+    "specs/2026-07-15-model-switch-fixes/verify-report.md",
+    "specs/2026-07-15-model-switch-fixes/test-report.md",
+    "specs/2026-07-15-model-switch-fixes/evidence/verification.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "12fea1574efb1ad6b1f9a072b94e11a36fdbae4fe59a4bbf7c9a5f3ce41c6a43",
+    "spec.md": "60bcfbbfe3a0aa656f2e61a4f6fe5489b3f68c819167970462979186ec6b2a30",
+    "test-report.md": "c1e77f647e0f9aae7173781ca1263ff17a6615935808a0721db3a993d3a69f7e"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-15-model-switch-fixes/evidence/verification.log": "76e51d2c031861749f7c5474dad7b611452b7723bdbc9db857e0666a5d533364",
+    "specs/2026-07-15-model-switch-fixes/test-report.md": "c1e77f647e0f9aae7173781ca1263ff17a6615935808a0721db3a993d3a69f7e",
+    "specs/2026-07-15-model-switch-fixes/verify-report.md": "ec0b6d07acf77aadca8f71f895595e453caeba36e9f99a97909c31999c789ba7"
+  },
+  "written_at": "2026-07-15T10:10:05.436Z"
+}

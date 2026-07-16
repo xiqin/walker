@@ -547,3 +547,35 @@ test('unbindRoute 从 sessions 列表移除焦点 session', () => {
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test('createSession 保存并复制 model 对象', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const model = { providerID: 'anthropic', modelID: 'claude-sonnet-4' };
+  const session = service.createSession({ route: routeKey, agent: 'opencode', model });
+
+  assert.deepEqual(session.model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+
+  const stored = service.getSession(session.id);
+  assert.deepEqual(stored.model, { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+
+  model.modelID = 'claude-opus-4';
+  assert.equal(stored.model.modelID, 'claude-sonnet-4', '后续修改原对象不影响已保存模型');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('createSession 未传 model 时不写入 model 字段', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:oc_abc:ou_user';
+  const session = service.createSession({ route: routeKey, agent: 'opencode' });
+
+  assert.equal(session.model, undefined);
+
+  const stored = service.getSession(session.id);
+  assert.equal(stored.model, undefined);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
