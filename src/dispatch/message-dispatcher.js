@@ -47,6 +47,8 @@ class MessageDispatcher {
     this.nonFocusOutput = options.nonFocusOutput !== false;
     this.sessionWatchStops = new Map();
     this.sessionWatchBuffers = new Map();
+    this.sessionWatchProgressCards = new Map();
+    this.sessionWatchProgressPromises = new Map();
     this.sessionDeliveredTexts = new Map();
     this.promptHeartbeatStops = new Map();
     this.turnStates = new Map();
@@ -954,6 +956,7 @@ class MessageDispatcher {
       if (agentEvent.type === AgentEvent.TYPE_TEXT) continue;
       if (agentEvent.type === AgentEvent.TYPE_PERMISSION || agentEvent.type === AgentEvent.TYPE_PERMISSION_REPLIED) continue;
       if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
+      if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
       this._touchTurnState(this.turnStates.get(session.id));
       const rendered = await this._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null);
       if (rendered && rendered.strategy === 'new_message') {
@@ -1141,6 +1144,8 @@ class MessageDispatcher {
     }
     this.sessionWatchStops.delete(sessionId);
     this.sessionWatchBuffers.delete(sessionId);
+    this.sessionWatchProgressCards.delete(sessionId);
+    this.sessionWatchProgressPromises.delete(sessionId);
     this.sessionDeliveredTexts.delete(sessionId);
     this._promptQueues.delete(sessionId);
     this._routeLocks.delete(sessionId);
@@ -1305,10 +1310,25 @@ class MessageDispatcher {
     }
     const buffer = this.sessionWatchBuffers.get(session.id) || [];
     if (agentEvent.type === AgentEvent.TYPE_DONE) {
+      const pendingProgress = this.sessionWatchProgressPromises.get(session.id);
       const displayEvents = this._coalesceDisplayEvents(buffer, '');
       const text = this._textFromDisplayEvents(displayEvents);
       this.sessionWatchBuffers.set(session.id, []);
       logger.info('watched session done', { sessionId: session.id, chatId, textLen: text.length, bufferLen: buffer.length });
+      const finishProgress = async () => {
+        if (pendingProgress) await pendingProgress.catch(() => {});
+        const progressCardId = this.sessionWatchProgressCards.get(session.id);
+        if (progressCardId && this.progressStyle === 'card') {
+          await this._renderWatchProgressCard(session, chatId, displayEvents, progressCardId);
+        }
+        this.sessionWatchProgressCards.delete(session.id);
+        this.sessionWatchProgressPromises.delete(session.id);
+      };
+      finishProgress().catch((err) => {
+        logger.warn('watch progress card render failed', { sessionId: session.id, error: err && err.message });
+        this.sessionWatchProgressCards.delete(session.id);
+        this.sessionWatchProgressPromises.delete(session.id);
+      });
       if (text) {
         if (this._hasDeliveredText(session.id, text)) {
           logger.info('skip duplicate watched session text', { sessionId: session.id, chatId, textLen: text.length });
@@ -1335,8 +1355,50 @@ class MessageDispatcher {
       this._handlePermissionRepliedEvent(session, chatId, agentEvent);
       return;
     }
+    if (this._isWatchProgressEvent(agentEvent.type) && this.progressStyle === 'card') {
+      const prev = this.sessionWatchProgressPromises.get(session.id) || Promise.resolve();
+      const next = prev.then(() => this._updateWatchProgressCard(session, chatId, agentEvent)).catch((err) => {
+        logger.warn('watch progress card update failed', { sessionId: session.id, error: err && err.message });
+      });
+      this.sessionWatchProgressPromises.set(session.id, next);
+    }
     buffer.push(agentEvent);
     this.sessionWatchBuffers.set(session.id, buffer);
+  }
+
+  _isWatchProgressEvent(eventType) {
+    return eventType === AgentEvent.TYPE_TODO
+      || eventType === AgentEvent.TYPE_COMPACTED
+      || eventType === AgentEvent.TYPE_FILE_EDITED
+      || eventType === AgentEvent.TYPE_COMMAND_EXECUTED;
+  }
+
+  async _updateWatchProgressCard(session, chatId, agentEvent) {
+    let cardId = this.sessionWatchProgressCards.get(session.id);
+    if (!cardId) {
+      cardId = await this._callFeishu('sendProgressCard', [{ chatId }, session.id], null);
+      if (!cardId) return;
+      if (this._isTurnSuppressed(session.id) || !this.sessionWatchBuffers.has(session.id)) return;
+      this.sessionWatchProgressCards.set(session.id, cardId);
+    }
+    await this._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null);
+  }
+
+  async _renderWatchProgressCard(session, chatId, displayEvents, progressCardId) {
+    for (const agentEvent of displayEvents) {
+      if (agentEvent.type === AgentEvent.TYPE_TEXT) continue;
+      if (agentEvent.type === AgentEvent.TYPE_PERMISSION || agentEvent.type === AgentEvent.TYPE_PERMISSION_REPLIED) continue;
+      if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
+      if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
+      const rendered = await this._callFeishu('updateProgressCard', [progressCardId, session.id, agentEvent], null);
+      if (rendered && rendered.strategy === 'new_message') {
+        const newCardId = await this._callFeishu('sendProgressCard', [{ chatId }, session.id, agentEvent], null);
+        if (newCardId) {
+          progressCardId = newCardId;
+          this.sessionWatchProgressCards.set(session.id, newCardId);
+        }
+      }
+    }
   }
 
   _handlePermissionEvent(session, chatId, agentEvent) {
@@ -1486,6 +1548,8 @@ class MessageDispatcher {
     }
     this.promptHeartbeatStops.clear();
     this.sessionWatchBuffers.clear();
+    this.sessionWatchProgressCards.clear();
+    this.sessionWatchProgressPromises.clear();
     this.sessionDeliveredTexts.clear();
     this.turnStates.clear();
     this.cancelledTurnSessions.clear();

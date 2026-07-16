@@ -679,6 +679,12 @@ function normalizeEvents(events) {
     AgentEvent.TYPE_ERROR,
     AgentEvent.TYPE_STATUS,
     AgentEvent.TYPE_DONE,
+    AgentEvent.TYPE_PERMISSION,
+    AgentEvent.TYPE_PERMISSION_REPLIED,
+    AgentEvent.TYPE_TODO,
+    AgentEvent.TYPE_COMPACTED,
+    AgentEvent.TYPE_FILE_EDITED,
+    AgentEvent.TYPE_COMMAND_EXECUTED,
   ]);
   return events
     .filter((event) => event && allowed.has(event.type))

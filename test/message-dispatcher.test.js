@@ -1369,6 +1369,46 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === 'watch answer');
     assert.equal(sends.length, 1);
   });
+
+  it('watch 进度事件实时渲染进度卡片并在 done 时完成', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_watch_prog1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_watch_prog1' } };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TODO, { todos: [{ id: 't1', status: 'completed' }] }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_FILE_EDITED, { path: 'src/x.js', action: 'edit', linesAdded: 5, linesRemoved: 1 }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_COMMAND_EXECUTED, { command: 'npm test', exitCode: 0 }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'done output' }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const sendCardCalls = mocks.feishuApi.calls.filter(c => c.type === 'sendProgressCard');
+    assert.ok(sendCardCalls.length >= 1, '应建进度卡片');
+    const updateCalls = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard');
+    const updatedTypes = updateCalls.map(c => c.agentEvent.type);
+    assert.ok(updatedTypes.includes(AgentEvent.TYPE_TODO), 'todo 应更新进度卡片');
+    assert.ok(updatedTypes.includes(AgentEvent.TYPE_FILE_EDITED), 'file_edited 应更新进度卡片');
+    assert.ok(updatedTypes.includes(AgentEvent.TYPE_COMMAND_EXECUTED), 'command_executed 应更新进度卡片');
+    assert.equal(updatedTypes.includes(AgentEvent.TYPE_STEP), false, 'step 不应更新进度卡片');
+    assert.equal(updatedTypes.includes(AgentEvent.TYPE_SESSION_DIFF), false, 'session_diff 不应更新进度卡片');
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === 'done output');
+    assert.equal(sends.length, 1, 'done 后仍应发送文本');
+    assert.equal(dispatcher.sessionWatchProgressCards.has(session.id), false, 'done 后应清理进度卡片 id');
+  });
+
+  it('watch progressStyle 非 card 时不建进度卡片', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_watch_prog2', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_watch_prog2' } };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'legacy' });
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TODO, { todos: [] }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'legacy output' }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sendCardCalls = mocks.feishuApi.calls.filter(c => c.type === 'sendProgressCard');
+    assert.equal(sendCardCalls.length, 0, '非 card 模式不应建进度卡片');
+  });
 });
 
 describe('MessageDispatcher /attach command', () => {

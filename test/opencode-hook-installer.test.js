@@ -61,7 +61,7 @@ test('已存在旧版 TUI plugin 即使端口匹配也会升级', () => {
 
   assert.equal(result.installed, true);
   const content = fs.readFileSync(targetPath, 'utf8');
-  assert.ok(content.includes('Walker TUI bridge version: 5'));
+  assert.ok(content.includes('Walker TUI bridge version: 8'));
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

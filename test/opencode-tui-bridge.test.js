@@ -133,6 +133,76 @@ describe('OpencodeTuiBridge', () => {
     }
   });
 
+  it('permission 事件通过 watchSession 分发到飞书（无 deliveryId 路径）', () => {
+    const h = createHarness();
+    try {
+      h.sessionService.createSession({ route: 'feishu:oc_bridge_perm:om_root', cwd: 'H:\\walker' });
+      h.sessionService.setRouteCwd('feishu:oc_bridge_perm:om_root', 'H:\\walker');
+      const enrolled = h.bridge.register({ runtimeId: 'runtime-perm', sessionId: 'ses_perm', cwd: 'H:\\walker' });
+      const session = h.sessionService.getSession(enrolled.sessionId);
+      const received = [];
+      const stop = h.bridge.watchSession(session.agentRef, { onEvent: (event) => received.push(event) });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-perm',
+        sessionId: 'ses_perm',
+        events: [
+          { type: 'permission', data: { id: 'perm_1', type: 'command', title: '执行命令', metadata: { command: 'rm -rf /' } } },
+          { type: 'permission_replied', data: { permissionId: 'perm_1', response: 'allow' } },
+        ],
+      });
+
+      assert.equal(received.length, 2);
+      assert.equal(received[0].type, 'permission');
+      assert.equal(received[0].data.id, 'perm_1');
+      assert.equal(received[0].data.title, '执行命令');
+      assert.equal(received[1].type, 'permission_replied');
+      assert.equal(received[1].data.permissionId, 'perm_1');
+      assert.equal(received[1].data.response, 'allow');
+      stop();
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('todo/file_edited/compacted/command_executed 事件通过 watchSession 分发（无 deliveryId 路径）', () => {
+    const h = createHarness();
+    try {
+      h.sessionService.createSession({ route: 'feishu:oc_bridge_evt:om_root', cwd: 'H:\\walker' });
+      h.sessionService.setRouteCwd('feishu:oc_bridge_evt:om_root', 'H:\\walker');
+      const enrolled = h.bridge.register({ runtimeId: 'runtime-evt', sessionId: 'ses_evt', cwd: 'H:\\walker' });
+      const session = h.sessionService.getSession(enrolled.sessionId);
+      const received = [];
+      const stop = h.bridge.watchSession(session.agentRef, { onEvent: (event) => received.push(event) });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-evt',
+        sessionId: 'ses_evt',
+        events: [
+          { type: 'todo', data: { todos: [{ id: 't1', status: 'completed' }, { id: 't2', status: 'in_progress' }] } },
+          { type: 'file_edited', data: { path: 'src/index.js', action: 'edit', linesAdded: 10, linesRemoved: 2 } },
+          { type: 'compacted', data: { sessionID: 'ses_evt' } },
+          { type: 'command_executed', data: { command: 'npm test', exitCode: 0 } },
+        ],
+      });
+
+      assert.equal(received.length, 4);
+      assert.equal(received[0].type, 'todo');
+      assert.equal(received[0].data.todos.length, 2);
+      assert.equal(received[1].type, 'file_edited');
+      assert.equal(received[1].data.path, 'src/index.js');
+      assert.equal(received[1].data.linesAdded, 10);
+      assert.equal(received[2].type, 'compacted');
+      assert.equal(received[2].data.sessionID, 'ses_evt');
+      assert.equal(received[3].type, 'command_executed');
+      assert.equal(received[3].data.command, 'npm test');
+      assert.equal(received[3].data.exitCode, 0);
+      stop();
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('runtime 当前 session 已切换时拒绝向旧 session 投递', async () => {
     const h = createHarness();
     try {
