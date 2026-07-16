@@ -1,58 +1,23 @@
 {
-  "spec_dir": "H:\\walker\\specs\\2026-07-16+sse-event-coverage",
+  "spec_dir": "H:\\walker\\specs\\2026-07-16-sse-events-forwarding",
   "pipeline_type": "feature",
-  "current_stage": "synced",
+  "current_stage": "brainstorming",
   "loom_version": "0.1.0",
-  "started_at": "2026-07-16T12:25:42.108Z",
-  "updated_at": "2026-07-16T12:48:43.538Z",
-  "stage_history": [
-    {
-      "stage": "planning",
-      "entered_at": "2026-07-16T12:25:42.108Z",
-      "exited_at": "2026-07-16T12:29:29.725Z",
-      "status": "passed"
-    },
-    {
-      "stage": "approved",
-      "entered_at": "2026-07-16T12:29:29.725Z",
-      "exited_at": "2026-07-16T12:30:06.553Z",
-      "status": "passed",
-      "approval": "user_confirmed"
-    },
-    {
-      "stage": "executing",
-      "entered_at": "2026-07-16T12:30:06.553Z",
-      "exited_at": "2026-07-16T12:43:27.833Z",
-      "status": "passed"
-    },
-    {
-      "stage": "verification",
-      "entered_at": "2026-07-16T12:43:27.833Z",
-      "exited_at": "2026-07-16T12:45:43.367Z",
-      "status": "passed"
-    },
-    {
-      "stage": "code-review-request",
-      "entered_at": "2026-07-16T12:45:43.367Z",
-      "exited_at": "2026-07-16T12:47:02.522Z",
-      "status": "passed"
-    },
-    {
-      "stage": "review-gate",
-      "entered_at": "2026-07-16T12:47:02.522Z",
-      "exited_at": "2026-07-16T12:48:29.808Z",
-      "status": "passed",
-      "approval": "user_confirmed"
-    },
-    {
-      "stage": "code-review-response",
-      "entered_at": "2026-07-16T12:48:29.808Z",
-      "exited_at": "2026-07-16T12:48:43.538Z",
-      "status": "passed"
-    }
-  ],
+  "started_at": "2026-07-16T12:16:25.429Z",
+  "updated_at": "2026-07-16T12:16:25.429Z",
+  "stage_history": [],
   "metadata": {},
   "dynamic_steps": [
+    {
+      "id": "brainstorming",
+      "skill": "loom-brainstorming",
+      "requires": [],
+      "outputs": [
+        "spec.md",
+        "handoffs/brainstorming.json"
+      ],
+      "description": "需求头脑风暴，探索 2-3 种实现方案"
+    },
     {
       "id": "planning",
       "skill": "loom-writing-plans",
@@ -144,6 +109,5 @@
       "outputs": [],
       "description": "图后端同步与结构化记忆更新"
     }
-  ],
-  "current_stage_started_at": "2026-07-16T12:48:43.538Z"
+  ]
 }

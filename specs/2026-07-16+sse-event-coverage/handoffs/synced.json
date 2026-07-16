@@ -1,0 +1,12 @@
+{
+  "status": "done",
+  "summary": "codegraph 同步完成（Already up to date）。流水线全部阶段完成。",
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "5d377f59977304eb3ba60c8b506dbbd421471b1b3db3b3a602fd95a79763c01d",
+    "spec.md": "1fc7339be41822cd60db71f5198c9f4387196433c25cee576db8bdf52a20f357"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-16T12:49:00.670Z"
+}
