@@ -883,7 +883,7 @@ class MessageDispatcher {
       await this._renderCardProgress(session, event, displayEvents, progressCardId);
       const fullText = this._textFromDisplayEvents(displayEvents);
       if (fullText) {
-        const replyResult = await this._callFeishu('replyText', [this._replyCtx(event), this._appendModelFooter(fullText, session)], null);
+        const replyResult = await this._callFeishu('replyMarkdown', [this._replyCtx(event), this._appendModelFooter(fullText, session)], null);
         if (replyResult) {
           this._rememberDeliveredText(session.id, fullText);
         }
@@ -1021,7 +1021,7 @@ class MessageDispatcher {
    */
   async _renderLegacyProgress(session, event, displayEvents) {
     const fullText = this._textFromDisplayEvents(displayEvents);
-    await this._callFeishu('replyText', [this._replyCtx(event), this._appendModelFooter(fullText.trim(), session)]);
+    await this._callFeishu('replyMarkdown', [this._replyCtx(event), this._appendModelFooter(fullText.trim(), session)]);
   }
 
   _textFromDisplayEvents(displayEvents) {
@@ -1279,7 +1279,7 @@ class MessageDispatcher {
         const outputText = (!isFocus && this.nonFocusOutput)
           ? '[session: ' + session.id.slice(0, 8) + '] ' + text
           : text;
-        this._sendFeishu('sendText', [chatId, outputText], { sessionId: session.id });
+        this._sendFeishu('sendMarkdown', [chatId, outputText], { sessionId: session.id });
       }
       return;
     }
@@ -1324,7 +1324,7 @@ class MessageDispatcher {
       logger.warn('feishu api method missing', Object.assign({ method: methodName }, context || {}));
       return fallback;
     }
-    const retryable = /^(replyText|patchCard|replyCard|sendProgressCard|updateProgressCard)$/.test(methodName);
+    const retryable = /^(replyText|replyMarkdown|sendMarkdown|patchCard|replyCard|sendProgressCard|updateProgressCard)$/.test(methodName);
     const maxAttempts = retryable ? 3 : 1;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {

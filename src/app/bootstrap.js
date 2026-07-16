@@ -173,7 +173,9 @@ function createApp(config, deps) {
   });
 
   feishuApiTarget.replyText = (replyCtx, text) => platform.api.replyText(normalizeReplyCtx(replyCtx), text);
+  feishuApiTarget.replyMarkdown = (replyCtx, text) => platform.api.replyMarkdown(normalizeReplyCtx(replyCtx), text);
   feishuApiTarget.sendText = (chatId, text) => platform.api.sendText(chatId, text);
+  feishuApiTarget.sendMarkdown = (chatId, text) => platform.api.sendMarkdown(chatId, text);
   feishuApiTarget.replyCard = (replyCtx, card) => platform.api.replyCard(normalizeReplyCtx(replyCtx), card);
   feishuApiTarget.patchCard = (cardId, card) => platform.api.patchCard(cardId, card);
   feishuApiTarget.addReaction = (msgId, emoji) => platform.api.addReaction(msgId, emoji);

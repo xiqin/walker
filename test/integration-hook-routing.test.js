@@ -50,7 +50,9 @@ function makeFeishuStub() {
   return {
     calls,
     replyText: (msgId, text) => { calls.push({ type: 'replyText', msgId, text }); },
+    replyMarkdown: (msgId, text) => { calls.push({ type: 'replyMarkdown', msgId, text }); return [{ message_id: 'om_reply_' + calls.length }]; },
     sendText: (chatId, text) => { calls.push({ type: 'sendText', chatId, text }); },
+    sendMarkdown: (chatId, text) => { calls.push({ type: 'sendMarkdown', chatId, text }); },
     replyCard: (msgId, card) => { calls.push({ type: 'replyCard', msgId, card }); return 'om_card_' + (calls.length); },
     patchCard: (cardId, card) => { calls.push({ type: 'patchCard', cardId, card }); },
     addReaction: (msgId, emoji) => { calls.push({ type: 'addReaction', msgId, emoji }); },
@@ -215,7 +217,7 @@ describe('集成测试 3: 非焦点 session 输出回群带标识', () => {
       dispatcher._handleWatchedSessionEvent(nonFocusSession, 'oc_integ4', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
       await new Promise((resolve) => setImmediate(resolve));
 
-      const sendText = feishuApi.calls.find((c) => c.type === 'sendText' && c.text.includes('非焦点输出'));
+      const sendText = feishuApi.calls.find((c) => c.type === 'sendMarkdown' && c.text.includes('非焦点输出'));
       assert.ok(sendText, '非焦点输出应发送到群');
       const expectedPrefix = '[session: ' + r2.data.sessionId.slice(0, 8);
       assert.ok(sendText.text.startsWith(expectedPrefix), '应带 [session: <id前8位>] 前缀, got: ' + sendText.text.slice(0, 30));
@@ -224,7 +226,7 @@ describe('集成测试 3: 非焦点 session 输出回群带标识', () => {
       dispatcher._handleWatchedSessionEvent(focusSession, 'oc_integ4', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
       await new Promise((resolve) => setImmediate(resolve));
 
-      const focusSend = feishuApi.calls.find((c) => c.type === 'sendText' && c.text.includes('焦点专属内容'));
+      const focusSend = feishuApi.calls.find((c) => c.type === 'sendMarkdown' && c.text.includes('焦点专属内容'));
       assert.ok(focusSend, '焦点输出应发送到群');
       assert.equal(focusSend.text.startsWith('[session:'), false, '焦点输出不应带 session 标识前缀');
     } finally {

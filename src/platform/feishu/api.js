@@ -128,6 +128,68 @@ class FeishuApi {
     return results;
   }
 
+  /**
+   * 以 markdown 卡片回复飞书消息或发送到指定群聊
+   * 使用 v1 卡片 + div + lark_md 结构，飞书客户端支持 markdown 渲染
+   * @param {Object} replyCtx - 回复上下文，包含 messageId 或 chatId
+   * @param {string} text - markdown 文本内容
+   * @returns {Promise<Object|Object[]>} 飞书 API 返回结果
+   */
+  async replyMarkdown(replyCtx, text) {
+    if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
+    const token = await this.getTenantToken();
+    const chunks = splitTextChunks(text);
+    const buildCard = (content) => ({ elements: [{ tag: 'div', text: { tag: 'lark_md', content } }] });
+    const results = [];
+    if (replyCtx && replyCtx.messageId) {
+      results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
+        msg_type: 'interactive',
+        content: JSON.stringify(buildCard(chunks[0])),
+      }), token));
+      if (chunks.length > 1 && replyCtx.chatId) {
+        for (const chunk of chunks.slice(1)) {
+          results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+            receive_id: replyCtx.chatId,
+            msg_type: 'interactive',
+            content: JSON.stringify(buildCard(chunk)),
+          }), token));
+        }
+      }
+      return results;
+    }
+    if (replyCtx && replyCtx.chatId) {
+      for (const chunk of chunks) {
+        results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+          receive_id: replyCtx.chatId,
+          msg_type: 'interactive',
+          content: JSON.stringify(buildCard(chunk)),
+        }), token));
+      }
+      return results;
+    }
+    throw new Error('replyMarkdown: no messageId or chatId in replyCtx');
+  }
+
+  /**
+   * 以 markdown 卡片发送到指定群聊
+   * @param {string} chatId - 群聊 ID
+   * @param {string} text - markdown 文本内容
+   * @returns {Promise<Object[]>} 飞书 API 返回结果列表
+   */
+  async sendMarkdown(chatId, text) {
+    const token = await this.getTenantToken();
+    const results = [];
+    const buildCard = (content) => ({ elements: [{ tag: 'div', text: { tag: 'lark_md', content } }] });
+    for (const chunk of splitTextChunks(text)) {
+      results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
+        receive_id: chatId,
+        msg_type: 'interactive',
+        content: JSON.stringify(buildCard(chunk)),
+      }), token));
+    }
+    return results;
+  }
+
   async replyCard(replyCtx, card) {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();

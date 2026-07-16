@@ -32,7 +32,9 @@ function makeFeishuStub() {
   return {
     calls,
     replyText: (replyCtx, text) => { calls.push({ type: 'replyText', replyCtx, text }); return [{ message_id: 'om_reply_' + calls.length }]; },
+    replyMarkdown: (replyCtx, text) => { calls.push({ type: 'replyMarkdown', replyCtx, text }); return [{ message_id: 'om_reply_' + calls.length }]; },
     sendText: (chatId, text) => { calls.push({ type: 'sendText', chatId, text }); },
+    sendMarkdown: (chatId, text) => { calls.push({ type: 'sendMarkdown', chatId, text }); },
     replyCard: (replyCtx, card) => { calls.push({ type: 'replyCard', replyCtx, card }); return 'om_card_' + calls.length; },
     patchCard: (cardId, card) => { calls.push({ type: 'patchCard', cardId, card }); },
     addReaction: (msgId, emoji) => { calls.push({ type: 'addReaction', msgId, emoji }); },
@@ -142,8 +144,8 @@ describe('飞书-TUI 双向链路集成测试', () => {
       handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
       await new Promise((resolve) => setImmediate(resolve));
 
-      const sendTextCalls = feishuApi.calls.filter((c) => c.type === 'sendText');
-      const tuiReply = sendTextCalls.find((c) => c.text && c.text.includes(tuiReplyText));
+      const sendMarkdownCalls = feishuApi.calls.filter((c) => c.type === 'sendMarkdown');
+      const tuiReply = sendMarkdownCalls.find((c) => c.text && c.text.includes(tuiReplyText));
       assert.ok(tuiReply, '飞书 sendText 应收到 TUI assistant 回复');
       assert.equal(tuiReply.chatId, chatId, '回复应发送到正确的 chatId');
     });
@@ -188,8 +190,8 @@ describe('飞书-TUI 双向链路集成测试', () => {
       handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
       await new Promise((resolve) => setImmediate(resolve));
 
-      const sendTextCalls = feishuApi.calls.filter((c) => c.type === 'sendText');
-      const reply = sendTextCalls.find((c) => c.text && c.text.includes(replyText));
+      const sendMarkdownCalls = feishuApi.calls.filter((c) => c.type === 'sendMarkdown');
+      const reply = sendMarkdownCalls.find((c) => c.text && c.text.includes(replyText));
       assert.ok(reply, '回退场景下飞书也应收到 TUI 回复');
       assert.equal(reply.chatId, chatId, '回复应发送到正确的 chatId');
     });
@@ -263,11 +265,11 @@ describe('飞书-TUI 双向链路集成测试', () => {
       assert.equal(networkCalls, 0, 'bridge session 不应访问独立 OpenCode HTTP/SSE');
 
       const renderedReply = feishuApi.calls.find((call) => {
-        return call.type === 'replyText'
+        return call.type === 'replyMarkdown'
           && call.text
           && call.text.includes('embedded assistant reply');
       });
-      assert.ok(renderedReply, '飞书应通过普通文本消息收到 embedded TUI 的回答');
+      assert.ok(renderedReply, '飞书应通过markdown 卡片收到 embedded TUI 的回答');
 
       bridge.reportEvents({
         runtimeId,
@@ -280,7 +282,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       await new Promise((resolve) => setImmediate(resolve));
 
       const manualReply = feishuApi.calls.find((call) => {
-        return call.type === 'sendText' && call.chatId === chatId && call.text.includes('manual TUI turn reply');
+        return call.type === 'sendMarkdown' && call.chatId === chatId && call.text.includes('manual TUI turn reply');
       });
       assert.ok(manualReply, 'TUI 手工发起的回答应通过 watch 回传飞书');
       bridge.close();
@@ -326,8 +328,8 @@ describe('飞书-TUI 双向链路集成测试', () => {
       handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
       await new Promise((resolve) => setImmediate(resolve));
 
-      const sendTextCalls = feishuApi.calls.filter((c) => c.type === 'sendText' && c.text && c.text.includes(uniqueText));
-      assert.equal(sendTextCalls.length, 1, '相同回复文本不应被重复发送');
+      const sendMarkdownCalls = feishuApi.calls.filter((c) => c.type === 'sendMarkdown' && c.text && c.text.includes(uniqueText));
+      assert.equal(sendMarkdownCalls.length, 1, '相同回复文本不应被重复发送');
     });
 
     it('不同 chat 的回复不会误投递到其他 chatId', async () => {
@@ -370,10 +372,10 @@ describe('飞书-TUI 双向链路集成测试', () => {
       watchHandlersA.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
       await new Promise((resolve) => setImmediate(resolve));
 
-      const sendToA = feishuApi.calls.filter((c) => c.type === 'sendText' && c.chatId === chatIdA);
+      const sendToA = feishuApi.calls.filter((c) => c.type === 'sendMarkdown' && c.chatId === chatIdA);
       assert.ok(sendToA.length >= 1, 'chatA 应收到回复');
 
-      const sendToB = feishuApi.calls.filter((c) => c.type === 'sendText' && c.chatId === chatIdB);
+      const sendToB = feishuApi.calls.filter((c) => c.type === 'sendMarkdown' && c.chatId === chatIdB);
       assert.equal(sendToB.length, 0, 'chatA 的回复不应误投递到 chatB');
     });
 
@@ -403,7 +405,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       dispatcher._handleWatchedSessionEvent(session1, chatId, new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
       await new Promise((resolve) => setImmediate(resolve));
 
-      const session1Send = feishuLocal.calls.filter((c) => c.type === 'sendText' && c.text && c.text.includes('session1 output'));
+      const session1Send = feishuLocal.calls.filter((c) => c.type === 'sendMarkdown' && c.text && c.text.includes('session1 output'));
       assert.equal(session1Send.length, 1, 'session1 输出应发送一次');
 
       const session2 = ctx.sessionService.listSessions().find((s) => s.id !== session1.id);
@@ -412,7 +414,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       dispatcher._handleWatchedSessionEvent(session2, chatId, new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
       await new Promise((resolve) => setImmediate(resolve));
 
-      const allSendText = feishuLocal.calls.filter((c) => c.type === 'sendText');
+      const allSendText = feishuLocal.calls.filter((c) => c.type === 'sendMarkdown');
       const session2Duplicates = allSendText.filter((c) => c.text && c.text.includes(session2Text));
       assert.ok(session2Duplicates.length <= 1, 'session2 输出不应重复发送');
     });
@@ -882,7 +884,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
         assert.equal(await promptResult, 'prompted');
 
         const reply = h.feishuApi.calls.find((c) =>
-          c.type === 'replyText' && c.text && c.text.includes('reply after clear'));
+          c.type === 'replyMarkdown' && c.text && c.text.includes('reply after clear'));
         assert.ok(reply, 'clear 后 prompt 回复应回到飞书');
       } finally {
         h.cleanup();
@@ -967,7 +969,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       assert.equal(await promptResult, 'prompted');
 
       const reply = feishuApi.calls.find((c) =>
-        c.type === 'replyText' && c.text && c.text.includes('v3 long task result'));
+        c.type === 'replyMarkdown' && c.text && c.text.includes('v3 long task result'));
       assert.ok(reply, 'v3 长任务最终结果应到达飞书');
       bridge.close();
     });
@@ -1025,7 +1027,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       assert.equal(await promptResult, 'prompted');
 
       const reply = feishuApi.calls.find((c) =>
-        c.type === 'replyText' && c.text && c.text.includes('v2 compat reply'));
+        c.type === 'replyMarkdown' && c.text && c.text.includes('v2 compat reply'));
       assert.ok(reply, 'v2 兼容 final 应到达飞书');
       bridge.close();
     });
@@ -1118,7 +1120,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const recoveredReplies = feishuApi.calls.filter((c) =>
-        c.type === 'sendText' && c.text && c.text.includes('recovered late reply'));
+        c.type === 'sendMarkdown' && c.text && c.text.includes('recovered late reply'));
       assert.ok(recoveredReplies.length <= 1, '迟到 final 至多投递一次到飞书');
       bridge.close();
     });
@@ -1194,7 +1196,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const cancelledReplies = feishuApi.calls.filter((c) =>
-        c.type === 'sendText' && c.text && c.text.includes('cancelled late reply'));
+        c.type === 'sendMarkdown' && c.text && c.text.includes('cancelled late reply'));
       assert.equal(cancelledReplies.length, 0, 'cancelled tombstone 迟到 final 不应投递到飞书');
 
       assert.equal(await promptResult, 'cancelled');
@@ -1247,7 +1249,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       await new Promise((resolve) => setImmediate(resolve));
 
       const replies = feishuApi.calls.filter((c) =>
-        (c.type === 'replyText' || c.type === 'sendText') && c.text && c.text.includes('shared answer'));
+        (c.type === 'replyMarkdown' || c.type === 'sendMarkdown') && c.text && c.text.includes('shared answer'));
       assert.equal(replies.length, 1, '相同文本只投递一次');
     });
   });

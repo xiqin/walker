@@ -42,7 +42,9 @@ function makeMocks() {
   const driverRegistry = { get: () => driver };
   const feishuApi = {
     replyText: (msgId, text) => { feishuApi.calls.push({ type: 'replyText', msgId, text }); return [{ message_id: 'om_reply1' }]; },
+    replyMarkdown: (msgId, text) => { feishuApi.calls.push({ type: 'replyMarkdown', msgId, text }); return [{ message_id: 'om_reply1' }]; },
     sendText: (chatId, text) => { feishuApi.calls.push({ type: 'sendText', chatId, text }); },
+    sendMarkdown: (chatId, text) => { feishuApi.calls.push({ type: 'sendMarkdown', chatId, text }); },
     replyCard: (msgId, card) => { feishuApi.calls.push({ type: 'replyCard', msgId, card }); return 'om_card1'; },
     patchCard: (cardId, card) => { feishuApi.calls.push({ type: 'patchCard', cardId, card }); },
     addReaction: (msgId, emoji) => { feishuApi.calls.push({ type: 'addReaction', msgId, emoji }); },
@@ -282,8 +284,8 @@ describe('MessageDispatcher bound route prompt', () => {
     const updates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard');
     assert.equal(updates.some(c => c.agentEvent.type === AgentEvent.TYPE_TEXT), false, 'TYPE_TEXT 不应触发 updateProgressCard');
     assert.ok(updates.some(c => c.agentEvent.type === AgentEvent.TYPE_DONE), 'TYPE_DONE 仍应触发一次 updateProgressCard');
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.ok(reply, '应通过 replyText 发送完整文本');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.ok(reply, '应通过 replyMarkdown 发送完整文本');
     assert.equal(reply.text, 'Hello\n\n---\n模型：未指定');
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'addReaction' && c.emoji === 'OnIt'));
     assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_root1']);
@@ -494,8 +496,8 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(updates.some(c => c.agentEvent.type === AgentEvent.TYPE_TEXT), false, 'TYPE_TEXT 不应触发 updateProgressCard');
     assert.equal(updates.length, 1);
     assert.equal(updates[0].agentEvent.type, AgentEvent.TYPE_DONE);
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.ok(reply, '应通过 replyText 发送合并后的完整文本');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.ok(reply, '应通过 replyMarkdown 发送合并后的完整文本');
     assert.equal(reply.text, '你好\n\n---\n模型：未指定');
   });
 
@@ -523,10 +525,10 @@ describe('MessageDispatcher bound route prompt', () => {
 
     const updates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard');
     assert.equal(updates.some(c => c.agentEvent.type === AgentEvent.TYPE_TEXT), false, 'TYPE_TEXT 不应触发 updateProgressCard');
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.ok(reply, '应通过 replyText 发送完整文本');
-    assert.equal(reply.text.includes('你是谁'), false, 'replyText 发送的文本不应包含复述的用户消息');
-    assert.equal(reply.text.includes('我是 OpenCode'), true, 'replyText 应包含实际回答');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.ok(reply, '应通过 replyMarkdown 发送完整文本');
+    assert.equal(reply.text.includes('你是谁'), false, 'replyMarkdown 发送的文本不应包含复述的用户消息');
+    assert.equal(reply.text.includes('我是 OpenCode'), true, 'replyMarkdown 应包含实际回答');
   });
 
   it('delta 合并结果与最终快照重复时只更新一次文本', async () => {
@@ -554,8 +556,8 @@ describe('MessageDispatcher bound route prompt', () => {
 
     const textUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.ok(reply, '应通过 replyText 发送完整文本');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.ok(reply, '应通过 replyMarkdown 发送完整文本');
     assert.equal(reply.text, '你好\n\n---\n模型：未指定');
   });
 
@@ -583,8 +585,8 @@ describe('MessageDispatcher bound route prompt', () => {
 
     const textUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.ok(reply, '应通过 replyText 发送完整文本');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.ok(reply, '应通过 replyMarkdown 发送完整文本');
     assert.equal(reply.text, '我是 OpenCode\n\n---\n模型：未指定');
   });
 
@@ -611,10 +613,10 @@ describe('MessageDispatcher bound route prompt', () => {
 
     const textUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.ok(reply, '应通过 replyText 发送折叠后的文本');
-    assert.equal(reply.text.includes('m0004'), false, 'replyText 发送的文本不应包含消息编号');
-    assert.equal(reply.text.includes('代码协作助手'), true, 'replyText 应包含折叠后的回答');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.ok(reply, '应通过 replyMarkdown 发送折叠后的文本');
+    assert.equal(reply.text.includes('m0004'), false, 'replyMarkdown 发送的文本不应包含消息编号');
+    assert.equal(reply.text.includes('代码协作助手'), true, 'replyMarkdown 应包含折叠后的回答');
   });
 
   it('思考事件只更新进度卡片，不作为文本消息单独发送', async () => {
@@ -644,12 +646,12 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(reasoningUpdates[0].agentEvent.data.text, '正在分析调用链');
     const textUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.ok(reply, '应通过 replyText 发送最终回答文本');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.ok(reply, '应通过 replyMarkdown 发送最终回答文本');
     assert.equal(reply.text, '完成\n\n---\n模型：未指定');
-    assert.equal(reply.text.includes('正在分析调用链'), false, 'replyText 不应包含思考内容');
-    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text.includes('正在分析调用链')), false);
-    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('正在分析调用链')), false);
+    assert.equal(reply.text.includes('正在分析调用链'), false, 'replyMarkdown 不应包含思考内容');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendMarkdown' && c.text.includes('正在分析调用链')), false);
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyMarkdown' && c.text.includes('正在分析调用链')), false);
   });
 
   it('prompt 已渲染的回答不会在 watch 恢复后再次发送到飞书', async () => {
@@ -678,11 +680,11 @@ describe('MessageDispatcher bound route prompt', () => {
     watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text === 'Hello'), false, 'watch 不应重复 sendText 已由 replyText 发送的文本');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendMarkdown' && c.text === 'Hello'), false, 'watch 不应重复 sendMarkdown 已由 replyText 发送的文本');
     const textCardUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textCardUpdates.length, 0, 'card 模式下 TYPE_TEXT 不应进卡片');
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText' && c.text.startsWith('Hello'));
-    assert.ok(reply, '应通过 replyText 发送 Hello');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown' && c.text.startsWith('Hello'));
+    assert.ok(reply, '应通过 replyMarkdown 发送 Hello');
   });
 
   it('card 模式通过普通文本发送合并后的完整回答', async () => {
@@ -706,8 +708,8 @@ describe('MessageDispatcher bound route prompt', () => {
       messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
     });
 
-    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyText');
-    assert.equal(replies.length, 1, 'replyText 恰好调用一次');
+    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyMarkdown');
+    assert.equal(replies.length, 1, 'replyMarkdown 恰好调用一次');
     assert.equal(replies[0].text, 'Hello\n\n---\n模型：未指定');
     const textUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不触发 updateProgressCard');
@@ -736,8 +738,8 @@ describe('MessageDispatcher bound route prompt', () => {
       messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
     });
 
-    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyText');
-    assert.equal(replies.length, 0, '空回答不应调用 replyText');
+    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyMarkdown');
+    assert.equal(replies.length, 0, '空回答不应调用 replyMarkdown');
     const doneUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_DONE);
     assert.equal(doneUpdates.length, 1, '卡片仍应标记 done');
   });
@@ -766,8 +768,8 @@ describe('MessageDispatcher bound route prompt', () => {
 
     const updates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard');
     assert.equal(updates.length, 0, 'sendProgressCard 返回 null 时不应调用 updateProgressCard');
-    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyText');
-    assert.equal(replies.length, 1, '最终文本仍应由 _renderEvents 通过 replyText 发送一次');
+    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyMarkdown');
+    assert.equal(replies.length, 1, '最终文本仍应由 _renderEvents 通过 replyMarkdown 发送一次');
     assert.equal(replies[0].text, 'Hello\n\n---\n模型：未指定');
   });
 
@@ -779,7 +781,7 @@ describe('MessageDispatcher bound route prompt', () => {
       watched = handlers;
       return () => {};
     };
-    mocks.feishuApi.replyText = (msgId, text) => { mocks.feishuApi.calls.push({ type: 'replyText', msgId, text }); return undefined; };
+    mocks.feishuApi.replyMarkdown = (msgId, text) => { mocks.feishuApi.calls.push({ type: 'replyMarkdown', msgId, text }); return undefined; };
     const dispatcher = new MessageDispatcher({
       sessionService: mocks.sessionService,
       driverRegistry: mocks.driverRegistry,
@@ -798,10 +800,10 @@ describe('MessageDispatcher bound route prompt', () => {
     watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text === 'Hello'), true, 'replyText 返回 undefined 时不记录 deliveredText，watch 应可补发');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendMarkdown' && c.text === 'Hello'), true, 'replyMarkdown 返回 undefined 时不记录 deliveredText，watch 应可补发');
   });
 
-  it('replyText 失败后 watch 可补发', async () => {
+  it('replyMarkdown 失败后 watch 可补发', async () => {
     const mocks = makeMocks();
     let watched;
     mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } });
@@ -809,7 +811,7 @@ describe('MessageDispatcher bound route prompt', () => {
       watched = handlers;
       return () => {};
     };
-    mocks.feishuApi.replyText = () => { throw new Error('replyText boom'); };
+    mocks.feishuApi.replyMarkdown = () => { throw new Error('replyMarkdown boom'); };
     const dispatcher = new MessageDispatcher({
       sessionService: mocks.sessionService,
       driverRegistry: mocks.driverRegistry,
@@ -824,12 +826,12 @@ describe('MessageDispatcher bound route prompt', () => {
       messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
     });
 
-    mocks.feishuApi.replyText = (msgId, text) => { mocks.feishuApi.calls.push({ type: 'replyText', msgId, text }); return [{ message_id: 'om_reply1' }]; };
+    mocks.feishuApi.replyMarkdown = (msgId, text) => { mocks.feishuApi.calls.push({ type: 'replyMarkdown', msgId, text }); return [{ message_id: 'om_reply1' }]; };
     watched.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }));
     watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text === 'Hello'), true, 'replyText 失败后未记录 deliveredText，watch 应可 sendText 补发');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendMarkdown' && c.text === 'Hello'), true, 'replyText 失败后未记录 deliveredText，watch 应可 sendMarkdown 补发');
   });
 
   it('card 模式只更新一个 done 事件', async () => {
@@ -973,9 +975,9 @@ describe('MessageDispatcher /new command', () => {
     watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
     await new Promise((resolve) => setImmediate(resolve));
 
-    const sendText = mocks.feishuApi.calls.find(c => c.type === 'sendText');
-    assert.equal(sendText.chatId, 'oc_chat1');
-    assert.equal(sendText.text, '终端回复');
+    const sendMarkdown = mocks.feishuApi.calls.find(c => c.type === 'sendMarkdown');
+    assert.equal(sendMarkdown.chatId, 'oc_chat1');
+    assert.equal(sendMarkdown.text, '终端回复');
   });
 
   it('/new driver 准备失败时发送错误卡片并返回错误结果', async () => {
@@ -1364,7 +1366,7 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
     await new Promise((resolve) => setImmediate(resolve));
 
-    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendText' && c.text === 'watch answer');
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === 'watch answer');
     assert.equal(sends.length, 1);
   });
 });
@@ -2018,7 +2020,7 @@ describe('MessageDispatcher model footer', () => {
       messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
     });
 
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
     assert.equal(reply.text, 'Hello\n\n---\n模型：anthropic/claude-sonnet-4');
   });
 
@@ -2032,7 +2034,7 @@ describe('MessageDispatcher model footer', () => {
       messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
     });
 
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
     assert.equal(reply.text, 'Hello\n\n---\n模型：未指定');
   });
 });
@@ -2234,9 +2236,9 @@ describe('MessageDispatcher non-focus output', () => {
     dispatcher._handleWatchedSessionEvent(nonFocusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
     await new Promise((resolve) => setImmediate(resolve));
 
-    const sendText = mocks.feishuApi.calls.find(c => c.type === 'sendText' && c.text.includes('非焦点回复'));
-    assert.ok(sendText, '非焦点 session 的输出应发送到群');
-    assert.ok(sendText.text.startsWith('[session: wks_nonf'), '非焦点输出应带 [session: <id前8位>] 前缀');
+    const sendMarkdown = mocks.feishuApi.calls.find(c => c.type === 'sendMarkdown' && c.text.includes('非焦点回复'));
+    assert.ok(sendMarkdown, '非焦点 session 的输出应发送到群');
+    assert.ok(sendMarkdown.text.startsWith('[session: wks_nonf'), '非焦点输出应带 [session: <id前8位>] 前缀');
   });
 
   it('焦点 session 输出不带 session 标识前缀（保持原有体验）', async () => {
@@ -2257,9 +2259,9 @@ describe('MessageDispatcher non-focus output', () => {
     dispatcher._handleWatchedSessionEvent(focusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
     await new Promise((resolve) => setImmediate(resolve));
 
-    const sendText = mocks.feishuApi.calls.find(c => c.type === 'sendText' && c.text.includes('焦点回复'));
-    assert.ok(sendText);
-    assert.equal(sendText.text.startsWith('[session:'), false, '焦点输出不应带 session 标识前缀');
+    const sendMarkdown = mocks.feishuApi.calls.find(c => c.type === 'sendMarkdown' && c.text.includes('焦点回复'));
+    assert.ok(sendMarkdown);
+    assert.equal(sendMarkdown.text.startsWith('[session:'), false, '焦点输出不应带 session 标识前缀');
   });
 
   it('nonFocusOutput=false 时非焦点 session 静默不回群', async () => {
@@ -2281,8 +2283,8 @@ describe('MessageDispatcher non-focus output', () => {
     dispatcher._handleWatchedSessionEvent(nonFocusSession, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
     await new Promise((resolve) => setImmediate(resolve));
 
-    const sendText = mocks.feishuApi.calls.find(c => c.type === 'sendText' && c.text.includes('不应发送'));
-    assert.equal(!!sendText, false, 'nonFocusOutput=false 时非焦点 session 不应发送到群');
+    const sendMarkdown = mocks.feishuApi.calls.find(c => c.type === 'sendMarkdown' && c.text.includes('不应发送'));
+    assert.equal(!!sendMarkdown, false, 'nonFocusOutput=false 时非焦点 session 不应发送到群');
   });
 });
 
@@ -2990,7 +2992,7 @@ describe('MessageDispatcher AbortSignal and transport recovery', () => {
     }
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text === 'late watcher text'), false, '取消后 watcher 迟到文本不应发送到飞书');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendMarkdown' && c.text === 'late watcher text'), false, '取消后 watcher 迟到文本不应发送到飞书');
 
     resolvePrompt([new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'late prompt text' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
     assert.equal(await pending, 'cancelled');
