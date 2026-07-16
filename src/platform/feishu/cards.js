@@ -24,6 +24,8 @@ const MAX_ATTACHABLE_CARD_ITEMS = 10;
 const MAX_MODEL_CARD_ITEMS = 20;
 /** Recent 模型区块最多展示的按钮数 */
 const MAX_RECENT_MODEL_ITEMS = 5;
+/** 会话列表卡片每页展示的会话数 */
+const SESSION_LIST_PAGE_SIZE = 10;
 
 /**
  * 转义飞书 lark_md 中的特殊字符，防止用户可控内容破坏卡片布局
@@ -64,10 +66,14 @@ function buildCommandValue(cmd, routeKey) {
  * 渲染会话列表的飞书卡片 JSON 结构
  * @param {Object[]} sessions - 会话对象列表
  * @param {string|null} currentSessionId - 当前绑定的会话 ID
- * @param {string} [routeKey] - 路由键，嵌入按钮值以便卡片回调精准路由
+ * @param {string|Object} [routeKeyOrOptions] - 路由键（旧签名）或选项对象
+ * @param {string} [routeKeyOrOptions.routeKey] - 路由键，嵌入按钮值以便卡片回调精准路由
+ * @param {number|string} [routeKeyOrOptions.page] - 1-based 页码
  * @returns {Object} 飞书卡片 JSON 结构
  */
-function renderSessionListCard(sessions, currentSessionId, routeKey) {
+function renderSessionListCard(sessions, currentSessionId, routeKeyOrOptions) {
+  const options = typeof routeKeyOrOptions === 'string' ? { routeKey: routeKeyOrOptions } : (routeKeyOrOptions || {});
+  const routeKey = options.routeKey;
   if (!sessions || sessions.length === 0) {
     return {
       config: { wide_screen_mode: true },
@@ -82,16 +88,30 @@ function renderSessionListCard(sessions, currentSessionId, routeKey) {
     };
   }
 
+  const visible = sessions.filter((s) => s.status !== 'deleted');
+  const totalPages = Math.max(1, Math.ceil(visible.length / SESSION_LIST_PAGE_SIZE));
+  const requestedPage = Number(options.page);
+  const normalizedPage = Number.isFinite(requestedPage) ? Math.trunc(requestedPage) : 1;
+  const page = Math.min(totalPages, Math.max(1, normalizedPage));
+  const start = (page - 1) * SESSION_LIST_PAGE_SIZE;
+  const pageSessions = visible.slice(start, start + SESSION_LIST_PAGE_SIZE);
+
   const elements = [];
-  for (const s of sessions) {
-    if (s.status === 'deleted') continue;
+  if (totalPages > 1) {
+    elements.push({ tag: 'div', text: { tag: 'lark_md', content: '第 ' + page + ' / ' + totalPages + ' 页' } });
+  }
+
+  for (const s of pageSessions) {
     const emoji = STATUS_EMOJI[s.status] || '⚪';
     const isCurrent = s.id === currentSessionId;
     const marker = isCurrent ? ' ← 当前绑定' : '';
-    const title = s.title || s.id.slice(0, 12);
+    const title = s.title || s.id;
     const agentLabel = s.agent || 'opencode';
     const cwdLabel = s.cwd ? s.cwd : '(未设置)';
     const timeLabel = s.updatedAt ? new Date(s.updatedAt).toLocaleString() : '';
+    const agentRef = s.agentRef || {};
+    const opencodeSessionId = agentRef.opencodeSessionId || '';
+    const opencodeLabel = opencodeSessionId ? ' · opencode: `' + opencodeSessionId + '`' : '';
 
     elements.push({
       tag: 'column_set',
@@ -106,8 +126,8 @@ function renderSessionListCard(sessions, currentSessionId, routeKey) {
               tag: 'div',
               text: {
                 tag: 'lark_md',
-                content: emoji + ' **' + escapeLarkMd(title) + '**' + marker + ' `' + s.id.slice(0, 12) + '`'
-                  + '\n' + agentLabel + ' · ' + cwdLabel
+                content: emoji + ' **' + escapeLarkMd(title) + '**' + marker + ' `' + s.id + '`'
+                  + '\n' + agentLabel + ' · ' + cwdLabel + opencodeLabel
                   + '\n状态: ' + s.status + (timeLabel ? ' · ' + timeLabel : ''),
               },
             },
@@ -126,9 +146,22 @@ function renderSessionListCard(sessions, currentSessionId, routeKey) {
     });
   }
 
+  if (totalPages > 1) {
+    const navigation = [];
+    if (page > 1) {
+      navigation.push({ tag: 'button', text: { tag: 'plain_text', content: '上一页' }, type: 'default', value: buildCommandValue('cmd:/list --page ' + (page - 1), routeKey) });
+    }
+    if (page < totalPages) {
+      navigation.push({ tag: 'button', text: { tag: 'plain_text', content: '下一页' }, type: 'default', value: buildCommandValue('cmd:/list --page ' + (page + 1), routeKey) });
+    }
+    if (navigation.length > 0) {
+      elements.push({ tag: 'action', actions: navigation });
+    }
+  }
+
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: 'plain_text', content: 'Walker 会话列表 (' + sessions.filter((s) => s.status !== 'deleted').length + ')' }, template: 'blue' },
+    header: { title: { tag: 'plain_text', content: 'Walker 会话列表 (' + visible.length + ')' }, template: 'blue' },
     elements,
   };
 }

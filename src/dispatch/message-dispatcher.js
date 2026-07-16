@@ -236,7 +236,8 @@ class MessageDispatcher {
     const dedupArgs = (cmd.args || []).join(' ');
     const dedupKey = cmd.messageId ? 'cmd:' + cmd.messageId + ':' + cmd.name + ':' + dedupArgs : null;
     const isModelPage = cmd.name === 'model' && cmd.args && cmd.args[0] === '--page';
-    if (!isModelPage && dedupKey && this.dedup.isDuplicate(dedupKey)) {
+    const isListPage = cmd.name === 'list' && cmd.args && cmd.args[0] === '--page';
+    if (!isModelPage && !isListPage && dedupKey && this.dedup.isDuplicate(dedupKey)) {
       logger.info('skipping duplicate command', { command: cmd.name, messageId: cmd.messageId });
       return { duplicate: true };
     }
@@ -485,12 +486,19 @@ class MessageDispatcher {
   }
 
   /**
-   * /list 命令：显示当前 route 下的 session 列表卡片
+   * /list 命令：显示当前 route 下的 session 列表卡片（支持分页）
    */
   async _cmdList(cmd) {
     const sessions = this.sessionService.listSessionsInRoute(cmd.routeKey);
     const currentSession = this.sessionService.getCurrent(cmd.routeKey);
-    await this._callFeishu('sendSessionList', [this._replyCtx(cmd), sessions, currentSession ? currentSession.id : null, cmd.routeKey]);
+    const args = cmd.args || [];
+    const isPageRequest = args[0] === '--page';
+    const options = { routeKey: cmd.routeKey };
+    if (isPageRequest) {
+      options.page = args[1];
+      options.updateMessageId = cmd.messageId;
+    }
+    await this._callFeishu('sendSessionList', [this._replyCtx(cmd), sessions, currentSession ? currentSession.id : null, options]);
     return { sessions };
   }
 

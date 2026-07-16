@@ -49,7 +49,7 @@ function makeMocks() {
     patchCard: (cardId, card) => { feishuApi.calls.push({ type: 'patchCard', cardId, card }); },
     addReaction: (msgId, emoji) => { feishuApi.calls.push({ type: 'addReaction', msgId, emoji }); },
     sendUnboundGuide: (msgId, routeKey) => { feishuApi.calls.push({ type: 'sendUnboundGuide', msgId, routeKey }); },
-    sendSessionList: (msgId, sessions, currentId, routeKey) => { feishuApi.calls.push({ type: 'sendSessionList', msgId, sessions, currentId, routeKey }); },
+    sendSessionList: (msgId, sessions, currentId, options) => { feishuApi.calls.push({ type: 'sendSessionList', msgId, sessions, currentId, options }); },
     sendAttachableSessionList: (msgId, sessions, options) => { feishuApi.calls.push({ type: 'sendAttachableSessionList', msgId, sessions, options }); },
     sendErrorCard: (msgId, message) => { feishuApi.calls.push({ type: 'sendErrorCard', msgId, message }); },
     sendProgressCard: (msgId, sessionId, initialEvent) => { feishuApi.calls.push({ type: 'sendProgressCard', msgId, sessionId }); return 'om_prog1'; },
@@ -2165,7 +2165,7 @@ describe('MessageDispatcher 1:N route commands', () => {
     assert.ok(cardCall);
     assert.deepEqual(cardCall.sessions, sessions);
     assert.equal(cardCall.currentId, 'wks_focus1');
-    assert.equal(cardCall.routeKey, 'feishu:oc_chat1:om_root1');
+    assert.equal(cardCall.options.routeKey, 'feishu:oc_chat1:om_root1');
     assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:om_root1']);
   });
 

@@ -183,7 +183,14 @@ function createApp(config, deps) {
   /** 发送未绑定引导卡片到飞书 */
   feishuApiTarget.sendUnboundGuide = (replyCtx, routeKey) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderUnboundRouteCard(routeKey));
   /** 发送会话列表卡片到飞书 */
-  feishuApiTarget.sendSessionList = (replyCtx, sessions, currentId, routeKey) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderSessionListCard(sessions, currentId, routeKey));
+  feishuApiTarget.sendSessionList = (replyCtx, sessions, currentId, routeKeyOrOptions) => {
+    const options = typeof routeKeyOrOptions === 'string' ? { routeKey: routeKeyOrOptions } : (routeKeyOrOptions || {});
+    const card = renderSessionListCard(sessions, currentId, options);
+    if (options.updateMessageId) {
+      return platform.api.patchCard(options.updateMessageId, card);
+    }
+    return platform.api.replyCard(normalizeReplyCtx(replyCtx), card);
+  };
   /** 发送可纳入 OpenCode 会话列表卡片到飞书 */
   feishuApiTarget.sendAttachableSessionList = (replyCtx, sessions, options) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderAttachableSessionCard(sessions, options));
   /** 发送模型列表卡片到飞书 */
