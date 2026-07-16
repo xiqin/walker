@@ -48,6 +48,14 @@ class AgentDriver {
   }
 
   /**
+   * 列出可用模型目录
+   * @returns {Promise<Object[]>} 统一模型视图列表
+   */
+  async listModels() {
+    throw new Error(this.name + ' driver does not support model catalog');
+  }
+
+  /**
    * 向会话发送提示文本并获取响应
    * @param {Object} sessionRef - 会话引用对象
    * @param {string} text - 提示文本内容

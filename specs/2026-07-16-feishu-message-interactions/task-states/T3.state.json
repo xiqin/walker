@@ -1,0 +1,11 @@
+{
+  "task_id": "T3",
+  "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-message-interactions",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-07-16T03:17:58.063Z",
+  "updated_at": "2026-07-16T03:35:06.512Z",
+  "last_reviewer_result": null,
+  "blocker": null
+}

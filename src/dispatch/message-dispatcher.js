@@ -220,8 +220,10 @@ class MessageDispatcher {
    * @returns {Promise<Object>} 命令执行结果
    */
   async handleCommand(cmd) {
-    const dedupKey = cmd.messageId ? 'cmd:' + cmd.messageId + ':' + cmd.name : null;
-    if (dedupKey && this.dedup.isDuplicate(dedupKey)) {
+    const dedupArgs = (cmd.args || []).join(' ');
+    const dedupKey = cmd.messageId ? 'cmd:' + cmd.messageId + ':' + cmd.name + ':' + dedupArgs : null;
+    const isModelPage = cmd.name === 'model' && cmd.args && cmd.args[0] === '--page';
+    if (!isModelPage && dedupKey && this.dedup.isDuplicate(dedupKey)) {
       logger.info('skipping duplicate command', { command: cmd.name, messageId: cmd.messageId });
       return { duplicate: true };
     }
@@ -599,8 +601,13 @@ class MessageDispatcher {
    * /help 命令：显示命令帮助说明
    */
   async _cmdHelp(cmd) {
-    const { formatHelp } = require('../platform/feishu/commands');
-    await this._callFeishu('replyText', [this._replyCtx(cmd), formatHelp()]);
+    const { COMMAND_LIST, formatHelp } = require('../platform/feishu/commands');
+    const helpText = formatHelp();
+    if (this.feishuApi && typeof this.feishuApi.sendHelpCard === 'function') {
+      const sent = await this._callFeishu('sendHelpCard', [this._replyCtx(cmd), COMMAND_LIST, { routeKey: cmd.routeKey }], null);
+      if (sent) return { help: true };
+    }
+    await this._callFeishu('replyText', [this._replyCtx(cmd), helpText]);
     return { help: true };
   }
 
@@ -617,32 +624,43 @@ class MessageDispatcher {
    * /runtime 命令：显示运行时环境信息（尚未完整实现）
    */
   async _cmdModel(cmd) {
-    const modelId = cmd.args[0];
+    const args = cmd.args || [];
+    const modelId = args[0];
+    const isPageRequest = modelId === '--page';
 
-    if (!modelId) {
-      const driver = this.driverRegistry.get('opencode');
+    if (!modelId || isPageRequest) {
+      const current = this.sessionService.getCurrent(cmd.routeKey);
+      if (!current) {
+        await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound. Use /new or /attach first.']);
+        return { noSession: true };
+      }
+      const driver = current.agent ? this.driverRegistry.get(current.agent) : null;
       if (!driver || typeof driver.listModels !== 'function') {
-        await this._callFeishu('replyText', [this._replyCtx(cmd), 'Model listing not available for current agent.']);
+        await this._callFeishu('replyText', [this._replyCtx(cmd), '不支持模型列表']);
         return { error: 'list_models_not_supported' };
       }
-      await driver.ensureReady();
-      const models = await driver.listModels();
-      if (models.length === 0) {
-        await this._callFeishu('replyText', [this._replyCtx(cmd), 'No models available.']);
-        return { models: [] };
+      let models;
+      try {
+        if (typeof driver.ensureReady === 'function') await driver.ensureReady();
+        models = await driver.listModels();
+      } catch (_) {
+        await this._callFeishu('replyText', [this._replyCtx(cmd), '不支持模型列表']);
+        return { error: 'list_models_not_supported' };
       }
-      const active = models.filter((m) => m.status !== 'deprecated');
-      const grouped = {};
-      for (const m of active) {
-        const p = m.provider || 'unknown';
-        if (!grouped[p]) grouped[p] = [];
-        grouped[p].push(m);
+      const fallbackText = this._formatModelListText(models);
+      if (this.feishuApi && typeof this.feishuApi.sendModelList === 'function') {
+        const options = {
+          routeKey: cmd.routeKey,
+          currentModel: this._resolveSessionModel(current),
+        };
+        if (isPageRequest) {
+          options.page = args[1];
+          options.updateMessageId = cmd.messageId;
+        }
+        const sent = await this._callFeishu('sendModelList', [this._replyCtx(cmd), models, options], null);
+        if (sent) return { models };
       }
-      const sections = [];
-      for (const [provider, list] of Object.entries(grouped)) {
-        sections.push('**' + provider + '**\n' + list.map((m) => '- `' + m.id + '` ' + m.name).join('\n'));
-      }
-      await this._callFeishu('replyText', [this._replyCtx(cmd), '**可用模型**\n\n' + sections.join('\n\n') + '\n\n用法：/model <model_id> 或 /model <provider>/<model_id>']);
+      await this._callFeishu('replyText', [this._replyCtx(cmd), fallbackText]);
       return { models };
     }
 
@@ -652,13 +670,19 @@ class MessageDispatcher {
       return { noSession: true };
     }
 
-    const driver = this.driverRegistry.get(current.agent || 'opencode');
+    const driver = current.agent ? this.driverRegistry.get(current.agent) : null;
     if (!driver || typeof driver.listModels !== 'function') {
-      await this._callFeishu('replyText', [this._replyCtx(cmd), 'Model listing not available for current agent.']);
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '不支持模型列表']);
       return { error: 'list_models_not_supported' };
     }
-    await driver.ensureReady();
-    const models = await driver.listModels();
+    let models;
+    try {
+      if (typeof driver.ensureReady === 'function') await driver.ensureReady();
+      models = await driver.listModels();
+    } catch (_) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '不支持模型列表']);
+      return { error: 'list_models_not_supported' };
+    }
     const resolved = this._resolveModelRef(modelId, models);
     if (resolved.error) {
       await this._callFeishu('replyText', [this._replyCtx(cmd), resolved.error]);
@@ -673,6 +697,23 @@ class MessageDispatcher {
 
     await this._callFeishu('replyText', [this._replyCtx(cmd), 'Model set to: ' + display + ' for session ' + current.id]);
     return { model: modelRef, sessionId: current.id };
+  }
+
+  _formatModelListText(models) {
+    if (!models || models.length === 0) return 'No models available.';
+    const active = models.filter((m) => m.status !== 'deprecated');
+    if (active.length === 0) return 'No models available.';
+    const grouped = {};
+    for (const m of active) {
+      const p = m.provider || 'unknown';
+      if (!grouped[p]) grouped[p] = [];
+      grouped[p].push(m);
+    }
+    const sections = [];
+    for (const [provider, list] of Object.entries(grouped)) {
+      sections.push('**' + provider + '**\n' + list.map((m) => '- `' + m.id + '` ' + m.name).join('\n'));
+    }
+    return '**可用模型**\n\n' + sections.join('\n\n') + '\n\n用法：/model <model_id> 或 /model <provider>/<model_id>';
   }
 
   /**
@@ -756,6 +797,12 @@ class MessageDispatcher {
     return model.modelID || '';
   }
 
+  _appendModelFooter(text, session) {
+    if (!text) return text;
+    const model = this._formatModel(this._resolveSessionModel(session)) || '未指定';
+    return text + '\n\n---\n模型：' + model;
+  }
+
   /**
    * 解析 defaultModel（可能是 string 或对象）为规范化对象
    * @returns {Object|null} - { providerID, modelID } 或 null
@@ -823,13 +870,13 @@ class MessageDispatcher {
       await this._renderCardProgress(session, event, displayEvents, progressCardId);
       const fullText = this._textFromDisplayEvents(displayEvents);
       if (fullText) {
-        const replyResult = await this._callFeishu('replyText', [this._replyCtx(event), fullText], null);
+        const replyResult = await this._callFeishu('replyText', [this._replyCtx(event), this._appendModelFooter(fullText, session)], null);
         if (replyResult) {
           this._rememberDeliveredText(session.id, fullText);
         }
       }
     } else {
-      await this._renderLegacyProgress(event, displayEvents);
+      await this._renderLegacyProgress(session, event, displayEvents);
       this._rememberDeliveredText(session.id, this._textFromDisplayEvents(displayEvents));
     }
   }
@@ -959,9 +1006,9 @@ class MessageDispatcher {
    * @param {AgentEvent[]} events - Agent 返回的事件列表
    * @returns {Promise<void>}
    */
-  async _renderLegacyProgress(event, displayEvents) {
+  async _renderLegacyProgress(session, event, displayEvents) {
     const fullText = this._textFromDisplayEvents(displayEvents);
-    await this._callFeishu('replyText', [this._replyCtx(event), fullText.trim()]);
+    await this._callFeishu('replyText', [this._replyCtx(event), this._appendModelFooter(fullText.trim(), session)]);
   }
 
   _textFromDisplayEvents(displayEvents) {

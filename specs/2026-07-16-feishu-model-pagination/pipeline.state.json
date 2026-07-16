@@ -1,0 +1,176 @@
+{
+  "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-model-pagination",
+  "pipeline_type": "feature",
+  "current_stage": "synced",
+  "loom_version": "0.1.0",
+  "started_at": "2026-07-16T05:52:22.608Z",
+  "updated_at": "2026-07-16T06:48:04.781Z",
+  "stage_history": [
+    {
+      "stage": "brainstorming",
+      "entered_at": "2026-07-16T05:52:22.608Z",
+      "exited_at": "2026-07-16T05:56:00.102Z",
+      "status": "passed"
+    },
+    {
+      "stage": "planning",
+      "entered_at": "2026-07-16T05:56:00.102Z",
+      "exited_at": "2026-07-16T06:02:39.656Z",
+      "status": "passed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-07-16T06:02:39.656Z",
+      "exited_at": "2026-07-16T06:02:46.857Z",
+      "status": "passed",
+      "approval": "user_confirmed"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-07-16T06:02:46.857Z",
+      "exited_at": "2026-07-16T06:37:47.961Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-07-16T06:37:47.961Z",
+      "exited_at": "2026-07-16T06:40:47.602Z",
+      "status": "passed"
+    },
+    {
+      "stage": "code-review-request",
+      "entered_at": "2026-07-16T06:40:47.602Z",
+      "exited_at": "2026-07-16T06:43:15.458Z",
+      "status": "passed"
+    },
+    {
+      "stage": "review-gate",
+      "entered_at": "2026-07-16T06:43:15.458Z",
+      "exited_at": "2026-07-16T06:44:08.937Z",
+      "status": "passed",
+      "approval": "user_confirmed"
+    },
+    {
+      "stage": "code-review-response",
+      "entered_at": "2026-07-16T06:44:08.937Z",
+      "exited_at": "2026-07-16T06:45:29.586Z",
+      "status": "passed"
+    },
+    {
+      "stage": "synced",
+      "entered_at": "2026-07-16T06:45:29.586Z",
+      "exited_at": "2026-07-16T06:48:04.781Z",
+      "status": "passed",
+      "terminal": true
+    }
+  ],
+  "metadata": {
+    "completed": true,
+    "completed_stage": "synced",
+    "completed_at": "2026-07-16T06:48:04.781Z"
+  },
+  "dynamic_steps": [
+    {
+      "id": "brainstorming",
+      "skill": "loom-brainstorming",
+      "requires": [],
+      "outputs": [
+        "spec.md",
+        "handoffs/brainstorming.json"
+      ],
+      "description": "需求头脑风暴，探索 2-3 种实现方案"
+    },
+    {
+      "id": "planning",
+      "skill": "loom-writing-plans",
+      "requires": [
+        "spec.md"
+      ],
+      "outputs": [
+        "plan.md",
+        "tasks/",
+        "handoffs/planning.json"
+      ],
+      "description": "分层拆解实现计划"
+    },
+    {
+      "id": "approved",
+      "skill": null,
+      "requires": [],
+      "outputs": [],
+      "gate": "human-approval",
+      "description": ""
+    },
+    {
+      "id": "executing",
+      "skill": "loom-subagent-driven-development",
+      "requires": [
+        "plan.md",
+        "tasks/"
+      ],
+      "outputs": [
+        "test-report.md",
+        "handoffs/executing.json"
+      ],
+      "gate_verdict": "test-report.md",
+      "description": "subagent 并行编码执行"
+    },
+    {
+      "id": "verification",
+      "skill": "loom-verification-before-completion",
+      "requires": [
+        "test-report.md"
+      ],
+      "outputs": [
+        "verify-report.md",
+        "handoffs/verification.json"
+      ],
+      "gate_verdict": "verify-report.md",
+      "description": "spec 覆盖 / 类型一致性 / 编译测试"
+    },
+    {
+      "id": "code-review-request",
+      "skill": "loom-requesting-code-review",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [
+        "review-request.md",
+        "handoffs/code-review-request.json"
+      ],
+      "description": "双轴预审查（Standards + Spec）后生成代码审查请求"
+    },
+    {
+      "id": "review-gate",
+      "skill": null,
+      "requires": [
+        "review-request.md"
+      ],
+      "outputs": [],
+      "gate": "human-approval",
+      "description": "等待审查者反馈到达后继续（审查请求已发出，人工或外部审查者回看）"
+    },
+    {
+      "id": "code-review-response",
+      "skill": "loom-receiving-code-review",
+      "requires": [
+        "review-request.md"
+      ],
+      "outputs": [
+        "review-response.md",
+        "handoffs/code-review-response.json"
+      ],
+      "description": "处理审查反馈：BLOCKER 修复 / SUGGESTION 采纳或拒绝 / 讨论项沟通，修复后重跑测试"
+    },
+    {
+      "id": "synced",
+      "skill": "loom-index-update",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [],
+      "description": "图后端同步与结构化记忆更新"
+    }
+  ],
+  "current_stage_started_at": "2026-07-16T06:45:29.586Z"
+}

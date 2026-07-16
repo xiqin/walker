@@ -52,6 +52,8 @@ function makeMocks() {
     sendErrorCard: (msgId, message) => { feishuApi.calls.push({ type: 'sendErrorCard', msgId, message }); },
     sendProgressCard: (msgId, sessionId, initialEvent) => { feishuApi.calls.push({ type: 'sendProgressCard', msgId, sessionId }); return 'om_prog1'; },
     updateProgressCard: (cardId, sessionId, agentEvent) => { feishuApi.calls.push({ type: 'updateProgressCard', cardId, sessionId, agentEvent }); return null; },
+    sendModelList: (msgId, models, options) => { feishuApi.calls.push({ type: 'sendModelList', msgId, models, options }); return 'om_model_card1'; },
+    sendHelpCard: (msgId, commands, options) => { feishuApi.calls.push({ type: 'sendHelpCard', msgId, commands, options }); return 'om_help_card1'; },
     calls: [],
   };
   const dedup = new MessageDedup({ windowMs: 300000 });
@@ -282,7 +284,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.ok(updates.some(c => c.agentEvent.type === AgentEvent.TYPE_DONE), 'TYPE_DONE 仍应触发一次 updateProgressCard');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply, '应通过 replyText 发送完整文本');
-    assert.equal(reply.text, 'Hello');
+    assert.equal(reply.text, 'Hello\n\n---\n模型：未指定');
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'addReaction' && c.emoji === 'OnIt'));
     assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_root1']);
   });
@@ -494,7 +496,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(updates[0].agentEvent.type, AgentEvent.TYPE_DONE);
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply, '应通过 replyText 发送合并后的完整文本');
-    assert.equal(reply.text, '你好');
+    assert.equal(reply.text, '你好\n\n---\n模型：未指定');
   });
 
   it('展示前移除 opencode 事件里复述的本轮用户消息', async () => {
@@ -554,7 +556,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply, '应通过 replyText 发送完整文本');
-    assert.equal(reply.text, '你好');
+    assert.equal(reply.text, '你好\n\n---\n模型：未指定');
   });
 
   it('带消息编号的重复最终快照不会再次更新飞书', async () => {
@@ -583,7 +585,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply, '应通过 replyText 发送完整文本');
-    assert.equal(reply.text, '我是 OpenCode');
+    assert.equal(reply.text, '我是 OpenCode\n\n---\n模型：未指定');
   });
 
   it('单个文本事件中带消息编号的重复快照会折叠为一份回答', async () => {
@@ -644,7 +646,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply, '应通过 replyText 发送最终回答文本');
-    assert.equal(reply.text, '完成');
+    assert.equal(reply.text, '完成\n\n---\n模型：未指定');
     assert.equal(reply.text.includes('正在分析调用链'), false, 'replyText 不应包含思考内容');
     assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text.includes('正在分析调用链')), false);
     assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('正在分析调用链')), false);
@@ -679,7 +681,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text === 'Hello'), false, 'watch 不应重复 sendText 已由 replyText 发送的文本');
     const textCardUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textCardUpdates.length, 0, 'card 模式下 TYPE_TEXT 不应进卡片');
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText' && c.text === 'Hello');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText' && c.text.startsWith('Hello'));
     assert.ok(reply, '应通过 replyText 发送 Hello');
   });
 
@@ -706,7 +708,7 @@ describe('MessageDispatcher bound route prompt', () => {
 
     const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyText');
     assert.equal(replies.length, 1, 'replyText 恰好调用一次');
-    assert.equal(replies[0].text, 'Hello');
+    assert.equal(replies[0].text, 'Hello\n\n---\n模型：未指定');
     const textUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不触发 updateProgressCard');
     const doneUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_DONE);
@@ -766,7 +768,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(updates.length, 0, 'sendProgressCard 返回 null 时不应调用 updateProgressCard');
     const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyText');
     assert.equal(replies.length, 1, '最终文本仍应由 _renderEvents 通过 replyText 发送一次');
-    assert.equal(replies[0].text, 'Hello');
+    assert.equal(replies[0].text, 'Hello\n\n---\n模型：未指定');
   });
 
   it('replyText undefined 不标记已送达', async () => {
@@ -1537,6 +1539,8 @@ describe('MessageDispatcher /delete command', () => {
 describe('MessageDispatcher /model command', () => {
   it('/model 无参数时列出可用模型', async () => {
     const mocks = makeMocks();
+    delete mocks.feishuApi.sendModelList;
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle' });
     mocks.driver.listModels = async () => [
       { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic' },
       { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
@@ -1552,6 +1556,197 @@ describe('MessageDispatcher /model command', () => {
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply.text.includes('claude-sonnet-4'));
     assert.ok(reply.text.includes('gpt-4o'));
+  });
+
+  it('/model 无参数使用当前 session agent 的模型目录并优先发送模型卡片', async () => {
+    const mocks = makeMocks();
+    const currentDriver = {
+      ensureReadyCalls: 0,
+      listModelsCalls: 0,
+      ensureReady: async () => { currentDriver.ensureReadyCalls += 1; },
+      listModels: async () => {
+        currentDriver.listModelsCalls += 1;
+        return [
+          { id: 'custom-model', name: 'Custom Model', provider: 'custom', status: 'active', enabled: true },
+        ];
+      },
+    };
+    const opencodeDriver = {
+      ensureReady: async () => { throw new Error('should not use opencode'); },
+      listModels: async () => { throw new Error('should not list opencode'); },
+    };
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_custom1', agent: 'custom-agent', status: 'idle', model: { providerID: 'custom', modelID: 'custom-model' } });
+    mocks.driverRegistry.get = (name) => name === 'custom-agent' ? currentDriver : opencodeDriver;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'model', args: [], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_card', chatId: 'oc_chat1',
+    });
+
+    assert.equal(currentDriver.ensureReadyCalls, 1);
+    assert.equal(currentDriver.listModelsCalls, 1);
+    assert.equal(result.models.length, 1);
+    const card = mocks.feishuApi.calls.find(c => c.type === 'sendModelList');
+    assert.ok(card, '应优先发送模型列表卡片');
+    assert.deepEqual(card.models, [{ id: 'custom-model', name: 'Custom Model', provider: 'custom', status: 'active', enabled: true }]);
+    assert.equal(card.options.routeKey, 'feishu:oc_chat1:ou_user1');
+    assert.deepEqual(card.options.currentModel, { providerID: 'custom', modelID: 'custom-model' });
+    assert.equal(Object.hasOwn(card.options, 'updateMessageId'), false, '首次 /model 不应更新触发消息');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyText'), false);
+  });
+
+  it('/model --page 分页请求复用当前 agent 目录并可在同一卡片往返', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_page1', agent: 'custom-agent', status: 'idle',
+      model: { providerID: 'custom', modelID: 'model-1' },
+    };
+    const updatedFields = [];
+    const currentDriver = {
+      listModelsCalls: 0,
+      ensureReady: async () => {},
+      listModels: async () => {
+        currentDriver.listModelsCalls += 1;
+        return [{ id: 'model-1', name: 'Model 1', provider: 'custom', status: 'active', enabled: true }];
+      },
+    };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = (sid, field, value) => { updatedFields.push({ sid, field, value }); };
+    mocks.driverRegistry.get = (name) => name === 'custom-agent' ? currentDriver : null;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+    const baseCmd = {
+      name: 'model', routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_pagination', chatId: 'oc_chat1',
+    };
+
+    await dispatcher.handleCommand(Object.assign({}, baseCmd, { args: ['--page', '2'] }));
+    await dispatcher.handleCommand(Object.assign({}, baseCmd, { args: ['--page', '1'] }));
+    await dispatcher.handleCommand(Object.assign({}, baseCmd, { args: ['--page', '2'] }));
+
+    const cards = mocks.feishuApi.calls.filter(c => c.type === 'sendModelList');
+    assert.equal(currentDriver.listModelsCalls, 3, '分页动作每次都应刷新当前 agent 模型目录');
+    assert.deepEqual(cards.map(c => c.options.page), ['2', '1', '2']);
+    assert.deepEqual(cards.map(c => c.options.updateMessageId), [
+      'om_model_pagination', 'om_model_pagination', 'om_model_pagination',
+    ]);
+    assert.ok(cards.every(c => c.options.routeKey === 'feishu:oc_chat1:ou_user1'));
+    for (const card of cards) {
+      assert.deepEqual(card.options.currentModel, { providerID: 'custom', modelID: 'model-1' });
+    }
+    assert.equal(updatedFields.length, 0, '分页动作不能更新 session.model');
+  });
+
+  it('/model --page 缺失或非法页码仍交给卡片层归一化且不更新模型', async () => {
+    const mocks = makeMocks();
+    const updatedFields = [];
+    mocks.sessionService.getCurrent = () => ({
+      id: 'wks_bad_page1', agent: 'opencode', status: 'idle',
+      model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' },
+    });
+    mocks.sessionService.updateSessionField = (sid, field, value) => { updatedFields.push({ sid, field, value }); };
+    mocks.driver.listModels = async () => [
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic', status: 'active', enabled: true },
+    ];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    await dispatcher.handleCommand({
+      name: 'model', args: ['--page'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_bad_page', chatId: 'oc_chat1',
+    });
+    await dispatcher.handleCommand({
+      name: 'model', args: ['--page', 'not-a-number'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_bad_page', chatId: 'oc_chat1',
+    });
+
+    const cards = mocks.feishuApi.calls.filter(c => c.type === 'sendModelList');
+    assert.equal(cards.length, 2);
+    assert.equal(cards[0].options.page, undefined);
+    assert.equal(cards[1].options.page, 'not-a-number');
+    assert.equal(updatedFields.length, 0);
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('Model not found')), false);
+  });
+
+  it('/model --page 卡片 patch 返回空值或抛错时 fallback 到纯文本列表', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_page_fallback1', agent: 'opencode', status: 'idle' });
+    mocks.driver.listModels = async () => [
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic', status: 'active', enabled: true },
+    ];
+    let sendCalls = 0;
+    mocks.feishuApi.sendModelList = () => {
+      sendCalls += 1;
+      if (sendCalls === 1) return null;
+      throw new Error('patch failed');
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    await dispatcher.handleCommand({
+      name: 'model', args: ['--page', '2'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_patch_falsy', chatId: 'oc_chat1',
+    });
+    await dispatcher.handleCommand({
+      name: 'model', args: ['--page', '2'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_patch_throw', chatId: 'oc_chat1',
+    });
+
+    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyText');
+    assert.equal(replies.length, 2);
+    assert.ok(replies.every(c => c.text.includes('claude-sonnet-4')));
+  });
+
+  it('/model 无参数在当前 driver 不支持模型目录时提示不支持', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_plain1', agent: 'plain-agent', status: 'idle' });
+    mocks.driverRegistry.get = () => ({ ensureReady: async () => true });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'model', args: [], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_unsupported', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.error, 'list_models_not_supported');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.equal(reply.text, '不支持模型列表');
+  });
+
+  it('/model 无参数无卡片能力时 fallback 到纯文本列表', async () => {
+    const mocks = makeMocks();
+    delete mocks.feishuApi.sendModelList;
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle' });
+    mocks.driver.listModels = async () => [
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic' },
+    ];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'model', args: [], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_text_fallback', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.models.length, 1);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply.text.includes('claude-sonnet-4'));
+  });
+
+  it('/model 无参数模型卡片发送失败时 fallback 到纯文本列表', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle' });
+    mocks.driver.listModels = async () => [
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic' },
+    ];
+    mocks.feishuApi.sendModelList = () => { throw new Error('send model card failed'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'model', args: [], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_card_fail_fallback', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.models.length, 1);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply.text.includes('claude-sonnet-4'));
   });
 
   it('/model <model_id> 设置当前会话模型并通过目录补全 providerID', async () => {
@@ -1596,6 +1791,71 @@ describe('MessageDispatcher /model command', () => {
     assert.deepEqual(updatedFields[0], { sid: 'wks_bound1', field: 'model', value: { modelID: 'gpt-5.5', providerID: 'cpa' } });
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply.text.includes('cpa/gpt-5.5'));
+  });
+
+  it('/model provider/model_id 只使用当前 session agent driver', async () => {
+    const mocks = makeMocks();
+    const updatedFields = [];
+    const customDriver = {
+      ensureReadyCalls: 0,
+      listModelsCalls: 0,
+      ensureReady: async () => { customDriver.ensureReadyCalls += 1; },
+      listModels: async () => {
+        customDriver.listModelsCalls += 1;
+        return [{ id: 'custom-model', name: 'Custom Model', provider: 'custom', status: 'active', enabled: true }];
+      },
+    };
+    const opencodeDriver = {
+      ensureReady: async () => { throw new Error('should not touch opencode'); },
+      listModels: async () => { throw new Error('should not list opencode'); },
+    };
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_custom1', agent: 'custom-agent', status: 'idle', model: '' });
+    mocks.sessionService.updateSessionField = (sid, field, value) => { updatedFields.push({ sid, field, value }); };
+    mocks.driverRegistry.get = (name) => name === 'custom-agent' ? customDriver : opencodeDriver;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'model', args: ['custom/custom-model'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_custom_arg', chatId: 'oc_chat1',
+    });
+
+    assert.equal(customDriver.ensureReadyCalls, 1);
+    assert.equal(customDriver.listModelsCalls, 1);
+    assert.deepEqual(result.model, { modelID: 'custom-model', providerID: 'custom' });
+    assert.deepEqual(updatedFields[0], { sid: 'wks_custom1', field: 'model', value: { modelID: 'custom-model', providerID: 'custom' } });
+  });
+
+  it('/model provider/model_id 当前 agent 缺失或不支持模型目录时提示不支持且不更新模型', async () => {
+    const missingAgentMocks = makeMocks();
+    const missingUpdates = [];
+    missingAgentMocks.sessionService.getCurrent = () => ({ id: 'wks_missing_agent1', status: 'idle', model: '' });
+    missingAgentMocks.sessionService.updateSessionField = (sid, field, value) => { missingUpdates.push({ sid, field, value }); };
+    const missingDispatcher = new MessageDispatcher({ ...missingAgentMocks, routeMode: 'user' });
+
+    const missingResult = await missingDispatcher.handleCommand({
+      name: 'model', args: ['custom/custom-model'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_arg_missing_agent', chatId: 'oc_chat1',
+    });
+
+    assert.equal(missingResult.error, 'list_models_not_supported');
+    assert.equal(missingUpdates.length, 0);
+    assert.equal(missingAgentMocks.feishuApi.calls.find(c => c.type === 'replyText').text, '不支持模型列表');
+
+    const unsupportedMocks = makeMocks();
+    const unsupportedUpdates = [];
+    unsupportedMocks.sessionService.getCurrent = () => ({ id: 'wks_plain1', agent: 'plain-agent', status: 'idle', model: '' });
+    unsupportedMocks.sessionService.updateSessionField = (sid, field, value) => { unsupportedUpdates.push({ sid, field, value }); };
+    unsupportedMocks.driverRegistry.get = () => ({ ensureReady: async () => true });
+    const unsupportedDispatcher = new MessageDispatcher({ ...unsupportedMocks, routeMode: 'user' });
+
+    const unsupportedResult = await unsupportedDispatcher.handleCommand({
+      name: 'model', args: ['custom/custom-model'], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_model_arg_unsupported', chatId: 'oc_chat1',
+    });
+
+    assert.equal(unsupportedResult.error, 'list_models_not_supported');
+    assert.equal(unsupportedUpdates.length, 0);
+    assert.equal(unsupportedMocks.feishuApi.calls.find(c => c.type === 'replyText').text, '不支持模型列表');
   });
 
   it('/model <unknown_id> 模型目录无匹配时拒绝', async () => {
@@ -1664,6 +1924,116 @@ describe('MessageDispatcher /model command', () => {
     assert.equal(result.noSession, true);
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.ok(reply.text.includes('/new'));
+  });
+
+  it('同一卡片不同 /model 参数均会执行，完全相同参数重复点击会去重', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_bound1', agent: 'opencode', status: 'idle', model: '' };
+    const updates = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = (sid, field, value) => {
+      updates.push({ sid, field, value });
+      session[field] = value;
+    };
+    mocks.driver.listModels = async () => [
+      { id: 'model-a', name: 'Model A', provider: 'p1', status: 'active', enabled: true },
+      { id: 'model-b', name: 'Model B', provider: 'p2', status: 'active', enabled: true },
+    ];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+    const baseCmd = { name: 'model', routeKey: 'feishu:oc_chat1:ou_user1', messageId: 'om_model_button', chatId: 'oc_chat1' };
+
+    const first = await dispatcher.handleCommand(Object.assign({}, baseCmd, { args: ['p1/model-a'] }));
+    const second = await dispatcher.handleCommand(Object.assign({}, baseCmd, { args: ['p2/model-b'] }));
+    const duplicate = await dispatcher.handleCommand(Object.assign({}, baseCmd, { args: ['p2/model-b'] }));
+
+    assert.deepEqual(first.model, { providerID: 'p1', modelID: 'model-a' });
+    assert.deepEqual(second.model, { providerID: 'p2', modelID: 'model-b' });
+    assert.deepEqual(duplicate, { duplicate: true });
+    assert.equal(updates.length, 2);
+    assert.deepEqual(session.model, { providerID: 'p2', modelID: 'model-b' });
+  });
+});
+
+describe('MessageDispatcher /help command', () => {
+  it('/help 优先发送帮助卡片', async () => {
+    const mocks = makeMocks();
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'help', args: [], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_help_card', chatId: 'oc_chat1',
+    });
+
+    assert.deepEqual(result, { help: true });
+    const card = mocks.feishuApi.calls.find(c => c.type === 'sendHelpCard');
+    assert.ok(card, '应优先发送帮助卡片');
+    assert.ok(card.commands.some(c => c.name === 'model'));
+    assert.equal(card.options.routeKey, 'feishu:oc_chat1:ou_user1');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyText'), false);
+  });
+
+  it('/help 无卡片能力时 fallback 到纯文本帮助', async () => {
+    const mocks = makeMocks();
+    delete mocks.feishuApi.sendHelpCard;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'help', args: [], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_help_text', chatId: 'oc_chat1',
+    });
+
+    assert.deepEqual(result, { help: true });
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply.text.includes('Walker 命令清单'));
+  });
+
+  it('/help 帮助卡片发送失败时 fallback 到纯文本帮助', async () => {
+    const mocks = makeMocks();
+    mocks.feishuApi.sendHelpCard = () => { throw new Error('send help card failed'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'user' });
+
+    const result = await dispatcher.handleCommand({
+      name: 'help', args: [], routeKey: 'feishu:oc_chat1:ou_user1',
+      messageId: 'om_help_card_fail_fallback', chatId: 'oc_chat1',
+    });
+
+    assert.deepEqual(result, { help: true });
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply.text.includes('Walker 命令清单'));
+  });
+});
+
+describe('MessageDispatcher model footer', () => {
+  it('普通 Agent 最终文本底部追加当前 session 模型 footer', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({
+      id: 'wks_footer1', agent: 'opencode', status: 'idle',
+      model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' },
+      agentRef: { opencodeSessionId: 'ses_footer1' },
+    });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_footer1', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.equal(reply.text, 'Hello\n\n---\n模型：anthropic/claude-sonnet-4');
+  });
+
+  it('普通 Agent 最终文本无模型时 footer 显示未指定', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_footer2', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_footer2' } });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_footer2', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.equal(reply.text, 'Hello\n\n---\n模型：未指定');
   });
 });
 

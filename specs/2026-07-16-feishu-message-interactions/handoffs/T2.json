@@ -1,0 +1,39 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "新增飞书模型列表卡片、帮助卡片、命令元数据导出，并在 bootstrap 中挂载对应发送能力。",
+  "artifacts": [
+    "src/platform/feishu/cards.js",
+    "src/app/bootstrap.js",
+    "src/platform/feishu/commands.js",
+    "test/feishu-cards.test.js"
+  ],
+  "requirements": [
+    "REQ-002",
+    "REQ-004",
+    "REQ-007"
+  ],
+  "tests": [
+    {
+      "command": "node test/feishu-cards.test.js",
+      "result": "fail",
+      "summary": "TDD 红灯确认：新增测试失败，renderModelListCard/renderHelpCard 尚未实现。"
+    },
+    {
+      "command": "node test/feishu-cards.test.js",
+      "result": "pass",
+      "summary": "21 tests passed, 0 failed"
+    },
+    {
+      "command": "npm run check",
+      "result": "pass",
+      "summary": "731 tests passed, 0 failed"
+    }
+  ],
+  "notes": [
+    "已按 T1 handoff 核对统一模型视图契约：卡片层仅使用 id/name/provider/status/enabled/source/groups/lastUsedAt。",
+    "renderModelListCard 过滤空模型、deprecated、enabled=false；Recent 最多 5 个，总按钮最多 20 个，按钮复用 buildCommandValue 与 cmd:/model 回流协议。",
+    "renderHelpCard 使用 commands.js 导出的 COMMAND_LIST 生成 usage/desc 与 cmd:/<name> 按钮，formatHelp() 与 parseCommand() 保持兼容。",
+    "bootstrap 已挂载 sendModelList(replyCtx, models, options) 与 sendHelpCard(replyCtx, commands, options)。"
+  ]
+}

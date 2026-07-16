@@ -1,6 +1,38 @@
 {
   "entries": [
     {
+      "id": "b725d36f",
+      "type": "决策",
+      "content": "飞书 /model 模型目录采用原卡片分页：先按当前模型、Recent、配置模型、其余 provider 构造全局稳定去重序列，再按每页 20 个模型切片；导航使用 cmd:/model --page N，并通过卡片 messageId 调 patchCard 原地更新，分页动作绕过普通命令去重但不更新 session.model。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-16T06:46:17.000Z"
+    },
+    {
+      "id": "3dfc1bfb",
+      "type": "踩坑",
+      "content": "loom-verification-before-completion 的 verify-artifacts.mjs 在当前环境缺失 C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js，会报 ERR_MODULE_NOT_FOUND；本次以手工核验、npm run check 日志和 SHA-256 证据补足，项目代码本身验证通过。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-16T04:00:59.555Z"
+    },
+    {
       "id": "34fd657a",
       "type": "决策",
       "content": "飞书 /model 不再修改 OpenCode 全局配置，只更新当前 Walker session；切换前通过 driver.listModels() 验证并规范化为 {providerID, modelID} 对象。/new 继承当前 session 或 defaultModel 模型。TUI /clear 直接在 createSession 传 model 对象，避免二次 updateSessionField。session.model 统一为对象，读取边界兼容 string 但不做持久化迁移。",

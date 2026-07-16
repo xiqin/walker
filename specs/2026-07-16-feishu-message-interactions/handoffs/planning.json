@@ -1,0 +1,47 @@
+{
+  "task_order": [
+    "T1",
+    "T2",
+    "T3"
+  ],
+  "dependencies": {
+    "T1": [],
+    "T2": [
+      "T1"
+    ],
+    "T3": [
+      "T1",
+      "T2"
+    ]
+  },
+  "validation": [
+    "node C:\\Users\\tianxiqin\\.config\\opencode\\skills\\loom-writing-plans\\scripts\\validate-plan.mjs --spec-dir specs\\2026-07-16-feishu-message-interactions",
+    "loom tasks --spec-dir specs\\2026-07-16-feishu-message-interactions --validate"
+  ],
+  "validation_result": "passed",
+  "parallelism": "不建议并行执行；虽然 owns 不重叠，但 T2 依赖 T1 的统一模型字段，T3 是最终业务集成点。",
+  "status": "done",
+  "summary": "已将飞书消息与指令交互增强拆为 3 个串行任务：T1 驱动层统一模型视图与 OpenCode Recent 映射；T2 飞书模型/帮助卡片渲染、命令元数据导出与 API 挂载；T3 dispatcher 命令集成、模型 footer 与卡片命令去重修正。任务 owns 集合不重叠，依赖为 T1 → T2 → T3。已运行 plan 校验和 loom tasks 冲突检测均通过。",
+  "artifacts": [
+    "spec.md",
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "d4c51c7e69b54a04438ca118dd0776e6ec510394457e67ab64fadba3ed848cc3",
+    "spec.md": "f173fecdfbfda0eee625b0029ab9f58b6963909513b795e37c8f6258c2c94bc3",
+    "tasks/": "c2a5ab2fe892cc8b46b6389d2a3bdf7cf0ea4e4db61f18bb59f1cf3dd404d5a2"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "d4c51c7e69b54a04438ca118dd0776e6ec510394457e67ab64fadba3ed848cc3",
+    "spec.md": "f173fecdfbfda0eee625b0029ab9f58b6963909513b795e37c8f6258c2c94bc3",
+    "tasks/T1.md": "df19d1e19e7b5b7b7096f74aac6f42a4759bd6fb56d032da1c7d2c14d967d57a",
+    "tasks/T2.md": "863e46a5283cd88d10846741c8f7a2447be1e92ef32f14ae38cfcc488a1ad791",
+    "tasks/T3.md": "f7a6d3ef4868ad8d450033b9c56784f3554134866e157a11b81724897dcd2430"
+  },
+  "written_at": "2026-07-16T03:00:01.273Z"
+}

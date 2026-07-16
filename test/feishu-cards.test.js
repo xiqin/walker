@@ -4,10 +4,48 @@ const {
   renderSessionListCard,
   renderUnboundRouteCard,
   renderAttachableSessionCard,
+  renderModelListCard,
+  renderHelpCard,
   renderErrorCard,
   buildButtonValue,
   buildCommandValue,
 } = require('../src/platform/feishu/cards');
+const { COMMAND_LIST } = require('../src/platform/feishu/commands');
+
+function collectButtons(card) {
+  return card.elements
+    .filter((el) => el.tag === 'action')
+    .flatMap((el) => el.actions || []);
+}
+
+function collectModelButtons(card) {
+  return collectButtons(card).filter((button) => button.value.action.startsWith('cmd:/model ') && !button.value.action.startsWith('cmd:/model --page '));
+}
+
+function collectNavigationButtons(card) {
+  return collectButtons(card).filter((button) => button.value.action.startsWith('cmd:/model --page '));
+}
+
+function createPagedModels() {
+  const models = Array.from({ length: 47 }, (_, index) => ({
+    id: 'model_' + String(index).padStart(2, '0'),
+    name: 'Model ' + index,
+    provider: 'standard',
+    status: 'available',
+    enabled: true,
+    groups: [],
+  }));
+  models.push(
+    { id: 'configured_a', name: 'Configured A', provider: 'config', status: 'available', enabled: true, groups: ['configured'] },
+    { id: 'configured_b', name: 'Configured B', provider: 'config', status: 'available', enabled: true, groups: ['configured'] },
+    { id: 'recent_old', name: 'Recent Old', provider: 'recent', status: 'available', enabled: true, groups: ['recent'], lastUsedAt: 1000 },
+    { id: 'recent_new', name: 'Recent New', provider: 'recent', status: 'available', enabled: true, groups: ['recent'], lastUsedAt: 3000 },
+    { id: 'recent_configured', name: 'Recent Configured', provider: 'recent', status: 'available', enabled: true, groups: ['recent', 'configured'], lastUsedAt: 2000 },
+    { id: 'current', name: 'Current', provider: 'current', status: 'available', enabled: true, groups: ['configured'] },
+  );
+  models.push({ ...models[52] }, { ...models[50] }, { ...models[47] });
+  return models;
+}
 
 test('renderSessionListCard 空列表时显示提示', () => {
   const card = renderSessionListCard([], null);
@@ -183,6 +221,126 @@ test('renderAttachableSessionCard 过滤已管理会话', () => {
   ], { managedIds: ['ses_managed'] });
   const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
   assert.ok(textEl.text.content.includes('没有发现'));
+});
+
+test('renderModelListCard 对完整稳定去重序列分页为 20、20、13', () => {
+  const routeKey = 'feishu:oc_chat1:root:om_root1';
+  const models = createPagedModels();
+  const cards = [1, 2, 3].map((page) => renderModelListCard(models, {
+    page,
+    routeKey,
+    currentModel: { providerID: 'current', modelID: 'current' },
+  }));
+  const pageButtons = cards.map(collectModelButtons);
+  const actions = pageButtons.flat().map((button) => button.value.action);
+
+  assert.deepEqual(pageButtons.map((buttons) => buttons.length), [20, 20, 13]);
+  assert.equal(new Set(actions).size, 53);
+  assert.equal(actions.length, 53);
+  assert.deepEqual(actions.slice(0, 6), [
+    'cmd:/model current/current',
+    'cmd:/model recent/recent_new',
+    'cmd:/model recent/recent_configured',
+    'cmd:/model recent/recent_old',
+    'cmd:/model config/configured_a',
+    'cmd:/model config/configured_b',
+  ]);
+  assert.deepEqual(cards.map((card) => card.header.title.content), [
+    'Walker 模型列表 (53)',
+    'Walker 模型列表 (53)',
+    'Walker 模型列表 (53)',
+  ]);
+  assert.deepEqual(cards.map((card) => card.elements.find((el) => el.tag === 'div' && el.text.content.startsWith('第 ')).text.content), [
+    '第 1 / 3 页',
+    '第 2 / 3 页',
+    '第 3 / 3 页',
+  ]);
+  assert.ok(pageButtons.flat().every((button) => button.value.routeKey === routeKey));
+  assert.equal(pageButtons[0][0].type, 'primary');
+  assert.equal(pageButtons[0][1].type, 'primary');
+  assert.equal(pageButtons[0][4].type, 'default');
+});
+
+test('renderModelListCard 导航遵守页面边界并透传 routeKey', () => {
+  const routeKey = 'feishu:oc_chat1:root:om_root1';
+  const models = createPagedModels();
+  const cards = [1, 2, 3].map((page) => renderModelListCard(models, { page, routeKey }));
+
+  assert.deepEqual(collectNavigationButtons(cards[0]).map((button) => button.value), [
+    { action: 'cmd:/model --page 2', routeKey },
+  ]);
+  assert.deepEqual(collectNavigationButtons(cards[1]).map((button) => button.value), [
+    { action: 'cmd:/model --page 1', routeKey },
+    { action: 'cmd:/model --page 3', routeKey },
+  ]);
+  assert.deepEqual(collectNavigationButtons(cards[2]).map((button) => button.value), [
+    { action: 'cmd:/model --page 2', routeKey },
+  ]);
+  assert.deepEqual(cards.map((card) => collectModelButtons(card).length), [20, 20, 13]);
+});
+
+test('renderModelListCard 将无效页码归一化到有效的 1-based 页码', () => {
+  const models = createPagedModels();
+  const cases = [
+    { page: undefined, expected: '第 1 / 3 页' },
+    { page: 'not-a-number', expected: '第 1 / 3 页' },
+    { page: -2, expected: '第 1 / 3 页' },
+    { page: 99, expected: '第 3 / 3 页' },
+    { page: '2', expected: '第 2 / 3 页' },
+  ];
+
+  for (const item of cases) {
+    const card = renderModelListCard(models, { page: item.page });
+    const pageText = card.elements.find((el) => el.tag === 'div' && el.text.content.startsWith('第 '));
+    assert.equal(pageText.text.content, item.expected);
+  }
+});
+
+test('renderModelListCard 对其余模型保持 provider 首次出现顺序和组内顺序', () => {
+  const card = renderModelListCard([
+    { id: 'beta_1', name: 'Beta 1', provider: 'beta', status: 'available', enabled: true, groups: [] },
+    { id: 'alpha_1', name: 'Alpha 1', provider: 'alpha', status: 'available', enabled: true, groups: [] },
+    { id: 'beta_2', name: 'Beta 2', provider: 'beta', status: 'available', enabled: true, groups: [] },
+    { id: 'alpha_2', name: 'Alpha 2', provider: 'alpha', status: 'available', enabled: true, groups: [] },
+  ]);
+
+  assert.deepEqual(collectModelButtons(card).map((button) => button.value.action), [
+    'cmd:/model beta/beta_1',
+    'cmd:/model beta/beta_2',
+    'cmd:/model alpha/alpha_1',
+    'cmd:/model alpha/alpha_2',
+  ]);
+});
+
+test('renderModelListCard 保持空列表与单页卡片兼容', () => {
+  const emptyCard = renderModelListCard([], { page: 3 });
+  assert.equal(emptyCard.header.title.content, 'Walker 模型列表');
+  assert.ok(emptyCard.elements.some((el) => el.tag === 'div' && el.text.content === '暂无可用模型。'));
+  assert.equal(collectButtons(emptyCard).length, 0);
+
+  const singleCard = renderModelListCard([
+    { id: 'recent', name: 'Recent', provider: 'one', status: 'available', enabled: true, groups: ['recent'] },
+    { id: 'regular', name: 'Regular', provider: 'one', status: 'available', enabled: true, groups: [] },
+  ], { page: 8 });
+  assert.equal(singleCard.elements.find((el) => el.tag === 'div' && el.text.content.startsWith('第 ')).text.content, '第 1 / 1 页');
+  assert.equal(collectModelButtons(singleCard).length, 2);
+  assert.equal(collectNavigationButtons(singleCard).length, 0);
+  assert.deepEqual(collectModelButtons(singleCard).map((button) => button.type), ['primary', 'default']);
+});
+
+test('renderHelpCard 基于命令元数据生成帮助按钮', () => {
+  const routeKey = 'feishu:oc_chat1:root:om_root1';
+  const card = renderHelpCard(COMMAND_LIST, { routeKey });
+  const text = card.elements
+    .filter((el) => el.tag === 'div' && el.text)
+    .map((el) => el.text.content)
+    .join('\n');
+  const actions = collectButtons(card).map((button) => button.value);
+
+  for (const name of ['new', 'attach', 'list', 'model']) {
+    assert.ok(text.includes('/' + name));
+    assert.ok(actions.some((value) => value.action === 'cmd:/' + name && value.routeKey === routeKey));
+  }
 });
 
 test('renderErrorCard 显示错误信息', () => {

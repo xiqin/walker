@@ -1,0 +1,25 @@
+{
+  "decisions": [
+    "采用新增专用飞书卡片渲染函数、统一模型视图并复用 cmd:/... 命令回流协议。",
+    "模型 footer 显示 Walker 本次请求指定给 agent 的模型，不声明为 TUI 实际最终使用模型。",
+    "OpenCode Recent 必须来自 agent driver 暴露的统一模型视图，不从 Walker session 历史推断。",
+    "其它 agent 通过同一 listModels/统一模型目录能力接入，飞书卡片层不依赖 OpenCode 原始字段。",
+    "planning 阶段新增 Requirement IDs 仅用于验收映射，不改变功能范围。"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确认方案：新增飞书模型列表卡片和帮助卡片，复用现有 cmd:/... 卡片回流协议；普通 Agent 回复底部追加本次 Walker 指定给 TUI/agent 的模型 footer；/model 改为基于当前 agent driver 的统一模型视图渲染，支持 OpenCode Recent，预留 Claude Code、Codex 等多 agent 扩展；Recent 最多 5 个，总模型按钮最多 20 个。planning 阶段仅在 spec.md 中补充稳定 Requirement IDs（REQ-001 至 REQ-007）以支持任务映射，未改变 brainstorming 方案取舍。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "plan.md": "d4c51c7e69b54a04438ca118dd0776e6ec510394457e67ab64fadba3ed848cc3",
+    "spec.md": "f173fecdfbfda0eee625b0029ab9f58b6963909513b795e37c8f6258c2c94bc3"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "f173fecdfbfda0eee625b0029ab9f58b6963909513b795e37c8f6258c2c94bc3"
+  },
+  "written_at": "2026-07-16T03:01:31.495Z"
+}

@@ -1,0 +1,41 @@
+{
+  "verdict": "PASS",
+  "validation": {
+    "command": "npm run check",
+    "exit_code": 0,
+    "tests": "756 passed, 0 failed, 49 suites",
+    "evidence": "specs/2026-07-16-feishu-model-pagination/evidence/verification.log",
+    "sha256": "E53F9874D7A6DDE52F40C57D8F2539732302879CA0151FB47BA5BAE1AB7F1757",
+    "size_bytes": 344068
+  },
+  "diff_check": "PASS",
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006",
+    "REQ-007"
+  ],
+  "artifact_checker_warning": "ERR_MODULE_NOT_FOUND: C:\\Users\\tianxiqin\\AppData\\Roaming equivalent not used; actual missing C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js",
+  "remaining_risk": "尚未在真实飞书租户中人工点击验收；应用内跨模块链路已有持久化自动化测试。",
+  "status": "done",
+  "summary": "飞书 /model 模型分页完成前验证通过。已读取 test-report.md 与 executing handoff，重新运行 npm run check，退出码 0，756 tests passed、0 failed、49 suites；git diff --check 通过；本次 spec/src/test 范围未完成标记扫描无命中；CodeGraph 抽查分页渲染、命令回流、去重豁免、bootstrap sendModelList 和 patchCard 调用链一致。verify-artifacts.mjs 因本机 Loom 工具链缺失 artifact-checker.js 无法运行，已记录为 WARN 并以手工核验补足。",
+  "artifacts": [
+    "verify-report.md",
+    "evidence/verification.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "87a235728a08236d68c859d4e25630428db20016b335999f2e4baeca169f811c",
+    "spec.md": "aa24c36567c1a6ca4a852dcbb52945beedd2a622caa0a01ddcdce3590a31e58d",
+    "test-report.md": "cd3e7418367e6296b03d4a39351176dab8f89d17576b6d25cf37110f853ee8f4"
+  },
+  "artifact_fingerprints": {
+    "evidence/verification.log": "e53f9874d7a6dde52f40c57d8f2539732302879ca0151fb47ba5bae1ab7f1757",
+    "verify-report.md": "9487fbe912ab82a81d608cbe0d7b25a6bbabcf6eb04c2fe89c390fb63232a72f"
+  },
+  "written_at": "2026-07-16T06:40:09.842Z"
+}

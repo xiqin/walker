@@ -1,0 +1,75 @@
+{
+  "tasks_completed": [
+    "T1",
+    "T2",
+    "T3",
+    "test-reporter"
+  ],
+  "review_results": {
+    "T1": "PASS",
+    "T2": "PASS",
+    "T3_initial": "FAIL: sendModelList/sendHelpCard failure fallback missing; /model <arg> used current.agent || opencode",
+    "T3_after_fix": "PASS"
+  },
+  "validation": {
+    "command": "npm run check",
+    "result": "PASS",
+    "tests": "743 passed, 0 failed, 49 suites",
+    "evidence": "specs/2026-07-16-feishu-message-interactions/evidence/test.log",
+    "sha256": "DBAAE7BFDA92354BF012220054DC4820A6BABA84946CB0DC34C526D5B8C1C570"
+  },
+  "changed_files": [
+    "src/app/bootstrap.js",
+    "src/dispatch/message-dispatcher.js",
+    "src/drivers/agent-driver.js",
+    "src/drivers/opencode-driver.js",
+    "src/platform/feishu/cards.js",
+    "src/platform/feishu/commands.js",
+    "test/feishu-cards.test.js",
+    "test/message-dispatcher.test.js",
+    "test/opencode-driver.test.js",
+    "specs/2026-07-16-feishu-message-interactions/"
+  ],
+  "status": "done",
+  "summary": "实现阶段完成并通过审查：T1 完成 AgentDriver listModels 默认契约与 OpencodeDriver 统一模型视图/Recent 映射；T2 完成飞书模型列表卡片、帮助卡片、命令元数据导出与 bootstrap sendModelList/sendHelpCard 挂载；T3 完成 dispatcher 集成，包括 /model 使用当前 session agent driver、卡片优先与纯文本 fallback、/help 卡片、普通 Agent 回复模型 footer、命令去重参数化。T3 初审发现卡片发送失败 fallback 与 /model <arg> OpenCode 隐式回退两个阻断问题，已定向修复并复审 PASS。test-reporter 已运行 npm run check，结果 743 tests passed, 0 failed, 49 suites，verdict PASS。",
+  "artifacts": [
+    "src/drivers/agent-driver.js",
+    "src/drivers/opencode-driver.js",
+    "src/platform/feishu/cards.js",
+    "src/platform/feishu/commands.js",
+    "src/app/bootstrap.js",
+    "src/dispatch/message-dispatcher.js",
+    "test/opencode-driver.test.js",
+    "test/feishu-cards.test.js",
+    "test/message-dispatcher.test.js",
+    "specs/2026-07-16-feishu-message-interactions/test-report.md",
+    "specs/2026-07-16-feishu-message-interactions/evidence/test.log",
+    "specs/2026-07-16-feishu-message-interactions/handoffs/T1.json",
+    "specs/2026-07-16-feishu-message-interactions/handoffs/T2.json",
+    "specs/2026-07-16-feishu-message-interactions/handoffs/T3.json"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "d4c51c7e69b54a04438ca118dd0776e6ec510394457e67ab64fadba3ed848cc3",
+    "spec.md": "f173fecdfbfda0eee625b0029ab9f58b6963909513b795e37c8f6258c2c94bc3",
+    "tasks/": "c2a5ab2fe892cc8b46b6389d2a3bdf7cf0ea4e4db61f18bb59f1cf3dd404d5a2"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-16-feishu-message-interactions/evidence/test.log": "dbaae7bfda92354bf012220054dc4820a6baba84946cb0dc34c526d5b8c1c570",
+    "specs/2026-07-16-feishu-message-interactions/handoffs/T1.json": "13af3bb1dd519745ace14394e4264d6f6605820eac61e57620dc74d4394a91c8",
+    "specs/2026-07-16-feishu-message-interactions/handoffs/T2.json": "0cdeea572cf17cf35d7eb09134b4bea91235143606f9765d93a48e1acb41f2d9",
+    "specs/2026-07-16-feishu-message-interactions/handoffs/T3.json": "5179c5d07a20c9ddf0eab4b97a9a423728f3359eb929ee2b02c5f703712a169a",
+    "specs/2026-07-16-feishu-message-interactions/test-report.md": "25ae2d353e5179dd0d7f088cd64101dc05ef9ba8f6713997facb805464b580fa",
+    "src/app/bootstrap.js": "91eefa35a9c6f2a42ece0f09a7c2a3bde50a524ac52b42f4b02cbe31668a240c",
+    "src/dispatch/message-dispatcher.js": "c9914c77762f258d909662bbe66917a21031efb860ba2d9e97f5b5b2c62217d2",
+    "src/drivers/agent-driver.js": "f2ebc190ae684f40f251cbc988d18307b1684f40201f1b227600a333ced4aacc",
+    "src/drivers/opencode-driver.js": "eddc7785cea2bd4c15d8ebb92248dc1744d62b8caa1815028f415c3c466c8e44",
+    "src/platform/feishu/cards.js": "6133c4be3614c57afde02d41a5ba073ab2271e8049d470ab91923f81522ad171",
+    "src/platform/feishu/commands.js": "fb8becbc5450e4886c9ec131de938436d8a9fdf84d4ba0d56836356bfd7cdda0",
+    "test/feishu-cards.test.js": "f2263237521b23b4b0d96638d4a0761006946e1e006d321d0dd59d0155e89da8",
+    "test/message-dispatcher.test.js": "1cbd6c8f7da8ff9151073cc708787ccbd3b1d601e8446c5d7e730787c0d008c9",
+    "test/opencode-driver.test.js": "9798494a0f96abf9a9b328726fe5575e4373cef24347d136302dcd0e3d450bbc"
+  },
+  "written_at": "2026-07-16T03:38:02.550Z"
+}

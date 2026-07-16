@@ -1,6 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { createApp } = require('../src/app/bootstrap');
+const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
 const { AgentEvent } = require('../src/drivers/agent-driver');
 
 /** 构建标准测试依赖映射，adminEnabled 控制是否注入 admin server */
@@ -43,7 +44,206 @@ function makeDeps(adminEnabled) {
   function _platformStopped() { return platformStopped; }
 }
 
+function makeModelCardApp(apiCalls, apiOverrides) {
+  const config = {
+    feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+    walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
+    walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+    opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+    feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+    admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+  };
+  const api = Object.assign({
+    replyCard: async (replyCtx, card) => {
+      apiCalls.push({ type: 'replyCard', replyCtx, card });
+      return 'om_model_reply';
+    },
+    patchCard: async (messageId, card) => {
+      apiCalls.push({ type: 'patchCard', messageId, card });
+      return 'om_model_patch';
+    },
+  }, apiOverrides || {});
+  const deps = {
+    FeishuPlatform: class {
+      constructor() { this.api = api; }
+      start() { return Promise.resolve(); }
+      stop() {}
+    },
+    SessionService: class { recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+    JsonStore: class {},
+    OpencodeDriver: class {},
+    OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
+    stubClaudeDriver: () => ({}),
+    stubCodexDriver: () => ({}),
+    DriverRegistry: class { register() {} get() { return null; } },
+    createRuntime: () => ({}),
+    MessageDedup: class {},
+    MessageDispatcher: class { constructor(options) { this.feishuApi = options.feishuApi; } },
+    AttachmentService: class {},
+    createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+    createAdminServer: () => null,
+  };
+  return createApp(config, deps);
+}
+
+function makeModelPaginationIntegrationApp(apiCalls) {
+  const session = {
+    id: 'wks_model_page',
+    agent: 'opencode',
+    status: 'idle',
+    model: { providerID: 'custom', modelID: 'model-1' },
+  };
+  const models = Array.from({ length: 21 }, (_, index) => ({
+    id: 'model-' + (index + 1),
+    name: 'Model ' + (index + 1),
+    provider: 'custom',
+    status: 'active',
+    enabled: true,
+  }));
+  const config = {
+    feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+    walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
+    walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+    opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+    feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+    admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+  };
+  const deps = {
+    FeishuPlatform: class {
+      constructor(options) {
+        this.options = options;
+        this.api = {
+          patchCard: async (messageId, card) => {
+            apiCalls.push({ type: 'patchCard', messageId, card });
+            return 'om_model_patch';
+          },
+          replyCard: async (replyCtx, card) => {
+            apiCalls.push({ type: 'replyCard', replyCtx, card });
+            return 'om_model_reply';
+          },
+          replyText: async (replyCtx, text) => {
+            apiCalls.push({ type: 'replyText', replyCtx, text });
+            return 'om_text_reply';
+          },
+        };
+      }
+      start() { return Promise.resolve(); }
+      stop() {}
+    },
+    SessionService: class {
+      getCurrent() { return session; }
+      touchRoute() {}
+      recoverOnStartup() { return []; }
+      cleanOrphanRoutes() { return []; }
+    },
+    JsonStore: class {},
+    OpencodeDriver: class {
+      async ensureReady() {}
+      async listModels() { return models; }
+    },
+    OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
+    stubClaudeDriver: () => ({}),
+    stubCodexDriver: () => ({}),
+    DriverRegistry: class {
+      constructor() { this.drivers = new Map(); }
+      register(name, driver) { this.drivers.set(name, driver); }
+      get(name) { return this.drivers.get(name); }
+    },
+    createRuntime: () => ({}),
+    MessageDedup: class { isDuplicate() { return false; } },
+    MessageDispatcher,
+    AttachmentService: class {},
+    createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+    createAdminServer: () => null,
+  };
+  return createApp(config, deps);
+}
+
 describe('createApp', () => {
+  it('卡片分页 action 经 onCardAction 和 dispatcher 原地渲染目标页', async () => {
+    const calls = [];
+    const app = makeModelPaginationIntegrationApp(calls);
+
+    await app.platform.options.onCardAction({
+      action: 'cmd:/model --page 2',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+      chatId: 'oc_chat1',
+      messageId: 'om_original_model_card',
+      openId: 'ou_user1',
+    });
+
+    const patches = calls.filter((call) => call.type === 'patchCard');
+    assert.equal(patches.length, 1);
+    assert.equal(patches[0].messageId, 'om_original_model_card');
+    assert.ok(patches[0].card.elements.some((el) => el.text && el.text.content === '第 2 / 2 页'));
+    assert.ok(patches[0].card.elements.some((el) => el.tag === 'action' && el.actions.some((button) => button.text.content === 'Model 21 (custom)')));
+    assert.equal(calls.filter((call) => call.type === 'replyText').length, 0);
+    assert.equal(calls.filter((call) => call.type === 'replyCard').length, 0);
+  });
+
+  it('sendModelList 首次打开使用 replyCard 并保留 routeKey 与页码', async () => {
+    const calls = [];
+    const app = makeModelCardApp(calls);
+
+    const result = await app.dispatcher.feishuApi.sendModelList(
+      { messageId: 'om_trigger', chatId: 'oc_chat1' },
+      [{ id: 'model-1', name: 'Model 1', provider: 'custom', status: 'active', enabled: true }],
+      { routeKey: 'feishu:oc_chat1:root:om_root1', page: 2 },
+    );
+
+    assert.equal(result, 'om_model_reply');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].type, 'replyCard');
+    assert.deepEqual(calls[0].replyCtx, { messageId: 'om_trigger', chatId: 'oc_chat1' });
+    assert.ok(calls[0].card.elements.some(el => el.text && el.text.content === '第 1 / 1 页'));
+    const modelButton = calls[0].card.elements.find(el => el.tag === 'action' && el.actions[0].text.content === 'Model 1 (custom)');
+    assert.equal(modelButton.actions[0].value.routeKey, 'feishu:oc_chat1:root:om_root1');
+  });
+
+  it('sendModelList 带 updateMessageId 时使用 patchCard 更新原卡片', async () => {
+    const calls = [];
+    const app = makeModelCardApp(calls);
+
+    const result = await app.dispatcher.feishuApi.sendModelList(
+      { messageId: 'om_action', chatId: 'oc_chat1' },
+      Array.from({ length: 21 }, (_, index) => ({
+        id: 'model-' + (index + 1), name: 'Model ' + (index + 1), provider: 'custom', status: 'active', enabled: true,
+      })),
+      { routeKey: 'feishu:oc_chat1:root:om_root1', page: 2, updateMessageId: 'om_original_card' },
+    );
+
+    assert.equal(result, 'om_model_patch');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].type, 'patchCard');
+    assert.equal(calls[0].messageId, 'om_original_card');
+    assert.ok(calls[0].card.elements.some(el => el.text && el.text.content === '第 2 / 2 页'));
+  });
+
+  it('sendModelList 不吞 patchCard 的空返回值或异常', async () => {
+    const falsyCalls = [];
+    const falsyApp = makeModelCardApp(falsyCalls, {
+      patchCard: async (messageId, card) => {
+        falsyCalls.push({ type: 'patchCard', messageId, card });
+        return null;
+      },
+    });
+    const options = { page: 1, updateMessageId: 'om_original_card' };
+
+    const falsyResult = await falsyApp.dispatcher.feishuApi.sendModelList({}, [], options);
+
+    assert.equal(falsyResult, null);
+    assert.equal(falsyCalls.length, 1);
+
+    const error = new Error('patch failed');
+    const throwingApp = makeModelCardApp([], {
+      patchCard: async () => { throw error; },
+    });
+    await assert.rejects(
+      throwingApp.dispatcher.feishuApi.sendModelList({}, [], options),
+      error,
+    );
+  });
+
   it('组装并启动 FeishuPlatform，不连接 opendray', async () => {
     const platformStarted = [];
     const config = {

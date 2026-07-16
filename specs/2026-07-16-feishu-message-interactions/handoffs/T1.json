@@ -1,0 +1,30 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "统一 AgentDriver listModels 契约，并将 OpenCode /api/model 响应规范化为统一模型视图，包含 Recent 元数据映射。",
+  "artifacts": [
+    "src/drivers/agent-driver.js",
+    "src/drivers/opencode-driver.js",
+    "test/opencode-driver.test.js"
+  ],
+  "requirements": [
+    "REQ-005"
+  ],
+  "tests": [
+    {
+      "command": "node test/opencode-driver.test.js",
+      "result": "pass",
+      "summary": "49 tests passed, 0 failed"
+    },
+    {
+      "command": "npm run check",
+      "result": "pass",
+      "summary": "729 tests passed, 0 failed"
+    }
+  ],
+  "notes": [
+    "AgentDriver.listModels() 默认抛出可诊断的不支持模型目录错误。",
+    "OpencodeDriver.listModels() 输出 id/name/provider/status/enabled/source/groups/lastUsedAt，并继续过滤无 id 或 enabled=false 的模型。",
+    "Recent 识别覆盖 groups 包含 recent、group/category 为 recent、recent=true、以及 lastUsedAt/lastUsed/last_used_at 存在。"
+  ]
+}

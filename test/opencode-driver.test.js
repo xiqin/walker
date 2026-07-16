@@ -1,5 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const { AgentDriver } = require('../src/drivers/agent-driver');
 const { DriverRegistry } = require('../src/drivers/driver-registry');
 const { OpencodeDriver } = require('../src/drivers/opencode-driver');
 const { stubClaudeDriver, stubCodexDriver } = require('../src/drivers/stub-drivers');
@@ -858,6 +859,12 @@ describe('OpencodeDriver listSessions', () => {
 });
 
 describe('OpencodeDriver listModels', () => {
+  it('基类默认声明不支持模型目录', async () => {
+    const driver = new AgentDriver('stub');
+
+    await assert.rejects(() => driver.listModels(), { message: /stub.*不支持.*模型目录|stub.*model catalog/i });
+  });
+
   it('调用 GET /api/model 并返回规范化模型列表', async () => {
     const http = new FakeHttpClient({
       'GET http://localhost:4096/api/model': {
@@ -876,7 +883,121 @@ describe('OpencodeDriver listModels', () => {
     assert.equal(models[0].id, 'claude-sonnet-4-20250514');
     assert.equal(models[0].name, 'Claude Sonnet 4');
     assert.equal(models[0].provider, 'anthropic');
+    assert.equal(models[0].source, 'opencode');
+    assert.deepEqual(models[0].groups, []);
+    assert.equal(models[0].lastUsedAt, null);
     assert.equal(models[1].provider, 'openai');
+  });
+
+  it('映射 OpenCode Recent 元数据到统一模型视图', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/api/model': {
+        status: 200,
+        data: [
+          {
+            modelID: 'claude-recent',
+            modelName: 'Claude Recent',
+            providerID: 'anthropic',
+            groups: ['recent', 'anthropic'],
+            lastUsedAt: '2026-07-16T10:00:00.000Z',
+          },
+          {
+            id: 'gpt-recent',
+            name: 'GPT Recent',
+            provider: 'openai',
+            category: 'recent',
+          },
+          {
+            id: 'gemini-recent',
+            name: 'Gemini Recent',
+            provider: 'google',
+            recent: true,
+          },
+        ],
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const models = await driver.listModels();
+
+    assert.equal(models.length, 3);
+    assert.deepEqual(models[0], {
+      id: 'claude-recent',
+      name: 'Claude Recent',
+      provider: 'anthropic',
+      status: '',
+      enabled: true,
+      source: 'opencode',
+      groups: ['recent', 'anthropic'],
+      lastUsedAt: '2026-07-16T10:00:00.000Z',
+    });
+    assert.deepEqual(models[1].groups, ['recent']);
+    assert.equal(models[1].lastUsedAt, null);
+    assert.deepEqual(models[2].groups, ['recent']);
+    assert.equal(models[2].source, 'opencode');
+  });
+
+  it('将 OpenCode 配置中的自定义 provider 模型标记为 configured', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/api/model': {
+        status: 200,
+        data: [
+          { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', providerID: 'anthropic' },
+          { id: 'gpt-5.5', name: 'GPT-5.5', providerID: 'fastai' },
+        ],
+      },
+      'GET http://localhost:4096/config': {
+        status: 200,
+        data: {
+          provider: {
+            fastai: { models: { 'gpt-5.5': { name: 'GPT-5.5' } } },
+          },
+        },
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const models = await driver.listModels();
+
+    assert.deepEqual(models[0].groups, []);
+    assert.deepEqual(models[1].groups, ['configured']);
+  });
+
+  it('配置读取失败时仍返回模型列表', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/api/model': {
+        status: 200,
+        data: [{ id: 'claude-sonnet-5', name: 'Claude Sonnet 5', providerID: 'anthropic' }],
+      },
+      'GET http://localhost:4096/config': { error: new Error('config unavailable') },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const models = await driver.listModels();
+
+    assert.equal(models.length, 1);
+    assert.equal(models[0].id, 'claude-sonnet-5');
+  });
+
+  it('过滤 disabled 或无 id 模型并保留 deprecated 状态', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/api/model': {
+        status: 200,
+        data: [
+          { id: 'old-model', name: 'Old Model', providerID: 'anthropic', status: 'deprecated' },
+          { id: 'disabled-model', name: 'Disabled Model', providerID: 'openai', enabled: false },
+          { name: 'Missing ID', providerID: 'google' },
+        ],
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const models = await driver.listModels();
+
+    assert.equal(models.length, 1);
+    assert.equal(models[0].id, 'old-model');
+    assert.equal(models[0].status, 'deprecated');
+    assert.equal(models[0].enabled, true);
   });
 
   it('支持 data 包装响应', async () => {

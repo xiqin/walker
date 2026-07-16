@@ -1,0 +1,48 @@
+{
+  "graph_backend": "codegraph",
+  "graph_sync": {
+    "commands": [
+      "loom index",
+      "loom index --check"
+    ],
+    "result": "up_to_date",
+    "files": 88,
+    "nodes": 1001,
+    "edges": 5607,
+    "db_size": "6.43 MB"
+  },
+  "memory": {
+    "added": [
+      {
+        "id": "b725d36f",
+        "type": "决策",
+        "summary": "飞书 /model 使用稳定去重序列、每页20个模型、cmd:/model --page N 和 patchCard 原地分页。"
+      }
+    ],
+    "exported": true
+  },
+  "entry_files_updated": false,
+  "validation": {
+    "command": "npm run check",
+    "result": "PASS",
+    "tests": "756 passed, 0 failed, 49 suites",
+    "evidence": "specs/2026-07-16-feishu-model-pagination/evidence/verification.log",
+    "sha256": "E53F9874D7A6DDE52F40C57D8F2539732302879CA0151FB47BA5BAE1AB7F1757"
+  },
+  "status": "done",
+  "summary": "飞书 /model 模型分页功能的索引与上下文同步完成。loom index 与 loom index --check 均确认 CodeGraph 最新；新增决策记忆 b725d36f 并导出 MEMORY.md；本次未新增入口程序、快速命令或开发流程，入口文件无需更新。",
+  "artifacts": [
+    "index-update-report.md",
+    ".loom/memory/MEMORY.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "87a235728a08236d68c859d4e25630428db20016b335999f2e4baeca169f811c",
+    "spec.md": "aa24c36567c1a6ca4a852dcbb52945beedd2a622caa0a01ddcdce3590a31e58d"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/MEMORY.md": "fd916fcd0daae442b74b700439099a93cdae07b2a9ed4ea1d4feaf7a4494599d"
+  },
+  "written_at": "2026-07-16T06:47:24.402Z"
+}

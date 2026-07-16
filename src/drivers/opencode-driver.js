@@ -110,17 +110,75 @@ class OpencodeDriver extends AgentDriver {
     const url = this._buildUrl('/api/model', {});
     try {
       const resp = await this.httpClient.request('GET', url, null);
+      const configuredKeys = await this._listConfiguredModelKeys();
       const models = this._extractModelList(resp);
-      return models.map((m) => ({
-        id: m.id || m.modelID || '',
-        name: m.name || m.modelName || '',
-        provider: m.providerID || m.provider || '',
-        status: m.status || '',
-        enabled: m.enabled !== undefined ? m.enabled : true,
-      })).filter((m) => m.id && m.enabled);
+      return models.map((m) => this._normalizeModel(m, configuredKeys)).filter((m) => m.id && m.enabled);
     } catch (err) {
       throw new Error('Failed to list models at ' + this.serverUrl + ': ' + err.message);
     }
+  }
+
+  async _listConfiguredModelKeys() {
+    const url = this._buildUrl('/config', {});
+    try {
+      const config = await this.httpClient.request('GET', url, null);
+      return this._extractConfiguredModelKeys(config);
+    } catch (_) {
+      return new Set();
+    }
+  }
+
+  _extractConfiguredModelKeys(config) {
+    const keys = new Set();
+    const value = config && config.data && typeof config.data === 'object' ? config.data : config;
+    const providers = value && value.provider;
+    if (!providers || typeof providers !== 'object') return keys;
+    for (const [providerID, provider] of Object.entries(providers)) {
+      const models = provider && provider.models;
+      if (!models || typeof models !== 'object') continue;
+      for (const modelID of Object.keys(models)) {
+        keys.add(providerID + '/' + modelID);
+      }
+    }
+    return keys;
+  }
+
+  _normalizeModel(m, configuredKeys) {
+    const groups = this._normalizeModelGroups(m);
+    const id = m.id || m.modelID || '';
+    const provider = m.providerID || m.provider || '';
+    if (configuredKeys && configuredKeys.has(provider + '/' + id) && !groups.includes('configured')) {
+      groups.push('configured');
+    }
+    return {
+      id,
+      name: m.name || m.modelName || '',
+      provider,
+      status: m.status || '',
+      enabled: m.enabled !== undefined ? m.enabled : true,
+      source: 'opencode',
+      groups,
+      lastUsedAt: m.lastUsedAt || m.lastUsed || m.last_used_at || null,
+    };
+  }
+
+  _normalizeModelGroups(m) {
+    const groups = [];
+    const addGroup = (value) => {
+      if (!value) return;
+      const group = String(value);
+      if (!groups.includes(group)) groups.push(group);
+    };
+    if (Array.isArray(m.groups)) {
+      for (const group of m.groups) addGroup(group);
+    } else {
+      addGroup(m.groups);
+    }
+
+    const category = m.group || m.category;
+    if (String(category || '').toLowerCase() === 'recent') addGroup('recent');
+    if (m.recent === true || m.lastUsedAt || m.lastUsed || m.last_used_at) addGroup('recent');
+    return groups;
   }
 
   async updateConfig(patch) {

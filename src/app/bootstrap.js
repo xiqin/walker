@@ -11,7 +11,7 @@ const { createRuntime } = require('../runtime/runtime-factory');
 const { MessageDispatcher } = require('../dispatch/message-dispatcher');
 const { AttachmentService } = require('../dispatch/attachment-service');
 const { FeishuPlatform } = require('../platform/feishu/platform');
-const { renderUnboundRouteCard, renderSessionListCard, renderAttachableSessionCard, renderErrorCard } = require('../platform/feishu/cards');
+const { renderUnboundRouteCard, renderSessionListCard, renderAttachableSessionCard, renderModelListCard, renderHelpCard, renderErrorCard } = require('../platform/feishu/cards');
 const { ProgressCard } = require('../platform/feishu/progress-card');
 const { parseCommand } = require('../platform/feishu/commands');
 const { buildRouteKey } = require('../core/route-key');
@@ -180,6 +180,16 @@ function createApp(config, deps) {
   feishuApiTarget.sendSessionList = (replyCtx, sessions, currentId, routeKey) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderSessionListCard(sessions, currentId, routeKey));
   /** 发送可纳入 OpenCode 会话列表卡片到飞书 */
   feishuApiTarget.sendAttachableSessionList = (replyCtx, sessions, options) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderAttachableSessionCard(sessions, options));
+  /** 发送模型列表卡片到飞书 */
+  feishuApiTarget.sendModelList = (replyCtx, models, options) => {
+    const card = renderModelListCard(models, options);
+    if (options && options.updateMessageId) {
+      return platform.api.patchCard(options.updateMessageId, card);
+    }
+    return platform.api.replyCard(normalizeReplyCtx(replyCtx), card);
+  };
+  /** 发送命令帮助卡片到飞书 */
+  feishuApiTarget.sendHelpCard = (replyCtx, commands, options) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderHelpCard(commands, options));
   /** 发送错误提示卡片到飞书 */
   feishuApiTarget.sendErrorCard = (replyCtx, message) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderErrorCard(message));
   /** 发送进度卡片并返回卡片消息 ID */
@@ -210,7 +220,7 @@ function createApp(config, deps) {
   const requiredFeishuMethods = [
     'replyText', 'sendText', 'replyCard', 'patchCard', 'addReaction',
     'sendUnboundGuide', 'sendSessionList', 'sendAttachableSessionList',
-    'sendErrorCard', 'sendProgressCard', 'updateProgressCard',
+    'sendModelList', 'sendHelpCard', 'sendErrorCard', 'sendProgressCard', 'updateProgressCard',
   ];
   for (const method of requiredFeishuMethods) {
     if (typeof feishuApiRef[method] !== 'function') {

@@ -1,0 +1,49 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "完成 dispatcher 命令集成：/model 与 /help 优先发送飞书交互卡片，/model 使用当前会话 agent driver 的 listModels，普通 Agent 最终文本追加模型 footer，并将命令去重 key 纳入参数。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js"
+  ],
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006",
+    "REQ-007"
+  ],
+  "tests": [
+    {
+      "command": "node test/message-dispatcher.test.js",
+      "result": "fail",
+      "summary": "TDD 红灯确认：新增 T3 用例失败 6 个，覆盖当前 driver listModels、卡片优先、命令参数去重、help 卡片与模型 footer。"
+    },
+    {
+      "command": "node test/message-dispatcher.test.js",
+      "result": "pass",
+      "summary": "98 tests passed, 0 failed"
+    },
+    {
+      "command": "node test/message-dispatcher.test.js",
+      "result": "pass",
+      "summary": "修复 reviewer 阻断问题后通过：102 tests passed, 0 failed"
+    },
+    {
+      "command": "npm run check",
+      "result": "pass",
+      "summary": "739 tests passed, 0 failed"
+    }
+  ],
+  "notes": [
+    "已按 T1 handoff 核对 AgentDriver/OpenCode listModels 统一模型视图契约，dispatcher 仅消费 id/name/provider/status/enabled 等字段。",
+    "已按 T2 handoff 核对 sendModelList/sendHelpCard 挂载契约，dispatcher 在对应 feishuApi 能力存在时优先调用卡片能力，否则保留纯文本 fallback。",
+    "reviewer 修复：sendModelList/sendHelpCard 方法存在但调用失败时，继续 fallback 到纯文本响应，避免用户收不到命令反馈。",
+    "/model 无参数不再固定回退 opencode，而是读取当前 route 焦点 session 的 agent driver；driver 缺失 listModels 或调用失败时提示“不支持模型列表”。",
+    "reviewer 修复：/model <arg> 分支同样只使用当前 session agent driver，agent 缺失、driver 不存在、不支持 listModels 或 listModels 失败时提示“不支持模型列表”且不更新 session.model。",
+    "普通 Agent prompt 最终文本追加 footer：空行、---、模型：<model>；无模型显示“模型：未指定”，进度卡片与空文本回复不追加。",
+    "命令 dedup key 改为包含 args.join(' ')，同一 messageId 下不同模型按钮可分别执行，完全相同参数重复点击仍去重。"
+  ]
+}

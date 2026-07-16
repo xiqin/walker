@@ -1,0 +1,66 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "飞书模型列表卡片现先构造当前模型、Recent、配置模型、其余 provider 的完整稳定去重序列，再按每页 20 个模型分页；支持页码归一化、页码显示和携带 routeKey 的上一页/下一页导航。",
+  "artifacts": [
+    "src/platform/feishu/cards.js",
+    "test/feishu-cards.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "renderModelListCard",
+      "path": "src/platform/feishu/cards.js",
+      "signature": "renderModelListCard(models, options?: { routeKey?: string, currentModel?: object, page?: number|string }): Object"
+    },
+    {
+      "name": "MAX_MODEL_CARD_ITEMS",
+      "path": "src/platform/feishu/cards.js",
+      "signature": "number (20)"
+    },
+    {
+      "name": "MAX_RECENT_MODEL_ITEMS",
+      "path": "src/platform/feishu/cards.js",
+      "signature": "number (5，保留现有导出兼容性；完整分页序列不再截断 Recent)"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005"
+  ],
+  "tests": [
+    {
+      "phase": "red",
+      "command": "node test/feishu-cards.test.js",
+      "result": "fail_expected",
+      "summary": "20 passed, 4 failed；旧实现未分页、无导航、无页码归一化和页码显示。"
+    },
+    {
+      "phase": "red",
+      "command": "node test/feishu-cards.test.js",
+      "result": "fail_expected",
+      "summary": "24 passed, 1 failed；补充测试确认交错输入下其余模型尚未保持 provider 稳定分组。"
+    },
+    {
+      "phase": "green",
+      "command": "node test/feishu-cards.test.js",
+      "result": "pass",
+      "summary": "25 tests passed, 0 failed"
+    },
+    {
+      "phase": "green",
+      "command": "npm run check",
+      "result": "pass",
+      "summary": "749 tests passed, 0 failed"
+    }
+  ],
+  "notes": [
+    "53 个唯一可用模型分页数量为 20、20、13，跨页并集覆盖全部模型且每个模型只出现一次。",
+    "导航按钮使用 cmd:/model --page N 并透传 routeKey；导航 action 行不计入每页 20 个模型按钮限制。",
+    "第一页不显示上一页，末页不显示下一页；缺失、非数字、小于 1 和超过总页数的页码均归一化到有效 1-based 页码。",
+    "空列表维持原提示卡片；单页仍保留模型按钮协议和当前模型/Recent primary、其余 default 的样式。"
+  ]
+}

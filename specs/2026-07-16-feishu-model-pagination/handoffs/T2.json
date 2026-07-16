@@ -1,0 +1,85 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "已将 /model --page 识别为模型目录分页动作，分页请求绕过普通命令去重并携带触发消息 ID 原地更新卡片；首次 /model 继续回复新卡片，patch 失败或返回空值时 dispatcher 回退纯文本列表。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "src/app/bootstrap.js",
+    "test/message-dispatcher.test.js",
+    "test/bootstrap.test.js"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "MessageDispatcher.handleCommand",
+      "path": "src/dispatch/message-dispatcher.js",
+      "signature": "handleCommand(cmd: { name: string, args?: string[], routeKey?: string, messageId?: string, chatId?: string }): Promise<Object>",
+      "behavior": "name=model 且 args[0]=--page 时跳过普通 command dedup。"
+    },
+    {
+      "name": "MessageDispatcher._cmdModel",
+      "path": "src/dispatch/message-dispatcher.js",
+      "signature": "_cmdModel(cmd): Promise<Object>",
+      "behavior": "无参数和 --page 请求均从当前 session.agent driver 刷新模型目录；分页向 sendModelList 传 page、currentModel、routeKey、updateMessageId。"
+    },
+    {
+      "name": "feishuApi.sendModelList",
+      "path": "src/app/bootstrap.js",
+      "signature": "sendModelList(replyCtx, models, options?: { routeKey?: string, currentModel?: object, page?: number|string, updateMessageId?: string }): Promise<unknown>|unknown",
+      "behavior": "存在 updateMessageId 时调用 platform.api.patchCard，否则调用 platform.api.replyCard；返回值和异常不被吞掉。"
+    }
+  ],
+  "requirements_verified": [
+    "REQ-002",
+    "REQ-003",
+    "REQ-005",
+    "REQ-006",
+    "REQ-007"
+  ],
+  "tests": [
+    {
+      "phase": "red",
+      "command": "node test/message-dispatcher.test.js",
+      "result": "fail_expected",
+      "summary": "102 passed, 3 failed；现有实现误将 --page 当模型 ID，分页往返仍被去重，非法页码未进入卡片路径。"
+    },
+    {
+      "phase": "red",
+      "command": "node test/bootstrap.test.js",
+      "result": "fail_expected",
+      "summary": "9 passed, 2 failed；patch 分支尚未实现，另发现并修正一个模型按钮标签测试选择器。"
+    },
+    {
+      "phase": "green",
+      "command": "node test/message-dispatcher.test.js",
+      "result": "pass",
+      "summary": "105 tests passed, 0 failed"
+    },
+    {
+      "phase": "green",
+      "command": "node test/bootstrap.test.js",
+      "result": "pass",
+      "summary": "12 tests passed, 0 failed"
+    },
+    {
+      "phase": "green",
+      "command": "npm run check",
+      "result": "pass",
+      "summary": "755 tests passed, 0 failed"
+    },
+    {
+      "phase": "quality",
+      "command": "git diff --check -- src/dispatch/message-dispatcher.js src/app/bootstrap.js test/message-dispatcher.test.js test/bootstrap.test.js",
+      "result": "pass",
+      "summary": "无空白或补丁格式问题。"
+    }
+  ],
+  "risks": [
+    "分页动作依赖飞书卡片回调提供原卡片 messageId；缺失时 updateMessageId 为空，bootstrap 将按首次列表路径回复新卡片。",
+    "页码合法性仍由 renderModelListCard 统一归一化，dispatcher 有意不解析或拒绝非法页码。"
+  ],
+  "notes": [
+    "分页识别严格限定为 model 命令且首个参数等于 --page；--page 缺值和任意非法第二参数仍进入列表渲染，不更新 session.model。",
+    "同一 messageId 的 --page 2、--page 1、--page 2 均执行；普通 provider/model 按钮的相同参数重复点击仍由现有 dedup 拦截。",
+    "首次 /model 不传 updateMessageId，保留 replyCard、routeKey、currentModel 和纯文本 fallback 行为。"
+  ]
+}

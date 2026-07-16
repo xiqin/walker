@@ -1,0 +1,39 @@
+{
+  "task_order": [
+    "T1",
+    "T2"
+  ],
+  "dependencies": {
+    "T1": [],
+    "T2": [
+      "T1"
+    ]
+  },
+  "validation": [
+    "node C:\\Users\\tianxiqin\\.config\\opencode\\skills\\loom-writing-plans\\scripts\\validate-plan.mjs --spec-dir specs\\2026-07-16-feishu-model-pagination",
+    "loom tasks --spec-dir specs\\2026-07-16-feishu-model-pagination --validate"
+  ],
+  "validation_result": "passed",
+  "parallelism": "串行执行，T2 依赖 T1 的分页渲染接口。",
+  "approval_basis": "用户两次明确要求直接改，已确认分页方案。",
+  "status": "done",
+  "summary": "分页实现计划已完成并通过校验。任务串行为 T1 模型卡片稳定分页与导航，随后 T2 分页命令、去重豁免与原卡片 patch 集成。用户已两次明确要求直接修改，因此后续 approved 门禁沿用该明确批准。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "87a235728a08236d68c859d4e25630428db20016b335999f2e4baeca169f811c",
+    "spec.md": "aa24c36567c1a6ca4a852dcbb52945beedd2a622caa0a01ddcdce3590a31e58d",
+    "tasks/": "ad6f307a7743983b2b6f52fdb61ecce6b17f64447ed9d17ba80e900cf2ac6d84"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "87a235728a08236d68c859d4e25630428db20016b335999f2e4baeca169f811c",
+    "tasks/T1.md": "e7b55c8ed5d38a0676b6b6f7506f9e81138afa983db7d5b59b9ecff10c4f4238",
+    "tasks/T2.md": "39aa9c58d8dca063bf14a80b4e026e4956b845f1d40f0d1fd204a5d9a7f2e6ee"
+  },
+  "written_at": "2026-07-16T06:02:07.866Z"
+}

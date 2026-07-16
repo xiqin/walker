@@ -17,6 +17,12 @@ const COMMANDS = {
   help: { desc: '显示命令帮助', usage: '/help' },
 };
 
+const COMMAND_LIST = Object.entries(COMMANDS).map(([name, cmd]) => ({
+  name,
+  desc: cmd.desc,
+  usage: cmd.usage,
+}));
+
 /**
  * 解析用户输入文本，识别是否为命令及其参数
  * @param {string} text - 用户输入的原始文本
@@ -49,10 +55,10 @@ function parseCommand(text) {
  */
 function formatHelp() {
   const lines = ['**Walker 命令清单**\n'];
-  for (const [name, cmd] of Object.entries(COMMANDS)) {
+  for (const cmd of COMMAND_LIST) {
     lines.push('- **' + cmd.usage + '** — ' + cmd.desc);
   }
   return lines.join('\n');
 }
 
-module.exports = { parseCommand, COMMANDS, formatHelp };
+module.exports = { parseCommand, COMMANDS, COMMAND_LIST, formatHelp };

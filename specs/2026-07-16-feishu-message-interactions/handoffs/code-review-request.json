@@ -1,0 +1,41 @@
+{
+  "fixed_point": "HEAD",
+  "pre_review": {
+    "standards_blockers": 0,
+    "spec_blockers": 0,
+    "standards_notes": [
+      ".loom/compliance/history.json 是 loom 验证阶段自动写入的合规历史副产物，提交前建议决定是否纳入本次变更。",
+      "src/platform/feishu/cards.js 的 Recent 排序对纯数字字符串先尝试 Date.parse，当前需求和测试可接受。",
+      "src/dispatch/message-dispatcher.js 的纯文本模型列表 fallback 未显式过滤 enabled === false，但当前 OpenCode driver 已在驱动层过滤 disabled；未来其它 agent driver 可再收紧。"
+    ],
+    "spec_coverage": [
+      "REQ-001 模型 footer",
+      "REQ-002 /model 模型卡片",
+      "REQ-003 模型按钮回流更新 session.model",
+      "REQ-004 /help 帮助卡片",
+      "REQ-005 当前 agent driver 统一模型视图且不固定 OpenCode",
+      "REQ-006 参数化 dedup",
+      "REQ-007 纯文本解析与 fallback"
+    ]
+  },
+  "validation": {
+    "command": "npm run check",
+    "result": "PASS",
+    "tests": "743/743 tests passed, 49 suites",
+    "evidence": "specs/2026-07-16-feishu-message-interactions/evidence/verification.log",
+    "sha256": "24C0DE2081370B37CAADD79C7977D31ECF7457E4FCE450B003C47089D353A4AD"
+  },
+  "status": "done",
+  "summary": "已生成代码审查请求并完成本地 Standards + Spec 双轴预审查。预审查无阻断发现；审查基准为当前 worktree 相对 HEAD 的未提交 diff。审查请求记录主要变更、变更统计、自测证据、重点关注项和非阻断关注点，包括 .loom/compliance/history.json 为 loom 验证副产物、Recent 排序纯数字字符串语义、纯文本模型 fallback 对未来 driver disabled 字段的展示约束。验证证据引用 verification.log，SHA-256 为 24C0DE2081370B37CAADD79C7977D31ECF7457E4FCE450B003C47089D353A4AD，测试摘要为 743/743 tests passed，49 suites。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "d4c51c7e69b54a04438ca118dd0776e6ec510394457e67ab64fadba3ed848cc3",
+    "spec.md": "f173fecdfbfda0eee625b0029ab9f58b6963909513b795e37c8f6258c2c94bc3"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-16T03:46:28.966Z"
+}

@@ -20,6 +20,10 @@ const STATUS_TEMPLATE = {
 
 /** 可纳入会话卡片最多展示的候选数，避免整卡超限 */
 const MAX_ATTACHABLE_CARD_ITEMS = 10;
+/** 模型卡片最多展示的按钮数，避免整卡超限 */
+const MAX_MODEL_CARD_ITEMS = 20;
+/** Recent 模型区块最多展示的按钮数 */
+const MAX_RECENT_MODEL_ITEMS = 5;
 
 /**
  * 转义飞书 lark_md 中的特殊字符，防止用户可控内容破坏卡片布局
@@ -218,6 +222,181 @@ function renderAttachableSessionCard(sessions, options) {
   };
 }
 
+function getModelCommand(model) {
+  const id = model && model.id ? String(model.id) : '';
+  const provider = model && model.provider ? String(model.provider) : '';
+  return 'cmd:/model ' + (provider ? provider + '/' + id : id);
+}
+
+function getModelLabel(model) {
+  const name = model.name || model.id;
+  return model.provider ? name + ' (' + model.provider + ')' : name;
+}
+
+function isRecentModel(model) {
+  const groups = Array.isArray(model.groups) ? model.groups : (model.groups ? [model.groups] : []);
+  return groups.some((group) => String(group).toLowerCase() === 'recent') || Boolean(model.lastUsedAt);
+}
+
+function isConfiguredModel(model) {
+  const groups = Array.isArray(model.groups) ? model.groups : (model.groups ? [model.groups] : []);
+  return groups.some((group) => String(group).toLowerCase() === 'configured');
+}
+
+function sortRecentModels(a, b) {
+  const at = a.lastUsedAt ? Date.parse(a.lastUsedAt) || Number(a.lastUsedAt) || 0 : 0;
+  const bt = b.lastUsedAt ? Date.parse(b.lastUsedAt) || Number(b.lastUsedAt) || 0 : 0;
+  return bt - at;
+}
+
+function getModelKey(model) {
+  return (model.provider || '') + '/' + model.id;
+}
+
+function findModelByRef(models, ref) {
+  if (!ref) return null;
+  const provider = ref.providerID || ref.provider || '';
+  const id = ref.modelID || ref.id || ref.model || '';
+  if (!id) return null;
+  return models.find((model) => model.id === id && (!provider || model.provider === provider)) || null;
+}
+
+function pushModelButton(elements, model, routeKey, type) {
+  elements.push({
+    tag: 'action',
+    actions: [
+      { tag: 'button', text: { tag: 'plain_text', content: getModelLabel(model) }, type: type || 'default', value: buildCommandValue(getModelCommand(model), routeKey) },
+    ],
+  });
+}
+
+/**
+ * 渲染可用模型列表飞书卡片
+ * @param {Object[]} models - 统一模型视图列表
+ * @param {Object} [options] - 渲染选项
+ * @param {string} [options.routeKey] - 路由键
+ * @param {number|string} [options.page] - 1-based 页码
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
+function renderModelListCard(models, options) {
+  const routeKey = options && options.routeKey;
+  const currentModel = options && options.currentModel;
+  const available = (models || []).filter((model) => model && model.id && model.status !== 'deprecated' && model.enabled !== false);
+
+  if (available.length === 0) {
+    return {
+      config: { wide_screen_mode: true },
+      header: { title: { tag: 'plain_text', content: 'Walker 模型列表' }, template: 'default' },
+      elements: [
+        { tag: 'div', text: { tag: 'lark_md', content: '暂无可用模型。' } },
+      ],
+    };
+  }
+
+  const ordered = [];
+  const shownIds = new Set();
+  const appendModel = (model, section, type) => {
+    const key = getModelKey(model);
+    if (shownIds.has(key)) return;
+    shownIds.add(key);
+    ordered.push({ model, section, type });
+  };
+
+  const current = findModelByRef(available, currentModel);
+  if (current) {
+    appendModel(current, '当前模型', 'primary');
+  }
+
+  const recent = available.filter(isRecentModel).sort(sortRecentModels);
+  for (const model of recent) {
+    appendModel(model, 'Recent', 'primary');
+  }
+
+  for (const model of available) {
+    if (isConfiguredModel(model)) appendModel(model, '配置模型', 'default');
+  }
+
+  const byProvider = new Map();
+  for (const model of available) {
+    const key = getModelKey(model);
+    if (shownIds.has(key)) continue;
+    const provider = model.provider || '未分组';
+    if (!byProvider.has(provider)) byProvider.set(provider, []);
+    byProvider.get(provider).push(model);
+  }
+  for (const [provider, providerModels] of byProvider) {
+    for (const model of providerModels) {
+      appendModel(model, provider, 'default');
+    }
+  }
+
+  const totalPages = Math.ceil(ordered.length / MAX_MODEL_CARD_ITEMS);
+  const requestedPage = Number(options && options.page);
+  const normalizedPage = Number.isFinite(requestedPage) ? Math.trunc(requestedPage) : 1;
+  const page = Math.min(totalPages, Math.max(1, normalizedPage));
+  const start = (page - 1) * MAX_MODEL_CARD_ITEMS;
+  const pageModels = ordered.slice(start, start + MAX_MODEL_CARD_ITEMS);
+  const elements = [
+    { tag: 'div', text: { tag: 'lark_md', content: '第 ' + page + ' / ' + totalPages + ' 页' } },
+  ];
+
+  let previousSection = null;
+  for (const item of pageModels) {
+    if (item.section !== previousSection) {
+      elements.push({ tag: 'div', text: { tag: 'lark_md', content: '**' + escapeLarkMd(item.section) + '**' } });
+      previousSection = item.section;
+    }
+    pushModelButton(elements, item.model, routeKey, item.type);
+  }
+
+  const navigation = [];
+  if (page > 1) {
+    navigation.push({ tag: 'button', text: { tag: 'plain_text', content: '上一页' }, type: 'default', value: buildCommandValue('cmd:/model --page ' + (page - 1), routeKey) });
+  }
+  if (page < totalPages) {
+    navigation.push({ tag: 'button', text: { tag: 'plain_text', content: '下一页' }, type: 'default', value: buildCommandValue('cmd:/model --page ' + (page + 1), routeKey) });
+  }
+  if (navigation.length > 0) {
+    elements.push({ tag: 'action', actions: navigation });
+  }
+
+  return {
+    config: { wide_screen_mode: true },
+    header: { title: { tag: 'plain_text', content: 'Walker 模型列表 (' + ordered.length + ')' }, template: 'blue' },
+    elements,
+  };
+}
+
+/**
+ * 渲染 Walker 命令帮助飞书卡片
+ * @param {Object[]} commands - 命令元数据列表
+ * @param {Object} [options] - 渲染选项
+ * @param {string} [options.routeKey] - 路由键
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
+function renderHelpCard(commands, options) {
+  const routeKey = options && options.routeKey;
+  const elements = [];
+  for (const cmd of commands || []) {
+    if (!cmd || !cmd.name) continue;
+    elements.push({
+      tag: 'div',
+      text: { tag: 'lark_md', content: '**' + escapeLarkMd(cmd.usage || ('/' + cmd.name)) + '** — ' + escapeLarkMd(cmd.desc || '') },
+    });
+    elements.push({
+      tag: 'action',
+      actions: [
+        { tag: 'button', text: { tag: 'plain_text', content: '/' + cmd.name }, type: 'default', value: buildCommandValue('cmd:/' + cmd.name, routeKey) },
+      ],
+    });
+  }
+  return {
+    config: { wide_screen_mode: true },
+    header: { title: { tag: 'plain_text', content: 'Walker 命令帮助' }, template: 'blue' },
+    elements,
+  };
+}
+
 /**
  * 将毫秒级时间戳格式化为相对时间描述
  * @param {number} ts - 毫秒级时间戳
@@ -258,9 +437,13 @@ module.exports = {
   renderSessionListCard,
   renderUnboundRouteCard,
   renderAttachableSessionCard,
+  renderModelListCard,
+  renderHelpCard,
   renderErrorCard,
   buildButtonValue,
   buildCommandValue,
   STATUS_EMOJI,
   STATUS_TEMPLATE,
+  MAX_MODEL_CARD_ITEMS,
+  MAX_RECENT_MODEL_ITEMS,
 };

@@ -1,0 +1,50 @@
+{
+  "graph_backend": "codegraph",
+  "graph_sync": {
+    "commands": [
+      "loom index",
+      "loom index --check"
+    ],
+    "result": "OK: Index is up to date",
+    "stats": {
+      "files": 88,
+      "nodes": 991,
+      "edges": 5537,
+      "db_size": "6.33 MB"
+    }
+  },
+  "memory_updates": [
+    {
+      "id": "977fe338",
+      "type": "决策",
+      "summary": "飞书模型交互增强采用统一 agent 模型视图，OpenCode Recent 来自模型接口元数据，/model 不固定回退 opencode。"
+    },
+    {
+      "id": "cc0763ca",
+      "type": "决策",
+      "summary": "飞书模型 footer 表示 Walker 本次请求指定给 agent 的模型，不承诺 TUI 内部实际最终使用模型。"
+    },
+    {
+      "id": "3dfc1bfb",
+      "type": "踩坑",
+      "summary": "当前 verify-artifacts.mjs 缺失 artifact-checker.js，需用手工核验和 npm run check 证据补足。"
+    }
+  ],
+  "entry_files_updated": false,
+  "status": "done",
+  "summary": "已完成索引与上下文同步。执行 `loom index` 同步 codegraph，结果 Already up to date；执行 `loom index --check`，结果 [OK] Index is up to date，索引统计为 88 files、991 nodes、5,537 edges。已新增 2 条决策 memory：统一 agent 模型视图/不固定回退 opencode，以及模型 footer 语义；新增 1 条踩坑 memory：当前 verify-artifacts.mjs 缺失 artifact-checker.js，需以手工核验和 npm run check 证据补足。已执行 `loom memory export` 更新 `.loom/memory/MEMORY.md`。入口文件无需更新。",
+  "artifacts": [
+    "index-update-report.md",
+    ".loom/memory/MEMORY.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "d4c51c7e69b54a04438ca118dd0776e6ec510394457e67ab64fadba3ed848cc3",
+    "spec.md": "f173fecdfbfda0eee625b0029ab9f58b6963909513b795e37c8f6258c2c94bc3"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/MEMORY.md": "0679f2ae358512464bfa7a2115fbfe166c6fde1c6813357bcee3fc73a9150699"
+  },
+  "written_at": "2026-07-16T04:01:38.943Z"
+}

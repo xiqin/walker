@@ -1,0 +1,38 @@
+{
+  "verdict": "PASS",
+  "validation": {
+    "command": "npm run check",
+    "exit_code": 0,
+    "tests": "743 tests passed, 0 failed, 49 suites",
+    "evidence": "specs/2026-07-16-feishu-message-interactions/evidence/verification.log",
+    "sha256": "24C0DE2081370B37CAADD79C7977D31ECF7457E4FCE450B003C47089D353A4AD"
+  },
+  "checks": [
+    "前置产出核验 PASS",
+    "构建与测试命令 PASS",
+    "本次 spec/src/test 范围未完成标记扫描 PASS",
+    "类型与接口一致性 PASS",
+    "最终一致性核验 PASS"
+  ],
+  "warnings": [
+    "verify-artifacts.mjs 缺失 C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\artifact-checker.js，属于本机 loom/opencode skill 工具链问题；已用手工核验补足。"
+  ],
+  "status": "done",
+  "summary": "完成前验证通过。已读取 test-report.md 与 executing handoff；重新运行 npm run check，退出码 0，结果为 743 tests passed, 0 failed, 49 suites；证据日志为 evidence/verification.log，SHA-256 为 24C0DE2081370B37CAADD79C7977D31ECF7457E4FCE450B003C47089D353A4AD。本次 spec/src/test 范围未完成标记扫描无命中；CodeGraph 抽查接口一致性通过。verify-artifacts.mjs 因本机 loom/opencode skill 工具链缺失 artifact-checker.js 无法运行，已记录为 WARN 并以手工核验补足。",
+  "artifacts": [
+    "verify-report.md",
+    "evidence/verification.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "d4c51c7e69b54a04438ca118dd0776e6ec510394457e67ab64fadba3ed848cc3",
+    "spec.md": "f173fecdfbfda0eee625b0029ab9f58b6963909513b795e37c8f6258c2c94bc3",
+    "test-report.md": "25ae2d353e5179dd0d7f088cd64101dc05ef9ba8f6713997facb805464b580fa"
+  },
+  "artifact_fingerprints": {
+    "evidence/verification.log": "24c0de2081370b37caadd79c7977d31ecf7457e4fce450b003c47089d353a4ad",
+    "verify-report.md": "22958310b51a340fe38fbe0013337378d809030da54367da6aacabcc7f2495a6"
+  },
+  "written_at": "2026-07-16T03:44:07.392Z"
+}
