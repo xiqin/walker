@@ -214,3 +214,35 @@ test('formatAgentEvent session_lifecycle 返回空字符串', () => {
 test('formatAgentEvent server_connected 返回空字符串', () => {
   assert.equal(formatAgentEvent({ type: 'server_connected', data: {} }), '');
 });
+
+test('ProgressCard status 事件进入 statusLine 而非 entries', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'tool_use', name: 'Bash', status: 'done' });
+  pc.append({ type: 'status', data: { message: '仍在执行，已等待 30 秒' } });
+  const card = pc.render();
+  assert.equal(pc.entries.length, 1, 'entries 不包含 status 行');
+  assert.ok(pc.entries[0].includes('Bash'), 'entries 仍保留工具调用');
+  assert.equal(pc.statusLine, '仍在执行，已等待 30 秒');
+  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('仍在执行')), '卡片渲染包含 statusLine');
+});
+
+test('ProgressCard 连续 status 事件原地替换不累积', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'status', data: { message: '仍在执行，已等待 30 秒' } });
+  pc.append({ type: 'status', data: { message: '仍在执行，已等待 90 秒' } });
+  const card = pc.render();
+  assert.equal(pc.entries.length, 0, 'status 不进 entries');
+  assert.equal(pc.statusLine, '仍在执行，已等待 90 秒', 'statusLine 被替换为最新值');
+  const statusEls = card.elements.filter((el) => el.text && el.text.content.includes('仍在执行'));
+  assert.equal(statusEls.length, 1, '卡片中只有一行 status');
+});
+
+test('ProgressCard done 后 statusLine 清空且不渲染', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'status', data: { message: '仍在执行，已等待 60 秒' } });
+  pc.append({ type: 'done' });
+  const card = pc.render();
+  assert.equal(pc.statusLine, '');
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('仍在执行')), '完成后不显示 statusLine');
+  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('✅ 处理完成')));
+});

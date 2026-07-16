@@ -99,6 +99,7 @@ class ProgressCard {
     this.phase = 'thinking';
     this.entries = [];
     this.entryTypes = [];
+    this.statusLine = '';
     this.done = false;
   }
 
@@ -110,6 +111,11 @@ class ProgressCard {
     if (this.done) return;
     if (event.type === 'done') {
       this.markDone();
+      return;
+    }
+    if (event.type === 'status') {
+      this.statusLine = formatAgentEvent(event);
+      this._updatePhase(event);
       return;
     }
     const formatted = formatAgentEvent(event);
@@ -133,6 +139,7 @@ class ProgressCard {
   markDone() {
     this.done = true;
     this.phase = 'done';
+    this.statusLine = '';
   }
 
   /**
@@ -163,6 +170,13 @@ class ProgressCard {
       elements.push({
         tag: 'div',
         text: { tag: 'lark_md', content: entry },
+      });
+    }
+
+    if (!this.done && this.statusLine) {
+      elements.push({
+        tag: 'div',
+        text: { tag: 'lark_md', content: this.statusLine },
       });
     }
 
