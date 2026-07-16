@@ -332,5 +332,68 @@
       "fail，exit 0 |",
       "fail: 0"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-message-interactions",
+    "timestamp": "2026-07-16T03:44:33.737Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 49 suites。 |",
+      "failed, 49 suites`"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-message-interactions",
+    "timestamp": "2026-07-16T03:47:15.029Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 49 suites。 |",
+      "failed, 49 suites`"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-message-interactions",
+    "timestamp": "2026-07-16T03:59:49.081Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 49 suites。 |",
+      "failed, 49 suites`"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-model-pagination",
+    "timestamp": "2026-07-16T06:40:47.823Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 49 suites` |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-model-pagination",
+    "timestamp": "2026-07-16T06:43:15.478Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 49 suites` |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-model-pagination",
+    "timestamp": "2026-07-16T06:45:29.622Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed, 49 suites` |"
+    ]
   }
 ]
