@@ -1,0 +1,20 @@
+{
+  "status": "done",
+  "summary": "验证通过：829/829 测试 PASS，无占位符，接口一致，spec 10 个 REQ 全部覆盖，无非目标违反。剩余风险：无 lint、无真实飞书端到端冒烟。",
+  "artifacts": [
+    "verify-report.md",
+    "evidence/verification.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "9db675c5ebb1d1e7e5618fbc3b5c6f99718efe9d1ece556fd64c296e48828af9",
+    "spec.md": "282d2761891d54efb5aa16e3c7b74ae294642fac34961b6b8638ac138c40f925",
+    "test-report.md": "e6b2f5c3ddf471bd2a9e722ff4377b4134a3c8542a0742db180b4a2a47723bd2"
+  },
+  "artifact_fingerprints": {
+    "evidence/verification.log": "4657573ea414673831b2fbfd7d6ca4f11a8afc2bc363b163120b896d16e74595",
+    "verify-report.md": "d160c057a9b7c22b400efaa055ab98faa06973cc17055b86ff5694e12b6a0457"
+  },
+  "written_at": "2026-07-16T09:52:00.000Z"
+}

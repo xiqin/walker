@@ -1,0 +1,48 @@
+{
+  "task_count": 6,
+  "dependency_order": [
+    "T1,T2",
+    "T3,T4,T5",
+    "T6"
+  ],
+  "interface_constraints": [
+    "driver.prompt options.signal 贯穿 Dispatcher、Driver、Bridge",
+    "SSE 使用 chunk 续期 idle timeout",
+    "watcher 游标仅指向已投递 completed assistant message",
+    "TUI v3 accepted/heartbeat/final 并兼容 v2 final",
+    "稳定 transport error code"
+  ],
+  "validation": [
+    "validate-plan.mjs 通过",
+    "loom tasks --validate 无文件冲突",
+    "占位符扫描无匹配"
+  ],
+  "status": "done",
+  "summary": "已将修复拆为 6 个可独立验证的 Task：T1 配置与注入、T2 HTTP/SSE 超时原语、T3 Driver 断流恢复与 completed 游标、T4 TUI Bridge v3 租约与 tombstone、T5 内置 plugin heartbeat、T6 Dispatcher 取消集成与端到端验证。执行批次为 T1/T2 并行，随后 T3/T4/T5 并行，最后 T6 集成。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "9db675c5ebb1d1e7e5618fbc3b5c6f99718efe9d1ece556fd64c296e48828af9",
+    "spec.md": "282d2761891d54efb5aa16e3c7b74ae294642fac34961b6b8638ac138c40f925",
+    "tasks/": "e5cbe3ea2a783ed4ee70042bc5e459a357177815e3c5f6c7cd160b6318eb96b8"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "9db675c5ebb1d1e7e5618fbc3b5c6f99718efe9d1ece556fd64c296e48828af9",
+    "tasks/T1.md": "ca0dfb9294788f4612c7f7f51c57f3ad88b08b9db54823eb9bf95f90fcbeba5d",
+    "tasks/T2.md": "07282c3963c9b4ee5f98287dfabe1f89cc80810f621fd7b8c03843fef99c9865",
+    "tasks/T3.md": "bd1c45b52c566e2657ecab07dd3dc7e497086c2ea03f93ae78de85097d5c256c",
+    "tasks/T4.md": "d31b49f5f6ed3c8c63ba08429bac5616133a1122c384d963fad9d8593295babc",
+    "tasks/T5.md": "1512d3f389e59181bacbbb9d210cba654deace7ad7302a547d470f48c15eec66",
+    "tasks/T6.md": "df632f5f4ad7396105b58be678b27a732826b8721da00c3ab6cdfb6ef67c65de"
+  },
+  "written_at": "2026-07-16T09:00:18.685Z"
+}

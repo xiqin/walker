@@ -29,8 +29,11 @@ class OpencodeDriver extends AgentDriver {
     this.opencodeCmd = options.opencodeCmd || 'opencode';
     this.pollInterval = options.pollInterval || 500;
     this.maxPolls = options.maxPolls || 20;
-    this.promptTimeoutMs = options.promptTimeoutMs || 120000;
-    this.sseOpenTimeoutMs = options.sseOpenTimeoutMs || 1000;
+    this.promptTimeoutMs = options.promptTimeoutMs ?? 120000;
+    this.sseOpenTimeoutMs = options.sseOpenTimeoutMs ?? 1000;
+    this.promptRequestTimeoutMs = options.promptRequestTimeoutMs ?? 30000;
+    this.sseIdleTimeoutMs = options.sseIdleTimeoutMs ?? 300000;
+    this.recoveryWindowMs = options.recoveryWindowMs ?? 300000;
     this.tuiBridge = options.tuiBridge || null;
     this._hasModelStateOverride = Object.prototype.hasOwnProperty.call(options, 'modelState');
     this.modelState = options.modelState;
@@ -262,11 +265,25 @@ class OpencodeDriver extends AgentDriver {
     let markSSEOpen;
     const sseOpened = new Promise((resolve) => { markSSEOpen = resolve; });
 
+    const externalSignal = options && options.signal;
+    const controller = new AbortController();
+    const onExternalAbort = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort();
+      } else {
+        externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+      }
+    }
+
+    const baselineId = this._sessionWatcher.getLastPolledMessageId(sessionId) || null;
+    let submitted = false;
+    let promptCompleted = false;
+
     try {
       logger.info('opencode sse connecting', { sessionId, sseUrl });
-      const controller = new AbortController();
       const ssePromise = this.sseClient.connect(sseUrl, {
-        timeoutMs: this.promptTimeoutMs,
+        idleTimeoutMs: this.sseIdleTimeoutMs || undefined,
         signal: controller.signal,
         onOpen: () => {
           logger.info('opencode sse opened', { sessionId, sseUrl });
@@ -287,53 +304,149 @@ class OpencodeDriver extends AgentDriver {
       let sseOpenedFlag = false;
       const sseOpenPromise = sseOpened.then(() => { sseOpenedFlag = true; }, () => {});
 
-      await Promise.race([
-        sseOpenPromise,
-        this._sleep(this.sseOpenTimeoutMs).then(() => {
-          if (!sseOpenedFlag) {
-            controller.abort();
-            throw new Error('SSE connection open timeout after ' + this.sseOpenTimeoutMs + 'ms');
-          }
-        }),
-      ]);
+      if (this.sseOpenTimeoutMs > 0) {
+        await Promise.race([
+          sseOpenPromise,
+          this._sleep(this.sseOpenTimeoutMs).then(() => {
+            if (!sseOpenedFlag) {
+              controller.abort();
+              const err = new Error('SSE connection open timeout after ' + this.sseOpenTimeoutMs + 'ms');
+              err.code = 'SSE_OPEN_TIMEOUT';
+              throw err;
+            }
+          }),
+        ]);
+      } else {
+        await sseOpenPromise;
+      }
 
       logger.info('opencode prompt start', {
         sessionId,
         promptUrl,
         textLength: text ? text.length : 0,
       });
-      const promptResp = await this.httpClient.request('POST', promptUrl, body);
+
+      const requestTimeoutMs = this.promptRequestTimeoutMs > 0 ? this.promptRequestTimeoutMs : undefined;
+      const promptResp = await this.httpClient.request('POST', promptUrl, body, requestTimeoutMs ? { timeoutMs: requestTimeoutMs } : undefined);
       logger.info('opencode prompt posted', { sessionId, promptUrl, status: promptResp && promptResp.status });
       if (promptResp && promptResp.status && (promptResp.status < 200 || promptResp.status >= 300)) {
         throw new Error('opencode prompt failed with HTTP ' + promptResp.status);
       }
+      submitted = true;
 
-      const rawEvents = await ssePromise;
-      for (const raw of rawEvents) {
-        const event = mapSSEEvent(raw, sessionId);
-        if (event) events.push(event);
-        if (event && event.type === AgentEvent.TYPE_DONE) break;
+      try {
+        const rawEvents = await ssePromise;
+        for (const raw of rawEvents) {
+          const event = mapSSEEvent(raw, sessionId);
+          if (event) events.push(event);
+          if (event && event.type === AgentEvent.TYPE_DONE) break;
+        }
+        promptCompleted = true;
+        logger.info('opencode sse completed', { sessionId, eventCount: events.length });
+      } catch (sseErr) {
+        if (controller.signal.aborted && externalSignal && externalSignal.aborted) {
+          throw sseErr;
+        }
+        logger.info('opencode sse interrupted after submit, entering recovery', { sessionId, error: sseErr.message });
+        const recovered = await this._recoverFromDisconnection(sessionRef, sessionId, baselineId, controller.signal);
+        if (recovered) {
+          for (const event of recovered) events.push(event);
+          promptCompleted = true;
+          logger.info('opencode recovered from disconnection', { sessionId, eventCount: recovered.length });
+        } else {
+          throw sseErr;
+        }
       }
-      logger.info('opencode sse completed', { sessionId, eventCount: events.length });
     } catch (err) {
-      logger.warn('opencode sse failed', { sessionId, error: err.message });
+      // 防御性兜底：主要抛出点已设置 code，此处为无 code 的错误补 code
+      if (!err.code && err.message && /open timeout/i.test(err.message)) {
+        err.code = 'SSE_OPEN_TIMEOUT';
+      } else if (!err.code && err.message && /timed out/i.test(err.message) && !submitted) {
+        err.code = 'PROMPT_REQUEST_TIMEOUT';
+      } else if (!err.code && err.message && /idle/i.test(err.message)) {
+        err.code = 'SSE_IDLE_TIMEOUT';
+      } else if (!err.code && controller.signal.aborted) {
+        err.code = 'ABORT_ERR';
+      }
+      logger.warn('opencode prompt failed', { sessionId, error: err.message, code: err.code });
       throw err;
     } finally {
-      if (this._sessionWatcher.hasLastPolledMessageId(sessionId)) {
-        try {
-          const messages = await this.getSessionMessages(sessionRef);
-          if (messages.length > 0) {
-            const last = messages[messages.length - 1];
-            this._sessionWatcher.setLastPolledMessageId(sessionId, last.info ? last.info.id : last.id);
+      if (promptCompleted && events.length > 0) {
+        const lastDone = [...events].reverse().find((e) => e.type === AgentEvent.TYPE_DONE);
+        if (lastDone) {
+          try {
+            const messages = await this.getSessionMessages(sessionRef);
+            const completed = messages.filter((m) => {
+              const role = m.info ? m.info.role : m.role;
+              const completed = m.info && m.info.time && m.info.time.completed;
+              return role === 'assistant' && completed;
+            });
+            if (completed.length > 0) {
+              const lastCompleted = completed[completed.length - 1];
+              const lastId = lastCompleted.info ? lastCompleted.info.id : lastCompleted.id;
+              this._sessionWatcher.setLastPolledMessageId(sessionId, lastId);
+            }
+          } catch (e) {
+            logger.debug('failed to update cursor after successful prompt', { sessionId, error: e.message });
           }
-        } catch (e) {
-          logger.debug('failed to refresh last polled message after prompt', { sessionId, error: e.message });
         }
+      }
+      if (externalSignal && onExternalAbort) {
+        try { externalSignal.removeEventListener('abort', onExternalAbort); } catch (_) {}
       }
       this._sessionWatcher.resume(sessionRef);
     }
 
     return events;
+  }
+
+  async _recoverFromDisconnection(sessionRef, sessionId, baselineId, signal) {
+    const pollIntervalMs = this._sessionWatcher.pollIntervalMs;
+    const maxRecoveryMs = this.recoveryWindowMs;
+    const startTime = Date.now();
+    const events = [];
+
+    while (Date.now() - startTime < maxRecoveryMs) {
+      if (signal && signal.aborted) return null;
+      try {
+        const messages = await this.getSessionMessages(sessionRef);
+        if (signal && signal.aborted) return null;
+        const newCompleted = [];
+        let foundBaseline = !baselineId;
+        for (const m of messages) {
+          const id = m.info ? m.info.id : m.id;
+          if (!foundBaseline) {
+            if (id === baselineId) foundBaseline = true;
+            continue;
+          }
+          const role = m.info ? m.info.role : m.role;
+          const completed = m.info && m.info.time && m.info.time.completed;
+          if (role === 'assistant' && completed) {
+            newCompleted.push(m);
+          }
+        }
+        if (newCompleted.length > 0) {
+          const lastCompleted = newCompleted[newCompleted.length - 1];
+          for (const msg of newCompleted) {
+            const parts = msg.parts || [];
+            for (const part of parts) {
+              if (part.type === 'text' && part.text) {
+                events.push(new AgentEvent(AgentEvent.TYPE_TEXT, { text: part.text }));
+              }
+            }
+          }
+          events.push(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'recovered' }));
+          const lastId = lastCompleted.info ? lastCompleted.info.id : lastCompleted.id;
+          this._sessionWatcher.setLastPolledMessageId(sessionId, lastId);
+          return events;
+        }
+      } catch (e) {
+        logger.debug('recovery poll failed', { sessionId, error: e.message });
+      }
+      await this._sleep(pollIntervalMs);
+    }
+    logger.warn('recovery polling timed out', { sessionId });
+    return null;
   }
 
   watchSession(sessionRef, handlers) {

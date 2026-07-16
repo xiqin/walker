@@ -123,7 +123,7 @@ test('getPluginSource 返回 embedded TUI bridge plugin 内容', () => {
   assert.ok(source.includes('/opencode/tui-bridge/register'));
   assert.ok(source.includes('/opencode/tui-bridge/poll'));
   assert.ok(source.includes('/opencode/tui-bridge/events'));
-  assert.ok(source.includes('bridgeProtocolVersion: 2'));
+  assert.ok(source.includes('bridgeProtocolVersion: 3'));
   assert.ok(source.includes('api.route.current'));
   assert.ok(source.includes('api.client.session.promptAsync'));
 });
@@ -134,6 +134,20 @@ test('getPluginSource 不同 walkerPort 生成不同内容', () => {
   assert.ok(s1.includes('8787'));
   assert.ok(s2.includes('9999'));
   assert.notEqual(s1, s2);
+});
+
+test('getPluginSource 传入 heartbeatIntervalMs 时内嵌到生成源码', () => {
+  const source = getPluginSource(8787, '', 45000);
+  assert.ok(source.includes('45000'));
+});
+
+test('installHookPlugin 传入 heartbeatIntervalMs 透传到生成模板', () => {
+  const { tmpDir } = createTempConfigDir();
+  const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true, heartbeatIntervalMs: 45000 });
+  assert.equal(result.installed, true);
+  const content = fs.readFileSync(result.path, 'utf8');
+  assert.ok(content.includes('45000'));
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 test('getPluginSource 不再依赖 embedded TUI 的占位 serverUrl', () => {
@@ -238,10 +252,11 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
     assert.equal(requests[0].options.headers.Authorization, 'Bearer token-test');
 
     await handlers.get('session.idle')({ properties: { sessionID: 'ses_embedded' } });
-    const eventRequest = requests.find((request) => request.url.endsWith('/events'));
+    const eventRequest = requests.find((request) => request.url.endsWith('/events') && request.body.events && request.body.events.length > 0);
     assert.equal(eventRequest.body.deliveryId, 'del_test');
     assert.equal(eventRequest.body.events[0].data.text, '本地 TUI 回复');
     assert.equal(eventRequest.body.events.at(-1).type, 'done');
+    assert.equal(eventRequest.body.deliveryState, 'final');
 
     requests.length = 0;
     await handlers.get('session.error')({
@@ -253,8 +268,9 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
         },
       },
     });
-    const errorRequest = requests.find((request) => request.url.endsWith('/events'));
+    const errorRequest = requests.find((request) => request.url.endsWith('/events') && request.body.error);
     assert.equal(errorRequest.body.error.message, 'Model not found: cpa/gpt-5.6-sol');
+    assert.equal(errorRequest.body.deliveryState, 'final');
   } finally {
     if (dispose) await dispose();
     global.fetch = originalFetch;

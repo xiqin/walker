@@ -294,7 +294,7 @@ describe('OpencodeDriver prompt with SSE', () => {
     assert.equal(sse.calls.length, 1);
     assert.equal(sse.calls[0].url, 'http://localhost:4096/event?directory=%2Fhome%2Fuser%2Fproject');
     assert.equal(typeof sse.calls[0].options.shouldClose, 'function');
-    assert.equal(sse.calls[0].options.timeoutMs, 120000);
+    assert.equal(sse.calls[0].options.idleTimeoutMs, 300000);
     assert.equal(events.length, 3);
     assert.equal(events[0].type, 'text');
     assert.equal(events[0].data.text, 'Hello world');
@@ -320,7 +320,7 @@ describe('OpencodeDriver prompt with SSE', () => {
 
   it('先建立 SSE 订阅再提交 prompt，避免错过短生命周期事件', async () => {
     const order = [];
-    const http = new FakeHttpClient({}, () => order.push('post'));
+    const http = new FakeHttpClient({}, (method) => { if (method === 'POST') order.push('post'); });
     const sse = {
       calls: [],
       async connect(url, options) {
@@ -1112,5 +1112,198 @@ describe('OpencodeDriver clearSession', () => {
       /tuiBridge|tui-bridge|not configured|未配置/i,
     );
     assert.equal(http.calls.length, 0);
+  });
+});
+
+describe('OpencodeDriver prompt timeout and recovery', () => {
+  const sessionRef = { opencodeSessionId: 'ses_abc', serverUrl: 'http://localhost:4096', cwd: '/home/user/project' };
+
+  it('SSE open timeout 抛出 SSE_OPEN_TIMEOUT 错误码', async () => {
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        return new Promise(() => {});
+      },
+    };
+    const http = new FakeHttpClient({});
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096',
+      sseOpenTimeoutMs: 10,
+    });
+
+    await assert.rejects(
+      () => driver.prompt(sessionRef, 'hello'),
+      (err) => err.code === 'SSE_OPEN_TIMEOUT',
+    );
+  });
+
+  it('prompt HTTP 错误在提交前失败不进入恢复', async () => {
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        if (options.onOpen) options.onOpen({ statusCode: 200 });
+        return new Promise(() => {});
+      },
+    };
+    const http = {
+      calls: [],
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        throw new Error('HTTP request timed out');
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096',
+      sseOpenTimeoutMs: 0,
+    });
+
+    await assert.rejects(
+      () => driver.prompt(sessionRef, 'hello'),
+      /timed out|HTTP/i,
+    );
+    assert.equal(driver._sessionWatcher.getLastPolledMessageId('ses_abc'), undefined, '提交前失败不应推进游标');
+  });
+
+  it('SSE 断流后恢复从 messages 获取最终结果', async () => {
+    let pollCount = 0;
+    let messages = [
+      { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
+    ];
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        if (options.onOpen) options.onOpen({ statusCode: 200 });
+        throw new Error('SSE idle timeout');
+      },
+    };
+    const http = {
+      calls: [],
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        if (method === 'POST') return { status: 200, data: {} };
+        if (method === 'GET' && url.includes('/message')) {
+          pollCount++;
+          if (pollCount >= 2) {
+            messages = [
+              { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
+              { info: { id: 'msg1', role: 'assistant', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '恢复后的回复' }] },
+            ];
+          }
+          return { status: 200, data: messages };
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096',
+      sseOpenTimeoutMs: 0,
+      promptRequestTimeoutMs: 0,
+      messagePollIntervalMs: 10,
+    });
+
+    const events = await driver.prompt(sessionRef, 'hello');
+    const textEvents = events.filter((e) => e.type === 'text');
+    assert.equal(textEvents.length, 1);
+    assert.equal(textEvents[0].data.text, '恢复后的回复');
+    assert.ok(events.some((e) => e.type === 'done'));
+  });
+
+  it('prompt 失败不推进 watcher 游标到 pending message', async () => {
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        if (options.onOpen) options.onOpen({ statusCode: 200 });
+        throw new Error('SSE idle timeout');
+      },
+    };
+    const messages = [
+      { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [] },
+      { info: { id: 'msg1', role: 'assistant', time: {} }, parts: [{ type: 'text', text: '进行中' }] },
+    ];
+    const http = {
+      calls: [],
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        if (method === 'POST') {
+          throw new Error('prompt POST failed');
+        }
+        if (method === 'GET' && url.includes('/message')) {
+          return { status: 200, data: messages };
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096',
+      sseOpenTimeoutMs: 0,
+      promptRequestTimeoutMs: 0,
+      messagePollIntervalMs: 10,
+    });
+
+    await assert.rejects(
+      () => driver.prompt(sessionRef, 'hello'),
+      /prompt POST failed/i,
+    );
+
+    const cursor = driver._sessionWatcher.getLastPolledMessageId('ses_abc');
+    assert.notEqual(cursor, 'msg1', '失败后游标不应推进到 pending message');
+  });
+
+  it('abort signal 取消 prompt 抛出 ABORT_ERR', async () => {
+    const controller = new AbortController();
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        if (options.onOpen) options.onOpen({ statusCode: 200 });
+        setTimeout(() => controller.abort(), 10);
+        return new Promise((resolve, reject) => {
+          const onAbort = () => {
+            reject(new Error('The operation was aborted'));
+          };
+          if (options.signal) {
+            if (options.signal.aborted) { onAbort(); return; }
+            options.signal.addEventListener('abort', onAbort, { once: true });
+          }
+        });
+      },
+    };
+    const http = new FakeHttpClient({});
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096',
+      sseOpenTimeoutMs: 0,
+    });
+
+    await assert.rejects(
+      () => driver.prompt(sessionRef, 'hello', { signal: controller.signal }),
+      (err) => err.code === 'ABORT_ERR',
+    );
+  });
+
+  it('sseOpenTimeoutMs=0 不触发 open timeout 检查', async () => {
+    let sseResolved = false;
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        sseResolved = true;
+        if (options.onOpen) options.onOpen({ statusCode: 200 });
+        return [{ type: 'session.status', properties: { sessionID: 'ses_abc', status: { type: 'idle' } } }];
+      },
+    };
+    const http = new FakeHttpClient({});
+    const driver = new OpencodeDriver({
+      httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096',
+      sseOpenTimeoutMs: 0,
+    });
+
+    const events = await driver.prompt(sessionRef, 'hello');
+    assert.ok(sseResolved, 'SSE 应正常完成而不被 open timeout 中断');
+    assert.ok(events.some((e) => e.type === 'done'));
   });
 });

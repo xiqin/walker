@@ -15,11 +15,16 @@ class OpencodeTuiBridge {
   constructor(options) {
     const opts = options || {};
     this.sessionService = opts.sessionService;
-    this.promptTimeoutMs = opts.promptTimeoutMs || 120000;
+    this.leaseTimeoutMs = opts.leaseTimeoutMs ?? 90000;
+    this.heartbeatIntervalMs = opts.heartbeatIntervalMs ?? 30000;
     this.runtimeStaleMs = opts.runtimeStaleMs || 10000;
+    this.tombstoneCapacity = opts.tombstoneCapacity ?? 100;
+    this.tombstoneTtlMs = opts.tombstoneTtlMs ?? 300000;
+    this.promptTimeoutMs = opts.promptTimeoutMs || 120000;
     this.onSessionEnrolled = opts.onSessionEnrolled || null;
     this.runtimes = new Map();
     this.pending = new Map();
+    this._tombstones = new Map();
     this.watchers = new Map();
     this._clearPending = new Map();
     this._lastClearDeliveryId = null;
@@ -155,20 +160,43 @@ class OpencodeTuiBridge {
       text: String(text || ''),
       model: options && options.model,
     };
+    const signal = options && options.signal;
 
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(deliveryId);
-        reject(new Error('OpenCode TUI bridge prompt timed out after ' + this.promptTimeoutMs + 'ms'));
-      }, this.promptTimeoutMs);
-      if (timer.unref) timer.unref();
-      this.pending.set(deliveryId, {
+      const pendingEntry = {
         runtimeId: ref.runtimeId,
         sessionId: ref.opencodeSessionId,
+        state: 'queued',
         resolve,
         reject,
-        timer,
-      });
+        timer: null,
+        leaseStartedAt: null,
+        cancelReason: null,
+      };
+
+      const onAbort = () => {
+        const existing = this.pending.get(deliveryId);
+        if (!existing || existing.state === 'completed') return;
+        existing.cancelReason = 'user_cancelled';
+        clearTimeout(existing.timer);
+        existing.timer = null;
+        this.pending.delete(deliveryId);
+        this._addTombstone(deliveryId, ref.runtimeId, ref.opencodeSessionId, 'cancelled');
+        reject(new Error('OpenCode TUI bridge prompt cancelled'));
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          this._addTombstone(deliveryId, ref.runtimeId, ref.opencodeSessionId, 'cancelled');
+          reject(new Error('OpenCode TUI bridge prompt cancelled'));
+          return;
+        }
+        pendingEntry._onAbort = onAbort;
+        pendingEntry._signal = signal;
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      this.pending.set(deliveryId, pendingEntry);
       runtime.queue.push(delivery);
     });
   }
@@ -256,15 +284,14 @@ class OpencodeTuiBridge {
           clearPending, runtimeId, sessionId, data,
         });
       }
-      const pending = this.pending.get(data.deliveryId);
-      if (!pending || pending.runtimeId !== runtimeId || pending.sessionId !== sessionId) {
-        throw new Error('unknown TUI delivery: ' + data.deliveryId);
+      const deliveryState = data.deliveryState;
+      if (deliveryState === 'accepted') {
+        return this._handleAccepted(data.deliveryId, runtimeId, sessionId);
       }
-      clearTimeout(pending.timer);
-      this.pending.delete(data.deliveryId);
-      if (data.error) pending.reject(new Error(errorMessage(data.error)));
-      else pending.resolve(events);
-      return { delivered: true };
+      if (deliveryState === 'heartbeat') {
+        return this._handleHeartbeat(data.deliveryId, runtimeId, sessionId);
+      }
+      return this._handleFinal(data.deliveryId, runtimeId, sessionId, data, events);
     }
 
     const handlers = this.watchers.get(watchKey(runtimeId, sessionId));
@@ -281,6 +308,136 @@ class OpencodeTuiBridge {
       }
     }
     return { delivered: true };
+  }
+
+  _handleAccepted(deliveryId, runtimeId, sessionId) {
+    const pending = this.pending.get(deliveryId);
+    if (!pending || pending.runtimeId !== runtimeId || pending.sessionId !== sessionId) {
+      throw new Error('unknown TUI delivery: ' + deliveryId);
+    }
+    if (pending.state !== 'queued') {
+      throw new Error('delivery ' + deliveryId + ' cannot accept from state ' + pending.state);
+    }
+    pending.state = 'leased';
+    pending.leaseStartedAt = Date.now();
+    const timer = setTimeout(() => {
+      this._loseLease(deliveryId, 'TUI_RUNTIME_DISCONNECTED');
+    }, this.leaseTimeoutMs);
+    if (timer.unref) timer.unref();
+    pending.timer = timer;
+    return { delivered: true };
+  }
+
+  _handleHeartbeat(deliveryId, runtimeId, sessionId) {
+    const pending = this.pending.get(deliveryId);
+    if (!pending || pending.runtimeId !== runtimeId || pending.sessionId !== sessionId) {
+      throw new Error('unknown TUI delivery: ' + deliveryId);
+    }
+    if (pending.state !== 'leased') {
+      throw new Error('delivery ' + deliveryId + ' cannot heartbeat from state ' + pending.state);
+    }
+    clearTimeout(pending.timer);
+    const timer = setTimeout(() => {
+      this._loseLease(deliveryId, 'TUI_RUNTIME_DISCONNECTED');
+    }, this.leaseTimeoutMs);
+    if (timer.unref) timer.unref();
+    pending.timer = timer;
+    return { delivered: true };
+  }
+
+  _handleFinal(deliveryId, runtimeId, sessionId, data, events) {
+    const pending = this.pending.get(deliveryId);
+    if (pending && pending.runtimeId === runtimeId && pending.sessionId === sessionId) {
+      if (pending.state === 'queued' || pending.state === 'leased') {
+        clearTimeout(pending.timer);
+        pending.timer = null;
+        this._removeAbortListener(pending);
+        pending.state = 'completed';
+        this.pending.delete(deliveryId);
+        this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'completed');
+        if (data.error) pending.reject(new Error(errorMessage(data.error)));
+        else pending.resolve(events);
+        return { delivered: true };
+      }
+    }
+
+    const tombstone = this._tombstones.get(deliveryId);
+    if (tombstone) {
+      if (tombstone.reason === 'completed') {
+        return { delivered: true, duplicate: true };
+      }
+      if (tombstone.reason === 'transport_lost') {
+        if (tombstone.resolvedAt) {
+          return { delivered: true, duplicate: true };
+        }
+        const handlers = this.watchers.get(watchKey(runtimeId, sessionId));
+        if (handlers && !data.error) {
+          for (const event of events) {
+            for (const handler of handlers) {
+              if (handler && handler.onEvent) handler.onEvent(event);
+            }
+          }
+        }
+        tombstone.resolvedAt = Date.now();
+        return { delivered: true, recovered: true };
+      }
+      if (tombstone.reason === 'cancelled' || tombstone.reason === 'deadline') {
+        return { delivered: true, suppressed: true };
+      }
+    }
+
+    throw new Error('unknown TUI delivery: ' + deliveryId);
+  }
+
+  _loseLease(deliveryId, errorCode) {
+    const pending = this.pending.get(deliveryId);
+    if (!pending) return;
+    if (pending.state !== 'leased') return;
+    clearTimeout(pending.timer);
+    pending.timer = null;
+    this._removeAbortListener(pending);
+    this.pending.delete(deliveryId);
+    this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'transport_lost');
+    pending.reject(new Error(errorCode || 'TUI_LEASE_LOST'));
+  }
+
+  _addTombstone(deliveryId, runtimeId, sessionId, reason) {
+    this._tombstones.set(deliveryId, {
+      deliveryId,
+      runtimeId,
+      sessionId,
+      reason,
+      createdAt: Date.now(),
+      resolvedAt: null,
+    });
+    this._evictTombstones();
+  }
+
+  _evictTombstones() {
+    const now = Date.now();
+    for (const [id, ts] of this._tombstones) {
+      if (now - ts.createdAt > this.tombstoneTtlMs) {
+        this._tombstones.delete(id);
+      }
+    }
+    while (this._tombstones.size > this.tombstoneCapacity) {
+      let oldest = null;
+      for (const [id, ts] of this._tombstones) {
+        if (!oldest || ts.createdAt < this._tombstones.get(oldest).createdAt) {
+          oldest = id;
+        }
+      }
+      if (oldest) this._tombstones.delete(oldest);
+      else break;
+    }
+  }
+
+  _removeAbortListener(pending) {
+    if (pending._onAbort && pending._signal) {
+      pending._signal.removeEventListener('abort', pending._onAbort);
+      pending._onAbort = null;
+      pending._signal = null;
+    }
   }
 
   _handleClearControlResult(input) {
@@ -444,8 +601,12 @@ class OpencodeTuiBridge {
     for (const [deliveryId, pending] of this.pending) {
       if (pending.runtimeId !== ref.runtimeId || pending.sessionId !== ref.opencodeSessionId) continue;
       clearTimeout(pending.timer);
-      pending.reject(new Error('OpenCode TUI bridge prompt cancelled'));
+      pending.timer = null;
+      this._removeAbortListener(pending);
+      pending.cancelReason = 'user_cancelled';
       this.pending.delete(deliveryId);
+      this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'cancelled');
+      pending.reject(new Error('OpenCode TUI bridge prompt cancelled'));
     }
     const runtime = this.runtimes.get(ref.runtimeId);
     if (runtime) runtime.queue = runtime.queue.filter((item) => item.sessionId !== ref.opencodeSessionId);
@@ -460,9 +621,15 @@ class OpencodeTuiBridge {
   dispose(input) {
     const runtimeId = input && input.runtimeId;
     if (!runtimeId) return;
-    const runtime = this.runtimes.get(runtimeId);
-    if (runtime && runtime.currentSessionId) {
-      this.cancel({ runtimeId, opencodeSessionId: runtime.currentSessionId, transport: 'tui-bridge' });
+    for (const [deliveryId, pending] of this.pending) {
+      if (pending.runtimeId !== runtimeId) continue;
+      clearTimeout(pending.timer);
+      pending.timer = null;
+      this._removeAbortListener(pending);
+      pending.cancelReason = 'runtime_disposed';
+      this.pending.delete(deliveryId);
+      this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'transport_lost');
+      pending.reject(new Error('OpenCode TUI bridge runtime disposed'));
     }
     this._failClearsForRuntime(runtimeId, null, new Error('OpenCode TUI bridge runtime disposed'));
     this.runtimes.delete(runtimeId);
@@ -471,12 +638,15 @@ class OpencodeTuiBridge {
   close() {
     for (const [deliveryId, pending] of this.pending) {
       clearTimeout(pending.timer);
+      pending.timer = null;
+      this._removeAbortListener(pending);
       pending.reject(new Error('OpenCode TUI bridge closed'));
       this.pending.delete(deliveryId);
     }
     for (const deliveryId of this._clearPending.keys()) {
       this._failClear(deliveryId, new Error('OpenCode TUI bridge closed'));
     }
+    this._tombstones.clear();
     this.watchers.clear();
     this.runtimes.clear();
   }

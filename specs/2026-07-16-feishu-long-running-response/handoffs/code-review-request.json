@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "已生成 review-request.md，含变更统计、主要变更、重点关注、自测情况、变更详情、审查重点、Standards+Spec 双轴预审查 findings。Standards 3 个非 blocker finding（恢复窗口硬编码、错误码正则脆弱、初始投递 suspended 检查）。Spec 0 finding。预审查通过。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "9db675c5ebb1d1e7e5618fbc3b5c6f99718efe9d1ece556fd64c296e48828af9",
+    "spec.md": "282d2761891d54efb5aa16e3c7b74ae294642fac34961b6b8638ac138c40f925"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-16T09:45:44.137Z"
+}

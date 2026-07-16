@@ -174,3 +174,78 @@ test('hook 配置项在可编辑白名单中', () => {
   assert.ok(EDITABLE_ENV_KEYS.includes('WALKER_OPENCODE_EXIT_ACTION'), 'WALKER_OPENCODE_EXIT_ACTION 应在白名单中');
   assert.ok(EDITABLE_ENV_KEYS.includes('WALKER_OPENCODE_NON_FOCUS_OUTPUT'), 'WALKER_OPENCODE_NON_FOCUS_OUTPUT 应在白名单中');
 });
+
+test('loadEnvConfig 分层 transport timeout 默认值', () => {
+  const config = loadEnvConfig({ env: {} });
+  assert.equal(config.opencodePromptRequestTimeoutMs, 30000);
+  assert.equal(config.opencodeSseIdleTimeoutMs, 300000);
+  assert.equal(config.opencodeRecoveryWindowMs, 300000);
+  assert.equal(config.opencodeTuiLeaseTimeoutMs, 90000);
+  assert.equal(config.opencodeTuiHeartbeatIntervalMs, 30000);
+});
+
+test('loadEnvConfig 分层 transport timeout 显式零值保留', () => {
+  const config = loadEnvConfig({
+    env: {
+      OPENCODE_SSE_OPEN_TIMEOUT_MS: '0',
+      OPENCODE_PROMPT_REQUEST_TIMEOUT_MS: '0',
+      OPENCODE_SSE_IDLE_TIMEOUT_MS: '0',
+      OPENCODE_RECOVERY_WINDOW_MS: '0',
+      OPENCODE_TUI_LEASE_TIMEOUT_MS: '0',
+    },
+  });
+  assert.equal(config.opencodeSseOpenTimeoutMs, 0);
+  assert.equal(config.opencodePromptRequestTimeoutMs, 0);
+  assert.equal(config.opencodeSseIdleTimeoutMs, 0);
+  assert.equal(config.opencodeRecoveryWindowMs, 0);
+  assert.equal(config.opencodeTuiLeaseTimeoutMs, 0);
+});
+
+test('loadEnvConfig 旧 OPENCODE_PROMPT_TIMEOUT_MS 作为 idle fallback', () => {
+  const config = loadEnvConfig({
+    env: { OPENCODE_PROMPT_TIMEOUT_MS: '180000' },
+  });
+  assert.equal(config.opencodeSseIdleTimeoutMs, 180000);
+  assert.equal(config.opencodePromptTimeoutMs, 180000);
+});
+
+test('loadEnvConfig 新 OPENCODE_SSE_IDLE_TIMEOUT_MS 优先于旧配置', () => {
+  const config = loadEnvConfig({
+    env: {
+      OPENCODE_PROMPT_TIMEOUT_MS: '180000',
+      OPENCODE_SSE_IDLE_TIMEOUT_MS: '600000',
+    },
+  });
+  assert.equal(config.opencodeSseIdleTimeoutMs, 600000);
+  assert.equal(config.opencodePromptTimeoutMs, 180000);
+});
+
+test('loadEnvConfig 无效分层 timeout 回落默认值', () => {
+  const config = loadEnvConfig({
+    env: {
+      OPENCODE_PROMPT_REQUEST_TIMEOUT_MS: '-1',
+      OPENCODE_SSE_IDLE_TIMEOUT_MS: 'abc',
+      OPENCODE_TUI_LEASE_TIMEOUT_MS: '-5',
+      OPENCODE_TUI_HEARTBEAT_INTERVAL_MS: '0',
+    },
+  });
+  assert.equal(config.opencodePromptRequestTimeoutMs, 30000);
+  assert.equal(config.opencodeSseIdleTimeoutMs, 300000);
+  assert.equal(config.opencodeTuiLeaseTimeoutMs, 90000);
+  assert.equal(config.opencodeTuiHeartbeatIntervalMs, 30000);
+});
+
+test('loadEnvConfig 拒绝 heartbeat 不小于 lease', () => {
+  assert.throws(
+    () => loadEnvConfig({ env: { OPENCODE_TUI_HEARTBEAT_INTERVAL_MS: '120000', OPENCODE_TUI_LEASE_TIMEOUT_MS: '90000' } }),
+    (err) => err.message.includes('OPENCODE_TUI_HEARTBEAT_INTERVAL_MS') && err.message.includes('OPENCODE_TUI_LEASE_TIMEOUT_MS')
+  );
+});
+
+test('loadEnvConfig lease 为 0 时不校验 heartbeat 与 lease 关系', () => {
+  const config = loadEnvConfig({
+    env: { OPENCODE_TUI_LEASE_TIMEOUT_MS: '0', OPENCODE_TUI_HEARTBEAT_INTERVAL_MS: '30000' },
+  });
+  assert.equal(config.opencodeTuiLeaseTimeoutMs, 0);
+  assert.equal(config.opencodeTuiHeartbeatIntervalMs, 30000);
+});

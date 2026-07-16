@@ -23,7 +23,7 @@ function installHookPlugin(options) {
   const targetPath = path.join(configDir, PLUGIN_FILENAME);
   const configPath = path.join(configDir, 'tui.json');
   const legacyPath = path.join(configDir, 'plugins', LEGACY_PLUGIN_FILENAME);
-  const source = getPluginSource(opts.walkerPort || 8787, opts.walkerToken || '');
+  const source = getPluginSource(opts.walkerPort || 8787, opts.walkerToken || '', opts.heartbeatIntervalMs);
   const pluginUrl = pathToFileURL(targetPath).href;
 
   let tuiConfig = {};

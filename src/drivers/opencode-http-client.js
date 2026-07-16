@@ -16,7 +16,12 @@ class DefaultHttpClient {
 
 class DefaultSSEClient {
   async connect(url, options) {
-    return sseConnect(url, null, options);
+    const sseOptions = Object.assign({}, options || {});
+    if (sseOptions.idleTimeoutMs === undefined && sseOptions.timeoutMs !== undefined) {
+      sseOptions.idleTimeoutMs = sseOptions.timeoutMs;
+      delete sseOptions.timeoutMs;
+    }
+    return sseConnect(url, null, sseOptions);
   }
 }
 

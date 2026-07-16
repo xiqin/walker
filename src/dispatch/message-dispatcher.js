@@ -158,7 +158,7 @@ class MessageDispatcher {
         const stopHeartbeat = this._startPromptHeartbeat(session, progressCardId);
         const turnState = this._startTurnState(session, event, driver, agentRef, token, progressCardId, stopHeartbeat);
         const model = this._resolveSessionModel(session);
-        const events = await driver.prompt(agentRef, event.text, { model });
+        const events = await driver.prompt(agentRef, event.text, { model, signal: turnState.abortController.signal });
         if (this._isTurnCancelled(sessionId, token)) {
           this._clearTurnState(sessionId, token);
           return 'cancelled';
@@ -189,11 +189,24 @@ class MessageDispatcher {
           this._clearTurnState(sessionId, token);
           return 'cancelled';
         }
+        const isTransportRecovering = this._isTransportRecoverableError(err);
+        if (isTransportRecovering) {
+          logger.warn('driver prompt transport interrupted, recovering', {
+            messageId: event.messageId,
+            sessionId,
+            error: err.message,
+            code: err.code || 'unknown',
+          });
+          this._clearTurnState(sessionId, token);
+          this._markIdleIfActive(sessionId);
+          return 'recovering';
+        }
         this._clearTurnState(sessionId, token);
         logger.error('driver prompt failed', {
           messageId: event.messageId,
           sessionId,
           error: err.message,
+          code: err.code || 'unknown',
         });
         this._markErrorIfActive(sessionId, err.message);
         await this._callFeishu('sendErrorCard', [this._replyCtx(event), err.message]);
@@ -1100,6 +1113,8 @@ class MessageDispatcher {
       lastEventAt: Date.now(),
       progressCardId,
       cancelled: false,
+      abortController: new AbortController(),
+      cancelReason: null,
       timeoutTimer: null,
       stopHeartbeat,
       event,
@@ -1115,7 +1130,9 @@ class MessageDispatcher {
     if (!this.maxTurnTimeMins || this.maxTurnTimeMins <= 0) return;
     const timeoutMs = Math.max(1, this.maxTurnTimeMins * 60 * 1000);
     turnState.timeoutTimer = setTimeout(() => {
-      this._cancelTurn(session, turnState.driver, turnState, { reason: 'timeout' })
+      turnState.cancelReason = 'deadline';
+      if (turnState.abortController) turnState.abortController.abort();
+      this._cancelTurn(session, turnState.driver, turnState, { reason: 'deadline' })
         .then(() => this._callFeishu('replyText', [this._replyCtx(turnState.event), 'Current turn timed out after ' + this.maxTurnTimeMins + ' minutes and was cancelled.']))
         .catch((err) => logger.warn('turn timeout cancel failed', { sessionId: session.id, error: err && err.message ? err.message : String(err) }));
     }, timeoutMs);
@@ -1125,7 +1142,11 @@ class MessageDispatcher {
   async _cancelTurn(session, driver, turnState, options) {
     if (!session || !turnState || turnState.cancelled) return;
     turnState.cancelled = true;
+    if (options && options.reason) turnState.cancelReason = options.reason;
     this.cancelledTurnSessions.add(session.id);
+    if (turnState.abortController && !turnState.abortController.signal.aborted) {
+      turnState.abortController.abort();
+    }
     this._clearTurnState(session.id, turnState.token);
     this.sessionWatchBuffers.set(session.id, []);
     const activeDriver = driver || this.driverRegistry.get(session.agent);
@@ -1148,6 +1169,15 @@ class MessageDispatcher {
       try { turnState.stopHeartbeat(); } catch (_) {}
     }
     this.turnStates.delete(sessionId);
+  }
+
+  _isTransportRecoverableError(err) {
+    if (!err) return false;
+    const code = err.code;
+    if (code === 'SSE_IDLE_TIMEOUT' || code === 'SSE_OPEN_TIMEOUT') return true;
+    if (code === 'TUI_RUNTIME_DISCONNECTED') return true;
+    if (!code && err.message && /idle|timed out|SSE connection/i.test(err.message)) return true;
+    return false;
   }
 
   _isTurnCancelled(sessionId, token) {

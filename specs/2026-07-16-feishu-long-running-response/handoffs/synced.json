@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "图后端 codegraph 索引已自动同步（fresh），codegraph_explore 确认新增符号均已索引。结构化 memory 新增 3 条记录（2 条决策 + 1 条踩坑）：超时架构拆分、TUI Bridge v3 租约协议、watcher 游标语义 bug。AGENTS.md 无需更新。",
+  "artifacts": [
+    "sync-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "9db675c5ebb1d1e7e5618fbc3b5c6f99718efe9d1ece556fd64c296e48828af9",
+    "spec.md": "282d2761891d54efb5aa16e3c7b74ae294642fac34961b6b8638ac138c40f925"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-16T09:53:27.282Z"
+}

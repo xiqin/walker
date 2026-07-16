@@ -176,8 +176,32 @@ class OpencodeSessionWatcher {
           else newMessages = messages;
         } else {
           if (messages.length > 0) {
-            const last = messages[messages.length - 1];
-            self._lastPolledMessageId.set(sessionId, last.info ? last.info.id : last.id);
+            const completed = messages.filter((m) => {
+              const role = m.info ? m.info.role : m.role;
+              const comp = m.info && m.info.time && m.info.time.completed;
+              return role === 'assistant' && comp;
+            });
+            if (completed.length > 0) {
+              for (const msg of completed) {
+                if (self.suspendedWatches.has(sessionId)) return;
+                const parts = msg.parts || [];
+                for (const part of parts) {
+                  if (part.type === 'text' && part.text) {
+                    if (handlers && handlers.onEvent) {
+                      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: part.text }));
+                    }
+                  }
+                }
+              }
+              if (handlers && handlers.onEvent) {
+                handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+              }
+              const lastComp = completed[completed.length - 1];
+              self._lastPolledMessageId.set(sessionId, lastComp.info ? lastComp.info.id : lastComp.id);
+            } else {
+              const last = messages[messages.length - 1];
+              self._lastPolledMessageId.set(sessionId, last.info ? last.info.id : last.id);
+            }
           }
           return;
         }
@@ -211,15 +235,10 @@ class OpencodeSessionWatcher {
           }
         }
         if (pendingMessages.length > 0) {
-          const lastPending = pendingMessages[pendingMessages.length - 1];
-          const pendingId = lastPending.info ? lastPending.info.id : lastPending.id;
-          const knownIdx = messages.findIndex((m) => (m.info && m.info.id) === pendingId || m.id === pendingId);
-          if (knownIdx > 0) {
-            self._lastPolledMessageId.set(sessionId, messages[knownIdx - 1].info ? messages[knownIdx - 1].info.id : messages[knownIdx - 1].id);
-          }
-        } else if (newMessages.length > 0) {
-          const last = newMessages[newMessages.length - 1];
-          self._lastPolledMessageId.set(sessionId, last.info ? last.info.id : last.id);
+          // 不推进游标到 pending 消息，保留在 baseline 处
+          // pending 同 ID 原地 completed 时会在后续 poll 中被 foundBaseline 逻辑找到
+        } else if (completedMessages.length === 0 && newMessages.length > 0) {
+          // 所有 newMessages 都不是 completed assistant，不推进游标
         }
       } catch (err) {
         if (!signal.aborted) {

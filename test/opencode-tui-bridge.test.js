@@ -630,6 +630,588 @@ describe('OpencodeTuiBridge clearSession', () => {
   });
 });
 
+describe('OpencodeTuiBridge v3 lease and tombstone', () => {
+  function setupV3Harness(opts) {
+    opts = opts || {};
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-tui-v3-'));
+    const sessionService = new SessionService({
+      stateStore: new JsonStore(path.join(tmpDir, 'state.json'), {}),
+    });
+    const bridge = new OpencodeTuiBridge({
+      sessionService,
+      leaseTimeoutMs: opts.leaseTimeoutMs || 90,
+      heartbeatIntervalMs: opts.heartbeatIntervalMs || 30,
+      tombstoneCapacity: opts.tombstoneCapacity || 100,
+      tombstoneTtlMs: opts.tombstoneTtlMs || 300000,
+      promptTimeoutMs: opts.promptTimeoutMs || 1000,
+      runtimeStaleMs: opts.runtimeStaleMs || 10000,
+    });
+    const routeKey = opts.routeKey || 'feishu:oc_v3:om_root';
+    const cwd = opts.cwd || 'H:\\walker';
+    sessionService.setRouteCwd(routeKey, cwd);
+    const reg = bridge.register({
+      runtimeId: 'runtime-v3',
+      sessionId: 'ses_v3',
+      cwd,
+      opencodeVersion: '1.17.20',
+      bridgeProtocolVersion: 3,
+    });
+    const tuiSession = sessionService.getSession(reg.sessionId);
+    return {
+      tmpDir, sessionService, bridge, routeKey, cwd, tuiSession,
+      cleanup() {
+        bridge.close();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      },
+    };
+  }
+
+  it('prompt 创建 queued 状态的 pending，无固定总超时 timer', () => {
+    const h = setupV3Harness();
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'hello v3');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      assert.ok(delivery, '应投递 delivery');
+      const pending = h.bridge.pending.get(delivery.deliveryId);
+      assert.equal(pending.state, 'queued');
+      assert.equal(pending.timer, null);
+      assert.equal(pending.leaseStartedAt, null);
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3',
+        sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      return promptPromise;
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('accepted 将 queued 转为 leased 并启动租约 timer', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 200 });
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'lease test');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      const pendingBefore = h.bridge.pending.get(delivery.deliveryId);
+      assert.equal(pendingBefore.state, 'queued');
+      assert.equal(pendingBefore.timer, null);
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3',
+        sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        deliveryState: 'accepted',
+      });
+      assert.deepEqual(result, { delivered: true });
+
+      const pendingAfter = h.bridge.pending.get(delivery.deliveryId);
+      assert.equal(pendingAfter.state, 'leased');
+      assert.ok(pendingAfter.leaseStartedAt, '应设置 leaseStartedAt');
+      assert.ok(pendingAfter.timer, '应启动租约 timer');
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3',
+        sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      await promptPromise;
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('heartbeat 续租：清除旧 timer 并重启新 lease timer', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 500 });
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'heartbeat test');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      });
+
+      const pendingAfterAccept = h.bridge.pending.get(delivery.deliveryId);
+      const timerAfterAccept = pendingAfterAccept.timer;
+      assert.ok(timerAfterAccept);
+
+      const hbResult = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId, deliveryState: 'heartbeat',
+      });
+      assert.deepEqual(hbResult, { delivered: true });
+
+      const pendingAfterHb = h.bridge.pending.get(delivery.deliveryId);
+      assert.equal(pendingAfterHb.state, 'leased');
+      assert.notEqual(pendingAfterHb.timer, timerAfterAccept, 'timer 应被替换');
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      await promptPromise;
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('租约超时触发 _loseLease，reject prompt 并创建 transport_lost tombstone', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'lease expire');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      });
+
+      await assert.rejects(promptPromise, /TUI_RUNTIME_DISCONNECTED/);
+
+      assert.equal(h.bridge.pending.size, 0, 'pending 应已清理');
+      const tombstone = h.bridge._tombstones.get(delivery.deliveryId);
+      assert.ok(tombstone, '应有 tombstone');
+      assert.equal(tombstone.reason, 'transport_lost');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('迟到 final 在 transport_lost tombstone 上转交事件到 watchers（至多一次）', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'late final');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      });
+
+      await assert.rejects(promptPromise, /TUI_RUNTIME_DISCONNECTED/);
+
+      const received = [];
+      const stop = h.bridge.watchSession(h.tuiSession.agentRef, {
+        onEvent: (event) => received.push(event),
+      });
+
+      const result1 = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'text', data: { text: '迟到的回复' } }],
+      });
+      assert.deepEqual(result1, { delivered: true, recovered: true });
+      assert.equal(received.length, 1);
+      assert.equal(received[0].data.text, '迟到的回复');
+
+      const result2 = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'text', data: { text: '再次迟到' } }],
+      });
+      assert.deepEqual(result2, { delivered: true, duplicate: true });
+      assert.equal(received.length, 1, '至多恢复一次');
+
+      stop();
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('completed tombstone 对迟到 final 幂等返回 duplicate', async () => {
+    const h = setupV3Harness();
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'dup test');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      await promptPromise;
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      assert.deepEqual(result, { delivered: true, duplicate: true });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('cancelled tombstone 对迟到 final 返回 suppressed', async () => {
+    const h = setupV3Harness();
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'cancel test');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      h.bridge.cancel(h.tuiSession.agentRef);
+      await assert.rejects(promptPromise, /cancel/);
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      assert.deepEqual(result, { delivered: true, suppressed: true });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('AbortSignal 取消 prompt 进入 cancelled tombstone', async () => {
+    const h = setupV3Harness();
+    try {
+      const ac = new AbortController();
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'abort test', { signal: ac.signal });
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      assert.ok(delivery);
+
+      ac.abort();
+
+      await assert.rejects(promptPromise, /cancel/);
+      assert.equal(h.bridge.pending.size, 0);
+      const tombstone = h.bridge._tombstones.get(delivery.deliveryId);
+      assert.ok(tombstone);
+      assert.equal(tombstone.reason, 'cancelled');
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      assert.deepEqual(result, { delivered: true, suppressed: true });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('已 abort 的 signal 传入 prompt 立即拒绝并创建 cancelled tombstone', async () => {
+    const h = setupV3Harness();
+    try {
+      const ac = new AbortController();
+      ac.abort();
+
+      await assert.rejects(
+        () => h.bridge.prompt(h.tuiSession.agentRef, 'pre-abort', { signal: ac.signal }),
+        /cancel/,
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('cancel 将 pending 移到 cancelled tombstone 并清理 timer', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 500 });
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'cancel pending');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      });
+      const pending = h.bridge.pending.get(delivery.deliveryId);
+      assert.equal(pending.state, 'leased');
+      assert.ok(pending.timer);
+
+      h.bridge.cancel(h.tuiSession.agentRef);
+      await assert.rejects(promptPromise, /cancel/);
+      assert.equal(h.bridge.pending.size, 0);
+      const tombstone = h.bridge._tombstones.get(delivery.deliveryId);
+      assert.ok(tombstone);
+      assert.equal(tombstone.reason, 'cancelled');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('dispose 将所有 pending 移到 transport_lost tombstone', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 500 });
+    try {
+      const p1 = h.bridge.prompt(h.tuiSession.agentRef, 'dispose test 1');
+      const d1 = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d1.deliveryId, deliveryState: 'accepted',
+      });
+
+      const p2 = h.bridge.prompt(h.tuiSession.agentRef, 'dispose test 2');
+      const d2 = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      h.bridge.dispose({ runtimeId: 'runtime-v3' });
+
+      await assert.rejects(p1, /dispose/);
+      await assert.rejects(p2, /dispose/);
+
+      const ts1 = h.bridge._tombstones.get(d1.deliveryId);
+      assert.ok(ts1);
+      assert.equal(ts1.reason, 'transport_lost');
+      assert.equal(ts1.deliveryId, d1.deliveryId);
+
+      const ts2 = h.bridge._tombstones.get(d2.deliveryId);
+      assert.ok(ts2);
+      assert.equal(ts2.reason, 'transport_lost');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('tombstone 容量超限时淘汰最老的', () => {
+    const h = setupV3Harness({ tombstoneCapacity: 3 });
+    try {
+      const deliveryIds = [];
+      for (let i = 0; i < 5; i++) {
+        const p = h.bridge.prompt(h.tuiSession.agentRef, 'cap ' + i);
+        const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+        deliveryIds.push(d.deliveryId);
+        h.bridge.reportEvents({
+          runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+          deliveryId: d.deliveryId,
+          events: [{ type: 'done', data: { reason: 'idle' } }],
+        });
+      }
+
+      assert.ok(!h.bridge._tombstones.has(deliveryIds[0]), '最老 tombstone 应被淘汰');
+      assert.ok(!h.bridge._tombstones.has(deliveryIds[1]), '第二老 tombstone 应被淘汰');
+      assert.ok(h.bridge._tombstones.has(deliveryIds[2]));
+      assert.ok(h.bridge._tombstones.has(deliveryIds[3]));
+      assert.ok(h.bridge._tombstones.has(deliveryIds[4]));
+      assert.equal(h.bridge._tombstones.size, 3);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('tombstone 过期后自动清理', async () => {
+    const h = setupV3Harness({ tombstoneTtlMs: 30 });
+    try {
+      const p = h.bridge.prompt(h.tuiSession.agentRef, 'ttl test');
+      const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      await p;
+
+      assert.ok(h.bridge._tombstones.has(d.deliveryId), '应存在 tombstone');
+      await new Promise((r) => setTimeout(r, 50));
+      h.bridge._evictTombstones();
+      assert.ok(!h.bridge._tombstones.has(d.deliveryId), '过期 tombstone 应被清理');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('accepted 拒绝非 queued 状态的 delivery', async () => {
+    const h = setupV3Harness();
+    try {
+      const p = h.bridge.prompt(h.tuiSession.agentRef, 'double accept');
+      const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId, deliveryState: 'accepted',
+      });
+
+      assert.throws(
+        () => h.bridge.reportEvents({
+          runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+          deliveryId: d.deliveryId, deliveryState: 'accepted',
+        }),
+        /cannot accept from state leased/,
+      );
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      await p;
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('heartbeat 拒绝非 leased 状态的 delivery', () => {
+    const h = setupV3Harness();
+    try {
+      const p = h.bridge.prompt(h.tuiSession.agentRef, 'hb queued');
+      const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      assert.throws(
+        () => h.bridge.reportEvents({
+          runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+          deliveryId: d.deliveryId, deliveryState: 'heartbeat',
+        }),
+        /cannot heartbeat from state queued/,
+      );
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      return p;
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('v2 兼容：无 deliveryState 时按 final 处理', async () => {
+    const h = setupV3Harness();
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'v2 compat');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3',
+        sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        events: [{ type: 'text', data: { text: 'v2 回复' } }, { type: 'done', data: { reason: 'idle' } }],
+      });
+      assert.deepEqual(result, { delivered: true });
+
+      const events = await promptPromise;
+      assert.equal(events.length, 2);
+      assert.equal(events[0].data.text, 'v2 回复');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('deliveryState=final 显式传值与省略等价', async () => {
+    const h = setupV3Harness();
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'explicit final');
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3',
+        sessionId: 'ses_v3',
+        deliveryId: delivery.deliveryId,
+        deliveryState: 'final',
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      assert.deepEqual(result, { delivered: true });
+      await promptPromise;
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('close 清理 tombstones 和所有 pending 的 timer/abort listener', async () => {
+    const h = setupV3Harness();
+    let promptPromise;
+    try {
+      const ac = new AbortController();
+      promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'close test', { signal: ac.signal });
+      const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId, deliveryState: 'accepted',
+      });
+
+      assert.equal(h.bridge.pending.size, 1);
+    } finally {
+      h.bridge.close();
+      await assert.rejects(promptPromise, /closed/);
+      assert.equal(h.bridge._tombstones.size, 0, 'close 应清理 tombstones');
+      fs.rmSync(h.tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('迟到 final 在无 watcher 时 transport_lost tombstone 仍标记 resolved', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    try {
+      const p = h.bridge.prompt(h.tuiSession.agentRef, 'no watcher');
+      const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId, deliveryState: 'accepted',
+      });
+      await assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/);
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      assert.deepEqual(result, { delivered: true, recovered: true });
+
+      const ts = h.bridge._tombstones.get(d.deliveryId);
+      assert.ok(ts.resolvedAt, 'tombstone 应被标记为已 resolve');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('transport_lost tombstone 恢复后再次 report 返回 duplicate', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    try {
+      const p = h.bridge.prompt(h.tuiSession.agentRef, 'recovery once');
+      const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId, deliveryState: 'accepted',
+      });
+      await assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/);
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId,
+        events: [{ type: 'done', data: { reason: 'idle' } }],
+      });
+      assert.deepEqual(result, { delivered: true, duplicate: true });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('error final 在 transport_lost tombstone 上不投递到 watcher', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    try {
+      const p = h.bridge.prompt(h.tuiSession.agentRef, 'error recovery');
+      const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId, deliveryState: 'accepted',
+      });
+      await assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/);
+
+      const received = [];
+      const stop = h.bridge.watchSession(h.tuiSession.agentRef, {
+        onEvent: (event) => received.push(event),
+        onError: (err) => received.push(err),
+      });
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId,
+        error: 'something failed',
+      });
+      assert.deepEqual(result, { delivered: true, recovered: true });
+      assert.equal(received.length, 0, 'error 应不投递到 watcher');
+      stop();
+    } finally {
+      h.cleanup();
+    }
+  });
+});
+
 function postJson(port, requestPath, body, token) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(body);

@@ -1,0 +1,24 @@
+{
+  "decisions": [
+    "采用完整租约协议而非仅做迟到结果兼容补偿",
+    "TUI Bridge 协议升级到 v3，同时兼容 v2 final 上报",
+    "WALKER_MAX_TURN_TIME_MINS 作为唯一整轮硬截止",
+    "传输超时与业务失败分离",
+    "watcher 游标仅推进到已投递 completed assistant message"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "用户批准完整租约协议方案：TUI Bridge 升级 v3 accepted/heartbeat/final，并兼容 v2；HTTP/SSE 拆分建连、请求和空闲超时，断流后恢复；修正 completed-message 游标；Dispatcher 作为唯一硬截止；迟到 final 通过有界 tombstone 幂等补投或抑制。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "282d2761891d54efb5aa16e3c7b74ae294642fac34961b6b8638ac138c40f925"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "282d2761891d54efb5aa16e3c7b74ae294642fac34961b6b8638ac138c40f925"
+  },
+  "written_at": "2026-07-16T08:52:39.925Z"
+}

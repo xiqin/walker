@@ -31,7 +31,7 @@ function makeMocks() {
     listSessions: async () => [],
     watchSession: () => () => {},
     prompt: async (agentRef, text, options) => {
-      driver.promptCalls.push({ agentRef, text, model: options && options.model });
+      driver.promptCalls.push({ agentRef, text, model: options && options.model, signal: options && options.signal });
       return [new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })];
     },
     stop: async () => {},
@@ -2748,5 +2748,252 @@ describe('MessageDispatcher model resolution on prompt', () => {
     });
 
     assert.equal(mocks.driver.promptCalls[0].model, null);
+  });
+});
+
+describe('MessageDispatcher AbortSignal and transport recovery', () => {
+  it('prompt 将 AbortSignal 传给 driver.prompt', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_signal1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_signal1' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_signal1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.ok(mocks.driver.promptCalls.length >= 1);
+    assert.ok(mocks.driver.promptCalls[0].signal, 'signal 应透传给 driver.prompt');
+    assert.equal(typeof mocks.driver.promptCalls[0].signal.addEventListener, 'function');
+    assert.equal(mocks.driver.promptCalls[0].signal.aborted, false, '正常完成时 signal 未 abort');
+  });
+
+  it('/cancel 时 abort signal 并标记 cancelled', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_cancel_sig1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_cancel_sig1' } };
+    let resolvePrompt;
+    let capturedSignal = null;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.driver.prompt = async (_ref, _text, options) => {
+      capturedSignal = options && options.signal;
+      return new Promise((resolve) => { resolvePrompt = resolve; });
+    };
+    mocks.driver.stop = async () => {};
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_cancel_sig_msg1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.ok(capturedSignal, 'signal 应已传给 driver');
+    assert.equal(capturedSignal.aborted, false, 'cancel 前未 abort');
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'cancel', args: [],
+      routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cancel_sig_cmd1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(capturedSignal.aborted, true, 'cancel 后 signal 应已 abort');
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    assert.equal(await pending, 'cancelled');
+  });
+
+  it('deadline 超时 abort signal 并使用 deadline reason', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_deadline1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_deadline1' } };
+    let resolvePrompt;
+    let capturedSignal = null;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.driver.prompt = async (_ref, _text, options) => {
+      capturedSignal = options && options.signal;
+      return new Promise((resolve) => { resolvePrompt = resolve; });
+    };
+    mocks.driver.stop = async () => {};
+    const dispatcher = new MessageDispatcher({
+      ...mocks, routeMode: 'thread', progressStyle: 'card',
+      promptHeartbeatInitialMs: 10, promptHeartbeatIntervalMs: 10,
+      maxTurnTimeMins: 0.00025,
+    });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_deadline1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    assert.ok(capturedSignal, 'signal 应已传给 driver');
+    assert.equal(capturedSignal.aborted, true, 'deadline 后 signal 应已 abort');
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text === 'Current turn timed out after 0.00025 minutes and was cancelled.'));
+
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'late answer' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    assert.equal(await pending, 'cancelled');
+  });
+
+  it('transport recovering 错误不标记 session error 也不发送错误卡片', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_recover1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_recover1' } };
+    let markedError = false;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.sessionService.markError = () => { markedError = true; };
+    const transportErr = new Error('SSE connection timed out after 300000ms');
+    transportErr.code = 'SSE_IDLE_TIMEOUT';
+    mocks.driver.prompt = async () => { throw transportErr; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_recover1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'recovering', 'transport 可恢复错误应返回 recovering');
+    assert.equal(markedError, false, '不应标记 session error');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard'), false, '不应发送错误卡片');
+    assert.equal(session.status, 'idle', 'session 应回 idle');
+  });
+
+  it('SSE_OPEN_TIMEOUT 也视为 transport recovering', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_open_timeout1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_open_timeout1' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    const transportErr = new Error('SSE connection open timeout after 1000ms');
+    transportErr.code = 'SSE_OPEN_TIMEOUT';
+    mocks.driver.prompt = async () => { throw transportErr; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_open_timeout1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'recovering');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard'), false);
+  });
+
+  it('TUI_RUNTIME_DISCONNECTED 视为 transport recovering', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_tui_disc1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_tui_disc1' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    const transportErr = new Error('OpenCode TUI bridge lease lost');
+    transportErr.code = 'TUI_RUNTIME_DISCONNECTED';
+    mocks.driver.prompt = async () => { throw transportErr; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_tui_disc1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'recovering');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard'), false);
+  });
+
+  it('真正业务错误仍标记 error 并发送错误卡片', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_bizerr1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bizerr1' } };
+    let markedError = false;
+    let markedErrorMsg = '';
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.sessionService.markError = (id, msg) => { markedError = true; markedErrorMsg = msg; };
+    mocks.driver.prompt = async () => { throw new Error('opencode server unreachable'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_bizerr1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'error', '真正业务错误应返回 error');
+    assert.equal(markedError, true, '应标记 session error');
+    assert.equal(markedErrorMsg, 'opencode server unreachable');
+    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard' && c.message === 'opencode server unreachable'));
+  });
+
+  it('maxTurnTimeMins 为零时不创建 deadline timer', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_no_deadline1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_no_deadline1' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', maxTurnTimeMins: 0 });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_no_deadline1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    const turnState = dispatcher.turnStates.get('wks_no_deadline1');
+    assert.equal(turnState, undefined, 'prompt 完成后 turnState 应已清理');
+  });
+
+  it('取消后 watcher 迟到 final 不再渲染到飞书', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_cancel_late1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_cancel_late1' } };
+    let resolvePrompt;
+    let watched;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.driver.prompt = async () => new Promise((resolve) => { resolvePrompt = resolve; });
+    mocks.driver.stop = async () => {};
+    mocks.driver.watchSession = (_ref, handlers) => { watched = handlers; return () => {}; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_cancel_late1', openId: 'ou_user1', text: '慢任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'cancel', args: [],
+      routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cancel_late_cmd1', chatId: 'oc_chat1',
+    });
+
+    if (watched) {
+      watched.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'late watcher text' }));
+      watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendText' && c.text === 'late watcher text'), false, '取消后 watcher 迟到文本不应发送到飞书');
+
+    resolvePrompt([new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'late prompt text' }), new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })]);
+    assert.equal(await pending, 'cancelled');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text && c.text.includes('late prompt text')), false, '取消后 prompt 迟到结果不应渲染到飞书');
   });
 });

@@ -62,6 +62,12 @@ function loadEnvConfig(options) {
     return Number.isFinite(port) && port > 0 ? port : defaultVal;
   }
 
+  function parseNonNegativeInt(val, defaultVal) {
+    if (val === undefined || val === '') return defaultVal;
+    const num = parseInt(val, 10);
+    return Number.isFinite(num) && num >= 0 ? num : defaultVal;
+  }
+
   function parsePositiveInt(val, defaultVal) {
     const num = parseInt(val, 10);
     return Number.isFinite(num) && num > 0 ? num : defaultVal;
@@ -73,7 +79,7 @@ function loadEnvConfig(options) {
     return raw.toLowerCase() === 'none' ? '' : raw;
   }
 
-  return {
+  const result = {
     feishuAppId,
     feishuAppSecret,
     feishuConfigSource,
@@ -99,8 +105,15 @@ function loadEnvConfig(options) {
     opencodePollInterval: parsePositiveInt(env.OPENCODE_POLL_INTERVAL, 500),
     opencodeMaxPolls: parsePositiveInt(env.OPENCODE_MAX_POLLS, 20),
     opencodePromptTimeoutMs: parsePositiveInt(env.OPENCODE_PROMPT_TIMEOUT_MS, 120000),
-    opencodeSseOpenTimeoutMs: parsePositiveInt(env.OPENCODE_SSE_OPEN_TIMEOUT_MS, 1000),
+    opencodeSseOpenTimeoutMs: parseNonNegativeInt(env.OPENCODE_SSE_OPEN_TIMEOUT_MS, 1000),
+    opencodePromptRequestTimeoutMs: parseNonNegativeInt(env.OPENCODE_PROMPT_REQUEST_TIMEOUT_MS, 30000),
+    opencodeSseIdleTimeoutMs: env.OPENCODE_SSE_IDLE_TIMEOUT_MS !== undefined
+      ? parseNonNegativeInt(env.OPENCODE_SSE_IDLE_TIMEOUT_MS, 300000)
+      : parseNonNegativeInt(env.OPENCODE_PROMPT_TIMEOUT_MS, 300000),
+    opencodeRecoveryWindowMs: parseNonNegativeInt(env.OPENCODE_RECOVERY_WINDOW_MS, 300000),
     opencodeMessagePollIntervalMs: parsePositiveInt(env.OPENCODE_MESSAGE_POLL_INTERVAL_MS, 3000),
+    opencodeTuiLeaseTimeoutMs: parseNonNegativeInt(env.OPENCODE_TUI_LEASE_TIMEOUT_MS, 90000),
+    opencodeTuiHeartbeatIntervalMs: parsePositiveInt(env.OPENCODE_TUI_HEARTBEAT_INTERVAL_MS, 30000),
     opencodeConfigDir: env.OPENCODE_CONFIG_DIR || '',
     admin: {
       enabled: parseBool(env.WALKER_ADMIN_ENABLED, true),
@@ -113,6 +126,16 @@ function loadEnvConfig(options) {
     walkerOpencodeExitAction: env.WALKER_OPENCODE_EXIT_ACTION || 'cancel',
     walkerOpencodeNonFocusOutput: parseBool(env.WALKER_OPENCODE_NON_FOCUS_OUTPUT, true),
   };
+
+  if (result.opencodeTuiLeaseTimeoutMs > 0 && result.opencodeTuiHeartbeatIntervalMs >= result.opencodeTuiLeaseTimeoutMs) {
+    throw new Error(
+      'OPENCODE_TUI_HEARTBEAT_INTERVAL_MS (' + result.opencodeTuiHeartbeatIntervalMs +
+      ') must be less than OPENCODE_TUI_LEASE_TIMEOUT_MS (' + result.opencodeTuiLeaseTimeoutMs +
+      ') when lease timeout is enabled'
+    );
+  }
+
+  return result;
 }
 
 module.exports = { loadEnvConfig, loadDotEnv };

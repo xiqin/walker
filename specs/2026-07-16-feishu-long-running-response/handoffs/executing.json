@@ -1,0 +1,22 @@
+{
+  "status": "done",
+  "summary": "T1-T6 全部完成。T6 让 Dispatcher 成为唯一硬截止：每轮创建 AbortController 并传 signal 给 driver.prompt；cancel/deadline 先 abort signal 再调 driver cancel/stop；新增 _isTransportRecoverableError 将 SSE_IDLE_TIMEOUT/SSE_OPEN_TIMEOUT/TUI_RUNTIME_DISCONNECTED 视为 recovering 不标记 error；新增 9 个 dispatcher 测试和 5 个集成测试。全量 829 测试通过。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js",
+    "test/integration-feishu-tui-sync.test.js"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "9db675c5ebb1d1e7e5618fbc3b5c6f99718efe9d1ece556fd64c296e48828af9",
+    "spec.md": "282d2761891d54efb5aa16e3c7b74ae294642fac34961b6b8638ac138c40f925",
+    "tasks/": "e5cbe3ea2a783ed4ee70042bc5e459a357177815e3c5f6c7cd160b6318eb96b8"
+  },
+  "artifact_fingerprints": {
+    "src/dispatch/message-dispatcher.js": "bafb5e53948a1410235598524b41c7835aa9eaa82c2878ec99ed5837cd326830",
+    "test/integration-feishu-tui-sync.test.js": "6d54f3b6867e1a19de3cdc547544deb8803cd75c1e23a4e8b73f6ec312b2489a",
+    "test/message-dispatcher.test.js": "01d73499dd22879cccc81b3f30779006ad2b77443563431cc3281c8514e27790"
+  },
+  "written_at": "2026-07-16T09:40:05.302Z"
+}

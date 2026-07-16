@@ -63,7 +63,8 @@ function createApp(config, deps) {
 
   const tuiBridge = new OpencodeTuiBridgeClass({
     sessionService,
-    promptTimeoutMs: config.opencodePromptTimeoutMs || 120000,
+    leaseTimeoutMs: config.opencodeTuiLeaseTimeoutMs ?? 90000,
+    heartbeatIntervalMs: config.opencodeTuiHeartbeatIntervalMs ?? 30000,
   });
 
   const opencodeDriver = new OpencodeDriverClass({
@@ -73,9 +74,12 @@ function createApp(config, deps) {
     opencodeCmd: config.opencodeCmd || 'opencode',
     pollInterval: config.opencodePollInterval || 500,
     maxPolls: config.opencodeMaxPolls || 20,
-    promptTimeoutMs: config.opencodePromptTimeoutMs || 120000,
-    sseOpenTimeoutMs: config.opencodeSseOpenTimeoutMs || 1000,
-    messagePollIntervalMs: config.opencodeMessagePollIntervalMs || 3000,
+    promptTimeoutMs: config.opencodePromptTimeoutMs ?? 120000,
+    sseOpenTimeoutMs: config.opencodeSseOpenTimeoutMs ?? 1000,
+    promptRequestTimeoutMs: config.opencodePromptRequestTimeoutMs ?? 30000,
+    sseIdleTimeoutMs: config.opencodeSseIdleTimeoutMs ?? 300000,
+    recoveryWindowMs: config.opencodeRecoveryWindowMs ?? 300000,
+    messagePollIntervalMs: config.opencodeMessagePollIntervalMs ?? 3000,
     tuiBridge,
   });
 
@@ -316,6 +320,7 @@ function createApp(config, deps) {
       walkerPort: adminConfig.port,
       walkerToken: adminConfig.token || '',
       enabled: config.walkerOpencodeHookEnabled !== false,
+      heartbeatIntervalMs: config.opencodeTuiHeartbeatIntervalMs ?? 30000,
     });
     if (hookResult.installed) {
       logger.info('hook plugin installed', { path: hookResult.path });

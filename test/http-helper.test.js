@@ -79,6 +79,113 @@ describe('sseConnect', () => {
     }
   });
 
+  it('idleTimeoutMs 在持续 chunk 时不触发，空闲后触发', async () => {
+    let response;
+    const server = http.createServer((req, res) => {
+      response = res;
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      res.write('data: {"type":"start"}\n\n');
+      setTimeout(() => {
+        if (!response.writableEnded) res.write('data: {"type":"chunk1"}\n\n');
+      }, 30);
+      setTimeout(() => {
+        if (!response.writableEnded) res.write('data: {"type":"chunk2"}\n\n');
+      }, 60);
+    });
+
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+
+    try {
+      await assert.rejects(
+        () => sseConnect('http://127.0.0.1:' + port + '/event', null, { idleTimeoutMs: 80 }),
+        (err) => err.message.includes('SSE connection timed out') && err.code === 'SSE_IDLE_TIMEOUT'
+      );
+    } finally {
+      if (response) response.destroy();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('idleTimeoutMs 为 0 时不触发空闲超时', async () => {
+    let response;
+    const server = http.createServer((req, res) => {
+      response = res;
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      res.write('data: {"type":"start"}\n\n');
+    });
+
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+
+    try {
+      const events = await Promise.race([
+        sseConnect('http://127.0.0.1:' + port + '/event', null, {
+          idleTimeoutMs: 0,
+          shouldClose: (event) => event.type === 'start',
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('should not timeout')), 200)),
+      ]);
+      assert.equal(events.length, 1);
+    } finally {
+      if (response) response.destroy();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('AbortSignal 立即中断 SSE 并返回 ABORT_ERR code', async () => {
+    let response;
+    const server = http.createServer((req, res) => {
+      response = res;
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      res.write('data: {"type":"connected"}\n\n');
+    });
+
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+    const controller = new AbortController();
+
+    try {
+      const promise = sseConnect('http://127.0.0.1:' + port + '/event', null, { signal: controller.signal });
+      controller.abort();
+      await assert.rejects(
+        () => promise,
+        (err) => err.code === 'ABORT_ERR'
+      );
+    } finally {
+      if (response) response.destroy();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('HTTP request timeout 返回 PROMPT_REQUEST_TIMEOUT code', async () => {
+    const server = http.createServer((_req, _res) => {});
+
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const url = 'http://127.0.0.1:' + server.address().port + '/slow';
+
+    try {
+      await assert.rejects(
+        () => httpRequest('POST', url, {}, null, { timeoutMs: 20 }),
+        (err) => err.message.includes('timed out') && err.code === 'PROMPT_REQUEST_TIMEOUT'
+      );
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
   it('非 2xx 响应时拒绝且不调用 onOpen', async () => {
     let opened = false;
     const server = http.createServer((_req, res) => {

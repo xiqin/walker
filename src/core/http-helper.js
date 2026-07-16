@@ -87,6 +87,7 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
     if (timeoutMs > 0) {
       timer = setTimeout(() => {
         const err = new Error(method + ' ' + url + ' timed out after ' + timeoutMs + 'ms');
+        err.code = 'PROMPT_REQUEST_TIMEOUT';
         req.destroy(err);
         fail(err);
       }, timeoutMs);
@@ -104,7 +105,8 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
  * @param {Function} [options.shouldClose] - 收到事件后是否主动关闭连接
  * @param {Function} [options.onOpen] - SSE 响应头建立后触发
  * @param {Function} [options.onEvent] - 每个 JSON 事件解析后触发
- * @param {number} [options.timeoutMs] - 连接最大等待时间，超时后拒绝
+ * @param {number} [options.timeoutMs] - (已废弃) 连接最大等待时间，超时后拒绝
+ * @param {number} [options.idleTimeoutMs] - SSE 空闲超时，成功建连后收到任意 chunk 重置；0 关闭
  * @param {AbortSignal} [options.signal] - 外部取消信号
  * @param {boolean} [options.collectEvents=true] - 是否收集事件并在结束时返回
  * @returns {Promise<Object[]>} 解析后的 JSON 事件数组
@@ -116,7 +118,9 @@ function sseConnect(url, extraHeaders, options) {
   const shouldClose = options && options.shouldClose;
   const onOpen = options && options.onOpen;
   const onEvent = options && options.onEvent;
-  const timeoutMs = options && options.timeoutMs;
+  const idleTimeoutMs = (options && options.idleTimeoutMs !== undefined)
+    ? options.idleTimeoutMs
+    : (options && options.timeoutMs) || 0;
   const signal = options && options.signal;
   const collectEvents = !options || options.collectEvents !== false;
 
@@ -124,22 +128,35 @@ function sseConnect(url, extraHeaders, options) {
     let settled = false;
     let req;
     let activeRes;
-    let timer = null;
+    let idleTimer = null;
+    const resetIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = null;
+      if (idleTimeoutMs > 0) {
+        idleTimer = setTimeout(() => {
+          const err = new Error('SSE connection timed out after ' + idleTimeoutMs + 'ms idle');
+          err.code = 'SSE_IDLE_TIMEOUT';
+          fail(err);
+        }, idleTimeoutMs);
+      }
+    };
     const cleanup = () => {
-      if (timer) clearTimeout(timer);
-      timer = null;
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = null;
       if (signal) signal.removeEventListener('abort', abort);
     };
     const abort = () => {
       if (req && req.destroy) req.destroy();
-      finish([], activeRes, true);
+      const err = new Error('SSE connection aborted');
+      err.code = 'ABORT_ERR';
+      finish([], activeRes, true, err);
     };
-    const finish = (events, res, wasAborted) => {
+    const finish = (events, res, wasAborted, abortErr) => {
       if (settled) return;
       settled = true;
       cleanup();
       if (wasAborted) {
-        reject(new Error('SSE connection aborted'));
+        reject(abortErr || new Error('SSE connection aborted'));
       } else {
         resolve(events);
       }
@@ -161,15 +178,11 @@ function sseConnect(url, extraHeaders, options) {
       headers,
     };
 
-    if (timeoutMs && timeoutMs > 0) {
-      timer = setTimeout(() => {
-        fail(new Error('SSE connection timed out after ' + timeoutMs + 'ms'));
-      }, timeoutMs);
-    }
-
     if (signal) {
       if (signal.aborted) {
-        abort();
+        const err = new Error('SSE connection aborted');
+        err.code = 'ABORT_ERR';
+        reject(err);
         return;
       }
       signal.addEventListener('abort', abort, { once: true });
@@ -190,6 +203,7 @@ function sseConnect(url, extraHeaders, options) {
       if (onOpen) {
         try { onOpen(res); } catch (_) {}
       }
+      resetIdleTimer();
       const events = [];
       const { StringDecoder } = require('string_decoder');
       const decoder = new StringDecoder('utf8');
@@ -235,6 +249,7 @@ function sseConnect(url, extraHeaders, options) {
       };
 
       res.on('data', (chunk) => {
+        resetIdleTimer();
         buffer += decoder.write(chunk);
         if (buffer.length > MAX_BUFFER_SIZE || (collectEvents && events.length > MAX_EVENTS)) {
           fail(new Error('SSE stream exceeded max buffer/event limit'));

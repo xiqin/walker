@@ -395,5 +395,47 @@
     "violations": [
       "failed, 49 suites` |"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-long-running-response",
+    "timestamp": "2026-07-16T09:44:55.433Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail / 0 cancelled。",
+      "fail 0 # cancelled 0`",
+      "Error(err)` 检查 `err.code` | driver/sseConnect 抛出 `SSE_IDLE_TIMEOUT`/`SSE_OPEN_TIMEOUT`/`PROMPT_REQUEST_TIMEOUT`/`TUI_RUNTIME_DISCONNECTED` | ✅ |",
+      "error` | ✅ |",
+      "Error` 分类 | ✅ |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-long-running-response",
+    "timestamp": "2026-07-16T09:46:36.673Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail / 0 cancelled。",
+      "fail 0 # cancelled 0`",
+      "Error(err)` 检查 `err.code` | driver/sseConnect 抛出 `SSE_IDLE_TIMEOUT`/`SSE_OPEN_TIMEOUT`/`PROMPT_REQUEST_TIMEOUT`/`TUI_RUNTIME_DISCONNECTED` | ✅ |",
+      "error` | ✅ |",
+      "Error` 分类 | ✅ |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-feishu-long-running-response",
+    "timestamp": "2026-07-16T09:52:20.256Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail / 0 cancelled。",
+      "fail 0 # cancelled 0`",
+      "Error(err)` 检查 `err.code` | driver/sseConnect 抛出 `SSE_IDLE_TIMEOUT`/`SSE_OPEN_TIMEOUT`/`PROMPT_REQUEST_TIMEOUT`/`TUI_RUNTIME_DISCONNECTED` | ✅ |",
+      "error` | ✅ |",
+      "Error` 分类 | ✅ |"
+    ]
   }
 ]

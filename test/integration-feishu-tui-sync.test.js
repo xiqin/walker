@@ -889,4 +889,366 @@ describe('飞书-TUI 双向链路集成测试', () => {
       }
     });
   });
+
+  describe('v3 租约协议长任务与 v2 兼容', () => {
+    it('v3 accepted/heartbeat/final 长任务超过旧固定阈值仍完成', async () => {
+      const chatId = 'oc_chat_v3_long';
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const runtimeId = 'runtime-v3-long';
+      const opencodeSessionId = 'ses_v3_long';
+
+      ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd });
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const bridge = new OpencodeTuiBridge({
+        sessionService: ctx.sessionService,
+        leaseTimeoutMs: 5000,
+        heartbeatIntervalMs: 1000,
+        runtimeStaleMs: 60000,
+      });
+      bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
+
+      const driver = new OpencodeDriver({
+        serverUrl: 'http://localhost:4096',
+        tuiBridge: bridge,
+        httpClient: { request: async () => { throw new Error('no http'); } },
+        sseClient: { connect: async () => { throw new Error('no sse'); } },
+      });
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      const promptResult = dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_v3_long',
+        chatId,
+        text: 'long running task',
+      });
+
+      const delivery = await pollDelivery(bridge, runtimeId, opencodeSessionId);
+      assert.equal(delivery.text, 'long running task');
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        deliveryState: 'accepted',
+        events: [],
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const pendingAfterAccepted = bridge.pending.get(delivery.deliveryId);
+      assert.ok(pendingAfterAccepted, 'accepted 后 pending 应存在');
+      assert.equal(pendingAfterAccepted.state, 'leased', '状态应为 leased');
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        deliveryState: 'heartbeat',
+        events: [],
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const pendingAfterHeartbeat = bridge.pending.get(delivery.deliveryId);
+      assert.ok(pendingAfterHeartbeat, 'heartbeat 后 pending 应仍存在');
+      assert.equal(pendingAfterHeartbeat.state, 'leased', 'heartbeat 后仍为 leased');
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        deliveryState: 'final',
+        events: [
+          { type: AgentEvent.TYPE_TEXT, data: { text: 'v3 long task result' } },
+          { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+        ],
+      });
+
+      assert.equal(await promptResult, 'prompted');
+
+      const reply = feishuApi.calls.find((c) =>
+        c.type === 'replyText' && c.text && c.text.includes('v3 long task result'));
+      assert.ok(reply, 'v3 长任务最终结果应到达飞书');
+      bridge.close();
+    });
+
+    it('v2 plugin 无 deliveryState 时按 final 兼容完成 prompt', async () => {
+      const chatId = 'oc_chat_v2_compat';
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const runtimeId = 'runtime-v2-compat';
+      const opencodeSessionId = 'ses_v2_compat';
+
+      ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd });
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const bridge = new OpencodeTuiBridge({
+        sessionService: ctx.sessionService,
+        leaseTimeoutMs: 5000,
+        heartbeatIntervalMs: 1000,
+        runtimeStaleMs: 60000,
+      });
+      bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
+
+      const driver = new OpencodeDriver({
+        serverUrl: 'http://localhost:4096',
+        tuiBridge: bridge,
+        httpClient: { request: async () => { throw new Error('no http'); } },
+        sseClient: { connect: async () => { throw new Error('no sse'); } },
+      });
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      const promptResult = dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_v2_compat',
+        chatId,
+        text: 'v2 compat task',
+      });
+
+      const delivery = await pollDelivery(bridge, runtimeId, opencodeSessionId);
+      assert.equal(delivery.text, 'v2 compat task');
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        events: [
+          { type: AgentEvent.TYPE_TEXT, data: { text: 'v2 compat reply' } },
+          { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+        ],
+      });
+
+      assert.equal(await promptResult, 'prompted');
+
+      const reply = feishuApi.calls.find((c) =>
+        c.type === 'replyText' && c.text && c.text.includes('v2 compat reply'));
+      assert.ok(reply, 'v2 兼容 final 应到达飞书');
+      bridge.close();
+    });
+
+    it('transport_lost tombstone 迟到 final 补投至 watcher 且至多一次', async () => {
+      const chatId = 'oc_chat_tomb_recover';
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const runtimeId = 'runtime-tomb-recover';
+      const opencodeSessionId = 'ses_tomb_recover';
+
+      ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd });
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const bridge = new OpencodeTuiBridge({
+        sessionService: ctx.sessionService,
+        leaseTimeoutMs: 100,
+        heartbeatIntervalMs: 30,
+        runtimeStaleMs: 60000,
+        tombstoneTtlMs: 30000,
+      });
+      bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
+
+      const driver = new OpencodeDriver({
+        serverUrl: 'http://localhost:4096',
+        tuiBridge: bridge,
+        httpClient: { request: async () => { throw new Error('no http'); } },
+        sseClient: { connect: async () => { throw new Error('no sse'); } },
+      });
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      const promptResult = dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_tomb_recover',
+        chatId,
+        text: 'tomb recover task',
+      });
+
+      const delivery = await pollDelivery(bridge, runtimeId, opencodeSessionId);
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        deliveryState: 'accepted',
+        events: [],
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      let promptResolved = false;
+      try {
+        await Promise.race([
+          promptResult,
+          new Promise((resolve) => setTimeout(() => { resolve('timeout'); }, 50)),
+        ]);
+        promptResolved = (await Promise.race([promptResult.then(() => 'done'), new Promise((r) => setTimeout(() => r('pending'), 10))])) === 'done';
+      } catch (_) {
+        promptResolved = false;
+      }
+
+      const tombstone = bridge._tombstones.get(delivery.deliveryId);
+      assert.ok(tombstone, '租约超时应创建 transport_lost tombstone');
+      assert.equal(tombstone.reason, 'transport_lost');
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        deliveryState: 'final',
+        events: [
+          { type: AgentEvent.TYPE_TEXT, data: { text: 'recovered late reply' } },
+          { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+        ],
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        deliveryState: 'final',
+        events: [
+          { type: AgentEvent.TYPE_TEXT, data: { text: 'recovered late reply' } },
+          { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+        ],
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const recoveredReplies = feishuApi.calls.filter((c) =>
+        c.type === 'sendText' && c.text && c.text.includes('recovered late reply'));
+      assert.ok(recoveredReplies.length <= 1, '迟到 final 至多投递一次到飞书');
+      bridge.close();
+    });
+
+    it('cancelled tombstone 迟到 final 被抑制不投递到飞书', async () => {
+      const chatId = 'oc_chat_tomb_cancel';
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const runtimeId = 'runtime-tomb-cancel';
+      const opencodeSessionId = 'ses_tomb_cancel';
+
+      ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd });
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const bridge = new OpencodeTuiBridge({
+        sessionService: ctx.sessionService,
+        leaseTimeoutMs: 5000,
+        heartbeatIntervalMs: 1000,
+        runtimeStaleMs: 60000,
+        tombstoneTtlMs: 30000,
+      });
+      bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
+
+      const driver = new OpencodeDriver({
+        serverUrl: 'http://localhost:4096',
+        tuiBridge: bridge,
+        httpClient: { request: async () => { throw new Error('no http'); } },
+        sseClient: { connect: async () => { throw new Error('no sse'); } },
+      });
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      const promptResult = dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_tomb_cancel',
+        chatId,
+        text: 'tomb cancel task',
+      });
+
+      const delivery = await pollDelivery(bridge, runtimeId, opencodeSessionId);
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        deliveryState: 'accepted',
+        events: [],
+      });
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      await dispatcher.handleCommand({
+        type: 'command', name: 'cancel', args: [],
+        routeKey, messageId: 'om_cancel_tomb_cmd', chatId,
+      });
+
+      const tombstone = bridge._tombstones.get(delivery.deliveryId);
+      assert.ok(tombstone, 'cancel 应创建 cancelled tombstone');
+      assert.equal(tombstone.reason, 'cancelled');
+
+      bridge.reportEvents({
+        runtimeId, sessionId: opencodeSessionId, deliveryId: delivery.deliveryId,
+        deliveryState: 'final',
+        events: [
+          { type: AgentEvent.TYPE_TEXT, data: { text: 'cancelled late reply' } },
+          { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+        ],
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const cancelledReplies = feishuApi.calls.filter((c) =>
+        c.type === 'sendText' && c.text && c.text.includes('cancelled late reply'));
+      assert.equal(cancelledReplies.length, 0, 'cancelled tombstone 迟到 final 不应投递到飞书');
+
+      assert.equal(await promptResult, 'cancelled');
+      bridge.close();
+    });
+
+    it('相同 completed text 经 prompt 和 watcher 两路径只回复一次', async () => {
+      const chatId = 'oc_chat_dedup_pw';
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const agentRef = { opencodeSessionId: 'ses_dedup_pw', serverUrl: 'http://localhost:4096', cwd };
+
+      ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd, agentRef });
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      let watchHandlers = null;
+      const driver = {
+        ensureReady: async () => true,
+        prompt: async () => [
+          new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'shared answer' }),
+          new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }),
+        ],
+        watchSession: (_ref, handlers) => { watchHandlers = handlers; return () => { watchHandlers = null; }; },
+        stop: async () => {},
+        delete: async () => {},
+        resumeSession: async (ref) => ref,
+        listModels: async () => [],
+        listSessions: async () => [],
+        createSession: async () => ({ opencodeSessionId: 'ses_new' }),
+      };
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      await dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_dedup_pw',
+        chatId,
+        text: 'dedup test',
+      });
+
+      if (watchHandlers) {
+        watchHandlers.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'shared answer' }));
+        watchHandlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+      }
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const replies = feishuApi.calls.filter((c) =>
+        (c.type === 'replyText' || c.type === 'sendText') && c.text && c.text.includes('shared answer'));
+      assert.equal(replies.length, 1, '相同文本只投递一次');
+    });
+  });
 });

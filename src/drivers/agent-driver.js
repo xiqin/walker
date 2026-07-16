@@ -56,12 +56,15 @@ class AgentDriver {
   }
 
   /**
-   * 向会话发送提示文本并获取响应
-   * @param {Object} sessionRef - 会话引用对象
-   * @param {string} text - 提示文本内容
-   * @returns {Promise<AgentEvent[]>} Agent 事件列表
-   */
-  async prompt(sessionRef, text) {
+    * 向会话发送提示文本并获取响应
+    * @param {Object} sessionRef - 会话引用对象
+    * @param {string} text - 提示文本内容
+    * @param {Object} [options] - 选项
+    * @param {AbortSignal} [options.signal] - 取消信号
+    * @param {Object|string} [options.model] - 模型选择
+    * @returns {Promise<AgentEvent[]>} Agent 事件列表
+    */
+  async prompt(sessionRef, text, options) {
     throw new Error('prompt not implemented by ' + this.name);
   }
 
