@@ -13,7 +13,7 @@ describe('httpRequest', () => {
     try {
       await assert.rejects(
         () => httpRequest('GET', url, null, null, { timeoutMs: 20 }),
-        (err) => err.message.includes('timed out') && err.message.includes(url)
+        (err) => err.message.includes('timed out') && err.message.includes(url),
       );
     } finally {
       await new Promise((resolve) => server.close(resolve));
@@ -71,7 +71,7 @@ describe('sseConnect', () => {
     try {
       await assert.rejects(
         () => sseConnect('http://127.0.0.1:' + port + '/event', null, { timeoutMs: 20 }),
-        /SSE connection timed out/
+        /SSE connection timed out/,
       );
     } finally {
       if (response) response.destroy();
@@ -103,7 +103,7 @@ describe('sseConnect', () => {
     try {
       await assert.rejects(
         () => sseConnect('http://127.0.0.1:' + port + '/event', null, { idleTimeoutMs: 80 }),
-        (err) => err.message.includes('SSE connection timed out') && err.code === 'SSE_IDLE_TIMEOUT'
+        (err) => err.message.includes('SSE connection timed out') && err.code === 'SSE_IDLE_TIMEOUT',
       );
     } finally {
       if (response) response.destroy();
@@ -162,7 +162,7 @@ describe('sseConnect', () => {
       controller.abort();
       await assert.rejects(
         () => promise,
-        (err) => err.code === 'ABORT_ERR'
+        (err) => err.code === 'ABORT_ERR',
       );
     } finally {
       if (response) response.destroy();
@@ -179,7 +179,7 @@ describe('sseConnect', () => {
     try {
       await assert.rejects(
         () => httpRequest('POST', url, {}, null, { timeoutMs: 20 }),
-        (err) => err.message.includes('timed out') && err.code === 'PROMPT_REQUEST_TIMEOUT'
+        (err) => err.message.includes('timed out') && err.code === 'PROMPT_REQUEST_TIMEOUT',
       );
     } finally {
       await new Promise((resolve) => server.close(resolve));
@@ -199,7 +199,7 @@ describe('sseConnect', () => {
     try {
       await assert.rejects(
         () => sseConnect(url, null, { onOpen: () => { opened = true; } }),
-        (err) => err.message.includes('500') && err.message.includes(url)
+        (err) => err.message.includes('500') && err.message.includes(url),
       );
       assert.equal(opened, false);
     } finally {
@@ -220,7 +220,7 @@ describe('sseConnect', () => {
     try {
       await assert.rejects(
         () => sseConnect(url, null, { onOpen: () => { opened = true; } }),
-        (err) => err.message.includes('text/event-stream') && err.message.includes(url)
+        (err) => err.message.includes('text/event-stream') && err.message.includes(url),
       );
       assert.equal(opened, false);
     } finally {

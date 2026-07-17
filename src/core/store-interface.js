@@ -5,15 +5,15 @@ class IStore {
     throw new Error('IStore.read() not implemented');
   }
 
-  write(value) {
+  write(_value) {
     throw new Error('IStore.write() not implemented');
   }
 
-  update(mutator) {
+  update(_mutator) {
     throw new Error('IStore.update() not implemented');
   }
 
-  updateAsync(mutator) {
+  updateAsync(_mutator) {
     throw new Error('IStore.updateAsync() not implemented');
   }
 }

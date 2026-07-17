@@ -283,7 +283,6 @@ function createHookReceiverRoutes(ctx) {
       }
 
       const defaultOpencodeUrl = (ctx && ctx.defaultOpencodeUrl) || 'http://localhost:4096';
-      const effectiveUrl = opencodeBaseUrl || defaultOpencodeUrl;
       if (opencodeBaseUrl && !isValidOpencodeUrl(opencodeBaseUrl, defaultOpencodeUrl)) {
         send(res, error('BAD_REQUEST', 'opencodeBaseUrl 只允许 loopback 地址或已配置的 OpenCode 服务地址'), 400);
         return;

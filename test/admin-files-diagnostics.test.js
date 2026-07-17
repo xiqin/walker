@@ -14,10 +14,8 @@ const path = require('path');
 const { EventEmitter } = require('events');
 
 const { buildConfigSummary } = require('../src/admin/config');
-const { updateDotEnv } = require('../src/admin/config-editor');
-const { createEventStore, recordEvent } = require('../src/admin/event-store');
+const { createEventStore } = require('../src/admin/event-store');
 const { createRouter } = require('../src/admin/router');
-const { success, error, send } = require('../src/admin/response');
 
 const fileAdmin = require('../src/admin/file-admin');
 const diagnostics = require('../src/admin/diagnostics');
@@ -727,7 +725,7 @@ test('REQ-019: 备份 sessions 和 routes 到 timestamp 文件', async () => {
     dataDir,
     sessionService: createFakeSessionService(
       [{ id: 'wks_b1', status: 'running' }],
-      { 'feishu:abc': 'wks_b1' }
+      { 'feishu:abc': 'wks_b1' },
     ),
   });
 
@@ -753,7 +751,7 @@ test('REQ-019: 确认清理 stopped/deleted session route 和孤立附件', asyn
     dataDir,
     sessionService: createFakeSessionService(
       [{ id: 'wks_deleted1', status: 'deleted', agent: 'opencode', title: 'deleted' }],
-      { 'feishu:abc': 'wks_deleted1' }
+      { 'feishu:abc': 'wks_deleted1' },
     ),
   });
 
@@ -971,7 +969,7 @@ test('REQ-026: 清理事件写入 eventStore', async () => {
     eventStore: store,
     sessionService: createFakeSessionService(
       [{ id: 'wks_del_evt', status: 'deleted' }],
-      { 'feishu:cln': 'wks_del_evt' }
+      { 'feishu:cln': 'wks_del_evt' },
     ),
   });
   const routes = createMaintenanceRoutes(ctx);

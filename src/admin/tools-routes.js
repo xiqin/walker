@@ -15,7 +15,7 @@ const { success, error, send, parseQueryString } = require('./response');
 const { parseBody } = require('./auth');
 const { getMetrics } = require('./event-store');
 const { simulateCommand } = require('./command-simulator');
-const { listCardTypes, getSampleData, previewCard } = require('./card-preview');
+const { listCardTypes, previewCard } = require('./card-preview');
 const { handleServiceStop } = require('./service-control');
 
 /**

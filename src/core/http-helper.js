@@ -68,19 +68,19 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
         if (settled) return;
         settled = true;
         cleanup();
-      let parsedData = {};
-      try {
-        parsedData = JSON.parse(data);
-      } catch (e) {
-        if (data && data.length > 0) {
-          logger.warn('response JSON parse failed', {
-            statusCode: res.statusCode,
-            bodyLength: data.length,
-            bodyPreview: data.slice(0, 200),
-          });
+        let parsedData = {};
+        try {
+          parsedData = JSON.parse(data);
+        } catch (_) {
+          if (data && data.length > 0) {
+            logger.warn('response JSON parse failed', {
+              statusCode: res.statusCode,
+              bodyLength: data.length,
+              bodyPreview: data.slice(0, 200),
+            });
+          }
         }
-      }
-      resolve({ status: res.statusCode, data: parsedData });
+        resolve({ status: res.statusCode, data: parsedData });
       });
     });
     req.on('error', fail);

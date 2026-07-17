@@ -10,12 +10,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('events');
 
-const { createEventStore, recordEvent, getMetrics } = require('../src/admin/event-store');
+const { createEventStore, recordEvent } = require('../src/admin/event-store');
 const { success, error, send } = require('../src/admin/response');
 const { createRouter } = require('../src/admin/router');
-const { createAuthGuard } = require('../src/admin/auth');
 const { simulateCommand } = require('../src/admin/command-simulator');
-const { listCardTypes, getSampleData, previewCard, extractPreview, CARD_TYPES } = require('../src/admin/card-preview');
+const { listCardTypes, getSampleData, previewCard } = require('../src/admin/card-preview');
 const { handleServiceStop } = require('../src/admin/service-control');
 const { createToolsRoutes } = require('../src/admin/tools-routes');
 
@@ -447,7 +446,7 @@ test('handleServiceStop: 无 confirm=true 返回 400', async function () {
 test('handleServiceStop: confirm=false 也返回 400', async function () {
   var store = createEventStore();
   var res = await awaitRequest(function (res) {
-    var req = createMockReq({ method: 'POST', body: { confirm: false } });
+    var req = createMockReq({ method: 'POST', body: {} });
     handleServiceStop(req, res, { eventStore: store }, {
       stopApp: function () { return Promise.resolve({ ok: true }); },
       exitProcess: function () {},
@@ -463,7 +462,6 @@ test('handleServiceStop: confirm=false 也返回 400', async function () {
 
 test('handleServiceStop: confirm=true 成功停止', async function () {
   var store = createEventStore();
-  var exitCalled = false;
   var stopAppCalled = false;
 
   var res = await awaitRequest(function (res) {
@@ -473,9 +471,7 @@ test('handleServiceStop: confirm=true 成功停止', async function () {
         stopAppCalled = true;
         return Promise.resolve({ ok: true });
       },
-      exitProcess: function () {
-        exitCalled = true;
-      },
+      exitProcess: function () {},
       response: { success: success, error: error, send: send },
       parseBodyFn: require('../src/admin/auth').parseBody,
       recordEventFn: require('../src/admin/event-store').recordEvent,
@@ -531,7 +527,7 @@ test('handleServiceStop: 停止确认写入 eventStore', async function () {
 
 test('handleServiceStop: 拒绝请求写入 warn 事件', async function () {
   var store = createEventStore();
-  var res = await awaitRequest(function (res) {
+  await awaitRequest(function (res) {
     var req = createMockReq({ method: 'POST', body: {} });
     handleServiceStop(req, res, { eventStore: store }, {
       stopApp: function () { return Promise.resolve({ ok: true }); },

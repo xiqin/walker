@@ -7,11 +7,10 @@ const { createLogger } = require('../core/logger');
 const logger = createLogger('attachment-service');
 
 /** 匹配文件名中危险字符的正则表达式 */
+// eslint-disable-next-line no-control-regex
 const DANGEROUS_CHARS_RE = /[<>:"/\\|?*\x00-\x1f]/g;
 /** 匹配路径遍历字符的正则表达式 */
 const DOT_DOT_RE = /\.\./g;
-/** sessionId 白名单：仅允许字母、数字、下划线、短横线 */
-const SESSION_ID_RE = /^[A-Za-z0-9_-]+$/;
 /** 入站附件最大大小（50MB） */
 const MAX_INBOUND_SIZE = 50 * 1024 * 1024;
 
@@ -99,7 +98,7 @@ class AttachmentService {
    * @returns {Promise<void>}
    * @throws {Error} 当前未实现，调用方应捕获并降级处理
    */
-  async sendOutbound(feishuApi, chatId, filePath, caption) {
+  async sendOutbound(feishuApi, chatId, filePath, _caption) {
     logger.warn('sendOutbound called: outbound attachment sending is not supported in this version', { chatId, filePath });
     throw new Error('sendOutbound is not supported in this version. Outbound attachments are outside current product scope.');
   }

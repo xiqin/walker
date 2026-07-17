@@ -433,7 +433,7 @@ describe('OpencodeTuiBridge clearSession', () => {
         runtimeId: 'runtime-clear', sessionId: 'ses_old', deliveryId: delivery.deliveryId,
         control: { type: 'clear', newSessionId: 'ses_new' },
       });
-      const result = await clearPromise;
+      await clearPromise;
 
       const routeSessions = h.sessionService.listSessionsInRoute(h.routeKey);
       const oldInRoute = routeSessions.find((s) => s.id === h.oldSession.id);
@@ -1038,7 +1038,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
     try {
       const deliveryIds = [];
       for (let i = 0; i < 5; i++) {
-        const p = h.bridge.prompt(h.tuiSession.agentRef, 'cap ' + i);
+        h.bridge.prompt(h.tuiSession.agentRef, 'cap ' + i);
         const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
         deliveryIds.push(d.deliveryId);
         h.bridge.reportEvents({

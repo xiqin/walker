@@ -607,7 +607,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       try {
         const clearPromise = h.sendClear();
         const delivery = await pollClearDelivery(h);
-        const newSes = completeClear(h, delivery, 'ses_new_keep');
+        completeClear(h, delivery, 'ses_new_keep');
         await clearPromise;
 
         const sessionsInRoute = h.sessionService.listSessionsInRoute(h.routeKey);
@@ -861,9 +861,9 @@ describe('飞书-TUI 双向链路集成测试', () => {
           text: 'hello after clear',
         });
 
-        const runtimeBeforePoll = h.bridge.runtimes.get(h.runtimeId);
+        h.bridge.runtimes.get(h.runtimeId);
         const newDelivery = await pollDelivery(h.bridge, h.runtimeId, newSes, 3000);
-        const runtime = h.bridge.runtimes.get(h.runtimeId);
+        h.bridge.runtimes.get(h.runtimeId);
         const pendingEntry = h.bridge.pending.get(newDelivery.deliveryId);
         assert.ok(newDelivery, '应拿到 prompt delivery');
         assert.equal(newDelivery.type, 'prompt', 'clear 后 prompt delivery 类型应为 prompt');
@@ -1082,15 +1082,14 @@ describe('飞书-TUI 双向链路集成测试', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      let promptResolved = false;
       try {
         await Promise.race([
           promptResult,
           new Promise((resolve) => setTimeout(() => { resolve('timeout'); }, 50)),
         ]);
-        promptResolved = (await Promise.race([promptResult.then(() => 'done'), new Promise((r) => setTimeout(() => r('pending'), 10))])) === 'done';
+        await Promise.race([promptResult.then(() => 'done'), new Promise((r) => setTimeout(() => r('pending'), 10))]);
       } catch (_) {
-        promptResolved = false;
+        ;
       }
 
       const tombstone = bridge._tombstones.get(delivery.deliveryId);

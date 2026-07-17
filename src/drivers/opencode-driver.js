@@ -530,7 +530,7 @@ class OpencodeDriver extends AgentDriver {
     const url = this._buildUrl(
       '/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/permissions/' + encodeURIComponent(permissionId),
       {},
-      sessionRef
+      sessionRef,
     );
     const body = { response: response, remember: remember !== undefined ? remember : false };
     try {
@@ -656,13 +656,13 @@ class OpencodeDriver extends AgentDriver {
         .filter((d) => d && d !== '/');
       const results = await Promise.all(
         directories.map((dir) =>
-          this._listSessionsForDirectory(dir).catch(() => [])
-        )
+          this._listSessionsForDirectory(dir).catch(() => []),
+        ),
       );
       const sessions = results.flat();
       sessions.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       return sessions;
-    } catch (err) {
+    } catch (_) {
       return this._listSessionsForDirectory(process.cwd());
     }
   }

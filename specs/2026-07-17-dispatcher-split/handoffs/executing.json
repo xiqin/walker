@@ -1,0 +1,27 @@
+{
+  "status": "done",
+  "summary": "完成 message-dispatcher.js 按职责拆分为 5 个文件。采用委托模式（helper 持有 dispatcher 引用，共享 Map 留在 dispatcher 上保证测试兼容）。4 个子任务 T1-T4 顺序执行，每步独立回归测试全绿。最终全套 907 tests 全通过，eslint + check.js 通过。主文件 1575→1167 行，抽出 turn-state.js(141) + heartbeat.js(89) + progress-renderer.js(319) + permission-handler.js(60)。",
+  "artifacts": [
+    "src/dispatch/turn-state.js",
+    "src/dispatch/heartbeat.js",
+    "src/dispatch/progress-renderer.js",
+    "src/dispatch/permission-handler.js",
+    "src/dispatch/message-dispatcher.js",
+    "specs/2026-07-17-dispatcher-split/test-report.md"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "5f6daa24bc4cea19c5ead33f4f57ca49e7841b58aab354254668cb0b536961dc",
+    "tasks/": "fb21fd56474821dff2121859d4090ef1e216134a0f32cfdf7a4a5c6a3e76c4a2"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-17-dispatcher-split/test-report.md": "499e7a1a7da70aa77820cc6f9a1407b5ede55a38d95e3421919e9c06c3b6904b",
+    "src/dispatch/heartbeat.js": "cf3d7a38d3776087d01813d3217b36a9bcba1adeafb181be202fd26560b02fdb",
+    "src/dispatch/message-dispatcher.js": "ffd145f86a4de6fe1ad727b278f3fbb8c291519f378fcb3b19e65945e07f9e3a",
+    "src/dispatch/permission-handler.js": "90ee300113413cb704c88c8f99a366ef0e53b999e8e59fe0985793d12ad12607",
+    "src/dispatch/progress-renderer.js": "f79de15ca6caabfa69b5b16940f4eea2591584ec31c8bbe7f90ed91deae9c322",
+    "src/dispatch/turn-state.js": "b16cc9b2fa97cacecf376372571b3b2a71ba974d05af278145e56d05e8b70265"
+  },
+  "written_at": "2026-07-17T02:09:47.735Z"
+}

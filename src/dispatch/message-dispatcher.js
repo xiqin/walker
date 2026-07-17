@@ -3,6 +3,10 @@
 const { buildRouteKey } = require('../core/route-key');
 const { AgentEvent } = require('../drivers/agent-driver');
 const { createLogger } = require('../core/logger');
+const { TurnStateManager } = require('./turn-state');
+const { PromptHeartbeat } = require('./heartbeat');
+const { ProgressRenderer } = require('./progress-renderer');
+const { PermissionHandler } = require('./permission-handler');
 
 const logger = createLogger('message-dispatcher');
 const DEFAULT_HEARTBEAT_INITIAL_MS = 30000;
@@ -56,6 +60,33 @@ class MessageDispatcher {
     this._turnSeq = 0;
     this._promptQueues = new Map();
     this._routeLocks = new Map();
+    this.turnStateManager = new TurnStateManager({
+      dispatcher: this,
+      sessionService: this.sessionService,
+      driverRegistry: this.driverRegistry,
+      maxTurnTimeMins: this.maxTurnTimeMins,
+    });
+    this.promptHeartbeat = new PromptHeartbeat({
+      dispatcher: this,
+      feishuApi: this.feishuApi,
+      initialMs: this.promptHeartbeatInitialMs,
+      intervalMs: this.promptHeartbeatIntervalMs,
+      stuckMs: this.promptHeartbeatStuckMs,
+      progressStyle: this.progressStyle,
+    });
+    this.progressRenderer = new ProgressRenderer({
+      dispatcher: this,
+      feishuApi: this.feishuApi,
+      progressStyle: this.progressStyle,
+      doneEmoji: this.doneEmoji,
+      nonFocusOutput: this.nonFocusOutput,
+      defaultModel: this.defaultModel,
+    });
+    this.permissionHandler = new PermissionHandler({
+      dispatcher: this,
+      feishuApi: this.feishuApi,
+      sessionService: this.sessionService,
+    });
   }
 
   /**
@@ -374,7 +405,6 @@ class MessageDispatcher {
       const pendingPrompt = this._promptQueues.get(current.id);
       if (pendingPrompt) await pendingPrompt.catch(() => {});
     }
-    const messageId = cmd.messageId;
     const agentName = cmd.args[0] || this.defaultAgent;
     const title = cmd.args[1] || '';
     const driver = this.driverRegistry.get(agentName);
@@ -757,20 +787,7 @@ class MessageDispatcher {
   }
 
   _formatModelListText(models) {
-    if (!models || models.length === 0) return 'No models available.';
-    const active = models.filter((m) => m.status !== 'deprecated');
-    if (active.length === 0) return 'No models available.';
-    const grouped = {};
-    for (const m of active) {
-      const p = m.provider || 'unknown';
-      if (!grouped[p]) grouped[p] = [];
-      grouped[p].push(m);
-    }
-    const sections = [];
-    for (const [provider, list] of Object.entries(grouped)) {
-      sections.push('**' + provider + '**\n' + list.map((m) => '- `' + m.id + '` ' + m.name).join('\n'));
-    }
-    return '**可用模型**\n\n' + sections.join('\n\n') + '\n\n用法：/model <model_id> 或 /model <provider>/<model_id>';
+    return this.progressRenderer._formatModelListText(models);
   }
 
   /**
@@ -780,29 +797,7 @@ class MessageDispatcher {
    * @returns {Object} - { model: {providerID, modelID} } 或 { error: string }
    */
   _resolveModelRef(input, models) {
-    const activeModels = (models || []).filter((m) => m && m.status !== 'deprecated' && m.enabled !== false);
-    if (input.includes('/')) {
-      const parts = input.split('/');
-      const provider = parts[0];
-      const id = parts.slice(1).join('/');
-      const hit = activeModels.find((m) => m.provider === provider && m.id === id);
-      if (!hit) {
-        return { error: 'Model not found: ' + input + '. Use /model to list available models.' };
-      }
-      return { model: { providerID: provider, modelID: id } };
-    }
-    const matches = activeModels.filter((m) => m.id === input);
-    if (matches.length === 0) {
-      return { error: 'Model not found: ' + input + '. Use /model to list available models.' };
-    }
-    if (matches.length === 1) {
-      return { model: { providerID: matches[0].provider || '', modelID: matches[0].id } };
-    }
-    const providers = Array.from(new Set(matches.map((m) => m.provider).filter(Boolean)));
-    return {
-      error: 'Multiple models match "' + input + '". Use provider/modelID, e.g. ' +
-        providers.map((p) => p + '/' + input).join(' or ') + '.',
-    };
+    return this.progressRenderer._resolveModelRef(input, models);
   }
 
   async _cmdRuntime(cmd) {
@@ -848,16 +843,11 @@ class MessageDispatcher {
   }
 
   _formatModel(model) {
-    if (!model) return '';
-    if (typeof model === 'string') return model;
-    if (model.providerID && model.modelID) return model.providerID + '/' + model.modelID;
-    return model.modelID || '';
+    return this.progressRenderer._formatModel(model);
   }
 
   _appendModelFooter(text, session) {
-    if (!text) return text;
-    const model = this._formatModel(this._resolveSessionModel(session)) || '未指定';
-    return text + '\n\n---\n模型：' + model;
+    return this.progressRenderer._appendModelFooter(text, session);
   }
 
   /**
@@ -865,17 +855,7 @@ class MessageDispatcher {
    * @returns {Object|null} - { providerID, modelID } 或 null
    */
   _normalizeDefaultModel() {
-    const dm = this.defaultModel;
-    if (!dm) return null;
-    if (typeof dm === 'object') {
-      return { providerID: dm.providerID || '', modelID: dm.modelID || '' };
-    }
-    const str = String(dm);
-    if (str.includes('/')) {
-      const parts = str.split('/');
-      return { providerID: parts[0], modelID: parts.slice(1).join('/') };
-    }
-    return { providerID: '', modelID: str };
+    return this.progressRenderer._normalizeDefaultModel();
   }
 
   /**
@@ -885,20 +865,7 @@ class MessageDispatcher {
    * @returns {Object|null} - { providerID, modelID } 或 null
    */
   _resolveSessionModel(session) {
-    if (session && session.model) {
-      const m = session.model;
-      if (typeof m === 'string') {
-        if (m.includes('/')) {
-          const parts = m.split('/');
-          return { providerID: parts[0], modelID: parts.slice(1).join('/') };
-        }
-        return { providerID: '', modelID: m };
-      }
-      if (m && typeof m === 'object') {
-        return { providerID: m.providerID || '', modelID: m.modelID || '' };
-      }
-    }
-    return this._normalizeDefaultModel();
+    return this.progressRenderer._resolveSessionModel(session);
   }
 
   /**
@@ -907,10 +874,7 @@ class MessageDispatcher {
    * @returns {Object|null} - { providerID, modelID } 或 null
    */
   _resolveInheritedModel(current) {
-    if (current && current.model) {
-      return this._resolveSessionModel(current);
-    }
-    return this._normalizeDefaultModel();
+    return this.progressRenderer._resolveInheritedModel(current);
   }
 
   /**
@@ -921,21 +885,7 @@ class MessageDispatcher {
    * @returns {Promise<void>}
    */
   async _renderEvents(session, event, events, progressCardId) {
-    if (this._isTurnSuppressed(session.id)) return;
-    const displayEvents = this._coalesceDisplayEvents(events, event.text);
-    if (this.progressStyle === 'card') {
-      await this._renderCardProgress(session, event, displayEvents, progressCardId);
-      const fullText = this._textFromDisplayEvents(displayEvents);
-      if (fullText) {
-        const replyResult = await this._callFeishu('replyMarkdown', [this._replyCtx(event), this._appendModelFooter(fullText, session)], null);
-        if (replyResult) {
-          this._rememberDeliveredText(session.id, fullText);
-        }
-      }
-    } else {
-      await this._renderLegacyProgress(session, event, displayEvents);
-      this._rememberDeliveredText(session.id, this._textFromDisplayEvents(displayEvents));
-    }
+    return this.progressRenderer._renderEvents(session, event, events, progressCardId);
   }
 
   /**
@@ -946,118 +896,27 @@ class MessageDispatcher {
    * @returns {Promise<void>}
    */
   async _renderCardProgress(session, event, displayEvents, progressCardId) {
-    let cardId = progressCardId || await this._callFeishu('sendProgressCard', [this._replyCtx(event), session.id], null);
-
-    if (!cardId) {
-      return;
-    }
-
-    for (const agentEvent of displayEvents) {
-      if (agentEvent.type === AgentEvent.TYPE_TEXT) continue;
-      if (agentEvent.type === AgentEvent.TYPE_PERMISSION || agentEvent.type === AgentEvent.TYPE_PERMISSION_REPLIED) continue;
-      if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
-      if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
-      this._touchTurnState(this.turnStates.get(session.id));
-      const rendered = await this._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null);
-      if (rendered && rendered.strategy === 'new_message') {
-        const newCardId = await this._callFeishu('sendProgressCard', [this._replyCtx(event), session.id, agentEvent], null);
-        if (newCardId) cardId = newCardId;
-      }
-    }
-
-    if (this.doneEmoji) {
-      this._sendFeishu('addReaction', [event.messageId, this.doneEmoji]);
-    }
+    return this.progressRenderer._renderCardProgress(session, event, displayEvents, progressCardId);
   }
 
   _coalesceDisplayEvents(events, promptText) {
-    const displayEvents = [];
-    let textBuffer = '';
-
-    const flushText = () => {
-      if (!textBuffer) return;
-      const text = this._stripPromptEcho(textBuffer, promptText);
-      if (text) this._pushDisplayEvent(displayEvents, new AgentEvent(AgentEvent.TYPE_TEXT, { text }));
-      textBuffer = '';
-    };
-
-    for (const agentEvent of events) {
-      if (agentEvent.type === AgentEvent.TYPE_TEXT && agentEvent.data && agentEvent.data.delta) {
-        textBuffer += agentEvent.data.text || '';
-        continue;
-      }
-      flushText();
-      if (agentEvent.type === AgentEvent.TYPE_TEXT) {
-        const text = this._stripPromptEcho(agentEvent.data && agentEvent.data.text, promptText);
-        if (text) this._pushDisplayEvent(displayEvents, new AgentEvent(AgentEvent.TYPE_TEXT, Object.assign({}, agentEvent.data, { text })));
-        continue;
-      }
-      this._pushDisplayEvent(displayEvents, agentEvent);
-    }
-
-    flushText();
-    return displayEvents;
+    return this.progressRenderer._coalesceDisplayEvents(events, promptText);
   }
 
   _pushDisplayEvent(displayEvents, agentEvent) {
-    const previous = displayEvents[displayEvents.length - 1];
-    if (previous && previous.type === AgentEvent.TYPE_TEXT && agentEvent.type === AgentEvent.TYPE_TEXT) {
-      const previousText = previous.data && previous.data.text;
-      const nextText = agentEvent.data && agentEvent.data.text;
-      if (previousText === nextText) return;
-      if (previousText && nextText && previousText.endsWith(nextText)) return;
-      if (previousText && nextText && nextText.startsWith(previousText)) {
-        const tail = nextText.slice(previousText.length).trimStart();
-        const tailWithoutMessageId = tail.replace(/^m\d+\s*/i, '').trimStart();
-        if (!tailWithoutMessageId || tailWithoutMessageId === previousText) return;
-        previous.data = Object.assign({}, previous.data, { text: nextText });
-        return;
-      }
-    }
-    displayEvents.push(agentEvent);
+    return this.progressRenderer._pushDisplayEvent(displayEvents, agentEvent);
   }
 
   _stripPromptEcho(text, promptText) {
-    if (!text) return '';
-    const prompt = (promptText || '').trim();
-    let output = text;
-    if (prompt) {
-      if (output === prompt) return '';
-      if (output.startsWith(prompt)) output = output.slice(prompt.length).trimStart();
-    }
-    output = output.replace(/^m\d+\s*/i, '').trimStart();
-    return this._collapseNumberedSnapshots(output);
+    return this.progressRenderer._stripPromptEcho(text, promptText);
   }
 
   _collapseNumberedSnapshots(text) {
-    if (!text) return '';
-    const normalized = text.replace(/\r\n/g, '\n');
-    const parts = normalized
-      .split(/\n+\s*m\d+\s*\n+/i)
-      .map((part) => part.trim())
-      .filter(Boolean);
-
-    if (parts.length <= 1) return text;
-
-    const snapshots = [];
-    for (const part of parts) {
-      this._pushTextSnapshot(snapshots, part);
-    }
-    return snapshots.join('\n\n');
+    return this.progressRenderer._collapseNumberedSnapshots(text);
   }
 
   _pushTextSnapshot(snapshots, nextText) {
-    if (!nextText) return;
-    const previous = snapshots[snapshots.length - 1];
-    if (previous) {
-      if (previous === nextText) return;
-      if (previous.endsWith(nextText)) return;
-      if (nextText.startsWith(previous)) {
-        snapshots[snapshots.length - 1] = nextText;
-        return;
-      }
-    }
-    snapshots.push(nextText);
+    return this.progressRenderer._pushTextSnapshot(snapshots, nextText);
   }
 
   /**
@@ -1067,17 +926,11 @@ class MessageDispatcher {
    * @returns {Promise<void>}
    */
   async _renderLegacyProgress(session, event, displayEvents) {
-    const fullText = this._textFromDisplayEvents(displayEvents);
-    await this._callFeishu('replyMarkdown', [this._replyCtx(event), this._appendModelFooter(fullText.trim(), session)]);
+    return this.progressRenderer._renderLegacyProgress(session, event, displayEvents);
   }
 
   _textFromDisplayEvents(displayEvents) {
-    return (displayEvents || [])
-      .filter((event) => event.type === AgentEvent.TYPE_TEXT)
-      .map((event) => event.data && event.data.text)
-      .filter(Boolean)
-      .join('\n')
-      .trim();
+    return this.progressRenderer._textFromDisplayEvents(displayEvents);
   }
 
   _watchSessionEvents(session, cmd, driver) {
@@ -1155,152 +1008,47 @@ class MessageDispatcher {
   }
 
   _startTurnState(session, event, driver, agentRef, token, progressCardId, stopHeartbeat) {
-    this.cancelledTurnSessions.delete(session.id);
-    const turnState = {
-      token,
-      startedAt: Date.now(),
-      lastEventAt: Date.now(),
-      progressCardId,
-      cancelled: false,
-      abortController: new AbortController(),
-      cancelReason: null,
-      timeoutTimer: null,
-      stopHeartbeat,
-      event,
-      driver,
-      agentRef,
-    };
-    this.turnStates.set(session.id, turnState);
-    this._startTurnTimeout(session, turnState);
-    return turnState;
+    return this.turnStateManager._startTurnState(session, event, driver, agentRef, token, progressCardId, stopHeartbeat);
   }
 
   _startTurnTimeout(session, turnState) {
-    if (!this.maxTurnTimeMins || this.maxTurnTimeMins <= 0) return;
-    const timeoutMs = Math.max(1, this.maxTurnTimeMins * 60 * 1000);
-    turnState.timeoutTimer = setTimeout(() => {
-      turnState.cancelReason = 'deadline';
-      if (turnState.abortController) turnState.abortController.abort();
-      this._cancelTurn(session, turnState.driver, turnState, { reason: 'deadline' })
-        .then(() => this._callFeishu('replyText', [this._replyCtx(turnState.event), 'Current turn timed out after ' + this.maxTurnTimeMins + ' minutes and was cancelled.']))
-        .catch((err) => logger.warn('turn timeout cancel failed', { sessionId: session.id, error: err && err.message ? err.message : String(err) }));
-    }, timeoutMs);
-    if (turnState.timeoutTimer && typeof turnState.timeoutTimer.unref === 'function') turnState.timeoutTimer.unref();
+    return this.turnStateManager._startTurnTimeout(session, turnState);
   }
 
   async _cancelTurn(session, driver, turnState, options) {
-    if (!session || !turnState || turnState.cancelled) return;
-    turnState.cancelled = true;
-    if (options && options.reason) turnState.cancelReason = options.reason;
-    this.cancelledTurnSessions.add(session.id);
-    if (turnState.abortController && !turnState.abortController.signal.aborted) {
-      turnState.abortController.abort();
-    }
-    this._clearTurnState(session.id, turnState.token);
-    this.sessionWatchBuffers.set(session.id, []);
-    const activeDriver = driver || this.driverRegistry.get(session.agent);
-    if (activeDriver && session.agentRef) {
-      if (typeof activeDriver.cancel === 'function') {
-        await activeDriver.cancel(session.agentRef);
-      } else if (typeof activeDriver.stop === 'function') {
-        await activeDriver.stop(session.agentRef);
-      }
-    }
-    this._markIdleIfActive(session.id);
-    logger.info('turn cancelled', { sessionId: session.id, reason: options && options.reason });
+    return this.turnStateManager._cancelTurn(session, driver, turnState, options);
   }
 
   _clearTurnState(sessionId, token) {
-    const turnState = this.turnStates.get(sessionId);
-    if (!turnState || (token && turnState.token !== token)) return;
-    if (turnState.timeoutTimer) clearTimeout(turnState.timeoutTimer);
-    if (turnState.stopHeartbeat) {
-      try { turnState.stopHeartbeat(); } catch (_) {}
-    }
-    this.turnStates.delete(sessionId);
+    return this.turnStateManager._clearTurnState(sessionId, token);
   }
 
   _isTransportRecoverableError(err) {
-    if (!err) return false;
-    const code = err.code;
-    if (code === 'SSE_IDLE_TIMEOUT' || code === 'SSE_OPEN_TIMEOUT') return true;
-    if (code === 'TUI_RUNTIME_DISCONNECTED') return true;
-    if (!code && err.message && /idle|timed out|SSE connection/i.test(err.message)) return true;
-    return false;
+    return this.turnStateManager._isTransportRecoverableError(err);
   }
 
   _isTurnCancelled(sessionId, token) {
-    const turnState = this.turnStates.get(sessionId);
-    return this.cancelledTurnSessions.has(sessionId) || !!(turnState && turnState.token === token && turnState.cancelled);
+    return this.turnStateManager._isTurnCancelled(sessionId, token);
   }
 
   _isTurnSuppressed(sessionId) {
-    return this.cancelledTurnSessions.has(sessionId);
+    return this.turnStateManager._isTurnSuppressed(sessionId);
   }
 
   _touchTurnState(turnState) {
-    if (turnState) turnState.lastEventAt = Date.now();
+    return this.turnStateManager._touchTurnState(turnState);
   }
 
   _startPromptHeartbeat(session, progressCardId) {
-    if (this.progressStyle !== 'card' || !progressCardId || !session || !session.id) return () => {};
-    const sessionId = session.id;
-    this._stopPromptHeartbeat(sessionId);
-
-    const startedAt = Date.now();
-    const initialMs = Math.max(1, this.promptHeartbeatInitialMs);
-    const intervalMs = Math.max(1, this.promptHeartbeatIntervalMs);
-    const stuckMs = Math.max(initialMs, this.promptHeartbeatStuckMs);
-    let timer = null;
-    let stopped = false;
-
-    const tick = () => {
-      if (stopped) return;
-      if (this._isTerminalSession(sessionId)) {
-        this._stopPromptHeartbeat(sessionId);
-        return;
-      }
-
-      const elapsedMs = Date.now() - startedAt;
-      const elapsedText = this._formatDuration(elapsedMs);
-      const stuck = elapsedMs >= stuckMs;
-      const message = stuck
-        ? '任务可能卡住，已 ' + elapsedText + ' 无新事件。可以继续等待，或发送 /stop 停止当前 session。'
-        : '仍在执行，已等待 ' + elapsedText + '，最近无新事件。';
-      this._sendFeishu('updateProgressCard', [progressCardId, sessionId, new AgentEvent(AgentEvent.TYPE_STATUS, { message })], { sessionId });
-      timer = setTimeout(tick, intervalMs);
-      if (timer && typeof timer.unref === 'function') timer.unref();
-    };
-
-    timer = setTimeout(tick, initialMs);
-    if (timer && typeof timer.unref === 'function') timer.unref();
-
-    const stop = () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-      if (this.promptHeartbeatStops.get(sessionId) === stop) {
-        this.promptHeartbeatStops.delete(sessionId);
-      }
-    };
-    this.promptHeartbeatStops.set(sessionId, stop);
-    return stop;
+    return this.promptHeartbeat.start(session, progressCardId);
   }
 
   _stopPromptHeartbeat(sessionId) {
-    const stop = this.promptHeartbeatStops.get(sessionId);
-    if (stop) {
-      try { stop(); } catch (_) {}
-    }
-    this.promptHeartbeatStops.delete(sessionId);
+    return this.promptHeartbeat.stop(sessionId);
   }
 
   _formatDuration(ms) {
-    const totalSeconds = Math.max(1, Math.round(ms / 1000));
-    if (totalSeconds < 60) return totalSeconds + ' 秒';
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    if (!seconds) return minutes + ' 分钟';
-    return minutes + ' 分钟 ' + seconds + ' 秒';
+    return this.promptHeartbeat._formatDuration(ms);
   }
 
   _handleWatchedSessionEvent(session, chatId, agentEvent) {
@@ -1369,7 +1117,6 @@ class MessageDispatcher {
   _isWatchProgressEvent(eventType) {
     return eventType === AgentEvent.TYPE_TODO
       || eventType === AgentEvent.TYPE_COMPACTED
-      || eventType === AgentEvent.TYPE_FILE_EDITED
       || eventType === AgentEvent.TYPE_COMMAND_EXECUTED;
   }
 
@@ -1390,6 +1137,7 @@ class MessageDispatcher {
       if (agentEvent.type === AgentEvent.TYPE_PERMISSION || agentEvent.type === AgentEvent.TYPE_PERMISSION_REPLIED) continue;
       if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
       if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
+      if (agentEvent.type === AgentEvent.TYPE_FILE_EDITED) continue;
       const rendered = await this._callFeishu('updateProgressCard', [progressCardId, session.id, agentEvent], null);
       if (rendered && rendered.strategy === 'new_message') {
         const newCardId = await this._callFeishu('sendProgressCard', [{ chatId }, session.id, agentEvent], null);
@@ -1402,38 +1150,11 @@ class MessageDispatcher {
   }
 
   _handlePermissionEvent(session, chatId, agentEvent) {
-    if (!this.permissionCardIds) this.permissionCardIds = new Map();
-    const permissionId = agentEvent.data && agentEvent.data.id;
-    const routeKey = this.sessionService && typeof this.sessionService.getRouteForSession === 'function'
-      ? this.sessionService.getRouteForSession(session.id) : '';
-    const card = {
-      data: agentEvent.data,
-      sessionId: session.id,
-      routeKey: routeKey,
-    };
-    const existingCardId = this.permissionCardIds.get(permissionId);
-    if (existingCardId) {
-      this._sendFeishu('patchCard', [existingCardId, require('../platform/feishu/cards').buildPermissionCard(agentEvent, session.id, routeKey)], { sessionId: session.id, permissionId });
-      return;
-    }
-    const replyCtx = { chatId: chatId };
-    this._callFeishu('replyCard', [replyCtx, require('../platform/feishu/cards').buildPermissionCard(agentEvent, session.id, routeKey)], null, { sessionId: session.id, permissionId })
-      .then((cardId) => {
-        if (cardId) this.permissionCardIds.set(permissionId, cardId);
-      })
-      .catch((err) => {
-        logger.warn('permission card send failed', { sessionId: session.id, permissionId, error: err && err.message });
-      });
+    return this.permissionHandler.handle(session, chatId, agentEvent);
   }
 
   _handlePermissionRepliedEvent(session, chatId, agentEvent) {
-    const permissionId = agentEvent.data && agentEvent.data.permissionId;
-    const response = agentEvent.data && agentEvent.data.response;
-    if (!this.permissionCardIds || !permissionId) return;
-    const existingCardId = this.permissionCardIds.get(permissionId);
-    if (existingCardId) {
-      this._sendFeishu('patchCard', [existingCardId, require('../platform/feishu/cards').buildPermissionRepliedCard(permissionId, response)], { sessionId: session.id, permissionId });
-    }
+    return this.permissionHandler.handleReplied(session, chatId, agentEvent);
   }
 
   _isFocusSession(session) {
@@ -1539,11 +1260,11 @@ class MessageDispatcher {
   }
 
   destroy() {
-    for (const [sessionId, stopFn] of this.sessionWatchStops) {
+    for (const [_sessionId, stopFn] of this.sessionWatchStops) {
       try { if (typeof stopFn === 'function') stopFn(); } catch (_) {}
     }
     this.sessionWatchStops.clear();
-    for (const [sessionId, stopFn] of this.promptHeartbeatStops) {
+    for (const [_sessionId, stopFn] of this.promptHeartbeatStops) {
       try { if (typeof stopFn === 'function') stopFn(); } catch (_) {}
     }
     this.promptHeartbeatStops.clear();

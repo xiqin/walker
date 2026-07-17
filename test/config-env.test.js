@@ -238,7 +238,7 @@ test('loadEnvConfig 无效分层 timeout 回落默认值', () => {
 test('loadEnvConfig 拒绝 heartbeat 不小于 lease', () => {
   assert.throws(
     () => loadEnvConfig({ env: { OPENCODE_TUI_HEARTBEAT_INTERVAL_MS: '120000', OPENCODE_TUI_LEASE_TIMEOUT_MS: '90000' } }),
-    (err) => err.message.includes('OPENCODE_TUI_HEARTBEAT_INTERVAL_MS') && err.message.includes('OPENCODE_TUI_LEASE_TIMEOUT_MS')
+    (err) => err.message.includes('OPENCODE_TUI_HEARTBEAT_INTERVAL_MS') && err.message.includes('OPENCODE_TUI_LEASE_TIMEOUT_MS'),
   );
 });
 

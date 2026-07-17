@@ -4,8 +4,34 @@
  * @returns {Object} 包含 info/warn/error/debug 方法的日志器对象
  */
 
+const fs = require('fs');
+const path = require('path');
+
 const LEVEL_PRIORITY = { error: 0, warn: 1, info: 2, debug: 3 };
 let _currentPriority = null;
+
+let _fileStream = null;
+let _fileStreamInitFailed = false;
+
+function getFileStream() {
+  if (_fileStreamInitFailed) return null;
+  if (_fileStream) return _fileStream;
+  if ((process.env.WALKER_LOG_FILE || '').toLowerCase() === 'false') {
+    _fileStreamInitFailed = true;
+    return null;
+  }
+  try {
+    const logDir = path.join(process.cwd(), 'logs');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    _fileStream = fs.createWriteStream(path.join(logDir, 'walker.log'), { flags: 'a' });
+    _fileStream.on('error', () => { _fileStreamInitFailed = true; _fileStream = null; });
+    process.on('beforeExit', () => { if (_fileStream) { _fileStream.end(); _fileStream = null; } });
+  } catch (_) {
+    _fileStreamInitFailed = true;
+    return null;
+  }
+  return _fileStream;
+}
 
 function getCurrentPriority() {
   if (_currentPriority === null) {
@@ -68,6 +94,8 @@ function createLogger(scope) {
       } else {
         console.log(line);
       }
+      const stream = getFileStream();
+      if (stream) stream.write(line + '\n');
     } catch (_) {
       console.log(JSON.stringify({ ts: row.ts, level: row.level, scope: row.scope, message: row.message, error: 'log serialization failed' }));
     }

@@ -38,8 +38,6 @@ function createAdminServer(options) {
 
   const router = createRouter();
   const publicDir = opts.publicDir || '';
-  const eventStore = opts.eventStore;
-  const now = opts.now || Date.now;
   const serverFactory = opts.serverFactory;
 
   const responseModule = { success, error, send };

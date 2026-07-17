@@ -131,7 +131,7 @@ function loadEnvConfig(options) {
     throw new Error(
       'OPENCODE_TUI_HEARTBEAT_INTERVAL_MS (' + result.opencodeTuiHeartbeatIntervalMs +
       ') must be less than OPENCODE_TUI_LEASE_TIMEOUT_MS (' + result.opencodeTuiLeaseTimeoutMs +
-      ') when lease timeout is enabled'
+      ') when lease timeout is enabled',
     );
   }
 

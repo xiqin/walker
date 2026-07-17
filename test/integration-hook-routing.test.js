@@ -60,7 +60,7 @@ function makeFeishuStub() {
     sendSessionList: (msgId, sessions, currentId, routeKey) => { calls.push({ type: 'sendSessionList', msgId, sessions, currentId, routeKey }); },
     sendAttachableSessionList: (msgId, sessions, options) => { calls.push({ type: 'sendAttachableSessionList', msgId, sessions, options }); },
     sendErrorCard: (msgId, message) => { calls.push({ type: 'sendErrorCard', msgId, message }); },
-    sendProgressCard: (msgId, sessionId, initialEvent) => { calls.push({ type: 'sendProgressCard', msgId, sessionId }); return 'om_prog_' + (calls.length); },
+    sendProgressCard: (msgId, sessionId, _initialEvent) => { calls.push({ type: 'sendProgressCard', msgId, sessionId }); return 'om_prog_' + (calls.length); },
     updateProgressCard: (cardId, sessionId, agentEvent) => { calls.push({ type: 'updateProgressCard', cardId, sessionId, agentEvent }); return null; },
   };
 }
@@ -105,7 +105,6 @@ describe('集成测试 1: Hook 纳入 → 路由绑定 → 消息派发', () => 
       const result = await enrollViaHook(ctx, 'oc_hook_enrolled', cwd);
       assert.equal(result.ok, true);
       assert.equal(result.data.routeKey, routeKey);
-      const hookSessionId = result.data.sessionId;
 
       const sessionsInRoute = ctx.sessionService.listSessionsInRoute(routeKey);
       assert.equal(sessionsInRoute.length, 2, 'route 下应有 2 个 session（初始 + hook 纳入）');
@@ -154,7 +153,7 @@ describe('集成测试 2: 1:N 路由 → 切焦点 → 消息派发到新焦点'
     try {
       const routeKey = 'feishu:oc_integ3:om_root1';
       const cwd = 'H:\\walker';
-      const s1 = ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd, agentRef: { opencodeSessionId: 'oc_focus_orig', serverUrl: 'http://localhost:4096' } });
+      ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd, agentRef: { opencodeSessionId: 'oc_focus_orig', serverUrl: 'http://localhost:4096' } });
       ctx.sessionService.setRouteCwd(routeKey, cwd);
       const r2 = await enrollViaHook(ctx, 'oc_focus_new', cwd);
       const newFocusId = r2.data.sessionId;

@@ -356,7 +356,7 @@ test('renderErrorCard 显示错误信息', () => {
 test('buildPermissionCard header 红色且标题为权限确认请求', () => {
   const card = buildPermissionCard(
     { data: { id: 'perm_1', type: 'bash', title: '执行 bash 命令' } },
-    'wks_session1'
+    'wks_session1',
   );
   assert.equal(card.header.template, 'red');
   assert.equal(card.header.title.content, '权限确认请求');
@@ -365,7 +365,7 @@ test('buildPermissionCard header 红色且标题为权限确认请求', () => {
 test('buildPermissionCard body 包含权限标题', () => {
   const card = buildPermissionCard(
     { data: { id: 'perm_1', title: '执行 rm 命令' } },
-    'wks_session1'
+    'wks_session1',
   );
   const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
   assert.ok(textEl.text.content.includes('执行 rm 命令'));
@@ -375,7 +375,7 @@ test('buildPermissionCard 包含允许和拒绝按钮', () => {
   const card = buildPermissionCard(
     { data: { id: 'perm_1', title: 'test' } },
     'wks_session1',
-    'route_key_1'
+    'route_key_1',
   );
   const buttons = collectButtons(card);
   assert.ok(buttons.some((b) => b.text.content === '允许' && b.type === 'primary'));
@@ -386,7 +386,7 @@ test('buildPermissionCard 按钮 value 携带 permit 命令', () => {
   const card = buildPermissionCard(
     { data: { id: 'perm_abc', title: 'test' } },
     'wks_s1',
-    'rk1'
+    'rk1',
   );
   const buttons = collectButtons(card);
   const allowBtn = buttons.find((b) => b.text.content === '允许');
@@ -400,7 +400,7 @@ test('buildPermissionCard 按钮 value 携带 permit 命令', () => {
 test('buildPermissionCard 缺少 title 时显示未知权限请求', () => {
   const card = buildPermissionCard(
     { data: { id: 'perm_1' } },
-    'wks_s1'
+    'wks_s1',
   );
   const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
   assert.ok(textEl.text.content.includes('未知权限请求'));
@@ -409,7 +409,7 @@ test('buildPermissionCard 缺少 title 时显示未知权限请求', () => {
 test('buildPermissionCard metadata 显示命令信息', () => {
   const card = buildPermissionCard(
     { data: { id: 'perm_1', type: 'bash', title: '执行命令', metadata: { command: 'npm test' } } },
-    'wks_s1'
+    'wks_s1',
   );
   const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
   assert.ok(textEl.text.content.includes('npm test'));

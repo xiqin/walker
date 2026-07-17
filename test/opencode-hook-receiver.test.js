@@ -8,7 +8,6 @@ const http = require('http');
 const { SessionService } = require('../src/core/session-service');
 const { JsonStore } = require('../src/core/json-store');
 const { createHookReceiverRoutes } = require('../src/opencode-hook/receiver');
-const { success, error, send } = require('../src/admin/response');
 const { createAdminServer } = require('../src/admin/server');
 
 function createCtx(options) {
@@ -596,7 +595,7 @@ function createFullServer(options) {
   const adminServer = createAdminServer({
     config: ctx.config,
     publicDir: '',
-    routes: function registerRoutes(router, authGuard) {
+    routes: function registerRoutes(router, _authGuard) {
       for (const route of hookRoutes) {
         router.add(route.method, route.pattern, route.handler);
       }

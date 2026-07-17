@@ -500,7 +500,7 @@ test('deleteSession 从 route sessions 移除并自动切焦点', () => {
   assert.deepEqual(state.routes[routeKey].sessions, [s1.id, s3.id], '已删除 session 从列表移除');
   assert.ok(
     state.routes[routeKey].focusSessionId === s1.id || state.routes[routeKey].focusSessionId === s3.id,
-    '删除焦点后自动切换到活跃 session'
+    '删除焦点后自动切换到活跃 session',
   );
   assert.equal(service.getCurrent(routeKey).id, state.routes[routeKey].focusSessionId);
 

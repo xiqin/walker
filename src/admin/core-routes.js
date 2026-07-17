@@ -8,7 +8,7 @@
 
 const { success, error, send, parseQueryString } = require('./response');
 const { parseBody } = require('./auth');
-const { recordEvent, listEvents, getMetrics } = require('./event-store');
+const { listEvents, getMetrics } = require('./event-store');
 const config = require('./config');
 
 const sessionAdmin = require('./session-admin');

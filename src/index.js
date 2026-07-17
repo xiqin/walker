@@ -1,16 +1,28 @@
+#!/usr/bin/env node
 'use strict';
 
 const { loadEnvConfig } = require('./config/env');
 const { createApp } = require('./app/bootstrap');
 const { createLogger } = require('./core/logger');
+const daemon = require('./cli/daemon');
+const logs = require('./cli/logs');
 
-const logger = createLogger('walker');
+function printUsage() {
+  console.log('walker — IM tool and AI agent CLI multiplexer');
+  console.log('');
+  console.log('Usage:');
+  console.log('  walker              Start walker in foreground (Ctrl+C to stop)');
+  console.log('  walker start        Start walker in background (daemon)');
+  console.log('  walker stop         Stop background walker');
+  console.log('  walker status       Show background walker status and recent logs');
+  console.log('  walker logs [N]     Show last N lines of logs (default 80)');
+  console.log('  walker help         Show this help');
+  console.log('');
+  console.log('Logs: logs/walker.out.log and logs/walker.err.log');
+}
 
-/**
- * Walker 应用入口函数，加载配置、创建应用实例并注册信号处理
- * @returns {Promise<void>}
- */
-async function main() {
+async function runForeground() {
+  const logger = createLogger('walker');
   const config = loadEnvConfig();
 
   if (!config.feishuAppId || !config.feishuAppSecret) {
@@ -23,9 +35,6 @@ async function main() {
 
   const app = createApp(config);
 
-  /**
-   * 系统信号处理函数，优雅关闭应用后退出进程
-   */
   const shutdown = () => {
     logger.info('received shutdown signal');
     app.stop();
@@ -35,11 +44,10 @@ async function main() {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  // 保活定时器：保持事件循环活跃，防止 Node.js 在无 I/O 时自动退出
   setInterval(() => {}, 60000);
 
   try {
-    const result = await app.start();
+    await app.start();
     if (app.adminServer) {
       const status = app.adminServer.getStatus();
       if (status && !status.disabled) {
@@ -49,6 +57,44 @@ async function main() {
   } catch (err) {
     logger.error('walker start failed', { error: err.message });
     process.exit(1);
+  }
+}
+
+async function main() {
+  const arg = process.argv[2];
+  let code;
+  switch (arg) {
+    case undefined:
+    case 'run':
+      await runForeground();
+      return;
+    case 'start':
+    case 'daemon':
+      code = await daemon.start();
+      process.exit(code);
+      return;
+    case 'stop':
+      code = await daemon.stop();
+      process.exit(code);
+      return;
+    case 'status':
+      code = await daemon.status();
+      process.exit(code);
+      return;
+    case 'logs':
+      code = await logs.run(process.argv.slice(3));
+      process.exit(code);
+      return;
+    case 'help':
+    case '--help':
+    case '-h':
+      printUsage();
+      process.exit(0);
+      return;
+    default:
+      console.error('unknown command: ' + arg);
+      printUsage();
+      process.exit(1);
   }
 }
 

@@ -25,7 +25,7 @@ class AgentDriver {
    * @param {Object} options - 创建会话的选项
    * @returns {Promise<Object>} 会话引用对象
    */
-  async createSession(options) {
+  async createSession(_options) {
     throw new Error('createSession not implemented by ' + this.name);
   }
 
@@ -34,7 +34,7 @@ class AgentDriver {
    * @param {Object} sessionRef - 会话引用对象
    * @returns {Promise<Object>} 恢复后的会话引用
    */
-  async resumeSession(sessionRef) {
+  async resumeSession(_sessionRef) {
     throw new Error('resumeSession not implemented by ' + this.name);
   }
 
@@ -43,7 +43,7 @@ class AgentDriver {
    * @param {Object} options - 查询选项
    * @returns {Promise<Object[]>} 会话摘要列表
    */
-  async listSessions(options) {
+  async listSessions(_options) {
     throw new Error('listSessions not implemented by ' + this.name);
   }
 
@@ -64,7 +64,7 @@ class AgentDriver {
     * @param {Object|string} [options.model] - 模型选择
     * @returns {Promise<AgentEvent[]>} Agent 事件列表
     */
-  async prompt(sessionRef, text, options) {
+  async prompt(_sessionRef, _text, _options) {
     throw new Error('prompt not implemented by ' + this.name);
   }
 
@@ -73,7 +73,7 @@ class AgentDriver {
    * @param {Object} sessionRef - 会话引用对象
    * @returns {Promise<void>}
    */
-  async stop(sessionRef) {
+  async stop(_sessionRef) {
     throw new Error('stop not implemented by ' + this.name);
   }
 
@@ -82,7 +82,7 @@ class AgentDriver {
    * @param {Object} sessionRef - 会话引用对象
    * @returns {Promise<void>}
    */
-  async delete(sessionRef) {
+  async delete(_sessionRef) {
     throw new Error('delete not implemented by ' + this.name);
   }
 }

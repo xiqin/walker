@@ -1,6 +1,5 @@
 'use strict';
 
-const { loadEnvConfig } = require('../config/env');
 const { JsonStore } = require('../core/json-store');
 const { SessionService } = require('../core/session-service');
 const { MessageDedup } = require('../core/message-dedup');
@@ -248,7 +247,6 @@ function createApp(config, deps) {
 
   const adminEnabled = config.admin ? config.admin.enabled !== false : true;
   const adminConfig = config.admin || { enabled: true, host: '127.0.0.1', port: 8787, token: '' };
-  let platformStarted = false;
 
   const healthPoller = createHealthPoller({
     sessionService,
@@ -273,7 +271,7 @@ function createApp(config, deps) {
       sessionService,
       config: adminConfig,
       defaultOpencodeUrl: config.opencodeServerUrl || 'http://localhost:4096',
-      onSessionEnrolled: ({ sessionId, routeKey }) => {
+      onSessionEnrolled: ({ sessionId, routeKey: _routeKey }) => {
         dispatcher.ensureWatchForSession(sessionId);
         const session = sessionService.getSession(sessionId);
         if (session && session.agentRef) {
@@ -342,7 +340,6 @@ function createApp(config, deps) {
       logger.info('hook plugin not installed', { reason: hookResult.reason, path: hookResult.path || '' });
     }
     await platform.start();
-    platformStarted = true;
     if (adminServer) {
       const result = await adminServer.start();
       if (result && result.ok && !result.disabled) {

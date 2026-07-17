@@ -1,0 +1,47 @@
+{
+  "spec_dir": "H:\\walker\\specs\\2026-07-17-dispatcher-split",
+  "pipeline_type": "feature",
+  "current_stage": "verification",
+  "loom_version": "0.1.0",
+  "started_at": "2026-07-17T02:03:50.289Z",
+  "updated_at": "2026-07-17T02:10:06.018Z",
+  "stage_history": [
+    {
+      "stage": "executing",
+      "entered_at": "2026-07-17T02:03:50.289Z",
+      "exited_at": "2026-07-17T02:10:06.018Z",
+      "status": "passed"
+    }
+  ],
+  "metadata": {},
+  "dynamic_steps": [
+    {
+      "id": "executing",
+      "skill": "loom-subagent-driven-development",
+      "requires": [
+        "plan.md",
+        "tasks/"
+      ],
+      "outputs": [
+        "test-report.md",
+        "handoffs/executing.json"
+      ],
+      "gate_verdict": "test-report.md",
+      "description": "subagent 并行编码执行"
+    },
+    {
+      "id": "verification",
+      "skill": "loom-verification-before-completion",
+      "requires": [
+        "test-report.md"
+      ],
+      "outputs": [
+        "verify-report.md",
+        "handoffs/verification.json"
+      ],
+      "gate_verdict": "verify-report.md",
+      "description": "spec 覆盖 / 类型一致性 / 编译测试"
+    }
+  ],
+  "current_stage_started_at": "2026-07-17T02:10:06.018Z"
+}

@@ -1,0 +1,29 @@
+{
+  "status": "done",
+  "summary": "验证通过。message-dispatcher.js 拆分重构行为不变：check.js fail 0、eslint exit 0、全套 907 tests 全通过（0 fail）。占位符扫描无真实标记。5 文件行数与 plan.md 一致（1167/141/89/319/60），SHA-256 已记录。10 项 requirement 全 PASS，兼容性约束 3 个 Map 字段保持。verdict: PASS。",
+  "artifacts": [
+    "specs/2026-07-17-dispatcher-split/verify-report.md",
+    "specs/2026-07-17-dispatcher-split/evidence/verification.log",
+    "src/dispatch/message-dispatcher.js",
+    "src/dispatch/turn-state.js",
+    "src/dispatch/heartbeat.js",
+    "src/dispatch/progress-renderer.js",
+    "src/dispatch/permission-handler.js"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "5f6daa24bc4cea19c5ead33f4f57ca49e7841b58aab354254668cb0b536961dc",
+    "test-report.md": "499e7a1a7da70aa77820cc6f9a1407b5ede55a38d95e3421919e9c06c3b6904b"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-17-dispatcher-split/evidence/verification.log": "cd872767e070a419ad74863f6c22b90b5250aa6b0c415f9c0919cf23188fddee",
+    "specs/2026-07-17-dispatcher-split/verify-report.md": "765aad8fb913be780518cde02f87600ee6d46abdc16ecd10a88d3f5fc1aa684b",
+    "src/dispatch/heartbeat.js": "cf3d7a38d3776087d01813d3217b36a9bcba1adeafb181be202fd26560b02fdb",
+    "src/dispatch/message-dispatcher.js": "ffd145f86a4de6fe1ad727b278f3fbb8c291519f378fcb3b19e65945e07f9e3a",
+    "src/dispatch/permission-handler.js": "90ee300113413cb704c88c8f99a366ef0e53b999e8e59fe0985793d12ad12607",
+    "src/dispatch/progress-renderer.js": "f79de15ca6caabfa69b5b16940f4eea2591584ec31c8bbe7f90ed91deae9c322",
+    "src/dispatch/turn-state.js": "b16cc9b2fa97cacecf376372571b3b2a71ba974d05af278145e56d05e8b70265"
+  },
+  "written_at": "2026-07-17T02:11:39.191Z"
+}

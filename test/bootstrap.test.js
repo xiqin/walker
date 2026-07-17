@@ -5,45 +5,6 @@ const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
 const { AgentEvent } = require('../src/drivers/agent-driver');
 
 /** 构建标准测试依赖映射，adminEnabled 控制是否注入 admin server */
-function makeDeps(adminEnabled) {
-  const adminStarted = [];
-  const adminStopped = [];
-  const platformStarted = [];
-  const platformStopped = [];
-  const adminServer = adminEnabled ? {
-    start() { adminStarted.push('admin'); return Promise.resolve({ ok: true, host: '127.0.0.1', port: 8787 }); },
-    stop() { adminStopped.push('admin'); return Promise.resolve({ ok: true }); },
-    getStatus() { return { started: true, disabled: false, host: '127.0.0.1', port: 8787 }; },
-  } : null;
-  return {
-    FeishuPlatform: class {
-      start() { platformStarted.push('feishu'); return Promise.resolve(); }
-      stop() { platformStopped.push('feishu'); }
-    },
-    SessionService: class { constructor() {} },
-    JsonStore: class { constructor() {} },
-    OpencodeDriver: class { constructor() {} },
-    stubClaudeDriver: () => ({}),
-    stubCodexDriver: () => ({}),
-    DriverRegistry: class { register() {} },
-    createRuntime: () => ({}),
-    MessageDedup: class {},
-    MessageDispatcher: class {},
-    AttachmentService: class {},
-    createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
-    createAdminServer: () => adminServer,
-    _adminStarted,
-    _adminStopped,
-    _platformStarted,
-    _platformStopped,
-  };
-
-  function _adminStarted() { return adminStarted; }
-  function _adminStopped() { return adminStopped; }
-  function _platformStarted() { return platformStarted; }
-  function _platformStopped() { return platformStopped; }
-}
-
 function makeModelCardApp(apiCalls, apiOverrides) {
   const config = {
     feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
@@ -601,7 +562,7 @@ describe('createApp', () => {
       { messageId: 'om_msg1', chatId: 'oc_chat1' },
       { data: { id: 'perm_1', title: '执行 bash 命令' } },
       'wks_s1',
-      'route_key_1'
+      'route_key_1',
     );
     assert.equal(result, 'om_perm_card1');
     const replyCall = calls.find((c) => c.type === 'replyCard');

@@ -250,7 +250,7 @@ class SessionService {
   }
 
   recoverOnStartup() {
-    const state = this._readNormalized();
+    this._readNormalized();
     const recovered = [];
     this.stateStore.update((s) => {
       this._ensureState(s);
@@ -271,7 +271,7 @@ class SessionService {
   }
 
   cleanOrphanRoutes() {
-    const state = this._readNormalized();
+    this._readNormalized();
     const cleaned = [];
     this.stateStore.update((s) => {
       this._ensureState(s);

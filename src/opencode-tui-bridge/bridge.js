@@ -9,7 +9,6 @@ const logger = createLogger('opencode-tui-bridge');
 
 const DELIVERY_TYPE_PROMPT = 'prompt';
 const DELIVERY_TYPE_CLEAR = 'clear';
-const CLEAR_PENDING_PREFIX = 'clr_';
 
 class OpencodeTuiBridge {
   constructor(options) {

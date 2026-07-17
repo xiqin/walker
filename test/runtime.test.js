@@ -1,4 +1,4 @@
-const { describe, it, beforeEach } = require('node:test');
+const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { WindowsRuntime } = require('../src/runtime/windows-runtime');
 const { WslRuntime } = require('../src/runtime/wsl-runtime');
@@ -10,7 +10,7 @@ class FakeChildProcess {
     this.killed = false;
     this._opts = opts;
   }
-  kill(sig) { this.killed = true; return true; }
+  kill(_sig) { this.killed = true; return true; }
   unref() {}
 }
 

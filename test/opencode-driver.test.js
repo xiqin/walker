@@ -102,7 +102,7 @@ describe('OpencodeDriver ensureReady', () => {
       httpClient: http,
       serverUrl: 'http://localhost:4096',
       autostart: true,
-      runtime: { spawn: (cmd, args, opts) => { spawnCalls.push({ cmd, args }); return { pid: 999, kill: () => {}, unref: () => {} }; } },
+      runtime: { spawn: (cmd, args, _opts) => { spawnCalls.push({ cmd, args }); return { pid: 999, kill: () => {}, unref: () => {} }; } },
       pollInterval: 10,
       maxPolls: 5,
     });
@@ -125,7 +125,9 @@ describe('OpencodeDriver createSession', () => {
     const http = new FakeHttpClient({
       'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
         status: 201,
-        id: 'ses_abc123', title: 'walker session', status: 'pending',
+        id: 'ses_abc123', title: 'walker session',
+        // eslint-disable-next-line no-dupe-keys
+        status: 'pending',
       },
     });
     const openTerminalCalls = [];
@@ -158,7 +160,9 @@ describe('OpencodeDriver createSession', () => {
     const http = new FakeHttpClient({
       'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
         status: 201,
-        id: 'ses_abc123', title: 'walker session', status: 'pending',
+        id: 'ses_abc123', title: 'walker session',
+        // eslint-disable-next-line no-dupe-keys
+        status: 'pending',
       },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', runtime: { spawn: () => ({}) } });
@@ -170,7 +174,9 @@ describe('OpencodeDriver createSession', () => {
     const http = new FakeHttpClient({
       'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
         status: 201,
-        id: 'ses_abc123', title: 'walker session', status: 'pending',
+        id: 'ses_abc123', title: 'walker session',
+        // eslint-disable-next-line no-dupe-keys
+        status: 'pending',
       },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
@@ -182,7 +188,9 @@ describe('OpencodeDriver createSession', () => {
     const http = new FakeHttpClient({
       'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
         status: 201,
-        id: 'ses_abc123', title: 'walker session', status: 'pending',
+        id: 'ses_abc123', title: 'walker session',
+        // eslint-disable-next-line no-dupe-keys
+        status: 'pending',
       },
     });
     const runtime = {

@@ -1,4 +1,4 @@
-const { describe, it, beforeEach } = require('node:test');
+const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
 const { MessageDedup } = require('../src/core/message-dedup');
@@ -52,7 +52,7 @@ function makeMocks() {
     sendSessionList: (msgId, sessions, currentId, options) => { feishuApi.calls.push({ type: 'sendSessionList', msgId, sessions, currentId, options }); },
     sendAttachableSessionList: (msgId, sessions, options) => { feishuApi.calls.push({ type: 'sendAttachableSessionList', msgId, sessions, options }); },
     sendErrorCard: (msgId, message) => { feishuApi.calls.push({ type: 'sendErrorCard', msgId, message }); },
-    sendProgressCard: (msgId, sessionId, initialEvent) => { feishuApi.calls.push({ type: 'sendProgressCard', msgId, sessionId }); return 'om_prog1'; },
+    sendProgressCard: (msgId, sessionId, _initialEvent) => { feishuApi.calls.push({ type: 'sendProgressCard', msgId, sessionId }); return 'om_prog1'; },
     updateProgressCard: (cardId, sessionId, agentEvent) => { feishuApi.calls.push({ type: 'updateProgressCard', cardId, sessionId, agentEvent }); return null; },
     sendModelList: (msgId, models, options) => { feishuApi.calls.push({ type: 'sendModelList', msgId, models, options }); return 'om_model_card1'; },
     sendHelpCard: (msgId, commands, options) => { feishuApi.calls.push({ type: 'sendHelpCard', msgId, commands, options }); return 'om_help_card1'; },
@@ -1387,7 +1387,7 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     const updateCalls = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard');
     const updatedTypes = updateCalls.map(c => c.agentEvent.type);
     assert.ok(updatedTypes.includes(AgentEvent.TYPE_TODO), 'todo 应更新进度卡片');
-    assert.ok(updatedTypes.includes(AgentEvent.TYPE_FILE_EDITED), 'file_edited 应更新进度卡片');
+    assert.equal(updatedTypes.includes(AgentEvent.TYPE_FILE_EDITED), false, 'file_edited 不应更新进度卡片');
     assert.ok(updatedTypes.includes(AgentEvent.TYPE_COMMAND_EXECUTED), 'command_executed 应更新进度卡片');
     assert.equal(updatedTypes.includes(AgentEvent.TYPE_STEP), false, 'step 不应更新进度卡片');
     assert.equal(updatedTypes.includes(AgentEvent.TYPE_SESSION_DIFF), false, 'session_diff 不应更新进度卡片');
@@ -2184,7 +2184,7 @@ describe('MessageDispatcher 1:N route commands', () => {
       { id: 'wks_focus1', agent: 'opencode', status: 'idle' },
       { id: 'wks_other1', agent: 'opencode', status: 'running' },
     ];
-    mocks.sessionService.listSessionsInRoute = (routeKey) => sessions;
+    mocks.sessionService.listSessionsInRoute = (_routeKey) => sessions;
     mocks.sessionService.getCurrent = () => sessions[0];
     const dispatcher = new MessageDispatcher({
       sessionService: mocks.sessionService,

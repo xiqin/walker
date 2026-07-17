@@ -1,17 +1,45 @@
 {
-  "name": "walker",
+  "name": "walker-bridge",
   "version": "0.1.0",
-  "private": true,
-  "description": "Walker — IM tool and AI agent CLI multiplexer. Feishu long-connection bridge to local agent sessions.",
+  "license": "MIT",
+  "description": "Walker — IM tool and AI agent CLI multiplexer. Bridges IM long-connections (Feishu, etc.) to local agent sessions.",
   "type": "commonjs",
   "main": "src/index.js",
+  "bin": {
+    "walker": "src/index.js"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.11.0"
+  },
+  "keywords": [
+    "im",
+    "bridge",
+    "agent",
+    "cli",
+    "multiplexer",
+    "feishu",
+    "lark",
+    "opencode"
+  ],
   "scripts": {
     "start": "node src/index.js",
-    "test": "npm run check",
-    "check": "node --check src/config/env.js && node --check src/core/json-store.js && node --check src/core/id.js && node --check src/core/logger.js && node --check src/core/http-helper.js && node --check src/core/route-key.js && node --check src/core/session-service.js && node --check src/core/message-dedup.js && node --check src/drivers/agent-driver.js && node --check src/drivers/driver-registry.js && node --check src/drivers/opencode-driver.js && node --check src/drivers/stub-drivers.js && node --check src/runtime/windows-runtime.js && node --check src/runtime/wsl-runtime.js && node --check src/runtime/runtime-factory.js && node --check src/dispatch/message-dispatcher.js && node --check src/dispatch/attachment-service.js && node --check src/opencode-tui-bridge/bridge.js && node --check src/opencode-tui-bridge/routes.js && node --check src/opencode-hook/plugin-template.js && node --check src/opencode-hook/installer.js && node --check src/app/bootstrap.js && node --check src/index.js && node --check src/platform/feishu/api.js && node --check src/platform/feishu/events.js && node --check src/platform/feishu/commands.js && node --check src/platform/feishu/platform.js && node --check src/platform/feishu/cards.js && node --check src/platform/feishu/progress-card.js && node --check src/admin/index.js && node --check src/admin/server.js && node --check src/admin/router.js && node --check src/admin/response.js && node --check src/admin/auth.js && node --check src/admin/static.js && node --check src/admin/config.js && node --check src/admin/config-editor.js && node --check src/admin/config-routes.js && node --check src/admin/event-store.js && node --check src/admin/core-routes.js && node --check src/admin/session-admin.js && node --check src/admin/route-admin.js && node --check src/admin/agent-runtime-admin.js && node --check src/admin/file-admin.js && node --check src/admin/diagnostics.js && node --check src/admin/maintenance-routes.js && node --check src/admin/command-simulator.js && node --check src/admin/card-preview.js && node --check src/admin/service-control.js && node --check src/admin/tools-routes.js && node --test test/*.test.js"
+    "test": "npm run lint && npm run check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "node scripts/check.js"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.70.0",
     "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "eslint": "^10.7.0",
+    "globals": "^17.7.0"
   }
 }

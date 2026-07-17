@@ -94,7 +94,7 @@ function readLogs(options) {
     if (opts.keyword) {
       const kw = opts.keyword.toLowerCase();
       filtered = filtered.filter((entry) =>
-        (entry.message || '').toLowerCase().includes(kw)
+        (entry.message || '').toLowerCase().includes(kw),
       );
     }
 

@@ -9,9 +9,7 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('events');
 
 const { createEventStore, recordEvent, recordMetric } = require('../src/admin/event-store');
-const { success, error, send } = require('../src/admin/response');
 const { createRouter } = require('../src/admin/router');
-const { createAuthGuard } = require('../src/admin/auth');
 const { createCoreRoutes } = require('../src/admin/core-routes');
 const sessionAdmin = require('../src/admin/session-admin');
 const routeAdmin = require('../src/admin/route-admin');
@@ -368,7 +366,7 @@ test('REQ-004: getSession 详情包含 routeKeys 和 timeline', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [{ id: 'wks_a', agent: 'opencode', title: 's1', runtime: 'windows', cwd: '', status: 'running', agentRef: null, errorMessage: null, createdAt: 1000, updatedAt: 1000 }],
-      { 'feishu:abc:chat1': 'wks_a' }
+      { 'feishu:abc:chat1': 'wks_a' },
     ),
   });
   recordEvent(ctx.eventStore, { type: 'session.state', sessionId: 'wks_a', message: 'created' });
@@ -524,7 +522,7 @@ test('REQ-007: listRoutes 列出绑定和健康状态', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [{ id: 'wks_a', agent: 'opencode', title: 's1', runtime: 'windows', cwd: '', status: 'running', agentRef: null, errorMessage: null, createdAt: 1000, updatedAt: 1000 }],
-      { 'feishu:abc:chat1': 'wks_a' }
+      { 'feishu:abc:chat1': 'wks_a' },
     ),
   });
 
@@ -584,7 +582,7 @@ test('REQ-007: unbindRoute 解除绑定', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [{ id: 'wks_a', agent: 'opencode', title: 's1', runtime: 'windows', cwd: '', status: 'running', agentRef: null, errorMessage: null, createdAt: 1000, updatedAt: 1000 }],
-      { 'feishu:abc:chat1': 'wks_a' }
+      { 'feishu:abc:chat1': 'wks_a' },
     ),
   });
 
@@ -598,7 +596,7 @@ test('REQ-008: 悬空 route 标记 dangling', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [],
-      { 'feishu:dangle1': 'wks_deleted', 'feishu:dangle2': 'wks_nonexist' }
+      { 'feishu:dangle1': 'wks_deleted', 'feishu:dangle2': 'wks_nonexist' },
     ),
   });
 
@@ -613,7 +611,7 @@ test('REQ-008: detectDangling 返回悬空 route 列表', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [{ id: 'wks_del', agent: 'opencode', title: 's1', runtime: 'windows', cwd: '', status: 'deleted', agentRef: null, errorMessage: null, createdAt: 1000, updatedAt: 1000 }],
-      { 'feishu:abc:chat1': 'wks_del', 'feishu:abc:chat2': 'wks_nonexist' }
+      { 'feishu:abc:chat1': 'wks_del', 'feishu:abc:chat2': 'wks_nonexist' },
     ),
   });
 
@@ -635,7 +633,7 @@ test('REQ-008: cleanupDangling 确认后清理悬空绑定', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [],
-      { 'feishu:abc:dangle1': 'wks_nonexist', 'feishu:abc:dangle2': 'wks_deleted' }
+      { 'feishu:abc:dangle1': 'wks_nonexist', 'feishu:abc:dangle2': 'wks_deleted' },
     ),
   });
 
@@ -763,7 +761,7 @@ test('REQ-011: detectRuntime 带 WSL IP 探测', () => {
   const ctx = buildAppContext();
   const result = agentRuntimeAdmin.detectRuntime(ctx, {
     checkCwd: () => true,
-    detectWslIp: (distro) => '172.25.0.1',
+    detectWslIp: (_distro) => '172.25.0.1',
   });
   assert.equal(result.wsl.ipDetected, true);
   assert.equal(result.wsl.ip, '172.25.0.1');
@@ -918,7 +916,7 @@ test('REQ-018: detectHealth 返回 dangling route、opencode 和 runtime 检查'
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [],
-      { 'feishu:dangle': 'wks_nonexist' }
+      { 'feishu:dangle': 'wks_nonexist' },
     ),
   });
 
@@ -1000,7 +998,7 @@ test('路由 GET routes 列表', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [{ id: 'wks_a', agent: 'opencode', title: 's', runtime: 'windows', cwd: '', status: 'running', agentRef: null, errorMessage: null, createdAt: 1000, updatedAt: 1000 }],
-      { 'feishu:abc': 'wks_a' }
+      { 'feishu:abc': 'wks_a' },
     ),
   });
   const routes = createCoreRoutes(ctx);
@@ -1065,7 +1063,7 @@ test('REQ-026: cleanup 事件写入 eventStore', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(
       [],
-      { 'feishu:cleanup:d1': 'wks_nonexist' }
+      { 'feishu:cleanup:d1': 'wks_nonexist' },
     ),
   });
 

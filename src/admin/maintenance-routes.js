@@ -78,7 +78,7 @@ function createMaintenanceRoutes(appContext) {
       const result = fileAdmin.getAttachment(
         ctx.dataDir || '',
         params.sessionId,
-        params.filename
+        params.filename,
       );
 
       if (!result.ok) {
@@ -106,7 +106,7 @@ function createMaintenanceRoutes(appContext) {
       const result = fileAdmin.deleteAttachment(
         ctx.dataDir || '',
         params.sessionId,
-        params.filename
+        params.filename,
       );
 
       if (!result.ok) {
@@ -256,7 +256,7 @@ function createMaintenanceRoutes(appContext) {
       const orphanResult = fileAdmin.cleanupOrphanAttachments(
         ctx.dataDir || '',
         sessionsData,
-        true
+        true,
       );
       results.attachments = orphanResult;
 

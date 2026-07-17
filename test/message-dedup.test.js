@@ -28,7 +28,7 @@ describe('MessageDedup', () => {
     const dedup = new MessageDedup({ windowMs: 100 });
     dedup.isDuplicate('om_old');
     const start = Date.now();
-    while (Date.now() - start < 200) {}
+    while (Date.now() - start < 200) { ; }
     assert.equal(dedup.isDuplicate('om_old'), false);
   });
 
@@ -37,7 +37,7 @@ describe('MessageDedup', () => {
     dedup.isDuplicate('om_old1');
     dedup.isDuplicate('om_old2');
     const start = Date.now();
-    while (Date.now() - start < 200) {}
+    while (Date.now() - start < 200) { ; }
     dedup.isDuplicate('om_new');
     assert.equal(dedup.size(), 1);
   });

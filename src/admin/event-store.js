@@ -37,10 +37,6 @@ function getDefaultStore() {
   return getDefaultStore.store;
 }
 
-function resolveStore(store) {
-  return store && Array.isArray(store.events) ? store : getDefaultStore();
-}
-
 /**
  * 判断参数是否为 store 实例（含 events 数组）
  * @param {*} val - 待判断值

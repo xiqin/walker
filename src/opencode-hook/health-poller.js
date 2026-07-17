@@ -10,7 +10,6 @@ const DEFAULT_FAILURE_THRESHOLD = 2;
 function createHealthPoller(options) {
   const opts = options || {};
   const sessionService = opts.sessionService;
-  const driverRegistry = opts.driverRegistry;
   const dispatcher = opts.dispatcher;
   const pollIntervalMs = opts.pollIntervalMs > 0 ? opts.pollIntervalMs : DEFAULT_POLL_INTERVAL_MS;
   const exitAction = opts.exitAction || 'cancel';
@@ -104,7 +103,7 @@ function createHealthPoller(options) {
     }
   }
 
-  async function _handleDetached(sessionId, entry) {
+  async function _handleDetached(sessionId, _entry) {
     try {
       const session = sessionService.getSession(sessionId);
       const routeKey = sessionService.getRouteForSession(sessionId);

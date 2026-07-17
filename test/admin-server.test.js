@@ -14,8 +14,8 @@ const os = require('os');
 const { createAdminServer } = require('../src/admin/server');
 const { createRouter, isAdminApiPath } = require('../src/admin/router');
 const { success, error, send, errorCodeToStatus } = require('../src/admin/response');
-const { extractToken, isAuthenticated, createAuthGuard, parseBody, createAuthHandlers } = require('../src/admin/auth');
-const { getMimeType, hasTraversal, resolveFilePath, isSpaFallbackCandidate, handleStatic } = require('../src/admin/static');
+const { extractToken, isAuthenticated, createAuthGuard, parseBody } = require('../src/admin/auth');
+const { getMimeType, hasTraversal, resolveFilePath, isSpaFallbackCandidate } = require('../src/admin/static');
 
 /**
  * 发送 HTTP 请求并收集响应
@@ -286,7 +286,7 @@ test('API 404 返回统一错误格式', async () => {
 
 test('router 基础匹配和参数提取', () => {
   const router = createRouter();
-  router.add('GET', '/api/admin/sessions/:id', (_req, _res, params) => {});
+  router.add('GET', '/api/admin/sessions/:id', (_req, _res, _params) => {});
 
   const result = router.match('GET', '/api/admin/sessions/wks_abc123');
   assert.ok(result);
@@ -615,7 +615,6 @@ test('cookie walker_admin_token 可认证', async () => {
 
 test('createAuthGuard 返回包装函数', () => {
   const guard = createAuthGuard({ token: 'test' }, { success, error, send });
-  let called = false;
-  const wrapped = guard((req, res) => { called = true; send(res, success({})); });
+  const wrapped = guard((req, res) => { send(res, success({})); });
   assert.equal(typeof wrapped, 'function');
 });
