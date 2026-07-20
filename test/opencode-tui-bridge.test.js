@@ -14,6 +14,10 @@ const { OpencodeTuiBridge } = require('../src/opencode-tui-bridge/bridge');
 const { createTuiBridgeRoutes } = require('../src/opencode-tui-bridge/routes');
 const { createAdminServer } = require('../src/admin/server');
 
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function createHarness() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-tui-bridge-'));
   const sessionService = new SessionService({
@@ -159,6 +163,36 @@ describe('OpencodeTuiBridge', () => {
       assert.equal(received[1].type, 'permission_replied');
       assert.equal(received[1].data.permissionId, 'perm_1');
       assert.equal(received[1].data.response, 'allow');
+      stop();
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('规范化原生 question asked、replied 和 rejected 事件', () => {
+    const h = createHarness();
+    try {
+      h.sessionService.createSession({ route: 'feishu:oc_bridge_question:om_root', cwd: 'H:\\walker' });
+      h.sessionService.setRouteCwd('feishu:oc_bridge_question:om_root', 'H:\\walker');
+      const enrolled = h.bridge.register({ runtimeId: 'runtime-question', sessionId: 'ses_question', cwd: 'H:\\walker' });
+      const session = h.sessionService.getSession(enrolled.sessionId);
+      const received = [];
+      const stop = h.bridge.watchSession(session.agentRef, { onEvent: (event) => received.push(event) });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-question',
+        sessionId: 'ses_question',
+        events: [
+          { type: 'question_asked', data: { requestID: 'req_1', sessionID: 'ses_question', questions: [] } },
+          { type: 'question_replied', data: { requestID: 'req_1', sessionID: 'ses_question', answers: [['yes']] } },
+          { type: 'question_rejected', data: { requestID: 'req_1', sessionID: 'ses_question' } },
+        ],
+      });
+
+      assert.deepEqual(received.map((event) => event.type), [
+        'question_asked', 'question_replied', 'question_rejected',
+      ]);
+      assert.deepEqual(received[1].data.answers, [['yes']]);
       stop();
     } finally {
       h.cleanup();
@@ -1276,6 +1310,334 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
       assert.deepEqual(result, { delivered: true, recovered: true });
       assert.equal(received.length, 0, 'error 应不投递到 watcher');
       stop();
+    } finally {
+      h.cleanup();
+    }
+  });
+});
+
+describe('OpencodeTuiBridge replyQuestion', () => {
+  function setupReplyHarness(opts) {
+    opts = opts || {};
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-tui-reply-'));
+    const sessionService = new SessionService({
+      stateStore: new JsonStore(path.join(tmpDir, 'state.json'), {}),
+    });
+    const bridge = new OpencodeTuiBridge({
+      sessionService,
+      leaseTimeoutMs: opts.leaseTimeoutMs || 90,
+      heartbeatIntervalMs: opts.heartbeatIntervalMs || 30,
+      tombstoneCapacity: opts.tombstoneCapacity || 100,
+      tombstoneTtlMs: opts.tombstoneTtlMs || 300000,
+      promptTimeoutMs: opts.promptTimeoutMs || 1000,
+      runtimeStaleMs: opts.runtimeStaleMs ?? 10000,
+    });
+    const routeKey = opts.routeKey || 'feishu:oc_reply:om_root';
+    const cwd = opts.cwd || 'H:\\walker';
+    sessionService.setRouteCwd(routeKey, cwd);
+    const reg = bridge.register({
+      runtimeId: 'runtime-reply',
+      sessionId: 'ses_reply',
+      cwd,
+      opencodeVersion: '1.17.20',
+      bridgeProtocolVersion: opts.bridgeProtocolVersion === undefined ? 4 : opts.bridgeProtocolVersion,
+    });
+    const tuiSession = sessionService.getSession(reg.sessionId);
+    return {
+      tmpDir, sessionService, bridge, routeKey, cwd, tuiSession,
+      cleanup() {
+        bridge.close();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      },
+    };
+  }
+
+  it('replyQuestion 以完整原生 requestID 和 answers 入队', () => {
+    const h = setupReplyHarness();
+    try {
+      const replyPromise = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_001', [['yes'], ['custom']]);
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+
+      assert.ok(delivery, '应投递 delivery');
+      assert.equal(delivery.type, 'question_reply');
+      assert.equal(delivery.sessionId, 'ses_reply');
+      assert.equal(delivery.requestID, 'req_001');
+      assert.deepEqual(delivery.answers, [['yes'], ['custom']]);
+      assert.equal('questionId' in delivery, false);
+      assert.equal('answer' in delivery, false);
+      assert.ok(delivery.deliveryId, '应携带 deliveryId');
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply',
+        deliveryId: delivery.deliveryId,
+        events: [],
+      });
+      return replyPromise;
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('replyQuestion runtime 不在线时 reject', async () => {
+    const h = setupReplyHarness();
+    try {
+      h.bridge.dispose({ runtimeId: 'runtime-reply' });
+      await assert.rejects(
+        () => h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_002', [['no']]),
+        /not connected/,
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('旧版 runtime 在入队前以不可重试的结构化错误拒绝 question reply', async () => {
+    const h = setupReplyHarness({ bridgeProtocolVersion: 3 });
+    try {
+      await assert.rejects(
+        () => h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_legacy', [['no']]),
+        (err) => err.code === 'QUESTION_REPLY_UNSUPPORTED'
+          && err.deliveryPhase === 'preflight'
+          && err.sdkInvoked === false
+          && err.safeToRetry === false,
+      );
+      assert.equal(h.bridge.runtimes.get('runtime-reply').queue.length, 0);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('acceptedTypes 仅取首条匹配 delivery 并保持未匹配项顺序', async () => {
+    const h = setupReplyHarness();
+    try {
+      const prompt = h.bridge.prompt(h.tuiSession.agentRef, 'parent prompt');
+      const reply = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_select', [['yes']]);
+      const control = h.bridge.poll({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', acceptedTypes: ['question_reply'],
+      });
+      assert.equal(control.type, 'question_reply');
+      assert.equal(h.bridge.runtimes.get('runtime-reply').queue[0].type, 'prompt');
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: control.deliveryId, events: [],
+      });
+      const parent = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+      assert.equal(parent.type, 'prompt');
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: parent.deliveryId, events: [],
+      });
+      await Promise.all([prompt, reply]);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('question reply 可与已 leased 的父 prompt 并存，且同 session 控制 delivery 串行', async () => {
+    const h = setupReplyHarness({ leaseTimeoutMs: 500 });
+    try {
+      const prompt = h.bridge.prompt(h.tuiSession.agentRef, 'parent prompt');
+      const parent = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: parent.deliveryId, deliveryState: 'accepted',
+      });
+
+      const first = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_first', [['one']]);
+      const second = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_second', [['two']]);
+      const firstDelivery = h.bridge.poll({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', acceptedTypes: ['question_reply'],
+      });
+      assert.equal(firstDelivery.requestID, 'req_first');
+      assert.equal(h.bridge.poll({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', acceptedTypes: ['question_reply'],
+      }), null);
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: firstDelivery.deliveryId, deliveryState: 'accepted',
+      });
+      assert.deepEqual(h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: firstDelivery.deliveryId, deliveryState: 'accepted',
+      }), { delivered: true, duplicate: true });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: firstDelivery.deliveryId, events: [],
+      });
+      const secondDelivery = h.bridge.poll({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', acceptedTypes: ['question_reply'],
+      });
+      assert.equal(secondDelivery.requestID, 'req_second');
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: secondDelivery.deliveryId, events: [],
+      });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: parent.deliveryId, events: [],
+      });
+      await Promise.all([prompt, first, second]);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('question reply 被取出后在 accepted 窗口超时，并对迟到 accepted 返回 expired', async () => {
+    const h = setupReplyHarness({ runtimeStaleMs: 120 });
+    try {
+      const reply = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_expire', [['late']]);
+      const delivery = h.bridge.poll({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', acceptedTypes: ['question_reply'],
+      });
+      const rejected = assert.rejects(reply, (err) => err.code === 'TUI_ACCEPTED_TIMEOUT'
+        && err.deliveryPhase === 'queued'
+        && err.sdkInvoked === false
+        && err.safeToRetry === true);
+      await waitMs(150);
+      await rejected;
+      assert.equal(h.bridge._tombstones.get(delivery.deliveryId).reason, 'accepted_timeout');
+      assert.deepEqual(h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      }), { delivered: false, expired: true });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('replyQuestion runtime stale 时 reject', async () => {
+    const h = setupReplyHarness();
+    try {
+      const runtime = h.bridge.runtimes.get('runtime-reply');
+      runtime.lastSeenAt = Date.now() - 999999;
+      await assert.rejects(
+        () => h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_003', [['maybe']]),
+        /stale/,
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('replyQuestion session 变更时 reject', async () => {
+    const h = setupReplyHarness();
+    try {
+      const staleRef = { ...h.tuiSession.agentRef, opencodeSessionId: 'ses_other' };
+      await assert.rejects(
+        () => h.bridge.replyQuestion(staleRef, 'req_004', [['ok']]),
+        /current session|has changed/i,
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('replyQuestion accepted→heartbeat→final 成功 resolve', async () => {
+    const h = setupReplyHarness({ leaseTimeoutMs: 500 });
+    try {
+      const replyPromise = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_005', [['confirmed']]);
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply',
+        deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      });
+      const pending = h.bridge.pending.get(delivery.deliveryId);
+      assert.equal(pending.state, 'leased');
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply',
+        deliveryId: delivery.deliveryId, deliveryState: 'heartbeat',
+      });
+      const pendingAfterHb = h.bridge.pending.get(delivery.deliveryId);
+      assert.equal(pendingAfterHb.state, 'leased');
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply',
+        deliveryId: delivery.deliveryId,
+        events: [],
+      });
+
+      const result = await replyPromise;
+      assert.equal(result, undefined, 'replyQuestion resolve 值应为 undefined');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('replyQuestion final 带 error 时 reject', async () => {
+    const h = setupReplyHarness();
+    try {
+      const replyPromise = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_006', [['bad']]);
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply',
+        deliveryId: delivery.deliveryId,
+        error: {
+          message: 'reply rejected by runtime',
+          code: 'QUESTION_NOT_FOUND',
+          deliveryPhase: 'leased',
+          sdkInvoked: true,
+          safeToRetry: false,
+        },
+      });
+
+      await assert.rejects(replyPromise, (err) => err.message === 'reply rejected by runtime'
+        && err.code === 'QUESTION_NOT_FOUND'
+        && err.deliveryPhase === 'leased'
+        && err.sdkInvoked === true
+        && err.safeToRetry === false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('replyQuestion lease 超时时 reject', async () => {
+    const h = setupReplyHarness({ leaseTimeoutMs: 30 });
+    try {
+      const replyPromise = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_007', [['timeout']]);
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply',
+        deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      });
+
+      const rejected = assert.rejects(replyPromise, /TUI_RUNTIME_DISCONNECTED/);
+      await waitMs(50);
+      await rejected;
+      assert.equal(h.bridge.pending.size, 0, 'pending 应已清理');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('已 accepted 的 question reply 在 runtime dispose 时按不可重试的已调用 SDK 状态拒绝', async () => {
+    const h = setupReplyHarness({ leaseTimeoutMs: 500 });
+    try {
+      const replyPromise = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_dispose', [['accepted']]);
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply',
+        deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      });
+      h.bridge.dispose({ runtimeId: 'runtime-reply' });
+      await assert.rejects(replyPromise, (err) => err.code === 'TUI_RUNTIME_DISCONNECTED'
+        && err.deliveryPhase === 'leased'
+        && err.sdkInvoked === true
+        && err.safeToRetry === false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('cancel 清理 question_reply pending', async () => {
+    const h = setupReplyHarness();
+    try {
+      const replyPromise = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_008', [['cancel me']]);
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+
+      h.bridge.cancel(h.tuiSession.agentRef);
+      await assert.rejects(replyPromise, /cancel/);
+      assert.equal(h.bridge.pending.size, 0, 'pending 应已清理');
+
+      const tombstone = h.bridge._tombstones.get(delivery.deliveryId);
+      assert.ok(tombstone, '应有 tombstone');
+      assert.equal(tombstone.reason, 'cancelled');
     } finally {
       h.cleanup();
     }

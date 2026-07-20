@@ -113,6 +113,26 @@ test('parseCardAction 支持飞书卡片回调 open_* 上下文字段', () => {
   assert.equal(parsed.action, 'cmd:/use wks_abc123');
 });
 
+test('parseCardAction 支持飞书卡片回调 operator 用户字段', () => {
+  const data = {
+    action: {
+      value: { action: 'cmd:/answer req_1:0 --form wks_1' },
+    },
+    context: {
+      open_chat_id: 'oc_chat1',
+      open_message_id: 'om_msg1',
+    },
+    operator: {
+      open_id: 'ou_user1',
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.openId, 'ou_user1');
+  assert.equal(parsed.chatId, 'oc_chat1');
+  assert.equal(parsed.messageId, 'om_msg1');
+  assert.equal(parsed.action, 'cmd:/answer req_1:0 --form wks_1');
+});
+
 test('parseCardAction 提取 form value', () => {
   const data = {
     action: {
@@ -127,6 +147,40 @@ test('parseCardAction 提取 form value', () => {
   const parsed = parseCardAction(data);
   assert.equal(parsed.action, 'cmd:/stop wks_xyz');
   assert.deepEqual(parsed.formValue, { confirm: 'yes' });
+});
+
+test('parseCardAction 兼容 action.value 内的 form_value', () => {
+  const data = {
+    action: {
+      value: {
+        action: 'cmd:/answer req_1:0 --form wks_1',
+        form_value: { question_selected: 'option_0' },
+      },
+    },
+    context: {
+      open_id: 'ou_2',
+      chat_id: 'oc_2',
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.action, 'cmd:/answer req_1:0 --form wks_1');
+  assert.deepEqual(parsed.formValue, { question_selected: 'option_0' });
+});
+
+test('parseCardAction 兼容事件顶层 form_value', () => {
+  const data = {
+    action: {
+      value: { action: 'cmd:/answer req_1:0 --form wks_1' },
+    },
+    form_value: { question_custom: '自定义答案' },
+    context: {
+      open_id: 'ou_2',
+      chat_id: 'oc_2',
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.action, 'cmd:/answer req_1:0 --form wks_1');
+  assert.deepEqual(parsed.formValue, { question_custom: '自定义答案' });
 });
 
 test('parseCardAction 提取嵌入的 routeKey', () => {

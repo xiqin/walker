@@ -519,6 +519,207 @@ function buildPermissionRepliedCard(permissionId, response) {
   };
 }
 
+function buildQuestionCard(questionEvent, sessionId, routeKey) {
+  const data = questionEvent.data || questionEvent;
+  const title = data.title || '交互式问题';
+  const questionId = data.id || '';
+  const meta = data.metadata || {};
+  const inputMode = meta.inputMode || 'confirm';
+  const description = meta.description || '';
+  const options = meta.options || [];
+
+  const metaLines = [];
+  if (description) metaLines.push(escapeLarkMd(description));
+  const content = '**' + escapeLarkMd(title) + '**' + (metaLines.length ? '\n' + metaLines.join('\n') : '');
+
+  const isSelectLike = (inputMode === 'single_select' || inputMode === 'multi_select');
+  if (isSelectLike && options.length === 0) {
+    return {
+      config: { wide_screen_mode: true, update_multi: true },
+      header: { title: { tag: 'plain_text', content: '交互式问题' }, template: 'blue' },
+      elements: [
+        { tag: 'div', text: { tag: 'lark_md', content: '选项缺失，无法渲染问题卡片' } },
+      ],
+    };
+  }
+
+  const effectiveMode = (inputMode === 'confirm' || inputMode === 'single_select' || inputMode === 'multi_select' || inputMode === 'text')
+    ? inputMode
+    : 'confirm';
+
+  const optionLabel = (opt) => {
+    const label = opt.label || opt.value;
+    return opt.description ? label + '\n' + opt.description : label;
+  };
+
+  const previewButtonValue = (cmd) => {
+    const value = { action: 'preview:/answer ' + cmd + ' ' + sessionId };
+    if (routeKey) value.routeKey = routeKey;
+    return value;
+  };
+
+  let actions;
+  if (effectiveMode === 'confirm') {
+    actions = [
+      { tag: 'button', text: { tag: 'plain_text', content: '允许' }, type: 'primary',
+        value: previewButtonValue(questionId + ' allow') },
+      { tag: 'button', text: { tag: 'plain_text', content: '拒绝' }, type: 'danger',
+        value: previewButtonValue(questionId + ' deny') },
+    ];
+  } else if (effectiveMode === 'single_select') {
+    actions = options.map((opt) => ({
+      tag: 'button',
+      text: { tag: 'plain_text', content: optionLabel(opt) },
+      type: 'default',
+      value: previewButtonValue(questionId + ' ' + opt.value),
+    }));
+  } else if (effectiveMode === 'multi_select') {
+    actions = [
+      {
+        tag: 'multi_select_static',
+        name: 'question_answer',
+        options: options.map((opt) => ({
+          text: { tag: 'plain_text', content: optionLabel(opt) },
+          value: opt.value,
+        })),
+      },
+      { tag: 'button', text: { tag: 'plain_text', content: '提交' }, type: 'primary',
+        value: previewButtonValue(questionId + ' --form') },
+    ];
+  } else if (effectiveMode === 'text') {
+    actions = [
+      {
+        tag: 'input',
+        name: 'question_answer',
+        placeholder: { tag: 'plain_text', content: description || '请输入' },
+      },
+      { tag: 'button', text: { tag: 'plain_text', content: '提交' }, type: 'primary',
+        value: previewButtonValue(questionId + ' --form') },
+    ];
+  }
+
+  return {
+    config: { wide_screen_mode: true, update_multi: true },
+    header: { title: { tag: 'plain_text', content: '交互式问题' }, template: 'blue' },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content } },
+      { tag: 'action', actions },
+    ],
+  };
+}
+
+function buildQuestionRepliedCard(questionId, answer) {
+  const formatted = Array.isArray(answer) ? answer.join(', ') : String(answer);
+  return {
+    config: { wide_screen_mode: true, update_multi: true },
+    header: { title: { tag: 'plain_text', content: '问题已回复' }, template: 'green' },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content: '已回答: ' + formatted } },
+    ],
+  };
+}
+
+/**
+ * 构建 OpenCode 原生问题的飞书表单卡片。
+ * @param {Object} options - 问题与飞书路由上下文
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
+function buildNativeQuestionCard(options) {
+  const question = options.question || {};
+  const questionIndex = Number.isInteger(options.questionIndex) ? options.questionIndex : 0;
+  const questionCount = Number.isInteger(options.questionCount) ? options.questionCount : 1;
+  const questionKey = String(options.requestID || '') + ':' + questionIndex;
+  const presetOptions = Array.isArray(question.options) ? question.options : [];
+  const selectedValues = new Set(Array.isArray(options.selectedValues) ? options.selectedValues.map(String) : []);
+  const actions = [];
+
+  if (presetOptions.length) {
+    for (let index = 0; index < presetOptions.length; index++) {
+      const optionValue = 'option_' + index;
+      const option = presetOptions[index] || {};
+      const label = String(option.label || option.value || optionValue);
+      actions.push({
+        tag: 'button',
+        text: { tag: 'plain_text', content: label },
+        type: selectedValues.has(optionValue) ? 'primary' : 'default',
+        value: buildButtonValue(
+          'cmd:/answer ' + questionKey + (question.multiple === true ? ' --toggle ' : ' --option ') + optionValue,
+          options.walkerSessionId,
+          options.routeKey,
+        ),
+      });
+    }
+
+    if (question.multiple === true) {
+      actions.push({
+        tag: 'button',
+        text: { tag: 'plain_text', content: '提交' },
+        type: 'primary',
+        value: buildButtonValue('cmd:/answer ' + questionKey + ' --submit', options.walkerSessionId, options.routeKey),
+      });
+    }
+  }
+
+  const contentLines = ['**问题 ' + (questionIndex + 1) + '/' + questionCount + '**', escapeLarkMd(question.question || '')];
+  if (presetOptions.length && question.multiple === true) contentLines.push('', '可多选，点选项切换选择状态后再点“提交”。');
+  if (question.custom !== false) contentLines.push('', '如需自定义答案，请在本地 TUI 输入。');
+
+  return {
+    config: { wide_screen_mode: true, update_multi: true },
+    header: { title: { tag: 'plain_text', content: question.header || '交互式问题' }, template: 'blue' },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content: contentLines.join('\n') } },
+      ...(actions.length ? [{ tag: 'action', actions }] : []),
+    ],
+  };
+}
+
+/**
+ * 构建 OpenCode 原生问题的不可交互状态卡片。
+ * @param {Object} options - 问题、状态与重试上下文
+ * @returns {Object} 飞书卡片 JSON 结构
+ */
+function buildNativeQuestionStatusCard(options) {
+  const question = options.question || {};
+  const questionIndex = Number.isInteger(options.questionIndex) ? options.questionIndex : 0;
+  const questionCount = Number.isInteger(options.questionCount) ? options.questionCount : 1;
+  const questionKey = String(options.requestID || '') + ':' + questionIndex;
+  const status = options.status || 'expired';
+  const statusInfo = {
+    preparing: { title: '问题准备中', message: '问题仍在准备，请稍后提交', template: 'blue' },
+    answered: { title: '答案已收集', message: '答案已收集，等待其他问题完成', template: 'blue' },
+    submitting: { title: '正在处理', message: '正在处理，请稍候', template: 'blue' },
+    replied: { title: '问题已处理', message: '已处理', template: 'green' },
+    rejected: { title: '问题已取消', message: '已取消', template: 'grey' },
+    processed_unknown: { title: '结果待确认', message: '结果待确认，请勿重复提交', template: 'orange' },
+    feishu_unavailable: { title: '请在本地 TUI 回答', message: '请在本地 TUI 回答', template: 'grey' },
+    expired: { title: '请求已过期', message: '请求已过期', template: 'grey' },
+    retryable: { title: '提交失败', message: '提交失败，请重试', template: 'red' },
+  };
+  const info = statusInfo[status] || statusInfo.expired;
+  const content = '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**\n'
+    + escapeLarkMd(question.question || '') + '\n\n' + info.message;
+  const elements = [{ tag: 'div', text: { tag: 'lark_md', content } }];
+
+  if (status === 'retryable') {
+    elements.push({
+      tag: 'action',
+      actions: [{
+        tag: 'button',
+        text: { tag: 'plain_text', content: '重试提交' },
+        type: 'primary',
+        value: buildButtonValue('cmd:/answer ' + questionKey + ' --retry', options.walkerSessionId, options.routeKey),
+      }],
+    });
+  }
+
+  return {
+    config: { wide_screen_mode: true, update_multi: true },
+    header: { title: { tag: 'plain_text', content: info.title }, template: info.template },
+    elements,
+  };
+}
+
 module.exports = {
   renderSessionListCard,
   renderUnboundRouteCard,
@@ -528,6 +729,10 @@ module.exports = {
   renderErrorCard,
   buildPermissionCard,
   buildPermissionRepliedCard,
+  buildQuestionCard,
+  buildQuestionRepliedCard,
+  buildNativeQuestionCard,
+  buildNativeQuestionStatusCard,
   buildButtonValue,
   buildCommandValue,
   STATUS_EMOJI,

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { AgentDriver } = require('../src/drivers/agent-driver');
 const { DriverRegistry } = require('../src/drivers/driver-registry');
 const { OpencodeDriver } = require('../src/drivers/opencode-driver');
+const { OpencodeTuiBridge } = require('../src/opencode-tui-bridge/bridge');
 const { stubClaudeDriver, stubCodexDriver } = require('../src/drivers/stub-drivers');
 
 class FakeHttpClient {
@@ -1160,6 +1161,162 @@ describe('OpencodeDriver clearSession', () => {
       /tuiBridge|tui-bridge|not configured|未配置/i,
     );
     assert.equal(http.calls.length, 0);
+  });
+});
+
+describe('OpencodeDriver replyPermission tui-bridge', () => {
+  const tuiRef = { opencodeSessionId: 'ses_local', transport: 'tui-bridge', runtimeId: 'runtime-1' };
+
+  it('tui-bridge transport 保持不支持且绝不调用 tuiBridge.replyQuestion', async () => {
+    let bridgeCalled = false;
+    const bridge = {
+      replyQuestion: async () => { bridgeCalled = true; },
+    };
+    const http = new FakeHttpClient({});
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', tuiBridge: bridge });
+
+    await assert.rejects(
+      () => driver.replyPermission(tuiRef, 'perm_1', 'allow'),
+      { message: 'replyPermission is not supported for tui-bridge transport' },
+    );
+    assert.equal(bridgeCalled, false);
+    assert.equal(http.calls.length, 0);
+  });
+});
+
+describe('OpencodeDriver replyQuestion', () => {
+  const tuiRef = { opencodeSessionId: 'ses_local', transport: 'tui-bridge', runtimeId: 'runtime-1' };
+
+  it('转发 requestID 和二维 answers 到 TUI bridge', async () => {
+    const calls = [];
+    const bridge = {
+      replyQuestion: async (ref, requestID, answers) => {
+        calls.push({ ref, requestID, answers });
+      },
+    };
+    const http = new FakeHttpClient({});
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', tuiBridge: bridge });
+    const answers = [['选项 A'], ['选项 B', '自定义答案']];
+
+    await driver.replyQuestion(tuiRef, 'req_1', answers);
+
+    assert.deepEqual(calls, [{ ref: tuiRef, requestID: 'req_1', answers }]);
+    assert.equal(http.calls.length, 0, '原生 question reply 不得降级为 HTTP 或 prompt');
+  });
+
+  it('保留 Bridge accepted 超时和结果不确定错误的所有可靠性属性', async () => {
+    const bridgeErrors = [
+      Object.assign(new Error('accepted 超时'), {
+        code: 'QUESTION_REPLY_ACCEPTED_TIMEOUT',
+        deliveryPhase: 'queued',
+        sdkInvoked: false,
+        safeToRetry: true,
+      }),
+      Object.assign(new Error('结果无法确认'), {
+        code: 'QUESTION_REPLY_FINAL_UNCERTAIN',
+        deliveryPhase: 'leased',
+        sdkInvoked: true,
+        safeToRetry: false,
+      }),
+    ];
+    const bridge = {
+      replyQuestion: async () => { throw bridgeErrors.shift(); },
+    };
+    const driver = new OpencodeDriver({ serverUrl: 'http://localhost:4096', tuiBridge: bridge });
+
+    await assert.rejects(
+      () => driver.replyQuestion(tuiRef, 'req_2', [['答案']]),
+      (err) => err.code === 'QUESTION_REPLY_ACCEPTED_TIMEOUT'
+        && err.deliveryPhase === 'queued'
+        && err.sdkInvoked === false
+        && err.safeToRetry === true,
+    );
+    await assert.rejects(
+      () => driver.replyQuestion(tuiRef, 'req_2', [['答案']]),
+      (err) => err.code === 'QUESTION_REPLY_FINAL_UNCERTAIN'
+        && err.deliveryPhase === 'leased'
+        && err.sdkInvoked === true
+        && err.safeToRetry === false,
+    );
+  });
+
+  it('非 TUI transport 返回不可重试的结构化不支持错误且不回退', async () => {
+    const bridge = {
+      replyQuestion: async () => { throw new Error('不应调用 bridge'); },
+    };
+    const http = new FakeHttpClient({});
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', tuiBridge: bridge });
+
+    await assert.rejects(
+      () => driver.replyQuestion({ opencodeSessionId: 'ses_remote', transport: 'sse' }, 'req_3', [['答案']]),
+      (err) => err.code === 'QUESTION_REPLY_UNSUPPORTED'
+        && err.deliveryPhase === 'preflight'
+        && err.sdkInvoked === false
+        && err.safeToRetry === false,
+    );
+    assert.equal(http.calls.length, 0, '不支持的 transport 不得回退为 HTTP');
+  });
+
+  it('错误的 TUI agentRef 返回不可重试的结构化错误且不调用 Bridge', async () => {
+    let bridgeCalled = false;
+    const bridge = {
+      replyQuestion: async () => { bridgeCalled = true; },
+    };
+    const driver = new OpencodeDriver({ serverUrl: 'http://localhost:4096', tuiBridge: bridge });
+
+    await assert.rejects(
+      () => driver.replyQuestion({ opencodeSessionId: 'ses_local', transport: 'tui-bridge' }, 'req_4', [['答案']]),
+      (err) => err.code === 'TUI_INVALID_SESSION_REF'
+        && err.deliveryPhase === 'preflight'
+        && err.sdkInvoked === false
+        && err.safeToRetry === false,
+    );
+    assert.equal(bridgeCalled, false);
+  });
+
+  it('缺失 Bridge 时返回完整的不可重试 preflight 错误', async () => {
+    const driver = new OpencodeDriver({ serverUrl: 'http://localhost:4096' });
+
+    await assert.rejects(
+      () => driver.replyQuestion(tuiRef, 'req_5', [['答案']]),
+      (err) => err.code === 'QUESTION_REPLY_UNSUPPORTED'
+        && err.deliveryPhase === 'preflight'
+        && err.sdkInvoked === false
+        && err.safeToRetry === false,
+    );
+  });
+
+  it('protocol 低于 4 时透传门禁错误且不入队', async () => {
+    const sessions = [];
+    const sessionService = {
+      createSession: ({ cwd, agentRef }) => {
+        const session = { id: 'walker_1', cwd, agentRef };
+        sessions.push(session);
+        return session;
+      },
+      listSessions: () => sessions,
+      getRouteForSession: () => null,
+      listRoutes: () => [],
+    };
+    const bridge = new OpencodeTuiBridge({ sessionService });
+    bridge.register({
+      runtimeId: 'runtime-v3',
+      sessionId: 'ses_v3',
+      cwd: '/tmp/project',
+      bridgeProtocolVersion: 3,
+    });
+    const driver = new OpencodeDriver({ serverUrl: 'http://localhost:4096', tuiBridge: bridge });
+    const v3Ref = { opencodeSessionId: 'ses_v3', transport: 'tui-bridge', runtimeId: 'runtime-v3' };
+
+    await assert.rejects(
+      () => driver.replyQuestion(v3Ref, 'req_v3', [['答案']]),
+      (err) => err.code === 'QUESTION_REPLY_UNSUPPORTED'
+        && err.deliveryPhase === 'preflight'
+        && err.sdkInvoked === false
+        && err.safeToRetry === false,
+    );
+    assert.equal(bridge.runtimes.get('runtime-v3').queue.length, 0);
+    assert.equal(bridge.pending.size, 0);
   });
 });
 

@@ -4,10 +4,10 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { getPluginSource } = require('../src/opencode-hook/plugin-template');
 
-describe('plugin-template v3 protocol', () => {
-  it('register payload 包含 bridgeProtocolVersion: 3', () => {
+describe('plugin-template v4 protocol', () => {
+  it('register payload 包含 bridgeProtocolVersion: 4', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    assert.ok(src.includes('bridgeProtocolVersion: 3'));
+    assert.ok(src.includes('bridgeProtocolVersion: 4'));
   });
 
   it('源码包含 accepted 上报', () => {
@@ -109,9 +109,9 @@ describe('plugin-template v3 protocol', () => {
     }
   });
 
-  it('bridge version 注释保持为 8', () => {
+  it('bridge version 注释保持为 9', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    assert.ok(src.includes('// Walker TUI bridge version: 8'));
+    assert.ok(src.includes('// Walker TUI bridge version: 9'));
   });
 
   it('默认 heartbeat 间隔为 30000ms', () => {

@@ -7,6 +7,7 @@ const { TurnStateManager } = require('./turn-state');
 const { PromptHeartbeat } = require('./heartbeat');
 const { ProgressRenderer } = require('./progress-renderer');
 const { PermissionHandler } = require('./permission-handler');
+const { QuestionHandler } = require('./question-handler');
 
 const logger = createLogger('message-dispatcher');
 const DEFAULT_HEARTBEAT_INITIAL_MS = 30000;
@@ -86,6 +87,11 @@ class MessageDispatcher {
       dispatcher: this,
       feishuApi: this.feishuApi,
       sessionService: this.sessionService,
+    });
+    this.questionHandler = new QuestionHandler({
+      feishuApi: this.feishuApi,
+      sessionService: this.sessionService,
+      driverRegistry: this.driverRegistry,
     });
   }
 
@@ -270,7 +276,7 @@ class MessageDispatcher {
     const dedupKey = cmd.messageId ? 'cmd:' + cmd.messageId + ':' + cmd.name + ':' + dedupArgs : null;
     const isModelPage = cmd.name === 'model' && cmd.args && cmd.args[0] === '--page';
     const isListPage = cmd.name === 'list' && cmd.args && cmd.args[0] === '--page';
-    if (!isModelPage && !isListPage && dedupKey && this.dedup.isDuplicate(dedupKey)) {
+    if (cmd.name !== 'answer' && !isModelPage && !isListPage && dedupKey && this.dedup.isDuplicate(dedupKey)) {
       logger.info('skipping duplicate command', { command: cmd.name, messageId: cmd.messageId });
       return { duplicate: true };
     }
@@ -297,9 +303,16 @@ class MessageDispatcher {
         agents: () => this._cmdAgents(cmd),
         runtime: () => this._cmdRuntime(cmd),
         permit: () => this._cmdPermit(cmd),
+        answer: () => this.questionHandler.handleAnswer(cmd),
       };
       const handler = handlers[cmd.name];
-      if (handler) return await handler();
+      if (handler) {
+        const result = await handler();
+        if (cmd.name === 'answer') {
+          logger.info('answer command handled', { result, args: cmd.args, messageId: cmd.messageId, routeKey: cmd.routeKey, formKeys: cmd.formValue ? Object.keys(cmd.formValue) : [] });
+        }
+        return result;
+      }
       return { unknown: cmd.name };
     } catch (err) {
       const message = err && err.message ? err.message : String(err);
@@ -1103,6 +1116,18 @@ class MessageDispatcher {
       this._handlePermissionRepliedEvent(session, chatId, agentEvent);
       return;
     }
+    if (agentEvent.type === AgentEvent.TYPE_QUESTION_ASKED) {
+      this.questionHandler.handleAsked(session, chatId, this.sessionService.getRouteForSession(session.id), agentEvent);
+      return;
+    }
+    if (agentEvent.type === AgentEvent.TYPE_QUESTION_REPLIED) {
+      this.questionHandler.handleReplied(session, chatId, agentEvent);
+      return;
+    }
+    if (agentEvent.type === AgentEvent.TYPE_QUESTION_REJECTED) {
+      this.questionHandler.handleRejected(session, chatId, agentEvent);
+      return;
+    }
     if (this._isWatchProgressEvent(agentEvent.type) && this.progressStyle === 'card') {
       const prev = this.sessionWatchProgressPromises.get(session.id) || Promise.resolve();
       const next = prev.then(() => this._updateWatchProgressCard(session, chatId, agentEvent)).catch((err) => {
@@ -1134,7 +1159,9 @@ class MessageDispatcher {
   async _renderWatchProgressCard(session, chatId, displayEvents, progressCardId) {
     for (const agentEvent of displayEvents) {
       if (agentEvent.type === AgentEvent.TYPE_TEXT) continue;
-      if (agentEvent.type === AgentEvent.TYPE_PERMISSION || agentEvent.type === AgentEvent.TYPE_PERMISSION_REPLIED) continue;
+      if (agentEvent.type === AgentEvent.TYPE_PERMISSION || agentEvent.type === AgentEvent.TYPE_PERMISSION_REPLIED
+        || agentEvent.type === AgentEvent.TYPE_QUESTION_ASKED || agentEvent.type === AgentEvent.TYPE_QUESTION_REPLIED
+        || agentEvent.type === AgentEvent.TYPE_QUESTION_REJECTED) continue;
       if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
       if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
       if (agentEvent.type === AgentEvent.TYPE_FILE_EDITED) continue;

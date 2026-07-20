@@ -9,12 +9,22 @@ const {
   renderErrorCard,
   buildPermissionCard,
   buildPermissionRepliedCard,
+  buildQuestionCard,
+  buildQuestionRepliedCard,
+  buildNativeQuestionCard,
+  buildNativeQuestionStatusCard,
   buildButtonValue,
   buildCommandValue,
 } = require('../src/platform/feishu/cards');
 const { COMMAND_LIST } = require('../src/platform/feishu/commands');
 
 function collectButtons(card) {
+  return card.elements
+    .filter((el) => el.tag === 'action' || el.tag === 'form')
+    .flatMap((el) => el.actions || el.elements || []);
+}
+
+function collectActionButtons(card) {
   return card.elements
     .filter((el) => el.tag === 'action')
     .flatMap((el) => el.actions || []);
@@ -429,4 +439,290 @@ test('buildPermissionRepliedCard deny 显示已拒绝', () => {
   const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
   assert.ok(textEl.text.content.includes('已拒绝'));
   assert.ok(textEl.text.content.includes('perm\\_abc'));
+});
+
+test('buildQuestionCard confirm 仅生成 preview:/answer 预览动作', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_1', title: '是否继续？', metadata: { inputMode: 'confirm' } } },
+    'wks_s1',
+  );
+  assert.equal(card.header.template, 'blue');
+  assert.equal(card.header.title.content, '交互式问题');
+  const buttons = collectButtons(card);
+  const allowBtn = buttons.find((b) => b.text.content === '允许');
+  const denyBtn = buttons.find((b) => b.text.content === '拒绝');
+  assert.ok(allowBtn);
+  assert.ok(denyBtn);
+  assert.equal(allowBtn.type, 'primary');
+  assert.equal(denyBtn.type, 'danger');
+  assert.match(allowBtn.value.action, /preview:\/answer q_1 allow/);
+  assert.match(denyBtn.value.action, /preview:\/answer q_1 deny/);
+  assert.ok(allowBtn.value.action.includes('wks_s1'));
+});
+
+test('buildQuestionCard single_select 渲染 N 个 button，value 含 option.value', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_2', title: '选择模型', metadata: { inputMode: 'single_select', options: [
+      { label: 'GPT-4', value: 'gpt4' },
+      { label: 'Claude', value: 'claude' },
+    ] } } },
+    'wks_s2',
+  );
+  const buttons = collectButtons(card);
+  assert.equal(buttons.length, 2);
+  assert.equal(buttons[0].text.content, 'GPT-4');
+  assert.equal(buttons[1].text.content, 'Claude');
+  assert.match(buttons[0].value.action, /preview:\/answer q_2 gpt4/);
+  assert.match(buttons[1].value.action, /preview:\/answer q_2 claude/);
+});
+
+test('buildQuestionCard multi_select 渲染 multi_select_static + 提交 button，name=question_answer', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_3', title: '多选', metadata: { inputMode: 'multi_select', options: [
+      { label: 'A', value: 'a' },
+      { label: 'B', value: 'b' },
+    ] } } },
+    'wks_s3',
+  );
+  const actionEl = card.elements.find((el) => el.tag === 'action');
+  assert.ok(actionEl);
+  const selectEl = actionEl.actions.find((a) => a.tag === 'multi_select_static');
+  assert.ok(selectEl);
+  assert.equal(selectEl.name, 'question_answer');
+  assert.equal(selectEl.options.length, 2);
+  assert.equal(selectEl.options[0].text.content, 'A');
+  assert.equal(selectEl.options[0].value, 'a');
+  const submitBtn = actionEl.actions.find((a) => a.tag === 'button');
+  assert.ok(submitBtn);
+  assert.match(submitBtn.value.action, /preview:\/answer q_3 --form/);
+});
+
+test('buildQuestionCard single_select option 带 description 拼接到 text', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_sd', title: '选择', metadata: { inputMode: 'single_select', options: [
+      { label: '蓝绿部署', value: 'bg', description: '零停机切换' },
+      { label: '金丝雀', value: 'canary' },
+    ] } } },
+    'wks_sd',
+  );
+  const buttons = collectButtons(card);
+  assert.equal(buttons[0].text.content, '蓝绿部署\n零停机切换');
+  assert.equal(buttons[1].text.content, '金丝雀');
+});
+
+test('buildQuestionCard multi_select option 带 description 拼接到 text', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_md', title: '多选', metadata: { inputMode: 'multi_select', options: [
+      { label: 'A', value: 'a', description: '选项A说明' },
+      { label: 'B', value: 'b' },
+    ] } } },
+    'wks_md',
+  );
+  const selectEl = card.elements.find((el) => el.tag === 'action').actions.find((a) => a.tag === 'multi_select_static');
+  assert.equal(selectEl.options[0].text.content, 'A\n选项A说明');
+  assert.equal(selectEl.options[1].text.content, 'B');
+});
+
+test('buildQuestionCard text 渲染 input + 提交 button，name=question_answer', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_4', title: '请输入', metadata: { inputMode: 'text', description: '请描述你的需求' } } },
+    'wks_s4',
+  );
+  const actionEl = card.elements.find((el) => el.tag === 'action');
+  assert.ok(actionEl);
+  const inputEl = actionEl.actions.find((a) => a.tag === 'input');
+  assert.ok(inputEl);
+  assert.equal(inputEl.name, 'question_answer');
+  assert.equal(inputEl.placeholder.content, '请描述你的需求');
+  const submitBtn = actionEl.actions.find((a) => a.tag === 'button');
+  assert.ok(submitBtn);
+  assert.match(submitBtn.value.action, /preview:\/answer q_4 --form/);
+});
+
+test('buildQuestionCard 未知 inputMode 降级为 confirm', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_5', title: '未知类型', metadata: { inputMode: 'unknown_mode' } } },
+    'wks_s5',
+  );
+  const buttons = collectButtons(card);
+  const allowBtn = buttons.find((b) => b.text.content === '允许');
+  const denyBtn = buttons.find((b) => b.text.content === '拒绝');
+  assert.ok(allowBtn);
+  assert.ok(denyBtn);
+  assert.match(allowBtn.value.action, /preview:\/answer q_5 allow/);
+});
+
+test('buildQuestionCard select 缺少 options 渲染错误状态', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_6', title: '缺选项', metadata: { inputMode: 'single_select' } } },
+    'wks_s6',
+  );
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('选项缺失'));
+  const actionEl = card.elements.find((el) => el.tag === 'action');
+  assert.equal(actionEl, undefined);
+});
+
+test('buildQuestionCard 缺少 label 时用 value 展示', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_7', title: '无label', metadata: { inputMode: 'single_select', options: [
+      { value: 'opt_a' },
+    ] } } },
+    'wks_s7',
+  );
+  const buttons = collectButtons(card);
+  assert.equal(buttons[0].text.content, 'opt_a');
+});
+
+test('buildQuestionCard routeKey 透传到 buildButtonValue', () => {
+  const card = buildQuestionCard(
+    { data: { id: 'q_8', title: 'routeKey测试', metadata: { inputMode: 'confirm' } } },
+    'wks_s8',
+    'rk_test',
+  );
+  const buttons = collectButtons(card);
+  const allowBtn = buttons.find((b) => b.text.content === '允许');
+  assert.equal(allowBtn.value.routeKey, 'rk_test');
+});
+
+test('buildQuestionRepliedCard string answer 展示', () => {
+  const card = buildQuestionRepliedCard('q_1', 'yes');
+  assert.equal(card.header.template, 'green');
+  assert.equal(card.header.title.content, '问题已回复');
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('已回答: yes'));
+});
+
+test('buildQuestionRepliedCard string[] answer 用逗号连接展示', () => {
+  const card = buildQuestionRepliedCard('q_2', ['a', 'b', 'c']);
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('已回答: a, b, c'));
+});
+
+test('buildNativeQuestionCard 渲染问题序号和单选普通按钮命令', () => {
+  const card = buildNativeQuestionCard({
+    requestID: 'req_123',
+    questionIndex: 1,
+    questionCount: 3,
+    question: {
+      header: '部署方式',
+      question: '请选择发布方式',
+      options: [
+        { label: '蓝绿部署', description: '零停机切换' },
+        { label: '金丝雀', description: '逐步放量' },
+      ],
+    },
+    walkerSessionId: 'wks_question',
+    routeKey: 'feishu:oc_1:root:om_1',
+  });
+
+  assert.equal(card.header.title.content, '部署方式');
+  const content = card.elements.find((element) => element.tag === 'div').text.content;
+  assert.match(content, /问题 2\/3/);
+  assert.match(content, /请选择发布方式/);
+  assert.match(content, /如需自定义答案，请在本地 TUI 输入。/);
+  assert.equal(card.elements.some((element) => element.tag === 'form'), false);
+  const actions = collectActionButtons(card);
+  assert.equal(actions.some((action) => action.tag === 'select_static' || action.tag === 'multi_select_static' || action.tag === 'input'), false);
+  assert.deepEqual(actions.map((action) => action.text.content), ['蓝绿部署', '金丝雀']);
+  assert.deepEqual(actions.map((action) => action.value.action), [
+    'cmd:/answer req_123:1 --option option_0 wks_question',
+    'cmd:/answer req_123:1 --option option_1 wks_question',
+  ]);
+  assert.deepEqual(actions[0].value, {
+    action: 'cmd:/answer req_123:1 --option option_0 wks_question',
+    routeKey: 'feishu:oc_1:root:om_1',
+  });
+  assert.equal(actions.some((action) => action.behaviors), false);
+});
+
+test('buildNativeQuestionCard 对多选使用 toggle/submit 按钮并支持高亮', () => {
+  const card = buildNativeQuestionCard({
+    requestID: 'req_multi',
+    questionIndex: 0,
+    questionCount: 1,
+    question: {
+      header: '选择模块',
+      question: '可选择多个模块',
+      multiple: true,
+      custom: false,
+      options: [{ label: '认证' }, { label: '通知' }],
+    },
+    walkerSessionId: 'wks_multi',
+    selectedValues: ['option_1'],
+  });
+
+  const content = card.elements.find((element) => element.tag === 'div').text.content;
+  assert.match(content, /可多选，点选项切换选择状态后再点“提交”。/);
+  const actions = collectActionButtons(card);
+  assert.equal(actions.some((action) => action.tag === 'multi_select_static' || action.tag === 'input' || action.behaviors), false);
+  assert.deepEqual(actions.map((action) => action.text.content), ['认证', '通知', '提交']);
+  assert.deepEqual(actions.map((action) => action.value.action), [
+    'cmd:/answer req_multi:0 --toggle option_0 wks_multi',
+    'cmd:/answer req_multi:0 --toggle option_1 wks_multi',
+    'cmd:/answer req_multi:0 --submit wks_multi',
+  ]);
+  assert.equal(actions[0].type, 'default');
+  assert.equal(actions[1].type, 'primary');
+  assert.equal(actions[2].type, 'primary');
+});
+
+test('buildNativeQuestionCard 无预设选项且允许自定义答案时只提示本地 TUI 输入', () => {
+  const card = buildNativeQuestionCard({
+    requestID: 'req_text',
+    questionIndex: 0,
+    questionCount: 1,
+    question: { header: '补充说明', question: '请输入说明', options: [] },
+    walkerSessionId: 'wks_text',
+  });
+
+  const content = card.elements.find((element) => element.tag === 'div').text.content;
+  assert.match(content, /请输入说明/);
+  assert.match(content, /如需自定义答案，请在本地 TUI 输入。/);
+  assert.equal(collectButtons(card).length, 0);
+});
+
+test('buildNativeQuestionStatusCard 覆盖处理、终态、降级和过期反馈', () => {
+  const expected = {
+    preparing: '问题仍在准备',
+    answered: '答案已收集',
+    submitting: '正在处理',
+    replied: '已处理',
+    rejected: '已取消',
+    processed_unknown: '结果待确认',
+    feishu_unavailable: '请在本地 TUI 回答',
+    expired: '请求已过期',
+  };
+
+  for (const [status, message] of Object.entries(expected)) {
+    const card = buildNativeQuestionStatusCard({
+      requestID: 'req_status',
+      questionIndex: 0,
+      questionCount: 1,
+      question: { header: '状态问题', question: '状态正文' },
+      status,
+    });
+    const content = card.elements.find((element) => element.tag === 'div').text.content;
+    assert.match(content, new RegExp(message));
+  }
+});
+
+test('buildNativeQuestionStatusCard retryable 提供不读取表单的重试动作', () => {
+  const card = buildNativeQuestionStatusCard({
+    requestID: 'req_retry',
+    questionIndex: 2,
+    questionCount: 3,
+    question: { header: '重试问题', question: '正文' },
+    status: 'retryable',
+    walkerSessionId: 'wks_retry',
+    routeKey: 'route_retry',
+  });
+
+  const content = card.elements.find((element) => element.tag === 'div').text.content;
+  assert.match(content, /提交失败/);
+  const retry = collectButtons(card).find((action) => action.tag === 'button');
+  assert.deepEqual(retry.value, {
+    action: 'cmd:/answer req_retry:2 --retry wks_retry',
+    routeKey: 'route_retry',
+  });
 });

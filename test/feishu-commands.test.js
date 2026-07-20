@@ -185,3 +185,36 @@ test('COMMANDS 包含 permit 条目', () => {
   assert.match(COMMANDS.permit.usage, /allow/);
   assert.match(COMMANDS.permit.usage, /deny/);
 });
+
+test('COMMANDS 包含 answer 条目', () => {
+  assert.ok(COMMANDS.answer);
+  assert.ok(COMMANDS.answer.desc);
+  assert.ok(COMMANDS.answer.usage);
+  assert.match(COMMANDS.answer.usage, /questionKey/);
+  assert.match(COMMANDS.answer.usage, /--form <walkerSessionId>/);
+  assert.match(COMMANDS.answer.usage, /--retry <walkerSessionId>/);
+  assert.doesNotMatch(COMMANDS.answer.usage, /<value>/);
+});
+
+test('parseCommand /answer <questionKey> --form <walkerSessionId>', () => {
+  const result = parseCommand('/answer request_1:0 --form wks_answer');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'answer');
+  assert.deepEqual(result.args, ['request_1:0', '--form', 'wks_answer']);
+});
+
+test('parseCommand /answer <questionKey> --retry <walkerSessionId>', () => {
+  const result = parseCommand('/answer request_1:0 --retry wks_answer');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'answer');
+  assert.deepEqual(result.args, ['request_1:0', '--retry', 'wks_answer']);
+});
+
+test('formatHelp 包含 answer 命令', () => {
+  const help = formatHelp();
+  assert.match(help, /\/answer/);
+  assert.match(help, /questionKey/);
+  assert.match(help, /--form <walkerSessionId>/);
+  assert.match(help, /--retry <walkerSessionId>/);
+  assert.doesNotMatch(help, /<value>/);
+});

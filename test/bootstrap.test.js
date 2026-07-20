@@ -549,6 +549,54 @@ describe('createApp', () => {
     assert.equal(dispatcherOptions.maxTurnTimeMins, 45);
   });
 
+  it('onCardAction 传递 formValue 到 dispatcher.handleCommand', async () => {
+    let handleCommandArg = null;
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    const deps = {
+      FeishuPlatform: class {
+        constructor(options) { this.options = options; this.api = {}; }
+        start() { return Promise.resolve(); }
+        stop() {}
+      },
+      SessionService: class { recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class {},
+      OpencodeDriver: class {},
+      OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
+      stubClaudeDriver: () => ({}),
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} get() { return null; } },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class {
+        constructor() { this.feishuApi = {}; }
+        handleCommand(cmd) { handleCommandArg = cmd; return Promise.resolve(); }
+        handleIncomingMessage() { return Promise.resolve(); }
+      },
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+    const app = createApp(config, deps);
+    await app.platform.options.onCardAction({
+      action: 'cmd:/answer q1 yes',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+      chatId: 'oc_chat1',
+      messageId: 'om_card1',
+      openId: 'ou_user1',
+      formValue: { question_answer: 'yes' },
+    });
+
+    assert.ok(handleCommandArg, 'handleCommand should have been called');
+    assert.deepEqual(handleCommandArg.formValue, { question_answer: 'yes' });
+  });
+
   it('sendPermissionCard 绑定为函数并调用 replyCard', async () => {
     const calls = [];
     const app = makeModelCardApp(calls, {

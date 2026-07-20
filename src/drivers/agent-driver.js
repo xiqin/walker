@@ -107,6 +107,9 @@ const EVENT_TYPE_MESSAGE_REMOVED = 'message_removed';
 const EVENT_TYPE_COMMAND_EXECUTED = 'command_executed';
 const EVENT_TYPE_SESSION_LIFECYCLE = 'session_lifecycle';
 const EVENT_TYPE_SERVER_CONNECTED = 'server_connected';
+const EVENT_TYPE_QUESTION_ASKED = 'question_asked';
+const EVENT_TYPE_QUESTION_REPLIED = 'question_replied';
+const EVENT_TYPE_QUESTION_REJECTED = 'question_rejected';
 
 class AgentEvent {
   static DATA_SCHEMAS = {
@@ -127,6 +130,27 @@ class AgentEvent {
     [EVENT_TYPE_COMMAND_EXECUTED]: { command: 'string', exitCode: 'number' },
     [EVENT_TYPE_SESSION_LIFECYCLE]: { action: 'string', session: 'object' },
     [EVENT_TYPE_SERVER_CONNECTED]: {},
+    [EVENT_TYPE_QUESTION_ASKED]: {
+      requestID: 'string',
+      sessionID: 'string',
+      questions: {
+        type: 'object[]',
+        minItems: 1,
+        items: {
+          question: 'string',
+          header: 'string',
+          options: {
+            type: 'object[]',
+            items: { label: 'string', description: 'string' },
+          },
+          multiple: 'boolean?',
+          custom: 'boolean?',
+        },
+      },
+      tool: 'object?',
+    },
+    [EVENT_TYPE_QUESTION_REPLIED]: { requestID: 'string', sessionID: 'string', answers: 'string[][]' },
+    [EVENT_TYPE_QUESTION_REJECTED]: { requestID: 'string', sessionID: 'string' },
   };
 
   constructor(type, data) {
@@ -152,5 +176,8 @@ AgentEvent.TYPE_MESSAGE_REMOVED = EVENT_TYPE_MESSAGE_REMOVED;
 AgentEvent.TYPE_COMMAND_EXECUTED = EVENT_TYPE_COMMAND_EXECUTED;
 AgentEvent.TYPE_SESSION_LIFECYCLE = EVENT_TYPE_SESSION_LIFECYCLE;
 AgentEvent.TYPE_SERVER_CONNECTED = EVENT_TYPE_SERVER_CONNECTED;
+AgentEvent.TYPE_QUESTION_ASKED = EVENT_TYPE_QUESTION_ASKED;
+AgentEvent.TYPE_QUESTION_REPLIED = EVENT_TYPE_QUESTION_REPLIED;
+AgentEvent.TYPE_QUESTION_REJECTED = EVENT_TYPE_QUESTION_REJECTED;
 
 module.exports = { AgentDriver, AgentEvent };

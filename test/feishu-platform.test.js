@@ -113,6 +113,44 @@ test('FeishuPlatform 后台消息错误被捕获', async () => {
   assert.equal(unhandled, null);
 });
 
+test('FeishuPlatform 卡片事件快速 ACK，不等待 onCardAction 完成', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const deferred = createDeferred();
+  const platform = createPlatform(FeishuPlatform, { onCardAction: () => deferred.promise });
+
+  await platform.start();
+  const ack = fake.handlers['card.action.trigger']({
+    action: { value: { action: 'cmd:/answer req_1:0 --form wks_1' } },
+    context: { open_id: 'ou_1', chat_id: 'oc_1', message_id: 'om_1' },
+  });
+
+  const result = await Promise.race([
+    Promise.resolve(ack).then(() => 'ack'),
+    delay(20).then(() => 'timeout'),
+  ]);
+  deferred.resolve();
+  assert.equal(result, 'ack');
+});
+
+test('FeishuPlatform 后台卡片错误被捕获', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const platform = createPlatform(FeishuPlatform, { onCardAction: () => Promise.reject(new Error('card failed')) });
+
+  let unhandled = null;
+  const onUnhandled = (err) => { unhandled = err; };
+  process.once('unhandledRejection', onUnhandled);
+  await platform.start();
+  fake.handlers['card.action.trigger']({
+    action: { value: { action: 'cmd:/answer req_1:0 --form wks_1' } },
+    context: { open_id: 'ou_1', chat_id: 'oc_1', message_id: 'om_1' },
+  });
+  await delay(20);
+  process.removeListener('unhandledRejection', onUnhandled);
+  assert.equal(unhandled, null);
+});
+
 test('FeishuPlatform 非文本回复失败被后台捕获', async () => {
   const fake = { startResult: Promise.resolve('started') };
   const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
@@ -156,6 +194,53 @@ test('FeishuPlatform start 等待 WSClient.start 的异步结果', async () => {
   assert.equal(early, 'pending');
   assert.equal(await startPromise, 'ready');
   assert.equal(started, true);
+});
+
+test('FeishuPlatform _handleCardAction 传递 formValue 到 onCardAction', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const received = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onCardAction: (action) => { received.push(action); return Promise.resolve(); },
+  });
+
+  await platform.start();
+  fake.handlers['card.action.trigger']({
+    action: {
+      value: { action: 'cmd:/answer', routeKey: 'feishu:oc_1:root:om_1' },
+      form_value: { question_answer: '42' },
+    },
+    context: { open_id: 'ou_1', chat_id: 'oc_1', message_id: 'om_1' },
+  });
+
+  assert.equal(received.length, 1);
+  assert.deepEqual(received[0].formValue, { question_answer: '42' });
+});
+
+test('FeishuPlatform _handleCardAction 支持飞书 v2 open_* 和 operator 字段', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const received = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onCardAction: (action) => { received.push(action); return Promise.resolve(); },
+  });
+
+  await platform.start();
+  fake.handlers['card.action.trigger']({
+    action: {
+      value: { action: 'cmd:/answer req_1:0 --form wks_1', routeKey: 'feishu:oc_1:root:om_1' },
+      form_value: { question_selected: 'option_0' },
+    },
+    context: { open_chat_id: 'oc_1', open_message_id: 'om_1' },
+    operator: { open_id: 'ou_1' },
+  });
+
+  assert.equal(received.length, 1);
+  assert.equal(received[0].chatId, 'oc_1');
+  assert.equal(received[0].messageId, 'om_1');
+  assert.equal(received[0].openId, 'ou_1');
+  assert.equal(received[0].routeKey, 'feishu:oc_1:root:om_1');
+  assert.deepEqual(received[0].formValue, { question_selected: 'option_0' });
 });
 
 test('FeishuPlatform start 传播 WSClient.start 失败', async () => {

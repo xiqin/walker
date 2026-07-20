@@ -12,6 +12,8 @@ const {
   renderUnboundRouteCard,
   renderAttachableSessionCard,
   renderErrorCard,
+  buildQuestionCard,
+  buildQuestionRepliedCard,
 } = require('../platform/feishu/cards');
 
 const { ProgressCard } = require('../platform/feishu/progress-card');
@@ -93,6 +95,126 @@ const CARD_TYPES = [
       return card.render();
     },
   },
+  {
+    name: 'question_confirm',
+    description: '交互式问题卡片 - 确认（允许/拒绝）',
+    sampleData: function () {
+      return {
+        questionEvent: {
+          data: {
+            id: 'q_confirm_001',
+            title: '是否允许执行此操作？',
+            type: 'question',
+            metadata: { inputMode: 'confirm', description: 'Agent 请求执行 shell 命令' },
+          },
+        },
+        sessionId: 'wks_sample_001',
+        routeKey: 'test_route_key',
+      };
+    },
+    render: function (data) {
+      return buildQuestionCard(data.questionEvent, data.sessionId, data.routeKey);
+    },
+  },
+  {
+    name: 'question_single_select',
+    description: '交互式问题卡片 - 单选',
+    sampleData: function () {
+      return {
+        questionEvent: {
+          data: {
+            id: 'q_select_001',
+            title: '请选择部署环境',
+            type: 'question',
+            metadata: {
+              inputMode: 'single_select',
+              description: '请选择目标部署环境',
+              options: [
+                { label: '开发环境', value: 'dev' },
+                { label: '测试环境', value: 'staging' },
+                { label: '生产环境', value: 'prod' },
+              ],
+            },
+          },
+        },
+        sessionId: 'wks_sample_001',
+        routeKey: 'test_route_key',
+      };
+    },
+    render: function (data) {
+      return buildQuestionCard(data.questionEvent, data.sessionId, data.routeKey);
+    },
+  },
+  {
+    name: 'question_multi_select',
+    description: '交互式问题卡片 - 多选',
+    sampleData: function () {
+      return {
+        questionEvent: {
+          data: {
+            id: 'q_multi_001',
+            title: '请选择要运行的测试套件',
+            type: 'question',
+            metadata: {
+              inputMode: 'multi_select',
+              description: '可选择多个测试套件同时运行',
+              options: [
+                { label: '单元测试', value: 'unit' },
+                { label: '集成测试', value: 'integration' },
+                { label: '端到端测试', value: 'e2e' },
+              ],
+            },
+          },
+        },
+        sessionId: 'wks_sample_001',
+        routeKey: 'test_route_key',
+      };
+    },
+    render: function (data) {
+      return buildQuestionCard(data.questionEvent, data.sessionId, data.routeKey);
+    },
+  },
+  {
+    name: 'question_text',
+    description: '交互式问题卡片 - 文本输入',
+    sampleData: function () {
+      return {
+        questionEvent: {
+          data: {
+            id: 'q_text_001',
+            title: '请输入提交信息',
+            type: 'question',
+            metadata: { inputMode: 'text', description: '请输入 git commit message' },
+          },
+        },
+        sessionId: 'wks_sample_001',
+        routeKey: 'test_route_key',
+      };
+    },
+    render: function (data) {
+      return buildQuestionCard(data.questionEvent, data.sessionId, data.routeKey);
+    },
+  },
+  {
+    name: 'question_replied',
+    description: '交互式问题已回复卡片',
+    sampleData: function () {
+      return { questionId: 'q_confirm_001', answer: 'allow' };
+    },
+    render: function (data) {
+      return buildQuestionRepliedCard(data.questionId, data.answer);
+    },
+  },
+  {
+    name: 'question_replied_multi',
+    description: '交互式问题已回复卡片（多选答案）',
+    sampleData: function () {
+      return { questionId: 'q_multi_001', answer: ['unit', 'integration'] };
+    },
+    render: function (data) {
+      return buildQuestionRepliedCard(data.questionId, data.answer);
+    },
+  },
 ];
 
 /**
@@ -154,14 +276,34 @@ function extractPreview(rendered) {
       return { type: 'text', content: el.text.content || '', format: el.text.tag || 'plain_text' };
     }
     if (el.tag === 'action') {
-      var buttons = (el.actions || []).map(function (btn) {
-        return {
-          type: 'button',
-          label: (btn.text && btn.text.content) || '',
-          style: btn.type || 'default',
-        };
+      var actions = (el.actions || []).map(function (act) {
+        if (act.tag === 'button') {
+          return {
+            type: 'button',
+            label: (act.text && act.text.content) || '',
+            style: act.type || 'default',
+          };
+        }
+        if (act.tag === 'multi_select_static') {
+          return {
+            type: 'multi_select_static',
+            name: act.name || '',
+            optionCount: (act.options || []).length,
+            options: (act.options || []).map(function (opt) {
+              return { label: (opt.text && opt.text.content) || '', value: opt.value || '' };
+            }),
+          };
+        }
+        if (act.tag === 'input') {
+          return {
+            type: 'input',
+            name: act.name || '',
+            placeholder: (act.placeholder && act.placeholder.content) || '',
+          };
+        }
+        return { type: act.tag || 'unknown' };
       });
-      return { type: 'action', buttons: buttons };
+      return { type: 'action', actions: actions };
     }
     if (el.tag === 'column_set') {
       return { type: 'columns' };

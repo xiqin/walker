@@ -181,15 +181,21 @@ test('simulateCommand: 未知命令无 commandDef', function () {
 
 // ===== 卡片预览测试 =====
 
-test('listCardTypes: 返回 5 种卡片类型', function () {
+test('listCardTypes: 返回 11 种卡片类型', function () {
   var types = listCardTypes();
-  assert.equal(types.length, 5);
+  assert.equal(types.length, 11);
   var names = types.map(function (t) { return t.name; });
   assert.ok(names.includes('unbound_route'));
   assert.ok(names.includes('session_list'));
   assert.ok(names.includes('attachable_session'));
   assert.ok(names.includes('error'));
   assert.ok(names.includes('progress'));
+  assert.ok(names.includes('question_confirm'));
+  assert.ok(names.includes('question_single_select'));
+  assert.ok(names.includes('question_multi_select'));
+  assert.ok(names.includes('question_text'));
+  assert.ok(names.includes('question_replied'));
+  assert.ok(names.includes('question_replied_multi'));
 });
 
 test('listCardTypes: 每个类型含 name 和 description', function () {
@@ -369,8 +375,8 @@ test('GET /api/admin/tools/cards: 返回卡片类型列表', function () {
 
   assert.equal(res.statusCode, 200);
   assert.ok(res.body.ok);
-  assert.equal(res.body.data.total, 5);
-  assert.equal(res.body.data.types.length, 5);
+  assert.equal(res.body.data.total, 11);
+  assert.equal(res.body.data.types.length, 11);
 });
 
 test('POST /api/admin/tools/cards/preview: 预览指定卡片类型', async function () {

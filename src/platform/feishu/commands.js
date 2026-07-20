@@ -15,6 +15,7 @@ const COMMANDS = {
   agents: { desc: '列出可用的 Agent 类型', usage: '/agents' },
   runtime: { desc: '查看当前运行时环境', usage: '/runtime' },
   permit: { desc: '回复权限确认请求', usage: '/permit <permissionId> <allow|deny>' },
+  answer: { desc: '回复交互式问题', usage: '/answer <questionKey> --option <optionValue> <walkerSessionId> | /answer <questionKey> --toggle <optionValue> <walkerSessionId> | /answer <questionKey> --submit <walkerSessionId> | /answer <questionKey> --form <walkerSessionId> | /answer <questionKey> --retry <walkerSessionId>' },
   help: { desc: '显示命令帮助', usage: '/help' },
 };
 

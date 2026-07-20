@@ -60,14 +60,17 @@ function escapeRegExp(value) {
 function parseCardAction(data) {
   const action = data.action || {};
   const context = data.context || {};
+  const value = action.value || {};
+  const formValue = action.form_value || value.form_value || data.form_value || null;
+  const operator = data.operator || {};
 
   return {
-    openId: context.open_id || '',
-    chatId: context.chat_id || context.open_chat_id || '',
-    messageId: context.message_id || context.open_message_id || '',
-    action: (action.value && action.value.action) || '',
-    formValue: action.form_value || null,
-    routeKey: (action.value && action.value.routeKey) || '',
+    openId: context.open_id || operator.open_id || operator.openId || '',
+    chatId: context.chat_id || context.open_chat_id || data.chatId || data.chat_id || data.open_chat_id || '',
+    messageId: context.message_id || context.open_message_id || data.messageId || data.message_id || data.open_message_id || '',
+    action: value.action || '',
+    formValue,
+    routeKey: value.routeKey || '',
   };
 }
 

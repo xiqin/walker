@@ -158,6 +158,7 @@ function createApp(config, deps) {
           chatId: action.chatId,
           messageId: action.messageId,
           openId: action.openId,
+          formValue: action.formValue,
         });
       }
       return dispatcher.handleIncomingMessage({

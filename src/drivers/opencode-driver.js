@@ -542,6 +542,31 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  /**
+   * 通过 protocol v4 TUI Bridge 回复原生 question，不降级为 permission 或 prompt。
+   */
+  async replyQuestion(agentRef, requestID, answers) {
+    if (!agentRef || agentRef.transport !== 'tui-bridge') {
+      throw questionReplyError(
+        'native question replies require a tui-bridge agentRef',
+        'QUESTION_REPLY_UNSUPPORTED',
+      );
+    }
+    if (!agentRef.runtimeId || !agentRef.opencodeSessionId) {
+      throw questionReplyError(
+        'native question replies require tui-bridge agentRef with runtimeId and opencodeSessionId',
+        'TUI_INVALID_SESSION_REF',
+      );
+    }
+    if (!this.tuiBridge || typeof this.tuiBridge.replyQuestion !== 'function') {
+      throw questionReplyError(
+        'native question replies require configured tuiBridge with replyQuestion',
+        'QUESTION_REPLY_UNSUPPORTED',
+      );
+    }
+    return this.tuiBridge.replyQuestion(agentRef, requestID, answers);
+  }
+
   async clearSession(sessionRef) {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('clearSession requires sessionRef with opencodeSessionId');
@@ -673,3 +698,12 @@ class OpencodeDriver extends AgentDriver {
 }
 
 module.exports = { OpencodeDriver };
+
+function questionReplyError(message, code) {
+  return Object.assign(new Error(message), {
+    code,
+    deliveryPhase: 'preflight',
+    sdkInvoked: false,
+    safeToRetry: false,
+  });
+}

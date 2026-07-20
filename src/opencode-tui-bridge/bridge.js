@@ -9,6 +9,7 @@ const logger = createLogger('opencode-tui-bridge');
 
 const DELIVERY_TYPE_PROMPT = 'prompt';
 const DELIVERY_TYPE_CLEAR = 'clear';
+const DELIVERY_TYPE_QUESTION_REPLY = 'question_reply';
 
 class OpencodeTuiBridge {
   constructor(options) {
@@ -26,6 +27,7 @@ class OpencodeTuiBridge {
     this._tombstones = new Map();
     this.watchers = new Map();
     this._clearPending = new Map();
+    this._activeQuestionDeliveries = new Map();
     this._lastClearDeliveryId = null;
   }
 
@@ -137,7 +139,25 @@ class OpencodeTuiBridge {
     if (!runtime) throw new Error('unknown TUI runtime: ' + runtimeId);
     runtime.lastSeenAt = Date.now();
     if (runtime.currentSessionId !== sessionId) return null;
-    return runtime.queue.shift() || null;
+    if (!Array.isArray(data.acceptedTypes)) {
+      const delivery = runtime.queue[0] || null;
+      if (delivery && delivery.type === DELIVERY_TYPE_QUESTION_REPLY
+        && this._activeQuestionDeliveries.has(questionDeliveryKey(runtimeId, sessionId))) {
+        return null;
+      }
+      if (delivery) runtime.queue.shift();
+      if (delivery && delivery.type === DELIVERY_TYPE_QUESTION_REPLY) this._startQuestionAcceptedTimer(delivery);
+      return delivery;
+    }
+
+    const acceptedTypes = new Set(data.acceptedTypes);
+    const hasActiveQuestion = this._activeQuestionDeliveries.has(questionDeliveryKey(runtimeId, sessionId));
+    const index = runtime.queue.findIndex((delivery) => acceptedTypes.has(delivery.type)
+      && (!hasActiveQuestion || delivery.type !== DELIVERY_TYPE_QUESTION_REPLY));
+    if (index < 0) return null;
+    const delivery = runtime.queue.splice(index, 1)[0];
+    if (delivery.type === DELIVERY_TYPE_QUESTION_REPLY) this._startQuestionAcceptedTimer(delivery);
+    return delivery;
   }
 
   prompt(sessionRef, text, options) {
@@ -194,6 +214,64 @@ class OpencodeTuiBridge {
         pendingEntry._signal = signal;
         signal.addEventListener('abort', onAbort, { once: true });
       }
+
+      this.pending.set(deliveryId, pendingEntry);
+      runtime.queue.push(delivery);
+    });
+  }
+
+  /**
+   * 通过 protocol v4 控制 delivery 将原生 question 答复投递给 OpenCode 插件。
+   */
+  replyQuestion(sessionRef, requestID, answers) {
+    let ref;
+    try {
+      ref = this._validateRef(sessionRef);
+    } catch (err) {
+      return Promise.reject(questionReplyError(err.message, 'TUI_INVALID_SESSION_REF', 'preflight', false, false));
+    }
+    const runtime = this.runtimes.get(ref.runtimeId);
+    if (!runtime) return Promise.reject(questionReplyError(
+      'OpenCode TUI runtime is not connected', 'TUI_RUNTIME_UNAVAILABLE', 'preflight', false, true,
+    ));
+    if (Date.now() - runtime.lastSeenAt > this.runtimeStaleMs) {
+      return Promise.reject(questionReplyError(
+        'OpenCode TUI runtime connection is stale', 'TUI_RUNTIME_STALE', 'preflight', false, true,
+      ));
+    }
+    if (runtime.currentSessionId !== ref.opencodeSessionId) {
+      return Promise.reject(questionReplyError(
+        'OpenCode TUI current session has changed', 'TUI_SESSION_CHANGED', 'preflight', false, true,
+      ));
+    }
+    if ((runtime.bridgeProtocolVersion || 0) < 4) {
+      return Promise.reject(questionReplyError(
+        'OpenCode TUI plugin does not support native question replies. Restart the OpenCode TUI to load the updated Walker plugin.',
+        'QUESTION_REPLY_UNSUPPORTED', 'preflight', false, false,
+      ));
+    }
+
+    const deliveryId = createId('del_');
+    const delivery = {
+      deliveryId,
+      type: DELIVERY_TYPE_QUESTION_REPLY,
+      sessionId: ref.opencodeSessionId,
+      requestID: String(requestID || ''),
+      answers,
+    };
+
+    return new Promise((resolve, reject) => {
+      const pendingEntry = {
+        runtimeId: ref.runtimeId,
+        sessionId: ref.opencodeSessionId,
+        state: 'queued',
+        type: DELIVERY_TYPE_QUESTION_REPLY,
+        resolve: () => resolve(undefined),
+        reject,
+        timer: null,
+        leaseStartedAt: null,
+        cancelReason: null,
+      };
 
       this.pending.set(deliveryId, pendingEntry);
       runtime.queue.push(delivery);
@@ -312,11 +390,20 @@ class OpencodeTuiBridge {
   _handleAccepted(deliveryId, runtimeId, sessionId) {
     const pending = this.pending.get(deliveryId);
     if (!pending || pending.runtimeId !== runtimeId || pending.sessionId !== sessionId) {
+      const tombstone = this._tombstones.get(deliveryId);
+      if (tombstone && tombstone.runtimeId === runtimeId && tombstone.sessionId === sessionId
+        && tombstone.reason === 'accepted_timeout') {
+        return { delivered: false, expired: true };
+      }
       throw new Error('unknown TUI delivery: ' + deliveryId);
+    }
+    if (pending.type === DELIVERY_TYPE_QUESTION_REPLY && pending.state === 'leased') {
+      return { delivered: true, duplicate: true };
     }
     if (pending.state !== 'queued') {
       throw new Error('delivery ' + deliveryId + ' cannot accept from state ' + pending.state);
     }
+    clearTimeout(pending.timer);
     pending.state = 'leased';
     pending.leaseStartedAt = Date.now();
     const timer = setTimeout(() => {
@@ -348,13 +435,19 @@ class OpencodeTuiBridge {
     const pending = this.pending.get(deliveryId);
     if (pending && pending.runtimeId === runtimeId && pending.sessionId === sessionId) {
       if (pending.state === 'queued' || pending.state === 'leased') {
+        const deliveryPhase = pending.state;
         clearTimeout(pending.timer);
         pending.timer = null;
         this._removeAbortListener(pending);
         pending.state = 'completed';
         this.pending.delete(deliveryId);
+        this._releaseQuestionDelivery(deliveryId, pending);
         this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'completed');
-        if (data.error) pending.reject(new Error(errorMessage(data.error)));
+        if (data.error) {
+          pending.reject(pending.type === DELIVERY_TYPE_QUESTION_REPLY
+            ? questionReplyErrorFromPayload(data.error, deliveryPhase)
+            : new Error(errorMessage(data.error)));
+        }
         else pending.resolve(events);
         return { delivered: true };
       }
@@ -380,7 +473,8 @@ class OpencodeTuiBridge {
         tombstone.resolvedAt = Date.now();
         return { delivered: true, recovered: true };
       }
-      if (tombstone.reason === 'cancelled' || tombstone.reason === 'deadline') {
+      if (tombstone.reason === 'cancelled' || tombstone.reason === 'deadline'
+        || tombstone.reason === 'accepted_timeout') {
         return { delivered: true, suppressed: true };
       }
     }
@@ -396,8 +490,37 @@ class OpencodeTuiBridge {
     pending.timer = null;
     this._removeAbortListener(pending);
     this.pending.delete(deliveryId);
+    this._releaseQuestionDelivery(deliveryId, pending);
     this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'transport_lost');
-    pending.reject(new Error(errorCode || 'TUI_LEASE_LOST'));
+    pending.reject(pending.type === DELIVERY_TYPE_QUESTION_REPLY
+      ? questionReplyError(errorCode || 'TUI_LEASE_LOST', errorCode || 'TUI_LEASE_LOST', 'leased', true, false)
+      : new Error(errorCode || 'TUI_LEASE_LOST'));
+  }
+
+  _startQuestionAcceptedTimer(delivery) {
+    const pending = this.pending.get(delivery.deliveryId);
+    if (!pending || pending.type !== DELIVERY_TYPE_QUESTION_REPLY) return;
+    pending.dequeuedAt = Date.now();
+    this._activeQuestionDeliveries.set(questionDeliveryKey(pending.runtimeId, pending.sessionId), delivery.deliveryId);
+    pending.timer = setTimeout(() => {
+      const current = this.pending.get(delivery.deliveryId);
+      if (!current || current.state !== 'queued') return;
+      current.timer = null;
+      this.pending.delete(delivery.deliveryId);
+      this._releaseQuestionDelivery(delivery.deliveryId, current);
+      this._addTombstone(delivery.deliveryId, current.runtimeId, current.sessionId, 'accepted_timeout');
+      current.reject(questionReplyError(
+        'OpenCode TUI bridge question reply was not accepted before the runtime stale deadline',
+        'TUI_ACCEPTED_TIMEOUT', 'queued', false, true,
+      ));
+    }, this.runtimeStaleMs);
+    if (pending.timer.unref) pending.timer.unref();
+  }
+
+  _releaseQuestionDelivery(deliveryId, pending) {
+    if (!pending || pending.type !== DELIVERY_TYPE_QUESTION_REPLY) return;
+    const key = questionDeliveryKey(pending.runtimeId, pending.sessionId);
+    if (this._activeQuestionDeliveries.get(key) === deliveryId) this._activeQuestionDeliveries.delete(key);
   }
 
   _addTombstone(deliveryId, runtimeId, sessionId, reason) {
@@ -603,9 +726,16 @@ class OpencodeTuiBridge {
       pending.timer = null;
       this._removeAbortListener(pending);
       pending.cancelReason = 'user_cancelled';
+      const deliveryPhase = pending.state;
       this.pending.delete(deliveryId);
+      this._releaseQuestionDelivery(deliveryId, pending);
       this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'cancelled');
-      pending.reject(new Error('OpenCode TUI bridge prompt cancelled'));
+      pending.reject(pending.type === DELIVERY_TYPE_QUESTION_REPLY
+        ? questionReplyError(
+          'OpenCode TUI bridge question reply cancelled', 'TUI_DELIVERY_CANCELLED', deliveryPhase,
+          deliveryPhase === 'leased', deliveryPhase !== 'leased',
+        )
+        : new Error('OpenCode TUI bridge prompt cancelled'));
     }
     const runtime = this.runtimes.get(ref.runtimeId);
     if (runtime) runtime.queue = runtime.queue.filter((item) => item.sessionId !== ref.opencodeSessionId);
@@ -626,9 +756,16 @@ class OpencodeTuiBridge {
       pending.timer = null;
       this._removeAbortListener(pending);
       pending.cancelReason = 'runtime_disposed';
+      const deliveryPhase = pending.state;
       this.pending.delete(deliveryId);
+      this._releaseQuestionDelivery(deliveryId, pending);
       this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'transport_lost');
-      pending.reject(new Error('OpenCode TUI bridge runtime disposed'));
+      pending.reject(pending.type === DELIVERY_TYPE_QUESTION_REPLY
+        ? questionReplyError(
+          'OpenCode TUI bridge runtime disposed', 'TUI_RUNTIME_DISCONNECTED', deliveryPhase,
+          deliveryPhase === 'leased', deliveryPhase !== 'leased',
+        )
+        : new Error('OpenCode TUI bridge runtime disposed'));
     }
     this._failClearsForRuntime(runtimeId, null, new Error('OpenCode TUI bridge runtime disposed'));
     this.runtimes.delete(runtimeId);
@@ -639,14 +776,22 @@ class OpencodeTuiBridge {
       clearTimeout(pending.timer);
       pending.timer = null;
       this._removeAbortListener(pending);
-      pending.reject(new Error('OpenCode TUI bridge closed'));
+      const deliveryPhase = pending.state;
       this.pending.delete(deliveryId);
+      this._releaseQuestionDelivery(deliveryId, pending);
+      pending.reject(pending.type === DELIVERY_TYPE_QUESTION_REPLY
+        ? questionReplyError(
+          'OpenCode TUI bridge closed', 'TUI_BRIDGE_CLOSED', deliveryPhase,
+          deliveryPhase === 'leased', deliveryPhase !== 'leased',
+        )
+        : new Error('OpenCode TUI bridge closed'));
     }
     for (const deliveryId of this._clearPending.keys()) {
       this._failClear(deliveryId, new Error('OpenCode TUI bridge closed'));
     }
     this._tombstones.clear();
     this.watchers.clear();
+    this._activeQuestionDeliveries.clear();
     this.runtimes.clear();
   }
 
@@ -684,6 +829,9 @@ function normalizeEvents(events) {
     AgentEvent.TYPE_COMPACTED,
     AgentEvent.TYPE_FILE_EDITED,
     AgentEvent.TYPE_COMMAND_EXECUTED,
+    AgentEvent.TYPE_QUESTION_ASKED || 'question_asked',
+    AgentEvent.TYPE_QUESTION_REPLIED || 'question_replied',
+    AgentEvent.TYPE_QUESTION_REJECTED || 'question_rejected',
   ]);
   return events
     .filter((event) => event && allowed.has(event.type))
@@ -707,6 +855,29 @@ function errorMessage(value) {
   if (typeof value === 'string') return value;
   if (value && typeof value.message === 'string') return value.message;
   return 'OpenCode TUI bridge error';
+}
+
+function questionDeliveryKey(runtimeId, sessionId) {
+  return runtimeId + ':' + sessionId;
+}
+
+function questionReplyError(message, code, deliveryPhase, sdkInvoked, safeToRetry) {
+  const err = new Error(message);
+  err.code = code;
+  err.deliveryPhase = deliveryPhase;
+  err.sdkInvoked = sdkInvoked;
+  err.safeToRetry = safeToRetry;
+  return err;
+}
+
+function questionReplyErrorFromPayload(payload, deliveryPhase) {
+  const details = payload && typeof payload === 'object' ? payload : {};
+  const sdkInvoked = details.sdkInvoked === false ? false : true;
+  return questionReplyError(
+    errorMessage(payload), details.code || 'QUESTION_REPLY_FAILED',
+    details.deliveryPhase || deliveryPhase, sdkInvoked,
+    details.safeToRetry === true && sdkInvoked === false,
+  );
 }
 
 module.exports = { OpencodeTuiBridge };

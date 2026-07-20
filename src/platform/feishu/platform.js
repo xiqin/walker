@@ -103,13 +103,17 @@ class FeishuPlatform {
   async _handleCardAction(data) {
     const parsed = parseCardAction(data);
     if (parsed.action) {
+      logger.info('card action received', { action: parsed.action, chatId: parsed.chatId, messageId: parsed.messageId, openId: parsed.openId, routeKey: parsed.routeKey, formKeys: parsed.formValue ? Object.keys(parsed.formValue) : [] });
       await this.onCardAction({
         action: parsed.action,
         chatId: parsed.chatId,
         messageId: parsed.messageId,
         openId: parsed.openId,
         routeKey: parsed.routeKey,
+        formValue: parsed.formValue,
       });
+    } else {
+      logger.warn('card action ignored: missing action value', { chatId: parsed.chatId, messageId: parsed.messageId, openId: parsed.openId });
     }
   }
 

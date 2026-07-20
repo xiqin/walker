@@ -3142,3 +3142,36 @@ describe('MessageDispatcher permission handling', () => {
     assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('权限不存在或已过期')));
   });
 });
+
+describe('MessageDispatcher 原生 question 路由', () => {
+  it('独立路由 question_asked，且 /answer 不经过通用去重', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_q1', agent: 'opencode', agentRef: { transport: 'tui-bridge', runtimeId: 'rt_1', opencodeSessionId: 'ses_q1' } };
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:root:om_root1';
+    mocks.sessionService.getSession = () => session;
+    mocks.driver.replyQuestion = async () => {};
+    const dispatcher = new MessageDispatcher(mocks);
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
+      requestID: 'req_1', sessionID: 'ses_q1', questions: [{ header: '选择', question: '请选择', options: [{ label: 'A', description: '' }] }],
+    }));
+    await new Promise((resolve) => setImmediate(resolve));
+    const cmd = { type: 'command', name: 'answer', args: ['req_1:0', '--form', 'wks_q1'], routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_card1', chatId: 'oc_chat1', formValue: { question_selected: 'option_0' } };
+    await dispatcher.handleCommand(cmd);
+    await dispatcher.handleCommand(cmd);
+    assert.equal(mocks.feishuApi.calls.filter((call) => call.type === 'replyCard').length, 1);
+    assert.equal(mocks.dedup.entries['cmd:om_card1:answer:req_1:0 --form wks_q1'], undefined);
+  });
+
+  it('独立路由 question_replied 和 question_rejected', () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_q2', agent: 'opencode', agentRef: { transport: 'tui-bridge', runtimeId: 'rt_2', opencodeSessionId: 'ses_q2' } };
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:root:om_root1';
+    const dispatcher = new MessageDispatcher(mocks);
+    const calls = [];
+    dispatcher.questionHandler.handleReplied = (_session, _chatId, event) => { calls.push(event.type); };
+    dispatcher.questionHandler.handleRejected = (_session, _chatId, event) => { calls.push(event.type); };
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_QUESTION_REPLIED, { requestID: 'req_2', sessionID: 'ses_q2', answers: [['A']] }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_QUESTION_REJECTED, { requestID: 'req_2', sessionID: 'ses_q2' }));
+    assert.deepEqual(calls, [AgentEvent.TYPE_QUESTION_REPLIED, AgentEvent.TYPE_QUESTION_REJECTED]);
+  });
+});

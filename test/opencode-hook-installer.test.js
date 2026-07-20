@@ -61,7 +61,7 @@ test('已存在旧版 TUI plugin 即使端口匹配也会升级', () => {
 
   assert.equal(result.installed, true);
   const content = fs.readFileSync(targetPath, 'utf8');
-  assert.ok(content.includes('Walker TUI bridge version: 8'));
+  assert.ok(content.includes('Walker TUI bridge version: 9'));
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -123,7 +123,8 @@ test('getPluginSource 返回 embedded TUI bridge plugin 内容', () => {
   assert.ok(source.includes('/opencode/tui-bridge/register'));
   assert.ok(source.includes('/opencode/tui-bridge/poll'));
   assert.ok(source.includes('/opencode/tui-bridge/events'));
-  assert.ok(source.includes('bridgeProtocolVersion: 3'));
+  assert.ok(source.includes('Walker TUI bridge version: 9'));
+  assert.ok(source.includes('bridgeProtocolVersion: 4'));
   assert.ok(source.includes('api.route.current'));
   assert.ok(source.includes('api.client.session.promptAsync'));
 });
@@ -248,7 +249,9 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
     await waitFor(() => promptCalls.length === 1);
     assert.equal(promptCalls[0].sessionID, 'ses_embedded');
     assert.equal(promptCalls[0].parts[0].text, '来自飞书');
-    assert.equal(requests.find((request) => request.url.endsWith('/register')).body.sessionId, 'ses_embedded');
+    const registration = requests.find((request) => request.url.endsWith('/register'));
+    assert.equal(registration.body.sessionId, 'ses_embedded');
+    assert.equal(registration.body.bridgeProtocolVersion, 4, '实际 register 请求必须声明 protocol v4');
     assert.equal(requests[0].options.headers.Authorization, 'Bearer token-test');
 
     await handlers.get('session.idle')({ properties: { sessionID: 'ses_embedded' } });
@@ -269,8 +272,7 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
       },
     });
     const errorRequest = requests.find((request) => request.url.endsWith('/events') && request.body.error);
-    assert.equal(errorRequest.body.error.message, 'Model not found: cpa/gpt-5.6-sol');
-    assert.equal(errorRequest.body.deliveryState, 'final');
+    assert.equal(errorRequest, undefined, '没有活跃父 delivery 时 session.error 不得创建无关联 final');
   } finally {
     if (dispose) await dispose();
     global.fetch = originalFetch;
@@ -458,9 +460,8 @@ test('生成的 TUI plugin 在 route 滞后时跟随根会话创建和 TUI 会�
     await handlers.get('session.error')({
       properties: { sessionID: 'ses_new', error: { message: '新会话失败' } },
     });
-    const errorRequest = requests.filter((request) => request.url.endsWith('/events')).at(-1);
-    assert.equal(errorRequest.body.sessionId, 'ses_new');
-    assert.equal(errorRequest.body.error.message, '新会话失败');
+    const errorRequest = requests.find((request) => request.url.endsWith('/events') && request.body.error);
+    assert.equal(errorRequest, undefined, '完成父 delivery 后 session.error 不得误完结其他 delivery');
 
     await handlers.get('tui.session.select')({ properties: { sessionID: 'ses_existing' } });
     await waitFor(() => requests.some((request) => request.url.endsWith('/register') && request.body.sessionId === 'ses_existing'));
@@ -1136,6 +1137,432 @@ test('clear 无关手工事件不关联 clear', async () => {
     assert.equal(manualReg.body.controlDeliveryId, undefined, '手工事件 register 不应携带 controlDeliveryId');
   } finally {
     if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('生成的 TUI plugin 转发原生 question 事件并保留完整载荷', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const handlers = new Map();
+  let dispose;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: { current: { name: 'session', params: { sessionID: 'ses_question_events' } } },
+      client: { session: { promptAsync: async () => ({ data: null }) } },
+      event: { on: (type, handler) => handlers.set(type, handler) },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'idle' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    const question = {
+      question: '选择部署方式',
+      header: '部署',
+      options: [{ label: '滚动', description: '不中断服务' }],
+      multiple: false,
+      custom: true,
+    };
+    await handlers.get('question.asked')({ properties: {
+      id: 'req_native', sessionID: 'ses_question_events', questions: [question], tool: { messageID: 'msg_1', callID: 'call_1' },
+    } });
+    await handlers.get('question.replied')({ properties: {
+      requestID: 'req_native', sessionID: 'ses_question_events', answers: [['滚动']],
+    } });
+    await handlers.get('question.rejected')({ properties: { requestID: 'req_native', sessionID: 'ses_question_events' } });
+
+    const events = requests.filter((request) => request.url.endsWith('/events')).flatMap((request) => request.body.events);
+    assert.deepEqual(events, [
+      { type: 'question_asked', data: { requestID: 'req_native', sessionID: 'ses_question_events', questions: [question], tool: { messageID: 'msg_1', callID: 'call_1' } } },
+      { type: 'question_replied', data: { requestID: 'req_native', sessionID: 'ses_question_events', answers: [['滚动']] } },
+      { type: 'question_rejected', data: { requestID: 'req_native', sessionID: 'ses_question_events' } },
+    ]);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('busy 会话重试 question_reply accepted 后只通过原生 SDK 执行', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const questionReplyCalls = [];
+  let dispose;
+  let pollReturned = false;
+  let acceptedAttempts = 0;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    const isPoll = String(url).endsWith('/poll');
+    const isAccepted = String(url).endsWith('/events') && body.deliveryState === 'accepted';
+    if (isPoll && !pollReturned) {
+      pollReturned = true;
+      return { ok: true, status: 200, json: async () => ({ ok: true, data: {
+        delivery: { deliveryId: 'del_question', type: 'question_reply', sessionId: 'ses_busy', requestID: 'req_busy', answers: [['接受']] },
+      } }) };
+    }
+    if (isAccepted && ++acceptedAttempts === 1) {
+      return { ok: false, status: 503, json: async () => ({ ok: false, error: { message: 'temporarily unavailable' } }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: { current: { name: 'session', params: { sessionID: 'ses_busy' } } },
+      client: {
+        session: { promptAsync: async () => { throw new Error('question_reply 不得调用 promptAsync'); } },
+        question: { reply: async (input) => { questionReplyCalls.push(input); return { data: null }; } },
+      },
+      event: { on: () => {} },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'busy' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => questionReplyCalls.length === 1, 2000);
+    assert.deepEqual(questionReplyCalls, [{ requestID: 'req_busy', answers: [['接受']] }]);
+    assert.equal(acceptedAttempts, 2, 'accepted 临时失败后应由后续 tick 重试');
+    const polls = requests.filter((request) => request.url.endsWith('/poll'));
+    assert.ok(polls.length >= 1);
+    assert.deepEqual(polls[0].body.acceptedTypes, ['question_reply']);
+    assert.equal(polls.filter((request) => request.body.acceptedTypes.includes('question_reply')).length, 1, '等待 accepted 时不得重新 poll 控制队列');
+    const final = requests.find((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_question' && request.body.deliveryState === 'final');
+    assert.ok(final, 'SDK 成功后应独立 final 控制 delivery');
+    assert.equal(final.body.error, null);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('idle poll 声明全部 v4 delivery 类型，过期 question_reply 不调用 SDK 或 final', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const questionReplyCalls = [];
+  let dispose;
+  let pollReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    if (String(url).endsWith('/poll') && !pollReturned) {
+      pollReturned = true;
+      return { ok: true, status: 200, json: async () => ({ ok: true, data: {
+        delivery: { deliveryId: 'del_expired', type: 'question_reply', sessionId: 'ses_idle', requestID: 'req_expired', answers: [['不应提交']] },
+      } }) };
+    }
+    if (String(url).endsWith('/events') && body.deliveryState === 'accepted') {
+      return { ok: true, status: 200, json: async () => ({ ok: true, data: { expired: true } }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: { current: { name: 'session', params: { sessionID: 'ses_idle' } } },
+      client: {
+        session: { promptAsync: async () => ({ data: null }) },
+        question: { reply: async (input) => questionReplyCalls.push(input) },
+      },
+      event: { on: () => {} },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'idle' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => requests.some((request) => request.url.endsWith('/events') && request.body.deliveryState === 'accepted'));
+    const poll = requests.find((request) => request.url.endsWith('/poll'));
+    assert.deepEqual(poll.body.acceptedTypes, ['prompt', 'clear', 'question_reply']);
+    assert.deepEqual(questionReplyCalls, []);
+    assert.equal(requests.some((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_expired' && request.body.deliveryState === 'final'), false);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('非法 question_reply 在未调用 SDK 时上报稳定错误 final', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const questionReplyCalls = [];
+  let dispose;
+  let pollReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    if (String(url).endsWith('/poll') && !pollReturned) {
+      pollReturned = true;
+      return { ok: true, status: 200, json: async () => ({ ok: true, data: {
+        delivery: { deliveryId: 'del_invalid', type: 'question_reply', sessionId: 'ses_invalid', requestID: '', answers: [] },
+      } }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: { current: { name: 'session', params: { sessionID: 'ses_invalid' } } },
+      client: {
+        session: { promptAsync: async () => ({ data: null }) },
+        question: { reply: async (input) => questionReplyCalls.push(input) },
+      },
+      event: { on: () => {} },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'idle' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => requests.some((request) => request.url.endsWith('/events') && request.body.deliveryState === 'final'));
+    const final = requests.find((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_invalid' && request.body.deliveryState === 'final');
+    assert.deepEqual(questionReplyCalls, []);
+    assert.deepEqual(final.body.error, {
+      message: 'question_reply requires a requestID and non-empty string answers',
+      code: 'QUESTION_REPLY_INVALID_PAYLOAD',
+      deliveryPhase: 'queued',
+      sdkInvoked: false,
+      safeToRetry: false,
+    });
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('父 prompt leased 且 session busy 时控制 delivery 独立 heartbeat 和 final', async () => {
+  const source = getPluginSource(8787, '', 10);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const handlers = new Map();
+  const promptCalls = [];
+  const questionReplyCalls = [];
+  let dispose;
+  let sessionBusy = false;
+  let pollCount = 0;
+  let resolveQuestionReply;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    if (String(url).endsWith('/poll')) {
+      pollCount++;
+      const delivery = pollCount === 1
+        ? { deliveryId: 'del_parent', type: 'prompt', sessionId: 'ses_nested', text: '父 prompt' }
+        : pollCount === 2
+          ? { deliveryId: 'del_control', type: 'question_reply', sessionId: 'ses_nested', requestID: 'req_nested', answers: [['确认']] }
+          : null;
+      return { ok: true, status: 200, json: async () => ({ ok: true, data: { delivery } }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: { current: { name: 'session', params: { sessionID: 'ses_nested' } } },
+      client: {
+        session: { promptAsync: async (input) => { promptCalls.push(input); sessionBusy = true; return { data: null }; } },
+        question: { reply: async (input) => {
+          questionReplyCalls.push(input);
+          return new Promise((resolve) => { resolveQuestionReply = resolve; });
+        } },
+      },
+      event: { on: (type, handler) => handlers.set(type, handler) },
+      state: {
+        path: { directory: 'H:\\walker' },
+        session: {
+          status: () => ({ type: sessionBusy ? 'busy' : 'idle' }),
+          messages: () => [{ id: 'msg_nested', role: 'assistant' }],
+        },
+        part: () => [{ type: 'text', text: '父 prompt 完成' }],
+      },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => questionReplyCalls.length === 1, 2000);
+    assert.deepEqual(promptCalls, [{ sessionID: 'ses_nested', parts: [{ type: 'text', text: '父 prompt' }] }]);
+    assert.deepEqual(questionReplyCalls, [{ requestID: 'req_nested', answers: [['确认']] }]);
+    const polls = requests.filter((request) => request.url.endsWith('/poll'));
+    assert.deepEqual(polls[1].body.acceptedTypes, ['question_reply']);
+    await waitFor(() => {
+      const heartbeatIds = new Set(requests
+        .filter((request) => request.url.endsWith('/events') && request.body.deliveryState === 'heartbeat')
+        .map((request) => request.body.deliveryId));
+      return heartbeatIds.has('del_parent') && heartbeatIds.has('del_control');
+    });
+
+    await handlers.get('session.idle')({ properties: { sessionID: 'ses_nested' } });
+    await handlers.get('session.error')({ properties: { sessionID: 'ses_nested', error: { message: '父会话稍后错误' } } });
+    const parentFinal = requests.find((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_parent' && request.body.deliveryState === 'final');
+    assert.ok(parentFinal, 'session.idle 只应完结父 delivery');
+    assert.equal(requests.some((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_control' && request.body.deliveryState === 'final'), false, 'session idle/error 不得误终结仍在执行的控制 delivery');
+
+    resolveQuestionReply({ data: null });
+    await waitFor(() => requests.some((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_control' && request.body.deliveryState === 'final'));
+    const controlFinal = requests.find((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_control' && request.body.deliveryState === 'final');
+    assert.equal(controlFinal.body.error, null);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('question reply SDK 失败 final 标注已调用且不可重试', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  let dispose;
+  let pollReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    if (String(url).endsWith('/poll') && !pollReturned) {
+      pollReturned = true;
+      return { ok: true, status: 200, json: async () => ({ ok: true, data: {
+        delivery: { deliveryId: 'del_sdk_error', type: 'question_reply', sessionId: 'ses_sdk_error', requestID: 'req_sdk_error', answers: [['提交']] },
+      } }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+
+  try {
+    const sdkError = new Error('OpenCode request not found');
+    sdkError.code = 'QUESTION_NOT_FOUND';
+    await plugin.default.tui({
+      route: { current: { name: 'session', params: { sessionID: 'ses_sdk_error' } } },
+      client: {
+        session: { promptAsync: async () => { throw new Error('不得调用 promptAsync'); } },
+        question: { reply: async () => { throw sdkError; } },
+      },
+      event: { on: () => {} },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'busy' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => requests.some((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_sdk_error' && request.body.deliveryState === 'final'));
+    const final = requests.find((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_sdk_error' && request.body.deliveryState === 'final');
+    assert.deepEqual(final.body.error, {
+      message: 'OpenCode request not found',
+      code: 'QUESTION_NOT_FOUND',
+      deliveryPhase: 'leased',
+      sdkInvoked: true,
+      safeToRetry: false,
+    });
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('question reply SDK 缺少 question.reply 时不可重试降级且不标记已调用', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  let dispose;
+  let pollReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    if (String(url).endsWith('/poll') && !pollReturned) {
+      pollReturned = true;
+      return { ok: true, status: 200, json: async () => ({ ok: true, data: {
+        delivery: { deliveryId: 'del_no_question_client', type: 'question_reply', sessionId: 'ses_no_question_client', requestID: 'req_no_question_client', answers: [['提交']] },
+      } }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: { current: { name: 'session', params: { sessionID: 'ses_no_question_client' } } },
+      client: {
+        session: { promptAsync: async () => { throw new Error('不得调用 promptAsync'); } },
+      },
+      event: { on: () => {} },
+      state: { path: { directory: 'H:\walker' }, session: { status: () => ({ type: 'busy' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => requests.some((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_no_question_client' && request.body.deliveryState === 'final'));
+    const final = requests.find((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_no_question_client' && request.body.deliveryState === 'final');
+    assert.deepEqual(final.body.error, {
+      message: 'OpenCode SDK question.reply is unavailable',
+      code: 'QUESTION_REPLY_UNSUPPORTED',
+      deliveryPhase: 'queued',
+      sdkInvoked: false,
+      safeToRetry: false,
+    });
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('无效原生 question 事件不 report 且后续有效事件正常转发', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const handlers = new Map();
+  let dispose;
+  const originalFetch = global.fetch;
+  const originalConsoleError = console.error;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+  console.error = () => {};
+
+  try {
+    await plugin.default.tui({
+      route: { current: { name: 'session', params: { sessionID: 'ses_invalid_events' } } },
+      client: { session: { promptAsync: async () => ({ data: null }) } },
+      event: { on: (type, handler) => handlers.set(type, handler) },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'idle' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await handlers.get('question.asked')({ properties: { id: 'req_invalid', sessionID: 'ses_invalid_events', questions: [] } });
+    await handlers.get('question.replied')({ properties: { requestID: 'req_invalid', sessionID: 'ses_invalid_events' } });
+    await handlers.get('question.rejected')({ properties: { sessionID: 'ses_invalid_events' } });
+    await handlers.get('question.asked')({ properties: {
+      id: 'req_valid', sessionID: 'ses_invalid_events', questions: [{ question: '继续？', header: '确认', options: [] }],
+    } });
+
+    const events = requests.filter((request) => request.url.endsWith('/events')).flatMap((request) => request.body.events);
+    assert.deepEqual(events, [{
+      type: 'question_asked',
+      data: { requestID: 'req_valid', sessionID: 'ses_invalid_events', questions: [{ question: '继续？', header: '确认', options: [] }] },
+    }]);
+  } finally {
+    if (dispose) await dispose();
+    console.error = originalConsoleError;
     global.fetch = originalFetch;
   }
 });
