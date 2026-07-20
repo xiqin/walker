@@ -790,7 +790,10 @@ class MessageDispatcher {
     }
     try {
       await driver.replyPermission(current.agentRef, permissionId, response, false);
-      await this._callFeishu('replyText', [this._replyCtx(cmd), '已' + (response === 'allow' ? '允许' : '拒绝') + '权限请求 ' + permissionId]);
+      const patched = this.permissionHandler.patchReplied(permissionId, response);
+      if (!patched) {
+        await this._callFeishu('replyText', [this._replyCtx(cmd), '已' + (response === 'allow' ? '允许' : '拒绝') + '权限请求 ' + permissionId]);
+      }
       return { replied: permissionId, response };
     } catch (err) {
       logger.warn('permit command failed', { permissionId, error: err && err.message });

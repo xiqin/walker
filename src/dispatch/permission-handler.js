@@ -59,11 +59,15 @@ class PermissionHandler {
   handleReplied(session, chatId, agentEvent) {
     const permissionId = agentEvent.data && agentEvent.data.permissionId;
     const response = agentEvent.data && agentEvent.data.response;
-    if (!this.dispatcher.permissionCardIds || !permissionId) return;
+    this.patchReplied(permissionId, response);
+  }
+
+  patchReplied(permissionId, response) {
+    if (!this.dispatcher.permissionCardIds || !permissionId) return false;
     const existingCardId = this.dispatcher.permissionCardIds.get(permissionId);
-    if (existingCardId) {
-      this.dispatcher._sendFeishu('patchCard', [existingCardId, buildPermissionRepliedCard(permissionId, response)], { sessionId: session.id, permissionId });
-    }
+    if (!existingCardId) return false;
+    this.dispatcher._sendFeishu('patchCard', [existingCardId, buildPermissionRepliedCard(permissionId, response)], { permissionId });
+    return true;
   }
 }
 

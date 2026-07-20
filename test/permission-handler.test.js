@@ -55,4 +55,21 @@ describe('PermissionHandler 传统 permission 不受影响', () => {
     const card = patchCall.args[1];
     assert.equal(card.header.title.content, '权限已处理');
   });
+
+  it('patchReplied 返回 true 当存在原卡片并 patch', () => {
+    const mocks = makeMocks();
+    mocks.dispatcher.permissionCardIds = new Map([['perm_abc', 'om_perm1']]);
+    const handler = new PermissionHandler({ dispatcher: mocks.dispatcher, feishuApi: mocks.feishuApi, sessionService: mocks.sessionService });
+    const ok = handler.patchReplied('perm_abc', 'allow');
+    assert.equal(ok, true);
+    assert.ok(mocks.calls.some((c) => c.type === 'patchCard'));
+  });
+
+  it('patchReplied 返回 false 当无原卡片', () => {
+    const mocks = makeMocks();
+    const handler = new PermissionHandler({ dispatcher: mocks.dispatcher, feishuApi: mocks.feishuApi, sessionService: mocks.sessionService });
+    const ok = handler.patchReplied('perm_abc', 'allow');
+    assert.equal(ok, false);
+    assert.equal(mocks.calls.some((c) => c.type === 'patchCard'), false);
+  });
 });

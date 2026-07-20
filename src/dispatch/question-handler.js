@@ -108,7 +108,7 @@ class QuestionHandler {
     for (let index = 0; index < request.questions.length; index++) {
       if (request.status !== 'sending_cards') return { status: request.status };
       const question = request.questions[index] || {};
-      if (!Array.isArray(question.options) || question.options.length === 0) {
+      if ((!Array.isArray(question.options) || question.options.length === 0) && question.custom === false) {
         request.cardStates[index] = 'send_failed';
         this._terminal(request, 'feishu_unavailable');
         await this._patchAll(request, 'feishu_unavailable');
@@ -156,14 +156,18 @@ class QuestionHandler {
     return Number.isInteger(index) && index >= 0 ? { requestID, index } : null;
   }
 
-  /** patch 飞书卡片，失败时降级向原会话发送一次文本。 */
-  async _patch(cardId, card, chatId, text) {
+  /** patch 飞书卡片，失败时降级向原会话发送一次文本（同一请求同一卡片只降级一次）。 */
+  async _patch(cardId, card, chatId, text, request, index) {
     if (!cardId || !this.feishuApi || typeof this.feishuApi.patchCard !== 'function') return;
     try {
       await this.feishuApi.patchCard(cardId, card);
     } catch (err) {
       logger.warn('native question card patch failed', { cardId, error: err && err.message });
-      if (chatId && typeof this.feishuApi.sendText === 'function') {
+      if (chatId && typeof this.feishuApi.sendText === 'function' && request) {
+        const fallbackKey = cardId + ':' + index;
+        if (!request.patchFallbackSent) request.patchFallbackSent = new Set();
+        if (request.patchFallbackSent.has(fallbackKey)) return;
+        request.patchFallbackSent.add(fallbackKey);
         try { await this.feishuApi.sendText(chatId, text); } catch (_) {}
       }
     }
@@ -179,7 +183,7 @@ class QuestionHandler {
     } else if (card.elements && card.elements[0] && card.elements[0].text) {
       fallbackText = card.elements[0].text.content || '';
     }
-    return this._patch(request.cards[index], card, request.chatId, fallbackText);
+    return this._patch(request.cards[index], card, request.chatId, fallbackText, request, index);
   }
 
   /** 并行 patch 全部已发送卡片为指定状态。 */
@@ -236,6 +240,9 @@ class QuestionHandler {
     }
     const answers = this._parseOptionAnswers(question, selected) || [];
     const custom = String(formValue.question_custom || '').trim();
+    if (question.multiple !== true && answers.length > 1) return null;
+    if (question.multiple !== true && answers.length && custom) return null;
+    if (question.multiple !== true && selected.length && custom) return null;
     if (custom) {
       if (question.custom === false) return null;
       answers.push(custom);
@@ -253,7 +260,7 @@ class QuestionHandler {
     } else if (card.elements && card.elements[0] && card.elements[0].text) {
       fallbackText = card.elements[0].text.content || '';
     }
-    return this._patch(request.cards[index], card, request.chatId, fallbackText);
+    return this._patch(request.cards[index], card, request.chatId, fallbackText, request, index);
   }
 
   /** 记录答案，并在全部题目齐备后提交到 OpenCode 原生 question。 */

@@ -509,12 +509,18 @@ function buildPermissionCard(permissionEvent, sessionId, routeKey) {
  * @returns {Object} 飞书卡片 JSON 结构
  */
 function buildPermissionRepliedCard(permissionId, response) {
-  const action = response === 'allow' ? '已允许' : '已拒绝';
+  const allowed = response === 'allow';
+  const action = allowed ? '已允许' : '已拒绝';
+  const template = allowed ? 'green' : 'grey';
+  const contentLines = [
+    '**最终选择**',
+    action + '权限请求 `' + escapeLarkMd(permissionId) + '`',
+  ];
   return {
     config: { wide_screen_mode: true, update_multi: true },
-    header: { title: { tag: 'plain_text', content: '权限已处理' }, template: 'default' },
+    header: { title: { tag: 'plain_text', content: '权限已处理' }, template },
     elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: action + '权限请求 `' + escapeLarkMd(permissionId) + '`' } },
+      { tag: 'div', text: { tag: 'lark_md', content: contentLines.join('\n') } },
     ],
   };
 }
@@ -651,6 +657,23 @@ function buildNativeQuestionAnswerLines(question, answers) {
   return lines;
 }
 
+function buildNativeQuestionStatusContent(options, info) {
+  const question = options.question || {};
+  const questionIndex = Number.isInteger(options.questionIndex) ? options.questionIndex : 0;
+  const questionCount = Number.isInteger(options.questionCount) ? options.questionCount : 1;
+  const contentLines = [
+    '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**',
+    escapeLarkMd(question.question || ''),
+    '',
+    info.message,
+  ];
+  if (Array.isArray(options.answers) && options.answers.length) {
+    const answerLines = buildNativeQuestionAnswerLines(question, options.answers);
+    if (answerLines.length) contentLines.push('', '**最终选择**', ...answerLines);
+  }
+  return contentLines.join('\n');
+}
+
 /**
  * 构建 OpenCode 原生问题的飞书表单卡片。
  * @param {Object} options - 问题与飞书路由上下文
@@ -668,9 +691,36 @@ function buildNativeQuestionCard(options) {
     '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**',
     escapeLarkMd(question.question || ''),
   ];
-  if (question.custom !== false) introLines.push('', '如需自定义答案，请在本地 TUI 输入。');
 
   if (!presetOptions.length) {
+    if (question.custom !== false) {
+      return {
+        schema: '2.0',
+        config: { update_multi: true, width_mode: 'fill' },
+        header,
+        body: {
+          elements: [
+            { tag: 'markdown', content: introLines.join('\n') },
+            {
+              tag: 'form',
+              name: 'question_form',
+              elements: [{
+                tag: 'input',
+                name: 'question_custom',
+                placeholder: { tag: 'plain_text', content: '请输入自定义答案' },
+              }, {
+                tag: 'button',
+                name: 'question_submit',
+                text: { tag: 'plain_text', content: '提交' },
+                type: 'primary',
+                action_type: 'form_submit',
+                value: buildButtonValue('cmd:/answer ' + questionKey + ' --form', options.walkerSessionId, options.routeKey),
+              }],
+            },
+          ],
+        },
+      };
+    }
     return {
       config: { wide_screen_mode: true, update_multi: true },
       header,
@@ -740,6 +790,40 @@ function buildNativeQuestionCard(options) {
     };
   }
 
+  if (question.custom !== false) {
+    const formElements = [{
+      tag: 'select_static',
+      name: 'question_selected',
+      placeholder: { tag: 'plain_text', content: '请选择预设选项' },
+      options: presetOptions.map((option, index) => ({
+        text: { tag: 'plain_text', content: String(option.label || option.value || ('option_' + index)) },
+        value: 'option_' + index,
+      })),
+    }, {
+      tag: 'input',
+      name: 'question_custom',
+      placeholder: { tag: 'plain_text', content: '或输入自定义答案' },
+    }, {
+      tag: 'button',
+      name: 'question_submit',
+      text: { tag: 'plain_text', content: '提交' },
+      type: 'primary',
+      action_type: 'form_submit',
+      value: buildButtonValue('cmd:/answer ' + questionKey + ' --form', options.walkerSessionId, options.routeKey),
+    }];
+    return {
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'fill' },
+      header,
+      body: {
+        elements: [
+          { tag: 'markdown', content: [...introLines, '', ...optionLines].join('\n') },
+          { tag: 'form', name: 'question_form', elements: formElements },
+        ],
+      },
+    };
+  }
+
   const contentLines = [...introLines, '', ...optionLines];
   const actions = presetOptions.map((option, index) => ({
     tag: 'button',
@@ -785,18 +869,9 @@ function buildNativeQuestionStatusCard(options) {
     retryable: { title: '提交失败', message: '提交失败，请重试', template: 'red' },
   };
   const info = statusInfo[status] || statusInfo.expired;
-  const contentLines = [
-    '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**',
-    escapeLarkMd(question.question || ''),
-    '',
-    info.message,
-  ];
-  if (question.multiple === true && Array.isArray(options.answers) && options.answers.length) {
-    const answerLines = buildNativeQuestionAnswerLines(question, options.answers);
-    if (answerLines.length) contentLines.push('', '**选项**', ...answerLines);
-  }
-  const content = contentLines.join('\n');
-  if (question.multiple === true) {
+  const content = buildNativeQuestionStatusContent(options, info);
+  const useV2 = question.multiple === true || question.custom !== false;
+  if (useV2) {
     const elements = [{ tag: 'markdown', content }];
     if (status === 'retryable') {
       elements.push({

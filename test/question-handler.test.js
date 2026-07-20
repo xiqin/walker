@@ -74,6 +74,19 @@ describe('QuestionHandler', () => {
     assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_option', [['B']]]);
   });
 
+  it('单选飞书表单支持提交自定义答案并在终态卡展示最终选择', async () => {
+    const { handler, session, calls, agentRef } = makeFixture();
+    await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_single_custom', [
+      { header: '选择', question: '请选择', options: [{ label: 'A' }, { label: 'B' }], custom: true },
+    ]));
+    const result = await handler.handleAnswer(command('req_single_custom:0', '--form', { question_custom: '  其他  ' }));
+    assert.equal(result.status, 'replied');
+    assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_single_custom', [['其他']]]);
+    const statusPatch = calls.filter((call) => call.type === 'patchCard').at(-1);
+    assert.match(statusPatch.card.body.elements[0].content, /最终选择/);
+    assert.match(statusPatch.card.body.elements[0].content, /\[自定义\] 其他/);
+  });
+
   it('多选按钮先切换高亮，再提交已选答案', async () => {
     const { handler, session, calls, agentRef } = makeFixture();
     await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_toggle', [
@@ -120,12 +133,23 @@ describe('QuestionHandler', () => {
     assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_checker_custom', [['A', '其他']]]);
   });
 
-  it('无预设选项的问题降级到本地 TUI 回答', async () => {
-    const { handler, session } = makeFixture();
+  it('允许自定义的无预设选项问题可在飞书侧提交', async () => {
+    const { handler, session, calls, agentRef } = makeFixture();
     await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_text_only', [
       { header: '备注', question: '请输入备注', options: [], custom: true },
     ]));
-    assert.equal(handler.requests.get(handler._key(session.agentRef, 'req_text_only')).status, 'feishu_unavailable');
+    assert.equal(handler.requests.get(handler._key(session.agentRef, 'req_text_only')).status, 'collecting');
+    const result = await handler.handleAnswer(command('req_text_only:0', '--form', { question_custom: '说明' }));
+    assert.equal(result.status, 'replied');
+    assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_text_only', [['说明']]]);
+  });
+
+  it('禁止自定义的无预设选项问题降级到本地 TUI 回答', async () => {
+    const { handler, session } = makeFixture();
+    await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_text_only_disabled', [
+      { header: '备注', question: '请输入备注', options: [], custom: false },
+    ]));
+    assert.equal(handler.requests.get(handler._key(session.agentRef, 'req_text_only_disabled')).status, 'feishu_unavailable');
   });
 
   it('单选同时提交预设与自定义答案时拒绝且不提交', async () => {

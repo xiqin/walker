@@ -3072,7 +3072,7 @@ describe('MessageDispatcher permission handling', () => {
     assert.equal(patchCall.card.header.title.content, '权限已处理');
   });
 
-  it('/permit allow 正确调用 replyPermission', async () => {
+  it('/permit allow 正确调用 replyPermission 并 patch 原卡片', async () => {
     const mocks = makeMocks();
     mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } });
     let replyCalls = [];
@@ -3080,6 +3080,7 @@ describe('MessageDispatcher permission handling', () => {
       replyCalls.push({ sessionRef, permissionId, response, remember });
     };
     const dispatcher = new MessageDispatcher(mocks);
+    dispatcher.permissionCardIds = new Map([['perm_abc', 'om_perm_card']]);
     const result = await dispatcher.handleCommand({
       type: 'command', name: 'permit', args: ['perm_abc', 'allow'],
       routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cmd1', chatId: 'oc_chat1',
@@ -3088,6 +3089,8 @@ describe('MessageDispatcher permission handling', () => {
     assert.equal(replyCalls[0].permissionId, 'perm_abc');
     assert.equal(replyCalls[0].response, 'allow');
     assert.equal(result.replied, 'perm_abc');
+    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'patchCard'), '成功后应 patch 原卡片');
+    assert.equal(mocks.feishuApi.calls.some((c) => c.type === 'replyText'), false, '成功后不应再发文本回执');
   });
 
   it('/permit deny 正确调用 replyPermission', async () => {
