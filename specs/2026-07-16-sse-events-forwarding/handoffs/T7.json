@@ -1,0 +1,40 @@
+{
+  "task_id": "T7",
+  "status": "done",
+  "summary": "修复端到端集成回归测试，使全部 6 个场景由真实飞书 card action 原始数据驱动 FeishuPlatform._handleCardAction -> parseCardAction -> bootstrap onCardAction adapter -> parseCommand -> MessageDispatcher.handleCommand -> QuestionHandler.handleAnswer -> OpencodeDriver.replyQuestion -> OpencodeTuiBridge.replyQuestion -> 真实生成插件 poll/accepted/SDK question.reply 路径完成，不再手工构造 command 直接调 dispatcher。修正 _handleCardAction 不返回结果导致的断言（改用 QuestionHandler 状态机 requestState 校验），修复 retryable 卡片按钮查找（从 patchCard 而非 replyCard 取'重试提交'按钮），修复 busy 父 prompt 场景 holdPrompt 阻塞插件 tick 导致 question_reply 无法 poll 的问题（改为 promptAsync 立即返回但保持 session busy），修复 permission 回归 createTime 过小被 dedup 判为 stale 的问题，并按 protocol v3 预期收紧 v3 降级断言为 feishu_unavailable + 提示本地 TUI 回答 + 无 question_reply，不声称自动本地回答。",
+  "artifacts": [
+    "test/integration-feishu-question.test.js"
+  ],
+  "tests": {
+    "red": "修复前 node --test test/integration-feishu-question.test.js：4 failed（测试2 _handleCardAction 返回 undefined 导致 result.status 报错；测试3 retryable patchCard 按钮查找失败；测试5 holdPrompt 阻塞插件 tick 使 question_reply 永不被 poll；测试6 createTime:1 被 dedup 判为 stale）。测试1/4 偶发通过。",
+    "target": "node --test test/integration-feishu-question.test.js：6 passed, 0 failed（连续 3 次稳定通过）。",
+    "lint": "npx eslint test/integration-feishu-question.test.js：passed（0 errors）。",
+    "diff_check": "git diff --check -- test/integration-feishu-question.test.js specs/2026-07-16-sse-events-forwarding/handoffs/T7.json：passed（无空白错误）。",
+    "full": "npm test：994 tests, 984 pass, 2 fail, 8 cancelled。2 个失败为 not ok 524 'plugin-template v3 protocol'（test/opencode-plugin-template.test.js）和 not ok 562 'OpencodeTuiBridge replyQuestion'（test/opencode-tui-bridge.test.js），均不在 T7 owns 范围内，由脏工作树中其他 Batch 任务对 src/opencode-hook/plugin-template.js、src/opencode-tui-bridge/bridge.js 与对应测试的不一致导致，T7 未修改这两个测试文件。"
+  },
+  "coverage": [
+    "主成功路径：三题飞书卡片原始回调经 FeishuPlatform._handleCardAction -> parseCardAction -> bootstrap onCardAction -> parseCommand -> Dispatcher.handleCommand -> QuestionHandler.handleAnswer 逐题收集，断言 answerCommands 完整保留 formValue/messageId/routeKey/args，只调用一次 SDK question.reply，不调 promptAsync，成功后 patch 已处理状态。",
+    "TUI 抢答/拒绝抢先与重复并发：本地 question.replied/question.rejected 后飞书卡片回调不产生第二次原生回复（用 requestState 校验 replied/rejected 终态），并发最后一题只产生一次 SDK 回复。",
+    "accepted 前安全重试：replyQuestion 抛 safeToRetry 错误后状态回 collecting 并 patch retryable 卡片（含'重试提交'按钮），从 patchCard 查找按钮再提交成功；accepted 后租约丢失（dispose）收敛 processed_unknown 且原'提交'按钮再提交不改变终态、不新增 SDK 调用。",
+    "protocol v3 QUESTION_REPLY_UNSUPPORTED 降级为 feishu_unavailable，卡片提示'请在本地 TUI 回答'，Bridge queue 无 question_reply，SDK question.reply 未调用；不声称 Walker 自动替用户本地回答。",
+    "busy 父 prompt 场景：父 prompt promptAsync 返回但 session 保持 busy，真实插件 poll acceptedTypes 仅 question_reply，question_reply delivery 由插件上报 accepted 并调 SDK question.reply 获得 expected requestID/answers；父 prompt heartbeat/final 与后续 queued prompt/clear 队列顺序保持（resolveHeldQuestionReply 后控制 delivery final，session.idle 后父 prompt final）。",
+    "permission 回归：真实 Driver 的 replyPermission 对 tui-bridge transport 抛错，经飞书 /permit 卡片回调（FeishuPlatform._handleCardAction -> /permit）显示 dispatcher 错误文本，Bridge 无 question_reply，SDK question.reply 未调用；普通 prompt 与 clear delivery 真实回归。"
+  ],
+  "unresolved_issues": [
+    "npm test 的 2 个失败（test/opencode-plugin-template.test.js plugin-template v3 protocol、test/opencode-tui-bridge.test.js OpencodeTuiBridge replyQuestion）不在 T7 owns 范围，由其他 Batch 任务的源码/测试不一致导致，按任务边界未修改。"
+  ],
+  "constraints_verified": [
+    "仅修改 T7 指定的集成测试与本 handoff",
+    "未修改源码、未清理或回滚脏工作树、未提交",
+    "主成功路径及所有场景均通过真实 FeishuPlatform._handleCardAction -> parseCardAction -> bootstrap onCardAction adapter -> parseCommand -> Dispatcher 链路驱动，未手工构造 command 直接调 dispatcher 作为主路径证据",
+    "未 stub fixture.driver.replyPermission，使用真实 Driver 触发 permission 错误反馈",
+    "busy 父 prompt 场景由真实插件 poll/accepted/SDK question.reply 路径完成控制 delivery，未直接调 bridge.poll/reportEvents 伪造"
+  ],
+  "implementation_notes": [
+    "FeishuPlatform._handleCardAction 源码不 return onCardAction 结果（async 函数 await 但无 return），因此测试不能依赖 submitCard 返回值断言 status，改用 QuestionHandler.requests 状态机（requestState）校验终态。",
+    "retryable 状态卡片由 _patchAll('retryable') 产生（patchCard 而非 replyCard），submitPatchedCard 辅助方法遍历 patchCard calls 查找含目标按钮的最新卡片以构造 card action。",
+    "busy 父 prompt 场景不能用 holdPrompt（promptAsync 返回 held promise 会阻塞插件 executeDelivery 使 tick 永远 busy，question_reply 无法被 poll）；改为 promptAsync 立即返回 {data:null} 但保持 sessionBusy=true，tick 恢复后 parentActive=true 使 acceptedTypes 仅 question_reply。",
+    "插件 final/heartbeat report 的 deliveryState 为 'final'/'heartbeat' 字符串（plugin-template report 第 6 参数），断言改为匹配对应字符串而非 undefined。",
+    "permission 回归的 handleIncomingMessage createTime 改用 Date.now() 避免 MessageDedup 按 createTime 计算 elapsed 判为 stale 拒绝。"
+  ]
+}

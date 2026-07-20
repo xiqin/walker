@@ -1,0 +1,22 @@
+{
+  "task_id": "T6",
+  "stage": "executing",
+  "status": "done",
+  "summary": "commands.js COMMANDS 表新增 answer 条目，parseCommand 自动识别 /answer 命令，新增 5 个测试全部通过",
+  "artifacts": [
+    "src/platform/feishu/commands.js",
+    "test/feishu-commands.test.js"
+  ],
+  "requirements": {
+    "REQ-003": "/answer 命令可被 parseCommand 识别 — 通过 parseCommand /answer <id> <value> 和 /answer <id> --form 测试",
+    "REQ-004": "/answer 命令支持 single_select value 参数 — 通过 parseCommand /answer question_id dev 测试",
+    "REQ-005": "/answer 命令支持 --form 表单提交 — 通过 parseCommand /answer question_id --form 测试",
+    "REQ-006": "/answer 命令支持 text 输入提交 — 通过 parseCommand /answer q_001 hello world 测试"
+  },
+  "changes": {
+    "src/platform/feishu/commands.js": "COMMANDS 表在 permit 后新增 answer: { desc: '回复交互式问题', usage: '/answer <questionId> <value> | /answer <questionId> --form' }",
+    "test/feishu-commands.test.js": "新增 5 个测试：COMMANDS.answer 存在性、/answer <id> <value> 解析、/answer <id> --form 解析、/answer <id> <text value> 解析、formatHelp 包含 answer"
+  },
+  "test_results": "30/30 pass, 0 fail",
+  "lint_note": "2 个 lint error 来自 feishu-cards.test.js 的未使用变量，与本次改动无关"
+}

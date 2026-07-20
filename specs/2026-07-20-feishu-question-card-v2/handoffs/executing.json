@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "已按方案 4 实施飞书原生 question 卡片 V2：T1 在 cards.js 实现单选 legacy v1 普通按钮 + 多选完整 Card JSON 2.0 表单（schema:'2.0' + body.elements + form/checkbox/form_action_type submit）+ buildOptionDescriptionLines 描述展示；T2 确认 events.js parseCardAction 已兼容 v2 回调字段位置，仅补回归测试；T3 修复 _patchQuestionCard 兼容 v2 卡片结构（card.body 时 fallback）+ 集成测试新增 submitV2Form 与 void/waitFor 时序模式（避免 unref setInterval 阻塞 lease resolve）；T4 定向 101/101、eslint、diff check、npm test 1007/1007 全绿。test-report.md 已记录真实飞书待确认项。",
+  "artifacts": [
+    "specs/2026-07-20-feishu-question-card-v2/test-report.md"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "4cee44df219f9745605a080dd22629589e9d194f9d761c1ab712b40af6b0b77b",
+    "spec.md": "a0f4527c60c81b65e8a52f86d33fbd0045d262aa5e6ef2abf944776b0c515c0e",
+    "tasks/": "1092314e72a5ee490aaf9f37bcc2cee402c9bdff6105535b5b6771868e199e8c"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-20-feishu-question-card-v2/test-report.md": "5ee2245f6fb4ecea96ed1f7b981a671f1e83946b38ddce6e20bddcdf480f7c51"
+  },
+  "written_at": "2026-07-20T06:54:50.305Z"
+}

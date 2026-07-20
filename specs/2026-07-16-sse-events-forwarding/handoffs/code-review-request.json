@@ -1,0 +1,17 @@
+{
+  "status": "done",
+  "summary": "代码审查请求已生成。双轴预审查：Standards 3 项轻微（新增公共方法中文注释缺失），无 blocker；Spec 0 项偏差，18/18 REQ 覆盖。验证证据 PASS。2 个已知风险不阻断（旧测试断言过期、T2 bridge 并发偶发）。",
+  "artifacts": [
+    "specs/2026-07-16-sse-events-forwarding/code-review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-16-sse-events-forwarding/code-review-request.md": "276593bbb7e74b80c3bf8a890fc78e07166c5e6118ed6d1cd8abcfe0fc326a91"
+  },
+  "written_at": "2026-07-17T10:32:27.090Z"
+}

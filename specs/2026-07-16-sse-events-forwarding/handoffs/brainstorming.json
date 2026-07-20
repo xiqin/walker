@@ -1,0 +1,25 @@
+{
+  "decisions": [
+    "采用完整原生映射，不复用 permission 事件",
+    "一次原生 question 的多题在飞书逐题收集，全部完成后一次性回复 answers[][]",
+    "本地 TUI 与飞书并存，以 OpenCode 首个明确接受的整组回复为准",
+    "TUI bridge 升级 protocol v4，并支持 busy session 下并行拉取 question_reply 控制 delivery",
+    "结果不确定时进入 processed_unknown，禁止重试",
+    "终态保留 24 小时且最多 1000 条"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "用户批准完整原生映射方案。规格定义 OpenCode question asked/replied/rejected 独立事件、飞书逐题卡片与 answers[][] 整组提交、protocol v4 question_reply 控制 delivery、busy session 并行拉取、旧协议门禁、accepted 幂等与不确定结果收敛、有界状态和完整验证范围。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174"
+  },
+  "written_at": "2026-07-17T07:08:18.624Z"
+}

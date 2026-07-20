@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "同步图后端与结构化记忆：codegraph 已 fresh（108 files / 1208 nodes / 7077 edges）；新增 2 条记忆（原生 question 映射决策、node:test cancelledByParent 踩坑）并导出 MEMORY.md；入口文件无变化。后续修复已刷新验证证据，npm test 995/995 PASS，旧 WARN 风险已消除。",
+  "artifacts": [
+    "specs/2026-07-16-sse-events-forwarding/index-sync-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174",
+    "verify-report.md": "ab8d55f54b670d27fa8e9a0248fbd77d3590ca79fde15e68faa018a5c2ea5090"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-16-sse-events-forwarding/index-sync-report.md": "ef3f8febd947bc12cad778398613840b915929eb52394344ac8dba9bce4f2539"
+  },
+  "written_at": "2026-07-20T02:05:00.000Z"
+}

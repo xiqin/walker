@@ -1,0 +1,41 @@
+{
+  "requirements": [
+    "REQ-001",
+    "REQ-007",
+    "REQ-008",
+    "REQ-009",
+    "REQ-011",
+    "REQ-014",
+    "REQ-018"
+  ],
+  "tests": {
+    "command": "node --test test/opencode-tui-bridge.test.js",
+    "result": "57 passed, 0 failed"
+  },
+  "exports": [
+    "OpencodeTuiBridge",
+    "OpencodeTuiBridge.prototype.replyQuestion(sessionRef, requestID, answers)"
+  ],
+  "state_design": {
+    "active_control": "_activeQuestionDeliveries Map<runtimeId:sessionId, deliveryId>",
+    "accepted_timeout": "控制 delivery poll 后以 runtimeStaleMs（默认 10 秒）启动 timer；到期删除 pending、释放占用、写 accepted_timeout tombstone 并 reject queued/false/true",
+    "error_contract": "所有 question reply 失败均为 Error，保留 code、deliveryPhase、sdkInvoked、safeToRetry；租约丢失/accepted 后 dispose 采用 leased/true/false"
+  },
+  "status": "done",
+  "summary": "完成 TUI Bridge protocol v4 question_reply：replyQuestion(sessionRef, requestID, answers) 仅对 protocol >= 4 runtime 入队原生载荷；支持 acceptedTypes 保序筛选、父 prompt 与单一控制 delivery 并存、accepted 超时 tombstone、accepted 幂等/expired 响应，以及全量结构化 question reply 错误。保留 prompt、clear、v3 FIFO、普通 lease/final 行为；新增三类原生 question AgentEvent 白名单测试。",
+  "artifacts": [
+    "src/opencode-tui-bridge/bridge.js",
+    "test/opencode-tui-bridge.test.js"
+  ],
+  "task_id": "T2",
+  "basis_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174",
+    "tasks/T2.md": "80bc5b6f9ea8d85a2b76c7cf1346d9f461528cc46089afce82ed0800fa2ca034"
+  },
+  "artifact_fingerprints": {
+    "src/opencode-tui-bridge/bridge.js": "db922707fda063a2817ee8b08e5c6a92c958c296e888f25530afe41fe25a5d82",
+    "test/opencode-tui-bridge.test.js": "4603a826baa2db8b0daa0e84b991cb3011b319bdebe118d2a25671e1b3e57467"
+  },
+  "written_at": "2026-07-17T10:50:00.000Z"
+}

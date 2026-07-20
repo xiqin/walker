@@ -1,0 +1,30 @@
+{
+  "graph_backend": "codegraph",
+  "memory_added": [
+    "dd2c1037"
+  ],
+  "open_questions": [],
+  "residual_risks": [
+    "Card JSON 2.0 真实飞书 API/客户端行为需现场确认",
+    "低版本客户端支持范围未验证"
+  ],
+  "status": "done",
+  "summary": "synced 完成：codegraph sync Already up to date；新增结构化记忆 dd2c1037 记录方案 4 决策（单选 v1 + 多选 Card JSON 2.0 表单 + 描述 Markdown + 禁止 v1/v2 混用）；未更新入口文件（无新约定/新命令/入口程序变化）。剩余风险为真实飞书 API/客户端行为需现场确认。",
+  "artifacts": [
+    "specs/2026-07-20-feishu-question-card-v2/verify-report.md",
+    "specs/2026-07-20-feishu-question-card-v2/review-request.md",
+    "specs/2026-07-20-feishu-question-card-v2/review-response.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "4cee44df219f9745605a080dd22629589e9d194f9d761c1ab712b40af6b0b77b",
+    "spec.md": "a0f4527c60c81b65e8a52f86d33fbd0045d262aa5e6ef2abf944776b0c515c0e"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-20-feishu-question-card-v2/review-request.md": "29ee9e72d67c3299e2c3583d78a81aabb9d0380e41bad91aa9c5cc34e7215940",
+    "specs/2026-07-20-feishu-question-card-v2/review-response.md": "14882579933eed635b6eb5123ba37c1ed72a74d7ccc7cf9066ede08f60d0295d",
+    "specs/2026-07-20-feishu-question-card-v2/verify-report.md": "b4ef530f77ccb3f67cc0caa43e427a71e82511868064a6bdc5f9c72a473071fa"
+  },
+  "written_at": "2026-07-20T07:03:09.250Z"
+}

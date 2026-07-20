@@ -1,0 +1,83 @@
+{
+  "taskId": "T7",
+  "status": "done",
+  "summary": "实现 Dispatcher + PermissionHandler question 分发与回复全链路",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "src/dispatch/permission-handler.js",
+    "test/message-dispatcher.test.js",
+    "test/permission-handler.test.js"
+  ],
+  "changes": {
+    "message-dispatcher.js": {
+      "added": [
+        "import buildQuestionRepliedCard from cards.js",
+        "this.questionReplyStates = new Map() in constructor",
+        "answer handler in handleCommand handlers table",
+        "_cmdAnswer(cmd) method",
+        "_handlePermissionEvent data.type=question branch with questionReplyStates pre-population",
+        "_handlePermissionRepliedEvent questionReplyStates-based dispatch"
+      ],
+      "reqMapping": {
+        "REQ-001": "_handlePermissionEvent data.type=question 分支归一化",
+        "REQ-002": "_handlePermissionEvent 分发到 handleQuestion",
+        "REQ-003": "_cmdAnswer confirm inputMode",
+        "REQ-004": "_cmdAnswer single_select inputMode",
+        "REQ-005": "_cmdAnswer multi_select --form",
+        "REQ-006": "_cmdAnswer text --form",
+        "REQ-008": "_cmdAnswer 成功后 HTTP transport patch 卡片",
+        "REQ-009": "_cmdAnswer replied/submitting 幂等保护",
+        "REQ-010": "_handlePermissionEvent 传统 permission 仍走 handle",
+        "REQ-011": "_cmdAnswer 通过 driver.replyPermission 转发 TUI bridge",
+        "REQ-012": "_cmdAnswer 从 cmd.formValue 提取 answer",
+        "REQ-013": "permission-handler handleQuestion 未知 inputMode warn"
+      }
+    },
+    "permission-handler.js": {
+      "added": [
+        "import buildQuestionCard, buildQuestionRepliedCard",
+        "handleQuestion(session, chatId, agentEvent) method",
+        "handleQuestionReplied(session, chatId, agentEvent) method"
+      ],
+      "unchanged": [
+        "handle() — 传统 permission 不受影响",
+        "handleReplied() — 传统 permission_replied 不受影响"
+      ]
+    }
+  },
+  "tests": {
+    "message-dispatcher.test.js": {
+      "added": "4 新 describe 组共 21 个测试用例",
+      "scenarios": [
+        "_cmdAnswer: confirm/single_select/multi_select/text 4 种 inputMode 回传",
+        "_cmdAnswer: 缺少 questionId、缺少 formValue、required 空答案拒绝",
+        "_cmdAnswer: replied/submitting 幂等保护",
+        "_cmdAnswer: driver 不支持/无 session/driver 失败回滚",
+        "_cmdAnswer: HTTP transport patch / TUI bridge 不 patch",
+        "_handlePermissionEvent: question 分发 + questionReplyStates 预存",
+        "_handlePermissionEvent: 传统 permission 分发不变",
+        "_handlePermissionRepliedEvent: question 分发到 handleQuestionReplied",
+        "_handlePermissionRepliedEvent: 无记录分发到 handleReplied",
+        "questionReplyStates: pending→submitting→replied 状态转换",
+        "questionReplyStates: submitting→pending 失败回滚"
+      ]
+    },
+    "permission-handler.test.js": {
+      "created": "新文件，3 个 describe 组共 8 个测试用例",
+      "scenarios": [
+        "handleQuestion: buildQuestionCard 渲染并 set permissionCardIds",
+        "handleQuestion: 已有 cardId 时 patchCard",
+        "handleQuestion: 未知 inputMode 记录 warn",
+        "handleQuestion: select 缺少 options 记录 warn",
+        "handleQuestionReplied: buildQuestionRepliedCard patchCard",
+        "handleQuestionReplied: 无 cardId 不操作",
+        "handle: 传统 permission 用 buildPermissionCard",
+        "handleReplied: 传统 permission 用 buildPermissionRepliedCard"
+      ]
+    }
+  },
+  "verification": {
+    "testResults": "143 pass / 0 fail (message-dispatcher) + 8 pass / 0 fail (permission-handler)",
+    "lint": "0 errors, 0 warnings"
+  }
+}

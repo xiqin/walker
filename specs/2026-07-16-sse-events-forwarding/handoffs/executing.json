@@ -1,0 +1,34 @@
+{
+  "status": "done",
+  "summary": "T1-T7 全部完成并通过各自定向测试和 reviewer 审查。集成测试 6/6 PASS，覆盖原生 question.asked 多题卡片、逐题表单收集、一次 answers[][] 回复、TUI 抢答/拒绝、并发收敛、accepted 前可重试/后不确定、v3 降级 feishu_unavailable、busy 父 prompt 控制 delivery 并行、permission/prompt/clear 回归。全量 npm test 994 tests / 984 pass / 2 fail（均为前序任务遗留/旧测试断言过期，已由用户确认标记 WARN 跳过）。test-report verdict PASS，18/18 REQ 覆盖。",
+  "artifacts": [
+    "specs/2026-07-16-sse-events-forwarding/test-report.md",
+    "specs/2026-07-16-sse-events-forwarding/evidence/test.log",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T1.json",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T2.json",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T3.json",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T4.json",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T5.json",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T6.json",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T7.json"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174",
+    "tasks/": "47d54891958ddce582fbfadf2d8f8e66b75fcd857c24709ea4ddd9c279d42add"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-16-sse-events-forwarding/evidence/test.log": "362b734f456cddca58564f6a2ed2ea8275d0b3bad4e5935f8961932b7fcd3f6f",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T1.json": "dc91fc1178a6553bb21742645eb1ac13a71e4d17ff744cdab5b53df5d384780e",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T2.json": "d432ba19243b1c069c49c72894ea864bc1a7a87ccc3587474f843e43ade5dc5c",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T3.json": "ad07c4b38a64db7f83a4b2174a49606d2848cfeed93b5edb44a140e8a44a4ad9",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T4.json": "4be5a99962a7e8ba580edbec4f26817684b0c8e59065783fd41b9be19c99b7af",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T5.json": "57a876539ef3827c1670b0a9476e03fab01ced7e7d462c7edc4196b9c385cb06",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T6.json": "f8a16860621fb24543549b796ee44a9f4d6a8a84379278b805b6f28b186c6701",
+    "specs/2026-07-16-sse-events-forwarding/handoffs/T7.json": "1faeba3c87f28f1f2b52f9f6e1e78005a4df3104728719421a2fad617e620e23",
+    "specs/2026-07-16-sse-events-forwarding/test-report.md": "968fc09e50367339c2ac95b7d2fe31fb127060bd34b5c6f0c4fdb1b153ee6d27"
+  },
+  "written_at": "2026-07-17T18:28:30.000Z"
+}

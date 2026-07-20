@@ -1,0 +1,35 @@
+{
+  "task": "T5",
+  "title": "formValue 全链路传递",
+  "status": "DONE",
+  "summary": "formValue 从 parseCardAction → _handleCardAction → onCardAction → dispatcher.handleCommand 全链路传递已实现",
+  "changes": [
+    {
+      "file": "src/platform/feishu/platform.js",
+      "change": "_handleCardAction 在 onCardAction 调用对象中新增 formValue: parsed.formValue",
+      "reqId": "REQ-012"
+    },
+    {
+      "file": "src/app/bootstrap.js",
+      "change": "onCardAction 在 dispatcher.handleCommand 调用对象中新增 formValue: action.formValue",
+      "reqId": "REQ-012"
+    },
+    {
+      "file": "test/feishu-platform.test.js",
+      "change": "新增 _handleCardAction 传递 formValue 到 onCardAction 测试",
+      "reqId": "REQ-012"
+    },
+    {
+      "file": "test/bootstrap.test.js",
+      "change": "新增 onCardAction 传递 formValue 到 dispatcher.handleCommand 测试",
+      "reqId": "REQ-012"
+    }
+  ],
+  "verified": true,
+  "lint": "pass",
+  "tests": {
+    "feishu-platform": "pass",
+    "bootstrap": "pass"
+  },
+  "note": "parseCardAction (events.js:69) 已解析 formValue: action.form_value || null，无需修改。下游 _cmdAnswer (T7) 可从 cmd.formValue.question_answer 读取。"
+}

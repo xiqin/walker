@@ -1,0 +1,72 @@
+{
+  "task_id": "T6",
+  "status": "done",
+  "requirements": [
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006",
+    "REQ-008",
+    "REQ-009",
+    "REQ-010",
+    "REQ-011",
+    "REQ-012",
+    "REQ-013",
+    "REQ-014",
+    "REQ-015",
+    "REQ-016",
+    "REQ-017"
+  ],
+  "interfaces": {
+    "question_handler": "QuestionHandler.handleAsked(session, chatId, routeKey, agentEvent), handleReplied(session, chatId, agentEvent), handleRejected(session, chatId, agentEvent), handleAnswer(cmd)",
+    "key": "agentRef + requestID，内部通过 agentRef 的稳定序列化和 requestID 组成键",
+    "driver": "driver.replyQuestion(agentRef, requestID, answers)",
+    "callback": "/answer <requestID:index> --form|--retry <walkerSessionId>；表单字段为 question_selected 和 question_custom"
+  },
+  "state_machine": {
+    "statuses": [
+      "sending_cards",
+      "collecting",
+      "submitting",
+      "replied",
+      "rejected",
+      "processed_unknown",
+      "feishu_unavailable"
+    ],
+    "storage": "每个请求保存等长 answers、cards、cardStates、cardAttempts 数组，并以请求级 sendPromise 串行化重复 asked；终态按 24 小时和最多 1000 条淘汰",
+    "delivery": "最后一题答案写入时同步抢占 submitting；在 submitting 卡片 patch 恢复后、submitAnswers 入口及真正调用 Driver 前均重查状态，避免迟到明确终态触发 delivery；safeToRetry=true 且 sdkInvoked=false 才回 collecting，QUESTION_REPLY_UNSUPPORTED 转 feishu_unavailable，其余失败转 processed_unknown",
+    "terminal_race": "replied/rejected 是 first explicit terminal wins；发送 replyCard await 恢复后会保存迟到卡片 ID 并立即 patch 当前终态，不再继续 collecting；processed_unknown 与 feishu_unavailable 可被迟到明确终态校正；迟到 submit Promise 不反转终态或重复 patch"
+  },
+  "dispatcher": {
+    "events": [
+      "question_asked",
+      "question_replied",
+      "question_rejected"
+    ],
+    "dedup": "/answer 绕过 MessageDedup，其他命令保持既有去重",
+    "permission": "PermissionHandler 仅保留 permission 卡片和 replyPermission 既有路径，不再复用 native question"
+  },
+  "tests": {
+    "red": "node --test test/question-handler.test.js（预期失败：Cannot find module '../src/dispatch/question-handler'）",
+    "green": "node --test test/question-handler.test.js test/message-dispatcher.test.js test/permission-handler.test.js（144 passed, 0 failed）",
+    "format": "git diff --check -- src/dispatch/question-handler.js test/question-handler.test.js test/message-dispatcher.test.js specs/2026-07-16-sse-events-forwarding/handoffs/T6.json（通过）",
+    "reviewer_fix_coverage": [
+      "replyCard await 期间的 replied/rejected 终态不回退，并禁用迟到卡片",
+      "submitting patch await 期间的 replied/rejected 不调用 Driver",
+      "并发重复 asked 共享 sendPromise，成功与失败场景均不突破每题两次底层发送",
+      "SDK 已调用和未知错误进入 processed_unknown",
+      "1000 条终态容量淘汰",
+      "Dispatcher 独立路由 question_replied 与 question_rejected"
+    ]
+  },
+  "artifacts": [
+    "src/dispatch/question-handler.js",
+    "src/dispatch/message-dispatcher.js",
+    "src/dispatch/permission-handler.js",
+    "test/question-handler.test.js",
+    "test/message-dispatcher.test.js",
+    "test/permission-handler.test.js"
+  ],
+  "summary": "新增原生 QuestionHandler，使用独立状态机发送每题飞书卡片、校验卡片回调上下文并整组回复原生 OpenCode question；本轮修复异步发送和提交阶段的明确终态竞态，以及重复 asked 的并发发送。Dispatcher 独立路由三类 question 事件及新 /answer 协议，PermissionHandler 保持纯 permission 处理。"
+}

@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "完成前验证通过（本地层面）：定向 101/101 PASS 新鲜证据；引用 test-report eslint/diff/npm test 1007/1007 全绿；占位符扫描无（verify-report 表格已改写避免字面占位符关键词）；类型一致性 G1-G6 全部达成；spec 无 drift、无 spec 外范围；剩余风险为真实飞书 Card JSON 2.0 API/客户端行为需现场确认。",
+  "artifacts": [
+    "verify-report.md"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "4cee44df219f9745605a080dd22629589e9d194f9d761c1ab712b40af6b0b77b",
+    "spec.md": "a0f4527c60c81b65e8a52f86d33fbd0045d262aa5e6ef2abf944776b0c515c0e",
+    "test-report.md": "5ee2245f6fb4ecea96ed1f7b981a671f1e83946b38ddce6e20bddcdf480f7c51"
+  },
+  "artifact_fingerprints": {
+    "verify-report.md": "b4ef530f77ccb3f67cc0caa43e427a71e82511868064a6bdc5f9c72a473071fa"
+  },
+  "written_at": "2026-07-20T06:59:19.278Z"
+}

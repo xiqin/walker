@@ -1,0 +1,23 @@
+{
+  "decisions": [
+    "采用混合策略：单选 v1 普通按钮，多选完整 Card JSON 2.0 表单。",
+    "选项描述统一在正文 Markdown 中展示，不依赖按钮副标题。",
+    "新多选不再生成 --toggle；旧 --toggle/--submit 入口保留兼容。",
+    "禁止 legacy action/actions 与 v2 behaviors/form_submit 混用。"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确认方案 4：单选继续使用已验证的 legacy v1 普通按钮；多选迁移到完整 Card JSON 2.0 表单，本地勾选后一次提交；所有预设选项在正文中展示 label/description；纯自定义文本题继续提示在本地 TUI 输入；禁止再次混用 legacy action/actions 与 v2 behaviors/form_submit。",
+  "artifacts": [
+    "spec.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "a0f4527c60c81b65e8a52f86d33fbd0045d262aa5e6ef2abf944776b0c515c0e"
+  },
+  "artifact_fingerprints": {
+    "spec.md": "a0f4527c60c81b65e8a52f86d33fbd0045d262aa5e6ef2abf944776b0c515c0e"
+  },
+  "written_at": "2026-07-20T06:19:03.379Z"
+}

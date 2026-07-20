@@ -461,5 +461,95 @@
     "skill": "loom-verification-before-completion",
     "passed": true,
     "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-17-feishu-question-confirmation",
+    "timestamp": "2026-07-17T05:38:14.550Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error） |",
+      "fail） |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-17-feishu-question-confirmation",
+    "timestamp": "2026-07-17T05:38:19.795Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error） |",
+      "fail） |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-17-feishu-question-confirmation",
+    "timestamp": "2026-07-17T05:39:26.453Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error） |",
+      "fail） |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-sse-events-forwarding",
+    "timestamp": "2026-07-17T10:31:20.625Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-sse-events-forwarding",
+    "timestamp": "2026-07-17T10:32:56.675Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-16-sse-events-forwarding",
+    "timestamp": "2026-07-20T01:42:58.178Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-20-feishu-question-card-v2",
+    "timestamp": "2026-07-20T06:59:24.357Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail，0 cancelled，duration 5372ms |",
+      "fail，0 cancelled（引用 test-report 证据） |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-20-feishu-question-card-v2",
+    "timestamp": "2026-07-20T07:00:42.450Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail，0 cancelled，duration 5372ms |",
+      "fail，0 cancelled（引用 test-report 证据） |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-20-feishu-question-card-v2",
+    "timestamp": "2026-07-20T07:02:35.113Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail，0 cancelled，duration 5372ms |",
+      "fail，0 cancelled（引用 test-report 证据） |"
+    ]
   }
 ]

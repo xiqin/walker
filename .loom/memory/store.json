@@ -1,6 +1,276 @@
 {
   "entries": [
     {
+      "id": "f3bc9482",
+      "type": "决策",
+      "content": "飞书原生 question 多选 checker 卡片不再在顶部 Markdown 重复列出选项说明；选项 label/description 只放在 checker 内容中，并在 form 内用 question_custom input 支持自定义答案。",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "question-card",
+        "checker",
+        "custom-answer",
+        "opencode-question"
+      ],
+      "context": "用户反馈 checker 上方纯文本选项说明与 checker 内容重复，并要求支持自定义答案输入。本次修改让多选 v2 卡片顶部 Markdown 只展示问题文本，checker 展示每个选项的 label/description；当 question.custom !== false 时在同一 v2 form 内增加 input name='question_custom'，提交时 QuestionHandler._parseCheckerAnswers 同时解析 question_selected_<index> 布尔字段和 question_custom，最终合并为 OpenCode question answers。验证 npm test 1012/1012 PASS。",
+      "source": "session",
+      "confidence": 0.93,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/platform/feishu/cards.js",
+        "src/dispatch/question-handler.js",
+        "test/feishu-cards.test.js",
+        "test/question-handler.test.js",
+        "test/integration-feishu-question.test.js"
+      ],
+      "links": {},
+      "created_at": "2026-07-20T08:16:48.872Z"
+    },
+    {
+      "id": "dd2c1037",
+      "type": "决策",
+      "content": "飞书原生 question 卡片方案 4：单选沿用 legacy v1 普通按钮 + /answer --option；多选迁移到完整 Card JSON 2.0 表单（schema:'2.0' + body.elements + form.elements 含 checkbox name:'question_selected' + button form_action_type:'submit'），一次提交 /answer --form；正文用编号 Markdown 展示选项 label/description；禁止混用 v1 elements/action 与 v2 behaviors/form_submit。",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "question-card",
+        "card-json-v2",
+        "form-submit",
+        "opencode-question"
+      ],
+      "context": "方案 4（混合策略）解决两个问题：多选逐项 loading（N 次 PATCH）和 option.description 不展示。真实飞书端 legacy action/actions 容器内放 select_static 选项不可见，混用 behaviors/form_submit 会 400。本地 npm test 1007/1007 + 定向 101/101 全绿，真实飞书 API/客户端行为需现场确认。",
+      "source": "session",
+      "confidence": 0.9,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/platform/feishu/cards.js",
+        "src/dispatch/question-handler.js",
+        "test/feishu-cards.test.js",
+        "test/feishu-events.test.js",
+        "test/question-handler.test.js",
+        "test/integration-feishu-question.test.js"
+      ],
+      "links": {
+        "spec": "H:\\walker\\specs\\2026-07-20-feishu-question-card-v2"
+      },
+      "created_at": "2026-07-20T07:02:55.850Z"
+    },
+    {
+      "id": "081f69b2",
+      "type": "踩坑",
+      "content": "飞书原生 question 卡片不要混用 legacy action/actions 与按钮 behaviors/form_submit；会导致发送 API 400。",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "card",
+        "question",
+        "form_submit",
+        "button-protocol"
+      ],
+      "context": "为兼顾选项可见、发送成功和回传可靠，改为普通按钮协议：单选按钮走 `/answer <key> --option option_N <walkerSessionId>`；多选按钮走 `--toggle option_N` 并 patch 高亮，最后 `--submit`；旧 `--form` 只保留兼容。",
+      "source": "session",
+      "confidence": 0.95,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/platform/feishu/cards.js",
+        "src/dispatch/question-handler.js",
+        "test/feishu-cards.test.js",
+        "test/question-handler.test.js",
+        "test/integration-feishu-question.test.js"
+      ],
+      "links": {},
+      "created_at": "2026-07-20T05:51:34.522Z"
+    },
+    {
+      "id": "38a53cbf",
+      "type": "踩坑",
+      "content": "飞书原生 question 卡片的 select_static/multi_select_static 放在 tag:'form' 容器中会导致客户端看不到选项；11:17 现场验证 tag:'action' + actions 可显示选项。",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "question",
+        "card",
+        "form_value",
+        "select_static"
+      ],
+      "context": "为获取 form_value 曾把 OpenCode 原生 question 卡片从 action.actions 改成 form.elements，并给按钮加 form_submit/form_name。真实飞书端反馈选项不可见；恢复 select/input/button 到 tag:'action' 的 actions 后保留按钮 behaviors:[{type:'form_submit'}]，测试锁定该结构。",
+      "source": "session",
+      "confidence": 0.9,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/platform/feishu/cards.js",
+        "test/feishu-cards.test.js"
+      ],
+      "links": {},
+      "created_at": "2026-07-20T05:34:11.352Z"
+    },
+    {
+      "id": "0881ee94",
+      "type": "踩坑",
+      "content": "飞书原生 question 卡片的 select_static/multi_select_static 选项不要把说明拼进 text.content 换行，需用 option.description，并为 select 控件提供 placeholder，否则飞书端可能丢失选项渲染。",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "native-question",
+        "card-rendering",
+        "select_static",
+        "debugging"
+      ],
+      "context": "用户现场反馈飞书收到的 question 卡片中选项丢失。当前卡片已使用 form 容器触发表单提交，但 select 组件缺少 placeholder，且 option.description 被拼进 plain_text.content 的换行。修复后单测 red->green、定向 78/78、npm test 1001/1001。",
+      "source": "session",
+      "confidence": 0.8,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/platform/feishu/cards.js",
+        "test/feishu-cards.test.js"
+      ],
+      "links": {},
+      "created_at": "2026-07-20T03:52:43.400Z"
+    },
+    {
+      "id": "01d64732",
+      "type": "踩坑",
+      "content": "飞书原生 question 卡片若把 select/input 与提交按钮放在普通 action 容器内，card.action.trigger 会到达但 form_value 为空；需使用 tag:form 容器并给提交按钮加 form_submit 行为。",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "native-question",
+        "card-form",
+        "debugging"
+      ],
+      "context": "真实日志显示 card action received 且 /answer 已分发，但 formKeys: []、formValue:null，QuestionHandler 返回 invalid_answer。修复为 question_form 表单容器后定向和全量测试通过。",
+      "source": "session",
+      "confidence": 0.9,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/platform/feishu/cards.js",
+        "src/platform/feishu/events.js",
+        "src/dispatch/question-handler.js"
+      ],
+      "links": {},
+      "created_at": "2026-07-20T03:39:33.419Z"
+    },
+    {
+      "id": "2d6702f0",
+      "type": "踩坑",
+      "content": "node:test 父套件层 Promise resolution is still pending 会被标记 cancelledByParent 导致子测试显示失败；独立运行同一文件则 0 fail。诊断时须先单独运行该测试文件确认子测试本身是否通过。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-20T01:43:40.276Z"
+    },
+    {
+      "id": "fef1a65d",
+      "type": "决策",
+      "content": "原生 question 飞书映射：独立映射 OpenCode question.asked/replied/rejected，不复用 permission 事件；一次请求多题逐题发飞书卡片，全部答案齐备后一次性 question.reply answers: string[][]；TUI bridge 升级 protocol v4，旧 runtime 返回 QUESTION_REPLY_UNSUPPORTED；控制 delivery 可在 session busy/父 prompt leased 时并行执行，同 session 最多一个控制 delivery；accepted 确认 10 秒超时主动收敛；回复失败按 retryable/succeeded/processed_unknown 分类，仅 safeToRetry:true && sdkInvoked:false 才重试；终态 24h/1000 条有界保留。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-20T01:43:34.139Z"
+    },
+    {
+      "id": "2f4474c7",
+      "type": "偏好",
+      "content": "permission 与 question 路由隔离：data.type=question 走 /answer 命令和 handleQuestion/handleQuestionReplied，传统 permission 走 /permit allow|deny 和 handle/handleReplied；patch 卡片策略区分 transport（HTTP 直接 patch，TUI bridge 等 permission_replied 事件驱动）",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "question",
+        "permission",
+        "routing",
+        "patch-strategy"
+      ],
+      "context": null,
+      "source": "session",
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-17T05:40:35.595Z"
+    },
+    {
+      "id": "30077c72",
+      "type": "踩坑",
+      "content": "飞书卡片 multi_select_static 和 input 组件类型在代码库中首次使用，需实际卡片预览工具验证渲染效果；buildQuestionCard options.value 非空校验由 dispatcher _cmdAnswer required 校验兜底，卡片层未单独校验",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "card",
+        "multi_select",
+        "input",
+        "validation"
+      ],
+      "context": null,
+      "source": "session",
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-17T05:40:35.506Z"
+    },
+    {
+      "id": "362333d5",
+      "type": "决策",
+      "content": "飞书交互式问题确认功能：复用 permission 事件通道承载交互式问题，新增 /answer 命令、questionReplyStates 3态机、buildQuestionCard(4种inputMode)、replyQuestion delivery，与传统 /permit allow|deny 分离",
+      "author": "tianxiqin",
+      "tags": [
+        "feishu",
+        "question",
+        "permission",
+        "interactive-card",
+        "tui-bridge"
+      ],
+      "context": "用户需求：opencode TUI 多选/确认问题通知到飞书，飞书内完成选择和确认，结果回传 opencode。选定方案 A'：复用底层 permission 事件通道，新增 question 回复语义。",
+      "source": "session",
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/dispatch/message-dispatcher.js",
+        "src/dispatch/permission-handler.js",
+        "src/opencode-tui-bridge/bridge.js",
+        "src/platform/feishu/cards.js",
+        "src/drivers/opencode-driver.js",
+        "src/drivers/agent-driver.js",
+        "src/platform/feishu/commands.js",
+        "src/app/bootstrap.js",
+        "src/platform/feishu/platform.js"
+      ],
+      "links": {},
+      "created_at": "2026-07-17T05:40:28.777Z"
+    },
+    {
       "id": "b725d36f",
       "type": "决策",
       "content": "飞书 /model 模型目录采用原卡片分页：先按当前模型、Recent、配置模型、其余 provider 构造全局稳定去重序列，再按每页 20 个模型切片；导航使用 cmd:/model --page N，并通过卡片 messageId 调 patchCard 原地更新，分页动作绕过普通命令去重但不更新 session.model。",
@@ -435,14 +705,25 @@
       "type": "决策",
       "content": "飞书长任务超时架构重构：将单一 OPENCODE_PROMPT_TIMEOUT_MS（固定 120 秒总时长）拆分为四个独立超时：OPENCODE_SSE_OPEN_TIMEOUT_MS（建连超时，默认 1000ms）、OPENCODE_PROMPT_REQUEST_TIMEOUT_MS（HTTP 提交超时，默认 30000ms）、OPENCODE_SSE_IDLE_TIMEOUT_MS（SSE 空闲超时，chunk 重置，默认 300000ms）、WALKER_MAX_TURN_TIME_MINS（整轮硬截止，默认 0 关闭）。旧配置仅在新 idle 配置缺失时 fallback。配置解析引入 parseNonNegativeInt 允许 0 表示关闭，构造器统一用 ?? 替代 || 避免把 0 回退为默认值。Dispatcher 为唯一业务硬截止，driver 传输超时不再标记 session error。",
       "author": "tianxiqin",
-      "tags": ["timeout", "sse", "config", "dispatcher", "feishu"],
+      "tags": [
+        "timeout",
+        "sse",
+        "config",
+        "dispatcher",
+        "feishu"
+      ],
       "context": "原 120 秒固定超时导致长任务失败后飞书收不到后续消息",
       "source": "specs/2026-07-16-feishu-long-running-response/spec.md",
       "confidence": null,
       "scope": "project",
       "expires_at": null,
       "stage": "synced",
-      "files": ["src/config/env.js", "src/app/bootstrap.js", "src/core/http-helper.js", "src/dispatch/message-dispatcher.js"],
+      "files": [
+        "src/config/env.js",
+        "src/app/bootstrap.js",
+        "src/core/http-helper.js",
+        "src/dispatch/message-dispatcher.js"
+      ],
       "links": {},
       "created_at": "2026-07-16T09:50:00.000Z"
     },
@@ -451,14 +732,23 @@
       "type": "决策",
       "content": "TUI Bridge 升级 v3 租约协议：delivery 状态机 queued→leased→completed，新增 accepted/heartbeat/final 三种 deliveryState。v2 无 deliveryState 时按 final 兼容。Bridge 移除固定 promptTimeoutMs timer，改用租约 timer（OPENCODE_TUI_LEASE_TIMEOUT_MS 默认 90000ms）+ heartbeat 续租（OPENCODE_TUI_HEARTBEAT_INTERVAL_MS 默认 30000ms）。迟到 final 通过有界 tombstone 幂等处理：completed→duplicate 忽略、transport_lost→recovered 至多一次补投 watcher、cancelled/deadline→suppressed 抑制。tombstone 有容量上限（100）和 TTL（300000ms）自动清理。内置 plugin 同步升级 bridgeProtocolVersion 3，accepted 在 promptAsync 前上报，成功后周期 heartbeat。",
       "author": "tianxiqin",
-      "tags": ["tui", "lease", "heartbeat", "tombstone", "protocol-v3"],
+      "tags": [
+        "tui",
+        "lease",
+        "heartbeat",
+        "tombstone",
+        "protocol-v3"
+      ],
       "context": "原固定 120 秒超时后删除 pending，迟到 final 抛 unknown delivery 错误",
       "source": "specs/2026-07-16-feishu-long-running-response/spec.md",
       "confidence": null,
       "scope": "project",
       "expires_at": null,
       "stage": "synced",
-      "files": ["src/opencode-tui-bridge/bridge.js", "src/opencode-hook/plugin-template.js"],
+      "files": [
+        "src/opencode-tui-bridge/bridge.js",
+        "src/opencode-hook/plugin-template.js"
+      ],
       "links": {},
       "created_at": "2026-07-16T09:50:00.000Z"
     },
@@ -467,14 +757,22 @@
       "type": "踩坑",
       "content": "OpencodeSessionWatcher 游标语义 bug：原实现在 prompt 超时/失败的 finally 中无条件把 _lastPolledMessageId 推进到消息列表最后一条（即使该 assistant message 仍是 pending），导致该 message 原地 completed 后因 ID 已是游标而被 polling 永久跳过，后续结果丢失。修复：游标语义改为 lastDeliveredCompletedAssistantMessageId，只在 prompt 成功完成时推进到 completed assistant message；transport 失败绝不推进到 pending；同 ID pending→completed 在后续 poll 可见可补投。",
       "author": "tianxiqin",
-      "tags": ["watcher", "cursor", "polling", "completed"],
+      "tags": [
+        "watcher",
+        "cursor",
+        "polling",
+        "completed"
+      ],
       "context": "120 秒超时后 pending assistant message 被写成游标，completed 后永不投递",
       "source": "specs/2026-07-16-feishu-long-running-response/spec.md",
       "confidence": null,
       "scope": "project",
       "expires_at": null,
       "stage": "synced",
-      "files": ["src/drivers/opencode-driver.js", "src/drivers/opencode-session-watcher.js"],
+      "files": [
+        "src/drivers/opencode-driver.js",
+        "src/drivers/opencode-session-watcher.js"
+      ],
       "links": {},
       "created_at": "2026-07-16T09:50:00.000Z"
     }

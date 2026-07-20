@@ -1,0 +1,90 @@
+{
+  "key_interfaces": [
+    "buildQuestionCard(questionEvent, sessionId, routeKey)",
+    "buildQuestionRepliedCard(questionId, answer) — 2 参数（去掉冗余 inputMode）",
+    "OpencodeTuiBridge.replyQuestion(sessionRef, questionId, answer) — resolve(undefined), reject 触发 T7 回滚",
+    "MessageDispatcher._cmdAnswer(cmd)",
+    "MessageDispatcher.questionReplyStates: Map<string, {state:'pending'|'submitting'|'replied', answer, repliedAt, inputMode, required}> — 失败回滚 pending",
+    "PermissionHandler.handleQuestion(session, chatId, agentEvent)",
+    "PermissionHandler.handleQuestionReplied(session, chatId, agentEvent)",
+    "COMMANDS.answer"
+  ],
+  "owns_map": {
+    "T1": [
+      "src/drivers/agent-driver.js",
+      "test/agent-driver-schema.test.js"
+    ],
+    "T2": [
+      "src/opencode-tui-bridge/bridge.js",
+      "test/opencode-tui-bridge.test.js"
+    ],
+    "T3": [
+      "src/drivers/opencode-driver.js",
+      "test/opencode-driver.test.js"
+    ],
+    "T4": [
+      "src/platform/feishu/cards.js",
+      "test/feishu-cards.test.js"
+    ],
+    "T5": [
+      "src/platform/feishu/platform.js",
+      "src/app/bootstrap.js",
+      "test/feishu-platform.test.js",
+      "test/bootstrap.test.js"
+    ],
+    "T6": [
+      "src/platform/feishu/commands.js",
+      "test/feishu-commands.test.js"
+    ],
+    "T7": [
+      "src/dispatch/message-dispatcher.js",
+      "src/dispatch/permission-handler.js",
+      "test/message-dispatcher.test.js",
+      "test/permission-handler.test.js"
+    ],
+    "T8": [
+      "test/integration-feishu-question.test.js"
+    ]
+  },
+  "patch_strategy": "HTTP transport _cmdAnswer 直接 patch；TUI bridge transport _cmdAnswer 不 patch，等 permission_replied 事件驱动 handleQuestionReplied patch（spec §3.2.2 兜底关系，避免双重 patch 竞态）",
+  "review_round_3_fixes": [
+    "问题I: T7 patch 卡片策略区分 transport，TUI bridge 不 patch 避免双重竞态",
+    "问题J: T7 步骤3.4 去掉残留 failed 引用",
+    "问题K: T4 buildQuestionRepliedCard 改为 2 参数，T7 调用同步",
+    "问题L: T8 补充传统 permission permission_replied 走 handleReplied 测试和 patch 策略测试"
+  ],
+  "stage": "planning",
+  "status": "done",
+  "task_count": 8,
+  "validation": "validate-plan.mjs 通过（无 ERROR/WARN）；owns 冲突检测无冲突；跨 task buildQuestionRepliedCard 2 参数调用一致",
+  "summary": "第三轮审查修复 4 个问题：patch 卡片策略区分 transport 避免双重竞态（HTTP 直接 patch，TUI bridge 等 permission_replied 事件）、去掉残留 failed 引用、buildQuestionRepliedCard 改为 2 参数、T8 补充传统 permission permission_replied 走 handleReplied 测试。validate-plan.mjs 通过，owns 无冲突，跨 task 接口契约一致。",
+  "artifacts": [
+    "specs/2026-07-17-feishu-question-confirmation/plan.md",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T1.md",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T2.md",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T3.md",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T4.md",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T5.md",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T6.md",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T7.md",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T8.md"
+  ],
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "82cc03061032f74287b5fd6ce4de998931b59cea598817ddd33c51bb030f36ec",
+    "spec.md": "5cf0ab3d8ac0a049c63f303a5ad65a1a62e343ec88ddb4b43e8859449f96f4de",
+    "tasks/": "73e861b3fe21dca3006cd3c0bc7cfc1a74cda676e25e9cbc51dd4a2ebe5fe269"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-17-feishu-question-confirmation/plan.md": "82cc03061032f74287b5fd6ce4de998931b59cea598817ddd33c51bb030f36ec",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T1.md": "d51627e5be792c0907ab059d4b893197c5efdfe32d2e3f698ac5fe4e185cf694",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T2.md": "90fd867a33f01483facf70de3a9fb46ca1435b1eb6fffdc87cefec0c431412d9",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T3.md": "46af3449f0afe02a4cc899b9fa232bbc6c6732bfacc7f38929a07cf9a069400f",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T4.md": "764e2e5cbdd55c990f0dd635132e327a1dc7ba2308e98dc222ab299d5d005066",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T5.md": "ccc24bad13473d1630993743e04d67f6477146ccf006203309e00a1c04ec8898",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T6.md": "dcb202048ddfb3323a9a9980c1bd72f72e87258d652d93c6e9949632ec05f796",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T7.md": "fb1a3cfd9e251203c87cd48878fd675b486410aa979cb40fcc4cdf0e1d125ca8",
+    "specs/2026-07-17-feishu-question-confirmation/tasks/T8.md": "aec06b22cc130c2a0306bdcec8a0880a6827a3e15ae16dfa53760e2b253b90b7"
+  },
+  "written_at": "2026-07-17T03:39:50.246Z"
+}

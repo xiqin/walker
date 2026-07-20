@@ -1,0 +1,68 @@
+{
+  "task_count": 7,
+  "execution_batches": [
+    [
+      "T1",
+      "T2",
+      "T5"
+    ],
+    [
+      "T3",
+      "T4"
+    ],
+    [
+      "T6"
+    ],
+    [
+      "T7"
+    ]
+  ],
+  "validation": {
+    "validate_plan": "passed",
+    "loom_tasks_validate": "passed",
+    "placeholder_scan": "passed",
+    "git_diff_check": "passed"
+  },
+  "decisions": [
+    "accepted 确认超时由 Bridge 在 poll 出队时启动主动 timer",
+    "所有 question reply 失败以保留 code、deliveryPhase、sdkInvoked、safeToRetry 的 Error 传播",
+    "同 session 可排队多个控制 delivery 但最多一个处于 dequeued 或 leased",
+    "插件 tick 优先重试 awaitingAccepted 且 expired 后不调用 SDK",
+    "/answer 绕过通用 MessageDedup 并由 QuestionHandler 状态机幂等",
+    "飞书命令帮助与卡片动作协议统一归 T5",
+    "明确终态事件优先于迟到的提交 Promise 结果",
+    "AgentEvent schema 不引入全局运行时校验",
+    "T7 仅覆盖跨层关键路径，SSE transport 不在本次范围"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已根据计划审查修正 9 项可执行性问题：Bridge poll 取出控制 delivery 后主动启动 accepted timer 并保证 Promise 收敛；固定跨 Bridge/Driver/QuestionHandler 的结构化 Error 属性和错误矩阵；明确同 session 多个控制 delivery 的排队与单活跃占用；插件以 awaitingAccepted/executingSdk/finalizing 状态和 tick 优先级重试 accepted；/answer 绕过 MessageDispatcher 通用去重并由 QuestionHandler 幂等；T5 接管命令帮助与参数契约；提交 Promise 与原生终态事件竞态不反转；T1 仅定义 schema 元数据；T7 收紧为有跨层价值的场景，并明确 SSE transport 不在范围。重新通过计划结构、Requirement 覆盖、owns 冲突、占位符和 diff 格式校验。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md",
+    "tasks/T7.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174",
+    "tasks/": "47d54891958ddce582fbfadf2d8f8e66b75fcd857c24709ea4ddd9c279d42add"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "tasks/T1.md": "c4d371510a97d41f7a09aa554c8e2f8c81e3bba40c7f6df2be8e76afaee099e1",
+    "tasks/T2.md": "80bc5b6f9ea8d85a2b76c7cf1346d9f461528cc46089afce82ed0800fa2ca034",
+    "tasks/T3.md": "58b2384ac929b7d591f871ca3baa9fa9a2b72ad29ac4e1339560b303524f7768",
+    "tasks/T4.md": "2facc8a2b41f2c9457805c93eecc8db2cb8489b96ce3d0d543d78060145353d0",
+    "tasks/T5.md": "69c3449b2437bf1a488b3db434413cdf1e0893fde4bf61cef58191deacb0f690",
+    "tasks/T6.md": "15718ec1c4ecd8764e90eca8a486d4c6baa03149984c3419901c671c27051460",
+    "tasks/T7.md": "81ed61d83be24e07c5c45378d5b9c48310515f3662558ab483a8e96560300ccb"
+  },
+  "written_at": "2026-07-17T07:41:51.873Z"
+}

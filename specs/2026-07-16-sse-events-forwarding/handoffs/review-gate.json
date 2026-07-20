@@ -1,0 +1,11 @@
+{
+  "stage": "review-gate",
+  "status": "done",
+  "summary": "用户于本轮回复 ok，视为明确批准 review-gate。代码审查请求（review-request.md / code-review-request.md）已生成，双轴预审查无 blocker：Standards 3 项轻微（注释缺失，不阻断），Spec 无发现，18/18 REQ 覆盖。2 个已知风险（旧 opencode-plugin-template.test.js 断言过期、T2 bridge 全量并发偶发 pending Promise）均不阻断。用户批准进入 code-review-response 阶段处理剩余审查反馈或直接收尾。",
+  "artifacts": ["review-request.md", "code-review-request.md"],
+  "decisions": [
+    "用户明确批准通过 review-gate 人工门禁",
+    "保留 review-request.md 与 code-review-request.md 两份同内容文件，前者满足 loom 阶段产物命名，后者保留原始生成名"
+  ],
+  "open_questions": []
+}

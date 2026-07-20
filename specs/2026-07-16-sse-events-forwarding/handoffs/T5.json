@@ -1,0 +1,53 @@
+{
+  "tests": {
+    "red": "node --test test/feishu-cards.test.js test/feishu-commands.test.js（预期失败：新增构建器未导出、旧 answer 帮助）",
+    "green": "node --test test/feishu-cards.test.js test/feishu-commands.test.js（79 passed, 0 failed）"
+  },
+  "exports": [
+    "buildNativeQuestionCard(options)",
+    "buildNativeQuestionStatusCard(options)"
+  ],
+  "contract": {
+    "formFields": [
+      "question_selected",
+      "question_custom"
+    ],
+    "questionKey": "requestID:questionIndex",
+    "actions": [
+      "/answer <questionKey> --form <walkerSessionId>",
+      "/answer <questionKey> --retry <walkerSessionId>"
+    ],
+    "statuses": [
+      "preparing",
+      "answered",
+      "submitting",
+      "replied",
+      "rejected",
+      "processed_unknown",
+      "feishu_unavailable",
+      "expired",
+      "retryable"
+    ]
+  },
+  "status": "done",
+  "summary": "按 TDD 新增并导出原生 question 飞书表单与状态卡片构建器；保留旧 buildQuestionCard 兼容链路。/answer 帮助改为 questionKey 配合 --form/--retry 和 walkerSessionId，移除手工 value 契约。",
+  "artifacts": [
+    "src/platform/feishu/cards.js",
+    "src/platform/feishu/commands.js",
+    "test/feishu-cards.test.js",
+    "test/feishu-commands.test.js"
+  ],
+  "task_id": "T5",
+  "basis_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174",
+    "tasks/T5.md": "69c3449b2437bf1a488b3db434413cdf1e0893fde4bf61cef58191deacb0f690"
+  },
+  "artifact_fingerprints": {
+    "src/platform/feishu/cards.js": "1f2be6c728f80441f101b0a943cb08d82220fb4ddb531b3adc46f77994202523",
+    "src/platform/feishu/commands.js": "2c517ac1d250f012e0c6cd0e8aea6560bfd93e9648958c1c40263e0bcd0ac9db",
+    "test/feishu-cards.test.js": "7764c87e16c6db605b29827fcc5b389895e79292f4f619d067c2746113c9371c",
+    "test/feishu-commands.test.js": "995baef4a11d03ab84a50e0a853f6993f4c4b12820fe53860af4c14fd551e05c"
+  },
+  "written_at": "2026-07-17T07:50:42.122Z"
+}

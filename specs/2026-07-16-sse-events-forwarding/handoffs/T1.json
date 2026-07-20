@@ -1,0 +1,57 @@
+{
+  "requirements": [
+    "REQ-001",
+    "REQ-008",
+    "REQ-009"
+  ],
+  "review_fixes": [
+    "questions[].options[] 使用嵌套 items schema，声明 label: string 和 description: string",
+    "permission_replied.response 恢复为 string；移除任务范围外的注释和联合类型断言"
+  ],
+  "tests": [
+    {
+      "command": "node --test test/agent-driver-schema.test.js",
+      "red_result": "失败：permission response 仍为 string|string[]，options 未声明 label/description",
+      "final_result": "通过：9/9"
+    }
+  ],
+  "exports": [
+    "AgentEvent.TYPE_QUESTION_ASKED",
+    "AgentEvent.TYPE_QUESTION_REPLIED",
+    "AgentEvent.TYPE_QUESTION_REJECTED",
+    "AgentEvent.DATA_SCHEMAS.question_asked",
+    "AgentEvent.DATA_SCHEMAS.question_replied",
+    "AgentEvent.DATA_SCHEMAS.question_rejected"
+  ],
+  "constraints_verified": [
+    "仅修改指定的两个源/测试文件及 T1 handoff",
+    "未改变 AgentEvent 构造器",
+    "未提交、重置或清理已有脏工作树"
+  ],
+  "status": "done",
+  "summary": "已修复 T1 审查的两项阻断问题：question_asked 的 questions[].options[] schema 现完整声明 label 与 description；测试使用两个问题、每题两个选项并深度断言原始顺序和完整结构。permission_replied.response 已恢复既有 string 契约，已移除本轮引入的 permission metadata 注释与 string|string[] 断言。AgentEvent 构造器未变。后续极小格式修复仅调整该测试第 73-84 行的缩进，测试语义不变。",
+  "post_completion_fix": {
+    "scope": "test/agent-driver-schema.test.js:73-84",
+    "change": "仅修正 12 处 ESLint indent 错误，未改变测试语义",
+    "verification": [
+      "npx eslint test/agent-driver-schema.test.js：通过",
+      "node --test test/agent-driver-schema.test.js：通过，9/9",
+      "git diff --check：通过，无空白错误"
+    ]
+  },
+  "artifacts": [
+    "src/drivers/agent-driver.js",
+    "test/agent-driver-schema.test.js"
+  ],
+  "task_id": "T1",
+  "basis_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174",
+    "tasks/T1.md": "c4d371510a97d41f7a09aa554c8e2f8c81e3bba40c7f6df2be8e76afaee099e1"
+  },
+  "artifact_fingerprints": {
+    "src/drivers/agent-driver.js": "a95dd8ee43583f7e4a71a0c18edda472ff9cdf664ebaaeea2e1616f8fc775341",
+    "test/agent-driver-schema.test.js": "47ba6cf910eaa17d46cd8a34a79e4e45e7a89997ed849b357687ba1869568583"
+  },
+  "written_at": "2026-07-17T18:28:00.561Z"
+}

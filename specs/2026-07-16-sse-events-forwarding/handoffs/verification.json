@@ -1,0 +1,20 @@
+{
+  "status": "done",
+  "summary": "验证通过。9 个本次改动源文件 node --check 和 ESLint 全部通过；集成测试 6/6 PASS；插件 SDK question.reply 能力探测 40/40 PASS；全量 npm test 995/995 PASS、fail 0、cancelled 0；spec 18/18 REQ 覆盖并 PASS；源码无真实占位符；类型和接口签名在 Bridge→Driver→QuestionHandler 链路一致。此前旧 plugin-template 断言和 Bridge pending/cancelled 风险已修复。",
+  "artifacts": [
+    "specs/2026-07-16-sse-events-forwarding/verify-report.md",
+    "specs/2026-07-16-sse-events-forwarding/evidence/verification.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "df9ceea6ab27dc7800eafb4d04ac7b4724662a3f01356c7365755f53bcb09bb2",
+    "spec.md": "85dd0b5d8d9c10dd63b17ca4f72e7c5749c41f9fa4d954c49fddd96733b21174",
+    "test-report.md": "a02b61ad723c02b172b1ab9c6dc7d068d2762df097ecb85359b1a8c8c71a93b5"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-16-sse-events-forwarding/evidence/verification.log": "11ceb6b5281a807e58bc5a100440c045794c8908585e0955eb5f47e31ac3e8c0",
+    "specs/2026-07-16-sse-events-forwarding/verify-report.md": "ab8d55f54b670d27fa8e9a0248fbd77d3590ca79fde15e68faa018a5c2ea5090"
+  },
+  "written_at": "2026-07-20T02:05:00.000Z"
+}

@@ -1,0 +1,48 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "requirements": [
+    "REQ-007",
+    "REQ-011",
+    "REQ-012",
+    "REQ-014"
+  ],
+  "interface": {
+    "driver": "OpencodeDriver.replyQuestion(agentRef, requestID, answers)",
+    "transport": "仅接受包含 runtimeId 和 opencodeSessionId 的 tui-bridge agentRef",
+    "bridge_call": "tuiBridge.replyQuestion(agentRef, requestID, answers)",
+    "fallback": "无 HTTP、prompt 或 permission 降级路径",
+    "permission_compatibility": "replyPermission 对 tui-bridge transport 保持抛出 replyPermission is not supported for tui-bridge transport，且绝不调用 tuiBridge.replyQuestion；非 TUI 保持原 HTTP permission 行为"
+  },
+  "error_contract": {
+    "driver_preflight": {
+      "fields": ["code", "deliveryPhase", "sdkInvoked", "safeToRetry"],
+      "deliveryPhase": "preflight",
+      "sdkInvoked": false,
+      "safeToRetry": false
+    },
+    "bridge_errors": "直接向上传播，不包装或丢失 code、deliveryPhase、sdkInvoked、safeToRetry"
+  },
+  "tests": {
+    "command": "node --test test/opencode-driver.test.js",
+    "result": "69 passed, 0 failed",
+    "coverage": [
+      "二维 answers 原样传递",
+      "protocol 小于 4 的 QUESTION_REPLY_UNSUPPORTED 四属性透传且不入队",
+      "accepted 超时和 accepted 后结果不确定错误属性透传",
+      "非 TUI transport 不支持且无回退",
+      "错误 TUI agentRef",
+      "Bridge 缺失时完整 preflight 错误",
+      "permission TUI 拒绝语义回归"
+    ]
+  },
+  "validation": {
+    "command": "git diff --check -- src/drivers/opencode-driver.js test/opencode-driver.test.js",
+    "result": "passed"
+  },
+  "artifacts": [
+    "src/drivers/opencode-driver.js",
+    "test/opencode-driver.test.js"
+  ],
+  "summary": "新增独立原生 question 回复接口，严格路由至 protocol v4 TUI Bridge，并保留 Bridge 的结构化可靠性错误契约；修复 permission TUI 分支，恢复其不支持且不调用 Bridge 的基线行为。"
+}

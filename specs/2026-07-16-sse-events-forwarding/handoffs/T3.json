@@ -1,0 +1,56 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "requirements": [
+    "REQ-001",
+    "REQ-007",
+    "REQ-008",
+    "REQ-009",
+    "REQ-011",
+    "REQ-014",
+    "REQ-018"
+  ],
+  "artifacts": [
+    "src/opencode-hook/plugin-template.js",
+    "test/opencode-hook-installer.test.js"
+  ],
+  "exports": [
+    "getPluginSource(walkerPort, token, heartbeatIntervalMs)",
+    "生成的 walker-tui-bridge protocol v4 插件"
+  ],
+  "state_contract": {
+    "plugin_version": 9,
+    "bridgeProtocolVersion": 4,
+    "parent_delivery": "activeDeliveries 按 session 独立保存父 prompt 的 deliveryId 与 heartbeatTimer",
+    "control_delivery": "activeQuestionDelivery 独立保存 deliveryId、sessionId、requestID、answers、heartbeatTimer、state、sdkInvoked、finalError",
+    "control_states": [
+      "awaitingAccepted",
+      "executingSdk",
+      "finalizing"
+    ],
+    "poll_policy": "idle 且无父 delivery 时 acceptedTypes 为 prompt、clear、question_reply；busy 或父 prompt 活跃时仅 question_reply；控制 delivery 活跃时先重试 accepted/final，不重新 poll",
+    "sdk_boundary": "仅 accepted 成功且非 expired 时调用 api.client.question.reply({ requestID, answers })；question_reply 不调用 promptAsync",
+    "final_error_contract": "控制错误 final 的 error 固定包含 code、deliveryPhase、sdkInvoked、safeToRetry；accepted 前拒绝的非法 payload 为 QUESTION_REPLY_INVALID_PAYLOAD、queued、sdkInvoked=false、safeToRetry=false；SDK 已调用失败为 leased、sdkInvoked=true、safeToRetry=false"
+  },
+  "event_contract": [
+    "question.asked -> question_asked",
+    "question.replied -> question_replied",
+    "question.rejected -> question_rejected"
+  ],
+  "tests": {
+    "red": "node --test test/opencode-hook-installer.test.js：初次新增断言失败，原因是协议仍为 v3、未注册 question 事件、busy 状态不 poll 控制 delivery",
+    "review_fix_red": "node --test test/opencode-hook-installer.test.js：非法 question_reply 预期 queued/不可重试时失败，实际为 leased/可重试",
+    "final": "node --test test/opencode-hook-installer.test.js：39 passed, 0 failed",
+    "diff_check": "git diff --check -- src/opencode-hook/plugin-template.js test/opencode-hook-installer.test.js specs/2026-07-16-sse-events-forwarding/handoffs/T3.json：通过",
+    "review_regressions": [
+      "实际 register fetch body 携带 bridgeProtocolVersion: 4",
+      "父 prompt leased 且 session busy 时，控制 delivery 独立 poll、accepted、SDK、heartbeat/final，且 session idle/error 不误终结控制 delivery",
+      "SDK question.reply 抛错时 final 包含 code、deliveryPhase、sdkInvoked=true、safeToRetry=false",
+      "无效 asked/replied/rejected 原生事件不 report，后续有效 asked 正常转发"
+    ]
+  },
+  "limitations": [
+    "仅执行 T3 owns 声明的插件模板、安装器测试和本 handoff；未修改或清理其他脏工作树文件",
+    "未提交"
+  ]
+}

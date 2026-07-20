@@ -1,0 +1,42 @@
+{
+  "task_id": "T4",
+  "stage": "executing",
+  "status": "done",
+  "summary": "实现 buildQuestionCard 和 buildQuestionRepliedCard，全部 10 个新测试 + 33 个现有测试通过，lint 通过",
+  "artifacts": [
+    "src/platform/feishu/cards.js",
+    "test/feishu-cards.test.js"
+  ],
+  "details": {
+    "buildQuestionCard": {
+      "inputMode_confirm": "2 个 button（允许/拒绝），value 含 cmd:/answer <id> allow|deny",
+      "inputMode_single_select": "N 个 button，每个 option 一个，value 含 cmd:/answer <id> <value>",
+      "inputMode_multi_select": "multi_select_static + 提交 button，name=question_answer",
+      "inputMode_text": "input + 提交 button，name=question_answer",
+      "unknown_inputMode": "降级为 confirm 渲染",
+      "missing_options": "select 类型缺 options 时渲染错误状态卡片",
+      "missing_label": "用 option.value 替代 label 展示",
+      "routeKey": "透传到 buildButtonValue"
+    },
+    "buildQuestionRepliedCard": {
+      "header_template": "green",
+      "string_answer": "直接展示",
+      "string_array_answer": "逗号连接展示"
+    }
+  },
+  "requirement_coverage": {
+    "REQ-002": "buildQuestionCard 生成交互卡片（data.type=question 时由调用方路由）",
+    "REQ-003": "confirm 模式 2 个 button，value 为 cmd:/answer",
+    "REQ-004": "single_select 模式 N 个 button",
+    "REQ-005": "multi_select 模式 multi_select_static + 提交 button，name=question_answer",
+    "REQ-006": "text 模式 input + 提交 button，name=question_answer",
+    "REQ-007": "routeKey 透传到 action value",
+    "REQ-008": "buildQuestionRepliedCard 更新卡片",
+    "REQ-013": "未知 inputMode 降级为 confirm"
+  },
+  "test_results": {
+    "total": 43,
+    "pass": 43,
+    "fail": 0
+  }
+}

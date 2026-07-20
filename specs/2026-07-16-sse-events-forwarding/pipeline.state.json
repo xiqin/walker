@@ -1,11 +1,62 @@
 {
   "spec_dir": "H:\\walker\\specs\\2026-07-16-sse-events-forwarding",
   "pipeline_type": "feature",
-  "current_stage": "brainstorming",
+  "current_stage": "synced",
   "loom_version": "0.1.0",
   "started_at": "2026-07-16T12:16:25.429Z",
-  "updated_at": "2026-07-16T12:16:25.429Z",
-  "stage_history": [],
+  "updated_at": "2026-07-20T01:42:58.139Z",
+  "stage_history": [
+    {
+      "stage": "brainstorming",
+      "entered_at": "2026-07-16T12:16:25.429Z",
+      "exited_at": "2026-07-17T07:08:59.808Z",
+      "status": "passed"
+    },
+    {
+      "stage": "planning",
+      "entered_at": "2026-07-17T07:08:59.808Z",
+      "exited_at": "2026-07-17T07:21:35.359Z",
+      "status": "passed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-07-17T07:21:35.359Z",
+      "exited_at": "2026-07-17T07:43:45.182Z",
+      "status": "passed",
+      "approval": "user_confirmed"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-07-17T07:43:45.182Z",
+      "exited_at": "2026-07-17T10:28:37.077Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-07-17T10:28:37.077Z",
+      "exited_at": "2026-07-17T10:31:20.581Z",
+      "status": "passed"
+    },
+    {
+      "stage": "code-review-request",
+      "entered_at": "2026-07-17T10:31:20.581Z",
+      "exited_at": "2026-07-17T10:32:56.645Z",
+      "status": "passed"
+    },
+    {
+      "stage": "review-gate",
+      "entered_at": "2026-07-17T10:32:56.645Z",
+      "exited_at": "2026-07-20T01:39:21.754Z",
+      "status": "passed",
+      "approval": "user_confirmed"
+    },
+    {
+      "stage": "code-review-response",
+      "entered_at": "2026-07-20T01:39:21.754Z",
+      "exited_at": "2026-07-20T01:42:58.139Z",
+      "status": "passed"
+    }
+  ],
   "metadata": {},
   "dynamic_steps": [
     {
@@ -109,5 +160,6 @@
       "outputs": [],
       "description": "图后端同步与结构化记忆更新"
     }
-  ]
+  ],
+  "current_stage_started_at": "2026-07-20T01:42:58.139Z"
 }

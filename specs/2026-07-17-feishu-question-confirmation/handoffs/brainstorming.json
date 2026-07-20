@@ -1,0 +1,42 @@
+{
+  "decisions": [
+    "复用 permission 事件通道承载交互式问题，新增 question 回复语义（方案 A'）",
+    "新增 /answer 命令，与 /permit allow|deny 分离",
+    "TUI bridge replyQuestion 复用 lease/heartbeat/final 可靠性模型",
+    "permission_replied.response 扩展为 string|string[]",
+    "question 一律走 /answer 分支，与 permission 语义分离",
+    "card.action 事件全链路透传 formValue",
+    "新增 questionReplyStates 4 态机做幂等",
+    "新增 buildQuestionCard 支持 select/options/inputMode"
+  ],
+  "key_findings": [
+    "replyPermission 对 TUI bridge transport 直接抛错需改为转发",
+    "parseCardAction 已解析 formValue 但下游未用",
+    "_cmdPermit 硬编码 allow|deny 需新增 /answer",
+    "buildPermissionCard 仅 allow/deny 两按钮需新增 buildQuestionCard",
+    "AgentEvent.PERMISSION_REPLIED.response 声明为 string 需扩展",
+    "飞书卡片无 multi_select_static/input 先例需实现时验证"
+  ],
+  "spec_sections": [
+    "§3 接口设计 5 小节",
+    "§4 数据设计含 4 态机",
+    "§5 业务规则 10 条",
+    "§6 异常场景 10 项",
+    "§7 非目标 6 项",
+    "§8 变更影响 10 文件"
+  ],
+  "stage": "brainstorming",
+  "status": "done",
+  "summary": "已确认方案 A'：复用 permission 事件通道承载交互式 question，新增 /answer 命令、TUI bridge replyQuestion、buildQuestionCard、questionReplyStates 4 态机，与传统 /permit allow|deny 分离。spec.md 经三轮审查修正完成，用户已批准。",
+  "artifacts": [
+    "specs/2026-07-17-feishu-question-confirmation/spec.md"
+  ],
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "5cf0ab3d8ac0a049c63f303a5ad65a1a62e343ec88ddb4b43e8859449f96f4de"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-17-feishu-question-confirmation/spec.md": "5cf0ab3d8ac0a049c63f303a5ad65a1a62e343ec88ddb4b43e8859449f96f4de"
+  },
+  "written_at": "2026-07-17T03:23:13.315Z"
+}

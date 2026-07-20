@@ -171,7 +171,14 @@ class QuestionHandler {
   /** patch 单题卡片为指定状态。 */
   async _patchOne(request, index, status) {
     const card = buildNativeQuestionStatusCard(this._requestOptions(request, index, status));
-    return this._patch(request.cards[index], card, request.chatId, card.elements[0].text.content);
+    let fallbackText = '';
+    if (card.body) {
+      const md = card.body.elements.find((el) => el && el.tag === 'markdown');
+      fallbackText = (md && typeof md.content === 'string') ? md.content : '';
+    } else if (card.elements && card.elements[0] && card.elements[0].text) {
+      fallbackText = card.elements[0].text.content || '';
+    }
+    return this._patch(request.cards[index], card, request.chatId, fallbackText);
   }
 
   /** 并行 patch 全部已发送卡片为指定状态。 */
@@ -214,6 +221,24 @@ class QuestionHandler {
     options.forEach((option, index) => {
       if (selectedIndexes.has(index)) answers.push(String(option.label || option.value || 'option_' + index));
     });
+    return answers.length ? answers : null;
+  }
+
+  /** 解析 checker 表单提交的布尔字段为按钮协议选项值。 */
+  _parseCheckerAnswers(question, formValue) {
+    if (!formValue || typeof formValue !== 'object') return null;
+    const selected = [];
+    for (const [key, value] of Object.entries(formValue)) {
+      const match = /^question_selected_(\d+)$/.exec(key);
+      if (!match || (value !== true && value !== 'true' && value !== 1)) continue;
+      selected.push('option_' + match[1]);
+    }
+    const answers = this._parseOptionAnswers(question, selected) || [];
+    const custom = String(formValue.question_custom || '').trim();
+    if (custom) {
+      if (question.custom === false) return null;
+      answers.push(custom);
+    }
     return answers.length ? answers : null;
   }
 
@@ -334,7 +359,9 @@ class QuestionHandler {
 
     const answers = mode === '--form'
       ? this._parseAnswers(question, cmd.formValue)
-      : this._parseOptionAnswers(question, mode === '--option' ? [optionValue] : (request.selections && request.selections[parsed.index]) || []);
+      : mode === '--submit' && cmd.formValue
+        ? this._parseCheckerAnswers(question, cmd.formValue)
+        : this._parseOptionAnswers(question, mode === '--option' ? [optionValue] : (request.selections && request.selections[parsed.index]) || []);
     if (!answers) {
       logger.warn('native question answer rejected: invalid answer value', { requestID: request.requestID, index: parsed.index, mode, formValue: cmd.formValue || null, optionValue });
       return { error: 'invalid_answer' };

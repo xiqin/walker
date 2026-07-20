@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "代码审查请求已生成，包含双轴预审查结果。Standards 发现 1 条建议（options.value 非空校验由 dispatcher 兜底），Spec 无发现。1004 测试全通过，lint 0 error。16 文件 1056 行新增。审查重点：question/permission 路由隔离、幂等保护、HTTP/TUI patch 策略区分、questionReplyStates 生命周期。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "82cc03061032f74287b5fd6ce4de998931b59cea598817ddd33c51bb030f36ec",
+    "spec.md": "5cf0ab3d8ac0a049c63f303a5ad65a1a62e343ec88ddb4b43e8859449f96f4de"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-17T05:36:57.787Z"
+}

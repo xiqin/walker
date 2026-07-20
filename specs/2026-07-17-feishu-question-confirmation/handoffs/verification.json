@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "验证全部通过：lint 0 error、1004/1004 测试通过、0 占位符、类型一致、spec REQ-001~013 全覆盖、无 drift。剩余风险：飞书 multi_select_static/input 组件需实际渲染验证。",
+  "artifacts": [
+    "verify-report.md"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "82cc03061032f74287b5fd6ce4de998931b59cea598817ddd33c51bb030f36ec",
+    "spec.md": "5cf0ab3d8ac0a049c63f303a5ad65a1a62e343ec88ddb4b43e8859449f96f4de",
+    "test-report.md": "b7811d655c2241018f2cf7f14dbbc58c0681f4527f78f99b34c6579503013e23"
+  },
+  "artifact_fingerprints": {
+    "verify-report.md": "7d733d309d7964779bdcfe84004f5b595824a8553ee4622a686ca25ec6eabfc2"
+  },
+  "written_at": "2026-07-17T05:33:42.848Z"
+}

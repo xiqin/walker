@@ -88,6 +88,34 @@ describe('QuestionHandler', () => {
     assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_toggle', [['A', 'B']]]);
   });
 
+  it('多选 checker 表单提交布尔字段时解析为选项答案', async () => {
+    const { handler, session, calls, agentRef } = makeFixture();
+    await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_checker', [
+      { header: '多选', question: '请选择', options: [{ label: 'A' }, { label: 'B' }, { label: 'C' }], multiple: true, custom: false },
+    ]));
+    const result = await handler.handleAnswer(command('req_checker:0', '--submit', {
+      question_selected_0: true,
+      question_selected_1: false,
+      question_selected_2: true,
+    }));
+    assert.equal(result.status, 'replied');
+    assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_checker', [['A', 'C']]]);
+  });
+
+  it('多选 checker 表单提交布尔字段和自定义答案', async () => {
+    const { handler, session, calls, agentRef } = makeFixture();
+    await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_checker_custom', [
+      { header: '多选', question: '请选择', options: [{ label: 'A' }, { label: 'B' }], multiple: true, custom: true },
+    ]));
+    const result = await handler.handleAnswer(command('req_checker_custom:0', '--submit', {
+      question_selected_0: true,
+      question_selected_1: false,
+      question_custom: '  其他  ',
+    }));
+    assert.equal(result.status, 'replied');
+    assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_checker_custom', [['A', '其他']]]);
+  });
+
   it('无预设选项的问题降级到本地 TUI 回答', async () => {
     const { handler, session } = makeFixture();
     await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_text_only', [

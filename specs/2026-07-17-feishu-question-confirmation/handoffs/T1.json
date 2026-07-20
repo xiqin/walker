@@ -1,0 +1,10 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "扩展 AgentEvent schema: PERMISSION_REPLIED.response 支持 string|string[]，PERMISSION.metadata 注释补充 inputMode/options/required 约定",
+  "artifacts": ["src/drivers/agent-driver.js", "test/agent-driver-schema.test.js"],
+  "exported_interfaces": ["AgentEvent.DATA_SCHEMAS[TYPE_PERMISSION_REPLIED].response", "AgentEvent.DATA_SCHEMAS[TYPE_PERMISSION].metadata"],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-010", "REQ-13"],
+  "notes": "schema 仅用于归一化校验，不强制类型转换；AgentEvent 构造函数和数据流不受影响"
+}

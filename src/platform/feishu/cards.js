@@ -631,12 +631,6 @@ function buildOptionDescriptionLines(presetOptions) {
   return lines;
 }
 
-function buildNativeQuestionSubmitValue(questionKey, walkerSessionId, routeKey) {
-  const value = { action: 'cmd:/answer ' + questionKey + ' --form ' + walkerSessionId };
-  if (routeKey) value.routeKey = routeKey;
-  return value;
-}
-
 /**
  * 构建 OpenCode 原生问题的飞书表单卡片。
  * @param {Object} options - 问题与飞书路由上下文
@@ -648,6 +642,7 @@ function buildNativeQuestionCard(options) {
   const questionCount = Number.isInteger(options.questionCount) ? options.questionCount : 1;
   const questionKey = String(options.requestID || '') + ':' + questionIndex;
   const presetOptions = Array.isArray(question.options) ? question.options : [];
+  const selectedValues = new Set(Array.isArray(options.selectedValues) ? options.selectedValues.map(String) : []);
   const header = { title: { tag: 'plain_text', content: question.header || '交互式问题' }, template: 'blue' };
   const introLines = [
     '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**',
@@ -666,11 +661,48 @@ function buildNativeQuestionCard(options) {
   const optionLines = buildOptionDescriptionLines(presetOptions);
 
   if (question.multiple === true) {
-    const contentLines = [...introLines, '', ...optionLines];
-    const checkboxOptions = presetOptions.map((option, index) => ({
-      text: { tag: 'plain_text', content: String(option.label || option.value || ('option_' + index)) },
-      value: 'option_' + index,
-    }));
+    const contentLines = [
+      '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**',
+      escapeLarkMd(question.question || ''),
+    ];
+    const checkers = presetOptions.map((option, index) => {
+      const optionValue = 'option_' + index;
+      const label = String(option.label || option.value || optionValue);
+      const desc = option.description ? '\n' + escapeLarkMd(option.description) : '';
+      return {
+        tag: 'checker',
+        name: 'question_selected_' + index,
+        checked: selectedValues.has(optionValue),
+        text: { tag: 'lark_md', content: '**' + escapeLarkMd(label) + '**' + desc },
+        overall_checkable: true,
+        checked_style: { show_strikethrough: false, opacity: 1 },
+        padding: '2px 2px 2px 2px',
+        behaviors: [{
+          type: 'callback',
+          value: buildButtonValue(
+            'cmd:/answer ' + questionKey + ' --toggle ' + optionValue,
+            options.walkerSessionId,
+            options.routeKey,
+          ),
+        }],
+      };
+    });
+    const formElements = [...checkers];
+    if (question.custom !== false) {
+      formElements.push({
+        tag: 'input',
+        name: 'question_custom',
+        placeholder: { tag: 'plain_text', content: '请输入自定义答案' },
+      });
+    }
+    formElements.push({
+      tag: 'button',
+      name: 'question_submit',
+      text: { tag: 'plain_text', content: '提交' },
+      type: 'primary',
+      action_type: 'form_submit',
+      value: buildButtonValue('cmd:/answer ' + questionKey + ' --submit', options.walkerSessionId, options.routeKey),
+    });
     return {
       schema: '2.0',
       config: { update_multi: true, width_mode: 'fill' },
@@ -681,27 +713,7 @@ function buildNativeQuestionCard(options) {
           {
             tag: 'form',
             name: 'question_form',
-            elements: [
-              {
-                tag: 'multi_select_static',
-                type: 'default',
-                name: 'question_selected',
-                placeholder: { tag: 'plain_text', content: '请选择一个或多个选项' },
-                width: 'fill',
-                required: true,
-                disabled: false,
-                selected_values: [],
-                options: checkboxOptions,
-              },
-              {
-                tag: 'button',
-                name: 'question_submit',
-                text: { tag: 'plain_text', content: '提交' },
-                type: 'primary',
-                action_type: 'form_submit',
-                value: buildNativeQuestionSubmitValue(questionKey, options.walkerSessionId, options.routeKey),
-              },
-            ],
+            elements: formElements,
           },
         ],
       },
@@ -755,6 +767,26 @@ function buildNativeQuestionStatusCard(options) {
   const info = statusInfo[status] || statusInfo.expired;
   const content = '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**\n'
     + escapeLarkMd(question.question || '') + '\n\n' + info.message;
+  if (question.multiple === true) {
+    const elements = [{ tag: 'markdown', content }];
+    if (status === 'retryable') {
+      elements.push({
+        tag: 'button',
+        text: { tag: 'plain_text', content: '重试提交' },
+        type: 'primary',
+        behaviors: [{
+          type: 'callback',
+          value: buildButtonValue('cmd:/answer ' + questionKey + ' --retry', options.walkerSessionId, options.routeKey),
+        }],
+      });
+    }
+    return {
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'fill' },
+      header: { title: { tag: 'plain_text', content: info.title }, template: info.template },
+      body: { elements },
+    };
+  }
   const elements = [{ tag: 'div', text: { tag: 'lark_md', content } }];
 
   if (status === 'retryable') {

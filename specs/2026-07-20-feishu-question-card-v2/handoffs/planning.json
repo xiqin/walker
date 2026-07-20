@@ -1,0 +1,38 @@
+{
+  "tasks": [
+    "T1: 修改 src/platform/feishu/cards.js 和 test/feishu-cards.test.js，实现单选 v1、多选 v2 表单、描述展示、无预设题降级。",
+    "T2: 修改 src/platform/feishu/events.js 和 test/feishu-events.test.js，兼容 Card JSON 2.0 表单提交事件字段。",
+    "T3: 修改 src/dispatch/question-handler.js、test/question-handler.test.js、test/integration-feishu-question.test.js，保证 --form 多选一次提交、--option 单选和旧 --toggle 兼容。",
+    "T4: 修改/补充 test/feishu-platform.test.js 并写 test-report.md，运行定向、eslint、diff check 和 npm test。"
+  ],
+  "dependency_order": "T1 -> T2 -> T3 -> T4",
+  "validation": [
+    "node C:\\Users\\tianxiqin\\.config\\opencode\\skills\\loom-writing-plans\\scripts\\validate-plan.mjs --spec-dir H:\\walker\\specs\\2026-07-20-feishu-question-card-v2: 通过，警告 spec.md 无 REQ-* 稳定 ID；计划已提供 REQ-001 到 REQ-006 映射。",
+    "loom tasks --spec-dir H:\\walker\\specs\\2026-07-20-feishu-question-card-v2 --validate: 通过，无文件冲突。"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已将方案 4 spec 拆分为 4 个串行任务：T1 卡片结构与描述渲染，T2 Card JSON 2.0 回调解析，T3 Question 回传集成兼容，T4 端到端验证与回归收口。计划明确 REQ-001 到 REQ-006 映射、文件职责、依赖顺序和验证命令；validate-plan 通过，loom tasks 冲突检测无文件冲突。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "4cee44df219f9745605a080dd22629589e9d194f9d761c1ab712b40af6b0b77b",
+    "spec.md": "a0f4527c60c81b65e8a52f86d33fbd0045d262aa5e6ef2abf944776b0c515c0e",
+    "tasks/": "1092314e72a5ee490aaf9f37bcc2cee402c9bdff6105535b5b6771868e199e8c"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "4cee44df219f9745605a080dd22629589e9d194f9d761c1ab712b40af6b0b77b",
+    "tasks/T1.md": "89e3f60d3aa0ed9d0d22d6af6ca614dba9e7b59515ab7a1f3bd47f6ac33b2672",
+    "tasks/T2.md": "8a8c1f5d7903e69e481abc97ed18770206d1dc850a4eb710acaa3b4e457a58ed",
+    "tasks/T3.md": "a49118dc7102c3b53de8c1a0c577f16023cd4b6cb7e5c15fb2c4a7cb1859fe01",
+    "tasks/T4.md": "654f4bb49653dc9624a83643430fa184ad855077808c5c577078549a5583d8ba"
+  },
+  "written_at": "2026-07-20T06:24:41.988Z"
+}

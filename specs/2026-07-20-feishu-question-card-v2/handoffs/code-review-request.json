@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "已生成 review-request.md：含变更统计、主要变更、Standards + Spec 双轴预审查（均无 blocker）、自测情况（定向 101/101 + npm test 1007/1007 + eslint/diff 全绿）、变更详情表、审查重点、剩余风险（Card JSON 2.0 真实飞书 API/客户端行为需现场确认）。",
+  "artifacts": [
+    "review-request.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "4cee44df219f9745605a080dd22629589e9d194f9d761c1ab712b40af6b0b77b",
+    "spec.md": "a0f4527c60c81b65e8a52f86d33fbd0045d262aa5e6ef2abf944776b0c515c0e"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-20T07:00:25.808Z"
+}

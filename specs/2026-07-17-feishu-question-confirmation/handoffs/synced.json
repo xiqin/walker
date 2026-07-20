@@ -1,0 +1,15 @@
+{
+  "status": "done",
+  "summary": "索引同步完成：codegraph 索引新鲜、关键符号已确认、Memory 已更新 3 条（决策+踩坑+偏好）、入口文件无需更新、同步报告已输出",
+  "artifacts": [
+    "index-sync-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "82cc03061032f74287b5fd6ce4de998931b59cea598817ddd33c51bb030f36ec",
+    "spec.md": "5cf0ab3d8ac0a049c63f303a5ad65a1a62e343ec88ddb4b43e8859449f96f4de"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-07-17T05:41:46.856Z"
+}

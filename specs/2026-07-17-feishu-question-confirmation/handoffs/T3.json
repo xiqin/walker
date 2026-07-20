@@ -1,0 +1,29 @@
+{
+  "task": "T3",
+  "title": "OpencodeDriver.replyPermission 对 TUI bridge 转发",
+  "status": "done",
+  "requirementIds": ["REQ-011"],
+  "summary": "将 replyPermission 的 TUI bridge 分支从抛错改为转发到 tuiBridge.replyQuestion(sessionRef, permissionId, response)，并处理 tuiBridge 未配置或缺少 replyQuestion 方法的错误情况",
+  "changes": [
+    {
+      "file": "src/drivers/opencode-driver.js",
+      "action": "modified",
+      "lines": "527-532",
+      "description": "将 replyPermission 中 TUI bridge transport 分支从 throw new Error 改为检查 tuiBridge.replyQuestion 并转发调用。使用 sessionRef.transport === 'tui-bridge' 替代 _isTuiBridge 以覆盖 tuiBridge 未配置的情况。对应 REQ-011。"
+    },
+    {
+      "file": "test/opencode-driver.test.js",
+      "action": "modified",
+      "description": "新增 describe('OpencodeDriver replyPermission tui-bridge') 测试组，含 4 个用例：转发到 replyQuestion、无 tuiBridge 抛错、tuiBridge 无 replyQuestion 方法抛错、response 为 string[] 时正确传递。对应 REQ-011。"
+    }
+  ],
+  "testResults": {
+    "command": "node --test test/opencode-driver.test.js",
+    "passed": true,
+    "allTestsPass": true
+  },
+  "lintResults": {
+    "command": "npm run lint",
+    "passed": true
+  }
+}

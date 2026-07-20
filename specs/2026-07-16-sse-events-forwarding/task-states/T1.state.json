@@ -1,0 +1,11 @@
+{
+  "task_id": "T1",
+  "spec_dir": "H:\\walker\\specs\\2026-07-16-sse-events-forwarding",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-07-17T07:46:07.619Z",
+  "updated_at": "2026-07-17T08:05:31.279Z",
+  "last_reviewer_result": null,
+  "blocker": null
+}

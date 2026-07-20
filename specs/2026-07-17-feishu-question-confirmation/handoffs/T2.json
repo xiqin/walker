@@ -1,0 +1,44 @@
+{
+  "taskId": "T2",
+  "stage": "executing",
+  "status": "done",
+  "summary": "OpencodeTuiBridge 新增 replyQuestion delivery 方法",
+  "requirement": "REQ-011: TUI bridge transport 下 replyQuestion 投递 question_reply delivery，runtime poll 拉取后经 accepted/heartbeat/final 完成",
+  "artifacts": [
+    "src/opencode-tui-bridge/bridge.js",
+    "test/opencode-tui-bridge.test.js"
+  ],
+  "changes": {
+    "src/opencode-tui-bridge/bridge.js": {
+      "action": "modified",
+      "details": [
+        "新增常量 DELIVERY_TYPE_QUESTION_REPLY = 'question_reply'（与 DELIVERY_TYPE_PROMPT/DELIVERY_TYPE_CLEAR 并列，bridge.js:11）",
+        "新增 replyQuestion(sessionRef, questionId, answer) 方法（bridge.js:203-232）",
+        "replyQuestion 复用 prompt 的 _validateRef/runtime 存在/stale/session 变更校验",
+        "delivery 结构: { deliveryId, type: 'question_reply', sessionId, questionId, answer }",
+        "pendingEntry.resolve 包裹为 () => resolve(undefined)，不返回 events 给调用方",
+        "无 signal/abort 支持（与 prompt 不同，replyQuestion 不需要用户取消能力）",
+        "_handleAccepted/_handleHeartbeat/_handleFinal/_loseLease/cancel/dispose/close 按 deliveryId 操作 pending，自动覆盖 question_reply 类型，无需额外修改"
+      ]
+    },
+    "test/opencode-tui-bridge.test.js": {
+      "action": "modified",
+      "details": [
+        "新增 describe('OpencodeTuiBridge replyQuestion') 测试组",
+        "8 个测试用例全部通过：投递 delivery、runtime 不在线、stale、session 变更、accepted→heartbeat→final、error final、lease 超时、cancel 清理"
+      ]
+    }
+  },
+  "testResults": {
+    "total": 51,
+    "passed": 51,
+    "failed": 0,
+    "newTests": 8
+  },
+  "lint": "passed",
+  "verificationNotes": [
+    "normalizeEvents 不需改动（question_reply 是 delivery，不是 Agent 事件类型）",
+    "reportEvents 中 data.deliveryId 存在时走 accepted/heartbeat/final 分支，question_reply 自动复用",
+    "replyQuestion resolve(undefined) 而非 resolve(events)，调用方无需处理返回的 AgentEvent 列表"
+  ]
+}
