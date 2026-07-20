@@ -80,7 +80,8 @@ describe('QuestionHandler', () => {
       { header: '多选', question: '请选择', options: [{ label: 'A' }, { label: 'B' }], multiple: true, custom: false },
     ]));
     assert.deepEqual(await handler.handleAnswer(optionCommand('req_toggle:0', '--toggle', 'option_1')), { status: 'collecting', selected: ['option_1'] });
-    assert.equal(calls.filter((call) => call.type === 'patchCard').at(-1).card.elements[1].actions[1].type, 'primary');
+    const patchCall = calls.filter((call) => call.type === 'patchCard').at(-1);
+    assert.ok(patchCall.card.schema === '2.0' || patchCall.card.body, 'toggle patch 后多选卡片保持 v2 结构');
     assert.deepEqual(await handler.handleAnswer(optionCommand('req_toggle:0', '--toggle', 'option_0')), { status: 'collecting', selected: ['option_1', 'option_0'] });
     const result = await handler.handleAnswer(optionCommand('req_toggle:0', '--submit'));
     assert.equal(result.status, 'replied');

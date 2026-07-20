@@ -59,12 +59,25 @@ function makeFeishuApi() {
 }
 
 function findButtonValue(card, text) {
-  for (const element of card.elements || []) {
+  const roots = [];
+  if (Array.isArray(card.elements)) roots.push(...card.elements);
+  if (card.body && Array.isArray(card.body.elements)) roots.push(...card.body.elements);
+  for (const element of roots) {
     for (const action of element.actions || element.elements || []) {
       if (action.tag === 'button' && action.text && action.text.content === text) return action.value;
     }
   }
   throw new Error('未找到卡片按钮: ' + text);
+}
+
+function findFormSubmitValue(card) {
+  const roots = card.body && Array.isArray(card.body.elements) ? card.body.elements : [];
+  for (const element of roots) {
+    if (element.tag !== 'form') continue;
+    const submit = (element.elements || []).find((el) => el.tag === 'button' && (el.form_action_type === 'submit' || el.action_type === 'form_submit'));
+    if (submit) return submit.value;
+  }
+  throw new Error('未找到 v2 表单提交按钮');
 }
 
 async function createFixture(options) {
@@ -223,6 +236,14 @@ async function createFixture(options) {
         action: { value, form_value: formValue },
       });
     },
+    async submitV2Form(index, formValue) {
+      const cardCall = this.cards()[index];
+      const value = findFormSubmitValue(cardCall.card);
+      return app.platform._handleCardAction({
+        context: { open_id: 'ou_question', chat_id: CHAT_ID, message_id: cardCall.cardId },
+        action: { value, form_value: formValue },
+      });
+    },
     async submitPatchedCard(cardId, buttonText) {
       let patchCall = null;
       for (const call of feishuApi.calls) {
@@ -265,20 +286,21 @@ describe('集成测试: 原生 question protocol v4', () => {
         { header: '范围', question: '选择范围', options: [{ label: '代码', description: '源代码' }, { label: '测试', description: '测试文件' }], multiple: true, custom: true },
       ]);
       await waitFor(() => fixture.cards().length === 2);
-      assert.deepEqual(fixture.cards().map((call) => call.card.elements[0].text.content.includes('问题')), [true, true]);
+      assert.equal(fixture.cards()[0].card.schema, undefined, '单选卡片保持 legacy v1');
+      assert.equal(fixture.cards()[1].card.schema, '2.0', '多选卡片输出 Card JSON 2.0');
+      assert.ok(fixture.cards()[0].card.elements[0].text.content.includes('问题'), '单选正文含问题序号');
+      assert.ok(fixture.cards()[1].card.body.elements[0].content.includes('问题'), '多选 v2 正文含问题序号');
+      assert.ok(fixture.cards()[0].card.elements[0].text.content.includes('完整检查'), '单选正文含选项描述');
+      assert.ok(fixture.cards()[1].card.body.elements[0].content.includes('源代码'), '多选 v2 正文含选项描述');
 
       await fixture.submitCard(0, null, '稳妥');
-      await fixture.submitCard(1, null, '测试');
-      await fixture.submitCard(1, null, '代码');
-      void fixture.submitCard(1, null, '提交');
+      void fixture.submitV2Form(1, { question_selected: ['option_0', 'option_1'] });
 
       await waitFor(() => fixture.sdk.questionCalls.length === 1);
       assert.deepEqual(fixture.answerCommands, [
         { formValue: null, messageId: fixture.cards()[0].cardId, routeKey: ROUTE_KEY, args: ['req_multi:0', '--option', 'option_1', fixture.session.id] },
-        { formValue: null, messageId: fixture.cards()[1].cardId, routeKey: ROUTE_KEY, args: ['req_multi:1', '--toggle', 'option_1', fixture.session.id] },
-        { formValue: null, messageId: fixture.cards()[1].cardId, routeKey: ROUTE_KEY, args: ['req_multi:1', '--toggle', 'option_0', fixture.session.id] },
-        { formValue: null, messageId: fixture.cards()[1].cardId, routeKey: ROUTE_KEY, args: ['req_multi:1', '--submit', fixture.session.id] },
-      ], 'FeishuPlatform._handleCardAction -> parseCardAction -> bootstrap onCardAction -> parseCommand -> Dispatcher 必须完整保留按钮命令/messageId/routeKey');
+        { formValue: { question_selected: ['option_0', 'option_1'] }, messageId: fixture.cards()[1].cardId, routeKey: ROUTE_KEY, args: ['req_multi:1', '--form', fixture.session.id] },
+      ], '单选走 --option 按钮一次提交，多选走 v2 表单 --form 一次提交');
       assert.deepEqual(fixture.sdk.questionCalls, [{
         requestID: 'req_multi',
         answers: [['稳妥'], ['代码', '测试']],

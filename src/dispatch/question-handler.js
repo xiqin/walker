@@ -129,7 +129,7 @@ class QuestionHandler {
           }
           sent = true;
         } catch (err) {
-          logger.warn('native question card send failed', { requestID: request.requestID, index, attempt: request.cardAttempts[index], error: err && err.message });
+          logger.warn('native question card send failed', { requestID: request.requestID, index, attempt: request.cardAttempts[index], error: err && err.message, code: err && err.code, status: err && err.status, response: err && err.response });
           if (request.status !== 'sending_cards') return { status: request.status };
         }
       }
@@ -220,7 +220,14 @@ class QuestionHandler {
   /** 更新仍在收集中的原生问题卡片，例如多选按钮切换后的高亮状态。 */
   async _patchQuestionCard(request, index) {
     const card = buildNativeQuestionCard(this._requestOptions(request, index));
-    return this._patch(request.cards[index], card, request.chatId, card.elements[0].text.content);
+    let fallbackText = '';
+    if (card.body) {
+      const md = card.body.elements.find((el) => el && el.tag === 'markdown');
+      fallbackText = (md && typeof md.content === 'string') ? md.content : '';
+    } else if (card.elements && card.elements[0] && card.elements[0].text) {
+      fallbackText = card.elements[0].text.content || '';
+    }
+    return this._patch(request.cards[index], card, request.chatId, fallbackText);
   }
 
   /** 记录答案，并在全部题目齐备后提交到 OpenCode 原生 question。 */

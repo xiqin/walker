@@ -212,6 +212,80 @@ test('parseCardAction 无 routeKey 时返回空字符串', () => {
   assert.equal(parsed.routeKey, '');
 });
 
+test('parseCardAction 支持 v2 表单提交 raw payload', () => {
+  const data = {
+    operator: { open_id: 'ou_op1' },
+    context: {
+      open_chat_id: 'oc_chat_v2',
+      open_message_id: 'om_msg_v2',
+    },
+    action: {
+      tag: 'button',
+      name: 'question_submit',
+      form_name: 'question_form',
+      form_value: { question_selected: ['option_0', 'option_2'] },
+      value: {
+        action: 'cmd:/answer req_multi:0 --form wks_multi',
+        routeKey: 'feishu:oc_chat_v2:root:om_msg_v2',
+      },
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.openId, 'ou_op1');
+  assert.equal(parsed.chatId, 'oc_chat_v2');
+  assert.equal(parsed.messageId, 'om_msg_v2');
+  assert.equal(parsed.action, 'cmd:/answer req_multi:0 --form wks_multi');
+  assert.equal(parsed.routeKey, 'feishu:oc_chat_v2:root:om_msg_v2');
+  assert.deepEqual(parsed.formValue, { question_selected: ['option_0', 'option_2'] });
+});
+
+test('parseCardAction 支持 v2 表单提交 SDK 归一化形态', () => {
+  const data = {
+    messageId: 'om_msg_norm',
+    chatId: 'oc_chat_norm',
+    operator: { openId: 'ou_op_norm' },
+    action: {
+      tag: 'button',
+      name: 'question_submit',
+      form_name: 'question_form',
+      value: {
+        action: 'cmd:/answer req_norm:1 --form wks_norm',
+        routeKey: 'feishu:oc_chat_norm:root:om_msg_norm',
+      },
+      form_value: { question_selected: ['option_1'] },
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.openId, 'ou_op_norm');
+  assert.equal(parsed.chatId, 'oc_chat_norm');
+  assert.equal(parsed.messageId, 'om_msg_norm');
+  assert.equal(parsed.action, 'cmd:/answer req_norm:1 --form wks_norm');
+  assert.equal(parsed.routeKey, 'feishu:oc_chat_norm:root:om_msg_norm');
+  assert.deepEqual(parsed.formValue, { question_selected: ['option_1'] });
+});
+
+test('parseCardAction 支持 v2 表单把 form_value 放在 action.value.form_value', () => {
+  const data = {
+    operator: { open_id: 'ou_op2' },
+    context: {
+      open_chat_id: 'oc_chat_v2b',
+      open_message_id: 'om_msg_v2b',
+    },
+    action: {
+      tag: 'button',
+      name: 'question_submit',
+      form_name: 'question_form',
+      value: {
+        action: 'cmd:/answer req_b:0 --form wks_b',
+        form_value: { question_selected: ['option_0'] },
+      },
+    },
+  };
+  const parsed = parseCardAction(data);
+  assert.equal(parsed.action, 'cmd:/answer req_b:0 --form wks_b');
+  assert.deepEqual(parsed.formValue, { question_selected: ['option_0'] });
+});
+
 test('parseMessageEvent 缺少 create_time 时为 undefined', () => {
   const data = {
     sender: { sender_id: { open_id: 'ou_a' } },

@@ -619,6 +619,24 @@ function buildQuestionRepliedCard(questionId, answer) {
   };
 }
 
+function buildOptionDescriptionLines(presetOptions) {
+  const lines = [];
+  for (let index = 0; index < presetOptions.length; index++) {
+    const option = presetOptions[index] || {};
+    const label = String(option.label || option.value || ('option_' + index));
+    const desc = option.description ? String(option.description) : '';
+    const line = '**' + (index + 1) + '. ' + escapeLarkMd(label) + '**' + (desc ? '\n' + escapeLarkMd(desc) : '');
+    lines.push(line);
+  }
+  return lines;
+}
+
+function buildNativeQuestionSubmitValue(questionKey, walkerSessionId, routeKey) {
+  const value = { action: 'cmd:/answer ' + questionKey + ' --form ' + walkerSessionId };
+  if (routeKey) value.routeKey = routeKey;
+  return value;
+}
+
 /**
  * 构建 OpenCode 原生问题的飞书表单卡片。
  * @param {Object} options - 问题与飞书路由上下文
@@ -630,46 +648,84 @@ function buildNativeQuestionCard(options) {
   const questionCount = Number.isInteger(options.questionCount) ? options.questionCount : 1;
   const questionKey = String(options.requestID || '') + ':' + questionIndex;
   const presetOptions = Array.isArray(question.options) ? question.options : [];
-  const selectedValues = new Set(Array.isArray(options.selectedValues) ? options.selectedValues.map(String) : []);
-  const actions = [];
+  const header = { title: { tag: 'plain_text', content: question.header || '交互式问题' }, template: 'blue' };
+  const introLines = [
+    '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**',
+    escapeLarkMd(question.question || ''),
+  ];
+  if (question.custom !== false) introLines.push('', '如需自定义答案，请在本地 TUI 输入。');
 
-  if (presetOptions.length) {
-    for (let index = 0; index < presetOptions.length; index++) {
-      const optionValue = 'option_' + index;
-      const option = presetOptions[index] || {};
-      const label = String(option.label || option.value || optionValue);
-      actions.push({
-        tag: 'button',
-        text: { tag: 'plain_text', content: label },
-        type: selectedValues.has(optionValue) ? 'primary' : 'default',
-        value: buildButtonValue(
-          'cmd:/answer ' + questionKey + (question.multiple === true ? ' --toggle ' : ' --option ') + optionValue,
-          options.walkerSessionId,
-          options.routeKey,
-        ),
-      });
-    }
-
-    if (question.multiple === true) {
-      actions.push({
-        tag: 'button',
-        text: { tag: 'plain_text', content: '提交' },
-        type: 'primary',
-        value: buildButtonValue('cmd:/answer ' + questionKey + ' --submit', options.walkerSessionId, options.routeKey),
-      });
-    }
+  if (!presetOptions.length) {
+    return {
+      config: { wide_screen_mode: true, update_multi: true },
+      header,
+      elements: [{ tag: 'div', text: { tag: 'lark_md', content: introLines.join('\n') } }],
+    };
   }
 
-  const contentLines = ['**问题 ' + (questionIndex + 1) + '/' + questionCount + '**', escapeLarkMd(question.question || '')];
-  if (presetOptions.length && question.multiple === true) contentLines.push('', '可多选，点选项切换选择状态后再点“提交”。');
-  if (question.custom !== false) contentLines.push('', '如需自定义答案，请在本地 TUI 输入。');
+  const optionLines = buildOptionDescriptionLines(presetOptions);
+
+  if (question.multiple === true) {
+    const contentLines = [...introLines, '', ...optionLines];
+    const checkboxOptions = presetOptions.map((option, index) => ({
+      text: { tag: 'plain_text', content: String(option.label || option.value || ('option_' + index)) },
+      value: 'option_' + index,
+    }));
+    return {
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'fill' },
+      header,
+      body: {
+        elements: [
+          { tag: 'markdown', content: contentLines.join('\n') },
+          {
+            tag: 'form',
+            name: 'question_form',
+            elements: [
+              {
+                tag: 'multi_select_static',
+                type: 'default',
+                name: 'question_selected',
+                placeholder: { tag: 'plain_text', content: '请选择一个或多个选项' },
+                width: 'fill',
+                required: true,
+                disabled: false,
+                selected_values: [],
+                options: checkboxOptions,
+              },
+              {
+                tag: 'button',
+                name: 'question_submit',
+                text: { tag: 'plain_text', content: '提交' },
+                type: 'primary',
+                action_type: 'form_submit',
+                value: buildNativeQuestionSubmitValue(questionKey, options.walkerSessionId, options.routeKey),
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
+  const contentLines = [...introLines, '', ...optionLines];
+  const actions = presetOptions.map((option, index) => ({
+    tag: 'button',
+    text: { tag: 'plain_text', content: String(option.label || option.value || ('option_' + index)) },
+    type: 'default',
+    value: buildButtonValue(
+      'cmd:/answer ' + questionKey + ' --option option_' + index,
+      options.walkerSessionId,
+      options.routeKey,
+    ),
+  }));
 
   return {
     config: { wide_screen_mode: true, update_multi: true },
-    header: { title: { tag: 'plain_text', content: question.header || '交互式问题' }, template: 'blue' },
+    header,
     elements: [
       { tag: 'div', text: { tag: 'lark_md', content: contentLines.join('\n') } },
-      ...(actions.length ? [{ tag: 'action', actions }] : []),
+      { tag: 'action', actions },
     ],
   };
 }
