@@ -165,13 +165,21 @@ test('formatAgentEvent permission_replied 返回空字符串', () => {
   assert.equal(formatAgentEvent({ type: 'permission_replied', data: {} }), '');
 });
 
-test('formatAgentEvent todo 显示完成数', () => {
+test('formatAgentEvent todo 显示完成数和当前标题', () => {
   const ev = { type: 'todo', data: { todos: [
-    { id: 't1', status: 'completed' },
-    { id: 't2', status: 'pending' },
-    { id: 't3', status: 'completed' },
+    { id: 't1', content: '分析实现', status: 'completed' },
+    { id: 't2', content: '修改飞书卡片', status: 'in_progress' },
+    { id: 't3', content: '运行测试', status: 'pending' },
   ] } };
-  assert.equal(formatAgentEvent(ev), '📋 待办: 2/3 完成');
+  assert.equal(formatAgentEvent(ev), '📋 待办进度：1/3\n当前：修改飞书卡片');
+});
+
+test('formatAgentEvent todo 全部完成时不显示当前标题', () => {
+  const ev = { type: 'todo', data: { todos: [
+    { id: 't1', content: '分析实现', status: 'completed' },
+    { id: 't2', content: '修改飞书卡片', status: 'done' },
+  ] } };
+  assert.equal(formatAgentEvent(ev), '✅ 待办完成：2/2');
 });
 
 test('formatAgentEvent compacted 显示上下文压缩', () => {
@@ -235,6 +243,36 @@ test('ProgressCard 连续 status 事件原地替换不累积', () => {
   assert.equal(pc.statusLine, '仍在执行，已等待 90 秒', 'statusLine 被替换为最新值');
   const statusEls = card.elements.filter((el) => el.text && el.text.content.includes('仍在执行'));
   assert.equal(statusEls.length, 1, '卡片中只有一行 status');
+});
+
+test('ProgressCard 连续 todo 事件原地替换不累积', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'tool_use', name: 'Read', status: 'done' });
+  pc.append({ type: 'todo', data: { todos: [
+    { id: 't1', content: '分析实现', status: 'in_progress' },
+    { id: 't2', content: '修改代码', status: 'pending' },
+  ] } });
+  pc.append({ type: 'todo', data: { todos: [
+    { id: 't1', content: '分析实现', status: 'completed' },
+    { id: 't2', content: '修改代码', status: 'in_progress' },
+  ] } });
+  const card = pc.render();
+  const todoEls = card.elements.filter((el) => el.text && el.text.content.includes('待办进度'));
+  assert.equal(pc.entries.length, 1, 'todo 不进入 entries');
+  assert.ok(pc.entries[0].includes('Read'), 'entries 仍保留普通事件');
+  assert.equal(pc.todoLine, '📋 待办进度：1/2\n当前：修改代码');
+  assert.equal(todoEls.length, 1, '卡片中只有一行 todo');
+  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('当前：分析实现')), '旧 todo 标题不再渲染');
+});
+
+test('ProgressCard todo 事件后切换到 working', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'todo', data: { todos: [
+    { id: 't1', content: '分析原因', status: 'in_progress' },
+  ] } });
+  const card = pc.render();
+  assert.equal(card.header.template, 'blue');
+  assert.equal(card.header.title.content, '处理中');
 });
 
 test('ProgressCard done 后 statusLine 清空且不渲染', () => {

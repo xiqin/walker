@@ -15,6 +15,19 @@ function truncateText(text, maxLen) {
   return text.slice(0, maxLen) + '...';
 }
 
+function isTodoDone(todo) {
+  return todo && (todo.status === 'completed' || todo.status === 'done');
+}
+
+function getTodoTitle(todo) {
+  if (!todo) return '';
+  return todo.content || todo.title || todo.text || todo.name || '';
+}
+
+function getCurrentTodo(todos) {
+  return todos.find((todo) => todo && todo.status === 'in_progress') || todos.find((todo) => todo && !isTodoDone(todo)) || null;
+}
+
 /**
  * 将 Agent 事件格式化为飞书卡片中显示的 Markdown 文本行
  * @param {AgentEvent} event - Agent 事件对象
@@ -49,8 +62,13 @@ function formatAgentEvent(event) {
     case 'todo': {
       const todos = d.todos || [];
       const total = todos.length;
-      const doneCount = todos.filter((t) => t.status === 'completed' || t.status === 'done').length;
-      return '📋 待办: ' + doneCount + '/' + total + ' 完成';
+      const doneCount = todos.filter(isTodoDone).length;
+      if (total > 0 && doneCount === total) {
+        return '✅ 待办完成：' + doneCount + '/' + total;
+      }
+      const current = getCurrentTodo(todos);
+      const title = truncateText(getTodoTitle(current), MAX_TEXT_LEN);
+      return '📋 待办进度：' + doneCount + '/' + total + (title ? '\n当前：' + title : '');
     }
     case 'compacted':
       return '🗜️ 上下文已压缩';
@@ -100,6 +118,7 @@ class ProgressCard {
     this.entries = [];
     this.entryTypes = [];
     this.statusLine = '';
+    this.todoLine = '';
     this.done = false;
   }
 
@@ -115,6 +134,11 @@ class ProgressCard {
     }
     if (event.type === 'status') {
       this.statusLine = formatAgentEvent(event);
+      this._updatePhase(event);
+      return;
+    }
+    if (event.type === 'todo') {
+      this.todoLine = formatAgentEvent(event);
       this._updatePhase(event);
       return;
     }
@@ -151,7 +175,7 @@ class ProgressCard {
       this.phase = 'error';
       return;
     }
-    if (event.type === 'text' || event.type === 'tool_use' || event.type === 'reasoning') {
+    if (event.type === 'text' || event.type === 'tool_use' || event.type === 'reasoning' || event.type === 'todo') {
       if (this.phase === 'thinking') {
         this.phase = 'working';
       }
@@ -170,6 +194,13 @@ class ProgressCard {
       elements.push({
         tag: 'div',
         text: { tag: 'lark_md', content: entry },
+      });
+    }
+
+    if (this.todoLine) {
+      elements.push({
+        tag: 'div',
+        text: { tag: 'lark_md', content: this.todoLine },
       });
     }
 
