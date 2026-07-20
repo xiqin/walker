@@ -631,6 +631,26 @@ function buildOptionDescriptionLines(presetOptions) {
   return lines;
 }
 
+function buildNativeQuestionAnswerLines(question, answers) {
+  const presetOptions = Array.isArray(question.options) ? question.options : [];
+  const selectedAnswers = new Set(Array.isArray(answers) ? answers.map(String) : []);
+  const lines = [];
+  const matchedAnswers = new Set();
+  for (let index = 0; index < presetOptions.length; index++) {
+    const option = presetOptions[index] || {};
+    const label = String(option.label || option.value || ('option_' + index));
+    const selected = selectedAnswers.has(label) || selectedAnswers.has(String(option.value || ''));
+    if (selected) {
+      matchedAnswers.add(label);
+      if (option.value) matchedAnswers.add(String(option.value));
+    }
+    lines.push('- ' + (selected ? '[已选择] ' : '[未选择] ') + escapeLarkMd(label));
+  }
+  const customAnswers = [...selectedAnswers].filter((answer) => answer && !matchedAnswers.has(answer));
+  for (const answer of customAnswers) lines.push('- [自定义] ' + escapeLarkMd(answer));
+  return lines;
+}
+
 /**
  * 构建 OpenCode 原生问题的飞书表单卡片。
  * @param {Object} options - 问题与飞书路由上下文
@@ -765,8 +785,17 @@ function buildNativeQuestionStatusCard(options) {
     retryable: { title: '提交失败', message: '提交失败，请重试', template: 'red' },
   };
   const info = statusInfo[status] || statusInfo.expired;
-  const content = '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**\n'
-    + escapeLarkMd(question.question || '') + '\n\n' + info.message;
+  const contentLines = [
+    '**问题 ' + (questionIndex + 1) + '/' + questionCount + '**',
+    escapeLarkMd(question.question || ''),
+    '',
+    info.message,
+  ];
+  if (question.multiple === true && Array.isArray(options.answers) && options.answers.length) {
+    const answerLines = buildNativeQuestionAnswerLines(question, options.answers);
+    if (answerLines.length) contentLines.push('', '**选项**', ...answerLines);
+  }
+  const content = contentLines.join('\n');
   if (question.multiple === true) {
     const elements = [{ tag: 'markdown', content }];
     if (status === 'retryable') {

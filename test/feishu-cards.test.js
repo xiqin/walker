@@ -780,7 +780,8 @@ test('buildNativeQuestionStatusCard 多选题输出 Card JSON 2.0 状态卡', ()
     requestID: 'req_status_v2',
     questionIndex: 0,
     questionCount: 1,
-    question: { header: '多选状态', question: '状态正文', multiple: true },
+    question: { header: '多选状态', question: '状态正文', multiple: true, options: [{ label: '文本消息' }, { label: '图片消息' }] },
+    answers: ['文本消息'],
     status: 'replied',
   });
 
@@ -788,6 +789,22 @@ test('buildNativeQuestionStatusCard 多选题输出 Card JSON 2.0 状态卡', ()
   assert.equal(card.elements, undefined);
   assert.equal(card.body.elements[0].tag, 'markdown');
   assert.match(card.body.elements[0].content, /已处理/);
+  assert.match(card.body.elements[0].content, /\[已选择\] 文本消息/);
+  assert.match(card.body.elements[0].content, /\[未选择\] 图片消息/);
+});
+
+test('buildNativeQuestionStatusCard 多选已处理状态展示自定义答案', () => {
+  const card = buildNativeQuestionStatusCard({
+    requestID: 'req_status_custom',
+    questionIndex: 0,
+    questionCount: 1,
+    question: { header: '多选状态', question: '状态正文', multiple: true, options: [{ label: '文本消息' }] },
+    answers: ['文本消息', '私聊消息'],
+    status: 'replied',
+  });
+
+  assert.match(card.body.elements[0].content, /\[已选择\] 文本消息/);
+  assert.match(card.body.elements[0].content, /\[自定义\] 私聊消息/);
 });
 
 test('buildNativeQuestionStatusCard 多选 retryable 用 v2 callback 重试按钮', () => {

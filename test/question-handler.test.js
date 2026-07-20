@@ -100,6 +100,10 @@ describe('QuestionHandler', () => {
     }));
     assert.equal(result.status, 'replied');
     assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_checker', [['A', 'C']]]);
+    const statusPatch = calls.filter((call) => call.type === 'patchCard').at(-1);
+    assert.match(statusPatch.card.body.elements[0].content, /\[已选择\] A/);
+    assert.match(statusPatch.card.body.elements[0].content, /\[未选择\] B/);
+    assert.match(statusPatch.card.body.elements[0].content, /\[已选择\] C/);
   });
 
   it('多选 checker 表单提交布尔字段和自定义答案', async () => {

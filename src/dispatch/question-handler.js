@@ -32,6 +32,7 @@ class QuestionHandler {
       questionCount: request.questions.length,
       question: request.questions[index],
       selectedValues: request.selections ? request.selections[index] : [],
+      answers: request.answers ? request.answers[index] : null,
       walkerSessionId: request.walkerSessionId,
       routeKey: request.routeKey,
       status,
