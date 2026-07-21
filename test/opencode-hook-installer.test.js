@@ -1461,7 +1461,7 @@ test('生成的 TUI plugin 将 permission_reply always 映射为原生 always', 
   let deliveryReturned = false;
   const originalFetch = global.fetch;
 
-  global.fetch = async (url, options) => {
+  global.fetch = async (url, _options) => {
     let data = {};
     if (String(url).endsWith('/poll') && !deliveryReturned) {
       deliveryReturned = true;

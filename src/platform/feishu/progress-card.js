@@ -191,37 +191,26 @@ class ProgressCard {
     const elements = [];
 
     for (const entry of this.entries) {
-      elements.push({
-        tag: 'div',
-        text: { tag: 'lark_md', content: entry },
-      });
+      elements.push({ tag: 'markdown', content: entry });
     }
 
     if (this.todoLine) {
-      elements.push({
-        tag: 'div',
-        text: { tag: 'lark_md', content: this.todoLine },
-      });
+      elements.push({ tag: 'markdown', content: this.todoLine });
     }
 
     if (!this.done && this.statusLine) {
-      elements.push({
-        tag: 'div',
-        text: { tag: 'lark_md', content: this.statusLine },
-      });
+      elements.push({ tag: 'markdown', content: this.statusLine });
     }
 
     if (this.done) {
-      elements.push({
-        tag: 'div',
-        text: { tag: 'lark_md', content: '✅ 处理完成' },
-      });
+      elements.push({ tag: 'markdown', content: '✅ 处理完成' });
     }
 
     return {
-      config: { wide_screen_mode: true, update_multi: true },
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'fill' },
       header: { title: { tag: 'plain_text', content: headerTitle }, template: CARD_PHASE[this.phase] },
-      elements,
+      body: { elements },
     };
   }
 

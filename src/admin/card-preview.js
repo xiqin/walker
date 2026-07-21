@@ -271,9 +271,57 @@ function extractPreview(rendered) {
   var headerTitle = (header.title && header.title.content) || '';
   var headerTemplate = header.template || 'default';
 
-  var elements = (rendered.elements || []).map(function (el) {
+  var rawElements = rendered.body && rendered.body.elements ? rendered.body.elements : (rendered.elements || []);
+  var elements = rawElements.map(function (el) {
+    if (el.tag === 'markdown') {
+      return { type: 'text', content: el.content || '', format: 'markdown' };
+    }
     if (el.tag === 'div' && el.text) {
       return { type: 'text', content: el.text.content || '', format: el.text.tag || 'plain_text' };
+    }
+    if (el.tag === 'button') {
+      return {
+        type: 'button',
+        label: (el.text && el.text.content) || '',
+        style: el.type || 'default',
+      };
+    }
+    if (el.tag === 'form') {
+      var formElements = (el.elements || []).map(function (sub) {
+        if (sub.tag === 'button') {
+          return {
+            type: 'button',
+            label: (sub.text && sub.text.content) || '',
+            style: sub.type || 'default',
+          };
+        }
+        if (sub.tag === 'multi_select_static' || sub.tag === 'select_static') {
+          return {
+            type: sub.tag,
+            name: sub.name || '',
+            optionCount: (sub.options || []).length,
+            options: (sub.options || []).map(function (opt) {
+              return { label: (opt.text && opt.text.content) || '', value: opt.value || '' };
+            }),
+          };
+        }
+        if (sub.tag === 'input') {
+          return {
+            type: 'input',
+            name: sub.name || '',
+            placeholder: (sub.placeholder && sub.placeholder.content) || '',
+          };
+        }
+        if (sub.tag === 'checker') {
+          return {
+            type: 'checker',
+            label: (sub.text && sub.text.content) || '',
+            checked: !!sub.checked,
+          };
+        }
+        return { type: sub.tag || 'unknown' };
+      });
+      return { type: 'form', actions: formElements };
     }
     if (el.tag === 'action') {
       var actions = (el.actions || []).map(function (act) {
@@ -306,6 +354,21 @@ function extractPreview(rendered) {
       return { type: 'action', actions: actions };
     }
     if (el.tag === 'column_set') {
+      var colButtons = [];
+      (el.columns || []).forEach(function (col) {
+        (col.elements || []).forEach(function (sub) {
+          if (sub.tag === 'button') {
+            colButtons.push({
+              type: 'button',
+              label: (sub.text && sub.text.content) || '',
+              style: sub.type || 'default',
+            });
+          }
+        });
+      });
+      if (colButtons.length > 0) {
+        return { type: 'action', actions: colButtons };
+      }
       return { type: 'columns' };
     }
     return { type: el.tag || 'unknown' };

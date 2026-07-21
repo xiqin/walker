@@ -27,8 +27,8 @@ test('ProgressCard append tool_use 事件显示工具名称', () => {
   pc.append({ type: 'text', text: '正在处理...' });
   pc.append({ type: 'tool_use', name: 'Bash', input: 'ls -la', status: 'done' });
   const card = pc.render();
-  const textEls = card.elements.filter((el) => el.tag === 'div' && el.text);
-  assert.ok(textEls.some((el) => el.text.content.includes('Bash')));
+  const textEls = card.body.elements.filter((el) => el.tag === 'markdown' && el.content);
+  assert.ok(textEls.some((el) => el.content.includes('Bash')));
 });
 
 test('ProgressCard done 后切换到 done 模板', () => {
@@ -45,8 +45,8 @@ test('ProgressCard append done 事件后保留已有内容并切换完成', () =
   pc.append({ type: 'done', data: { reason: 'idle' } });
   const card = pc.render();
   assert.equal(card.header.template, 'green');
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('最终回答')));
-  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('✅ 处理完成')));
+  assert.ok(!card.body.elements.some((el) => el.content.includes('最终回答')));
+  assert.ok(card.body.elements.some((el) => el.content.includes('✅ 处理完成')));
 });
 
 test('ProgressCard 忽略普通 text 事件', () => {
@@ -54,7 +54,7 @@ test('ProgressCard 忽略普通 text 事件', () => {
   pc.append({ type: 'text', text: '不应该出现在卡片里' });
   const card = pc.render();
   assert.ok(!pc.entries.includes('不应该出现在卡片里'));
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('不应该出现在卡片里')));
+  assert.ok(!card.body.elements.some((el) => el.content.includes('不应该出现在卡片里')));
 });
 
 test('ProgressCard 忽略 delta text 事件', () => {
@@ -63,7 +63,7 @@ test('ProgressCard 忽略 delta text 事件', () => {
   pc.append({ type: 'text', data: { text: '好', delta: true } });
   const card = pc.render();
   assert.equal(pc.entries.length, 0);
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('你好')));
+  assert.ok(!card.body.elements.some((el) => el.content.includes('你好')));
 });
 
 test('ProgressCard 连续 text delta 事件不进入卡片', () => {
@@ -71,8 +71,8 @@ test('ProgressCard 连续 text delta 事件不进入卡片', () => {
   pc.append({ type: 'text', data: { text: '你', delta: true } });
   pc.append({ type: 'text', data: { text: '好', delta: true } });
   const card = pc.render();
-  assert.equal(card.elements.length, 0);
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('你好')));
+  assert.equal(card.body.elements.length, 0);
+  assert.ok(!card.body.elements.some((el) => el.content.includes('你好')));
 });
 
 test('ProgressCard error 事件切换到 red 模板', () => {
@@ -88,9 +88,9 @@ test('ProgressCard append 多个事件后渲染包含所有内容', () => {
   pc.append({ type: 'tool_use', name: 'Read', status: 'done' });
   pc.append({ type: 'text', text: '第二段' });
   const card = pc.render();
-  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('Read')));
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('第一段')));
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('第二段')));
+  assert.ok(card.body.elements.some((el) => el.content.includes('Read')));
+  assert.ok(!card.body.elements.some((el) => el.content.includes('第一段')));
+  assert.ok(!card.body.elements.some((el) => el.content.includes('第二段')));
 });
 
 test('ProgressCard patchFailed 时返回新消息指令', () => {
@@ -153,8 +153,8 @@ test('ProgressCard done 后显示中性完成提示', () => {
   const card = pc.render();
   assert.equal(card.header.template, 'green');
   assert.equal(card.header.title.content, '完成');
-  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('✅ 处理完成')));
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('一段回答')));
+  assert.ok(card.body.elements.some((el) => el.content.includes('✅ 处理完成')));
+  assert.ok(!card.body.elements.some((el) => el.content.includes('一段回答')));
 });
 
 test('formatAgentEvent permission 返回空字符串', () => {
@@ -231,7 +231,7 @@ test('ProgressCard status 事件进入 statusLine 而非 entries', () => {
   assert.equal(pc.entries.length, 1, 'entries 不包含 status 行');
   assert.ok(pc.entries[0].includes('Bash'), 'entries 仍保留工具调用');
   assert.equal(pc.statusLine, '仍在执行，已等待 30 秒');
-  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('仍在执行')), '卡片渲染包含 statusLine');
+  assert.ok(card.body.elements.some((el) => el.content.includes('仍在执行')), '卡片渲染包含 statusLine');
 });
 
 test('ProgressCard 连续 status 事件原地替换不累积', () => {
@@ -241,7 +241,7 @@ test('ProgressCard 连续 status 事件原地替换不累积', () => {
   const card = pc.render();
   assert.equal(pc.entries.length, 0, 'status 不进 entries');
   assert.equal(pc.statusLine, '仍在执行，已等待 90 秒', 'statusLine 被替换为最新值');
-  const statusEls = card.elements.filter((el) => el.text && el.text.content.includes('仍在执行'));
+  const statusEls = card.body.elements.filter((el) => el.content.includes('仍在执行'));
   assert.equal(statusEls.length, 1, '卡片中只有一行 status');
 });
 
@@ -257,12 +257,12 @@ test('ProgressCard 连续 todo 事件原地替换不累积', () => {
     { id: 't2', content: '修改代码', status: 'in_progress' },
   ] } });
   const card = pc.render();
-  const todoEls = card.elements.filter((el) => el.text && el.text.content.includes('待办进度'));
+  const todoEls = card.body.elements.filter((el) => el.content.includes('待办进度'));
   assert.equal(pc.entries.length, 1, 'todo 不进入 entries');
   assert.ok(pc.entries[0].includes('Read'), 'entries 仍保留普通事件');
   assert.equal(pc.todoLine, '📋 待办进度：1/2\n当前：修改代码');
   assert.equal(todoEls.length, 1, '卡片中只有一行 todo');
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('当前：分析实现')), '旧 todo 标题不再渲染');
+  assert.ok(!card.body.elements.some((el) => el.content.includes('当前：分析实现')), '旧 todo 标题不再渲染');
 });
 
 test('ProgressCard todo 事件后切换到 working', () => {
@@ -281,8 +281,8 @@ test('ProgressCard done 后 statusLine 清空且不渲染', () => {
   pc.append({ type: 'done' });
   const card = pc.render();
   assert.equal(pc.statusLine, '');
-  assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('仍在执行')), '完成后不显示 statusLine');
-  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('✅ 处理完成')));
+  assert.ok(!card.body.elements.some((el) => el.content.includes('仍在执行')), '完成后不显示 statusLine');
+  assert.ok(card.body.elements.some((el) => el.content.includes('✅ 处理完成')));
 });
 
 test('ProgressCard compacted 事件从 thinking 切换到 working', () => {
@@ -292,7 +292,7 @@ test('ProgressCard compacted 事件从 thinking 切换到 working', () => {
   assert.equal(pc.phase, 'working', 'compacted 应将 thinking 切换为 working');
   assert.equal(card.header.template, 'blue');
   assert.equal(card.header.title.content, '处理中');
-  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('🗜️ 上下文已压缩')), '卡片渲染包含压缩提示');
+  assert.ok(card.body.elements.some((el) => el.content.includes('🗜️ 上下文已压缩')), '卡片渲染包含压缩提示');
 });
 
 test('ProgressCard compacted 事件不覆盖已有的 working 状态', () => {
@@ -302,6 +302,6 @@ test('ProgressCard compacted 事件不覆盖已有的 working 状态', () => {
   const card = pc.render();
   assert.equal(pc.phase, 'working');
   assert.equal(card.header.template, 'blue');
-  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('Bash')), '已有工具事件保留');
-  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('🗜️ 上下文已压缩')), '压缩提示进入 entries');
+  assert.ok(card.body.elements.some((el) => el.content.includes('Bash')), '已有工具事件保留');
+  assert.ok(card.body.elements.some((el) => el.content.includes('🗜️ 上下文已压缩')), '压缩提示进入 entries');
 });

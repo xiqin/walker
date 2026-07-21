@@ -63,9 +63,21 @@ function findButtonValue(card, text) {
   if (Array.isArray(card.elements)) roots.push(...card.elements);
   if (card.body && Array.isArray(card.body.elements)) roots.push(...card.body.elements);
   for (const element of roots) {
+    if (element.tag === 'button' && element.text && element.text.content === text) {
+      return element.value || ((element.behaviors || []).find((item) => item.type === 'callback') || {}).value;
+    }
     for (const action of element.actions || element.elements || []) {
       if (action.tag === 'button' && action.text && action.text.content === text) {
         return action.value || ((action.behaviors || []).find((item) => item.type === 'callback') || {}).value;
+      }
+    }
+    if (element.tag === 'column_set') {
+      for (const col of element.columns || []) {
+        for (const action of col.elements || []) {
+          if (action.tag === 'button' && action.text && action.text.content === text) {
+            return action.value || ((action.behaviors || []).find((item) => item.type === 'callback') || {}).value;
+          }
+        }
       }
     }
   }
@@ -312,11 +324,11 @@ describe('集成测试: 原生 question/permission protocol v5', () => {
         { header: '范围', question: '选择范围', options: [{ label: '代码', description: '源代码' }, { label: '测试', description: '测试文件' }], multiple: true, custom: true },
       ]);
       await waitFor(() => fixture.cards().length === 2);
-      assert.equal(fixture.cards()[0].card.schema, undefined, '单选卡片保持 legacy v1');
+      assert.equal(fixture.cards()[0].card.schema, '2.0', '单选卡片使用 Card JSON 2.0');
       assert.equal(fixture.cards()[1].card.schema, '2.0', '多选卡片输出 Card JSON 2.0');
-      assert.ok(fixture.cards()[0].card.elements[0].text.content.includes('问题'), '单选正文含问题序号');
+      assert.ok(fixture.cards()[0].card.body.elements[0].content.includes('问题'), '单选正文含问题序号');
       assert.ok(fixture.cards()[1].card.body.elements[0].content.includes('问题'), '多选 v2 正文含问题序号');
-      assert.ok(fixture.cards()[0].card.elements[0].text.content.includes('完整检查'), '单选正文含选项描述');
+      assert.ok(fixture.cards()[0].card.body.elements[0].content.includes('完整检查'), '单选正文含选项描述');
       assert.equal(fixture.cards()[1].card.body.elements[0].content.includes('源代码'), false, '多选 v2 正文不重复展示选项描述');
       const checkerForm = fixture.cards()[1].card.body.elements.find((element) => element.tag === 'form');
       assert.ok(checkerForm.elements.some((element) => element.tag === 'checker' && element.text.content.includes('源代码')), '多选 checker 内展示选项描述');
@@ -335,7 +347,6 @@ describe('集成测试: 原生 question/permission protocol v5', () => {
       }]);
       assert.deepEqual(fixture.sdk.promptCalls, [], 'question_reply 不得走 promptAsync');
       await waitFor(() => fixture.patchCards().filter((call) => {
-        if (call.card.elements) return call.card.elements[0].text.content.includes('已处理');
         return call.card.body.elements[0].content.includes('已处理');
       }).length >= 2);
     } finally {
@@ -409,7 +420,7 @@ describe('集成测试: 原生 question/permission protocol v5', () => {
       void retryable.submitCard(0, null, '是');
       await waitFor(() => requestState(retryable, 'req_retryable').status === 'collecting');
       assert.deepEqual(retryable.sdk.questionCalls, []);
-      await waitFor(() => retryable.patchCards().some((call) => call.card.elements.some((el) => el.actions && el.actions.some((a) => a.tag === 'button' && a.text && a.text.content === '重试提交'))));
+      await waitFor(() => retryable.patchCards().some((call) => call.card.body.elements.some((el) => el.tag === 'button' && el.text && el.text.content === '重试提交')));
 
       void retryable.submitPatchedCard(retryable.cards()[0].cardId, '重试提交');
       await waitFor(() => retryable.sdk.questionCalls.length === 1);
@@ -448,7 +459,7 @@ describe('集成测试: 原生 question/permission protocol v5', () => {
       assert.equal(requestState(fixture, 'req_v3').status, 'feishu_unavailable');
       assert.equal(fixture.bridge.runtimes.get(fixture.runtimeId).queue.some((delivery) => delivery.type === 'question_reply'), false);
       assert.deepEqual(fixture.sdk.questionCalls, []);
-      assert.ok(fixture.patchCards().some((call) => call.card.elements[0].text.content.includes('请在本地 TUI 回答')),
+      assert.ok(fixture.patchCards().some((call) => call.card.body.elements[0].content.includes('请在本地 TUI 回答')),
         'v3 降级卡片必须提示用户在本地 TUI 回答，而非由 Walker 自动替用户回答');
     } finally {
       await fixture.close();
@@ -518,7 +529,7 @@ describe('集成测试: 原生 question/permission protocol v5', () => {
         directory: CWD,
       }]);
       await waitFor(() => fixture.patchCards().some((call) => call.card.header.title.content === '权限已处理'
-        && call.card.elements[0].text.content.includes('已始终允许权限请求')));
+        && call.card.body.elements[0].content.includes('已始终允许权限请求')));
       await permitAction;
       assert.equal(fixture.bridge.runtimes.get(fixture.runtimeId).queue.some((delivery) => delivery.type === 'permission_reply'), false);
       assert.deepEqual(fixture.sdk.questionCalls, []);

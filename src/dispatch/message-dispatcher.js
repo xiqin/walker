@@ -825,19 +825,19 @@ class MessageDispatcher {
     return { model: modelRef, sessionId: current.id };
   }
 
-	  async _cmdPermit(cmd) {
-	    const args = cmd.args || [];
-	    if (args.length < 2) {
-	      await this._callFeishu('replyText', [this._replyCtx(cmd), '用法: /permit <permissionId> <allow|deny|always>']);
-	      return { error: 'missing_args' };
-	    }
-	    const permissionId = args[0];
-	    const response = args[1];
-	    if (response !== 'allow' && response !== 'deny' && response !== 'always') {
-	      await this._callFeishu('replyText', [this._replyCtx(cmd), '参数错误: 只接受 allow、deny 或 always。用法: /permit <permissionId> <allow|deny|always>']);
-	      return { error: 'invalid_response' };
-	    }
-	    const remember = response === 'always';
+  async _cmdPermit(cmd) {
+    const args = cmd.args || [];
+    if (args.length < 2) {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '用法: /permit <permissionId> <allow|deny|always>']);
+      return { error: 'missing_args' };
+    }
+    const permissionId = args[0];
+    const response = args[1];
+    if (response !== 'allow' && response !== 'deny' && response !== 'always') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '参数错误: 只接受 allow、deny 或 always。用法: /permit <permissionId> <allow|deny|always>']);
+      return { error: 'invalid_response' };
+    }
+    const remember = response === 'always';
     const targetSessionId = args[2];
     let current = targetSessionId && typeof this.sessionService.getSession === 'function'
       ? this.sessionService.getSession(targetSessionId)
@@ -854,14 +854,14 @@ class MessageDispatcher {
     if (!driver || typeof driver.replyPermission !== 'function') {
       await this._callFeishu('replyText', [this._replyCtx(cmd), '当前 agent 不支持权限回复']);
       return { error: 'driver_not_supported' };
-	    }
-	    try {
-	      await driver.replyPermission(current.agentRef, permissionId, response, remember);
-	      const patched = this.permissionHandler.patchReplied(permissionId, response);
-	      if (!patched) {
-	        await this._callFeishu('replyText', [this._replyCtx(cmd), '已' + (response === 'deny' ? '拒绝' : '允许') + '权限请求 ' + permissionId]);
-	      }
-	      return { replied: permissionId, response };
+    }
+    try {
+      await driver.replyPermission(current.agentRef, permissionId, response, remember);
+      const patched = this.permissionHandler.patchReplied(permissionId, response);
+      if (!patched) {
+        await this._callFeishu('replyText', [this._replyCtx(cmd), '已' + (response === 'deny' ? '拒绝' : '允许') + '权限请求 ' + permissionId]);
+      }
+      return { replied: permissionId, response };
     } catch (err) {
       logger.warn('permit command failed', {
         permissionId,
@@ -1356,6 +1356,7 @@ class MessageDispatcher {
           method: methodName,
           attempts: maxAttempts,
           error: err && err.message ? err.message : String(err),
+          response: err && err.response,
         }, context || {}));
         return fallback;
       }

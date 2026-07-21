@@ -651,12 +651,11 @@ async function tui(api) {
     const sessionId = properties.sessionID || properties.sessionId || activeSessionId;
     if (!sessionId) return;
     const entry = activeDeliveries.get(sessionId);
-    const deliveryId = entry ? entry.deliveryId : '';
-    const deliveryState = entry ? 'final' : null;
-    if (entry) {
-      stopHeartbeat(sessionId);
-      activeDeliveries.delete(sessionId);
-    }
+    if (!entry) return;
+    const deliveryId = entry.deliveryId;
+    const deliveryState = 'final';
+    stopHeartbeat(sessionId);
+    activeDeliveries.delete(sessionId);
     const error = { message: errorMessage(properties.error) };
     await report(sessionId, deliveryId, [], error, null, deliveryState).catch(() => {});
   });

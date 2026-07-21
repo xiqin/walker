@@ -140,8 +140,8 @@ describe('createApp', () => {
     const patches = calls.filter((call) => call.type === 'patchCard');
     assert.equal(patches.length, 1);
     assert.equal(patches[0].messageId, 'om_original_model_card');
-    assert.ok(patches[0].card.elements.some((el) => el.text && el.text.content === '第 2 / 2 页'));
-    assert.ok(patches[0].card.elements.some((el) => el.tag === 'action' && el.actions.some((button) => button.text.content === 'Model 21 (custom)')));
+    assert.ok(patches[0].card.body.elements.some((el) => el.content === '第 2 / 2 页'));
+    assert.ok(patches[0].card.body.elements.some((el) => el.tag === 'button' && el.text && el.text.content === 'Model 21 (custom)'));
     assert.equal(calls.filter((call) => call.type === 'replyText').length, 0);
     assert.equal(calls.filter((call) => call.type === 'replyCard').length, 0);
   });
@@ -160,9 +160,9 @@ describe('createApp', () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].type, 'replyCard');
     assert.deepEqual(calls[0].replyCtx, { messageId: 'om_trigger', chatId: 'oc_chat1' });
-    assert.ok(calls[0].card.elements.some(el => el.text && el.text.content === '第 1 / 1 页'));
-    const modelButton = calls[0].card.elements.find(el => el.tag === 'action' && el.actions[0].text.content === 'Model 1 (custom)');
-    assert.equal(modelButton.actions[0].value.routeKey, 'feishu:oc_chat1:root:om_root1');
+    assert.ok(calls[0].card.body.elements.some(el => el.content === '第 1 / 1 页'));
+    const modelButton = calls[0].card.body.elements.find(el => el.tag === 'button' && el.text && el.text.content === 'Model 1 (custom)');
+    assert.equal(modelButton.behaviors[0].value.routeKey, 'feishu:oc_chat1:root:om_root1');
   });
 
   it('sendModelList 带 updateMessageId 时使用 patchCard 更新原卡片', async () => {
@@ -181,7 +181,7 @@ describe('createApp', () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].type, 'patchCard');
     assert.equal(calls[0].messageId, 'om_original_card');
-    assert.ok(calls[0].card.elements.some(el => el.text && el.text.content === '第 2 / 2 页'));
+    assert.ok(calls[0].card.body.elements.some(el => el.content === '第 2 / 2 页'));
   });
 
   it('sendModelList 不吞 patchCard 的空返回值或异常', async () => {
@@ -377,7 +377,7 @@ describe('createApp', () => {
     assert.ok(lastPatch.card.header.template === 'green');
     const replyTextCall = calls.find((call) => call.type === 'replyMarkdown' && call.text && call.text.includes('我是 opencode'));
     assert.ok(replyTextCall, '最终回答应通过 markdown 卡片消息发送');
-    assert.ok(!lastPatch.card.elements.some((el) => el.text.content.includes('我是 opencode')), '最终回答不应进入卡片');
+    assert.ok(!lastPatch.card.body.elements.some((el) => el.content.includes('我是 opencode')), '最终回答不应进入卡片');
     assert.equal(lastPatch.card.header.template, 'green');
   });
 

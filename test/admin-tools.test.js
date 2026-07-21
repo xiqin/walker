@@ -257,7 +257,8 @@ test('previewCard: 预览 progress 卡片', function () {
   assert.equal(result.typeName, 'progress');
   assert.ok(result.rendered);
   assert.ok(result.rendered.header);
-  assert.ok(result.rendered.elements.length > 0);
+  var els = result.rendered.body ? result.rendered.body.elements : result.rendered.elements;
+  assert.ok(els.length > 0);
 });
 
 test('previewCard: 使用自定义数据预览 error 卡片', function () {
@@ -281,11 +282,17 @@ test('extractPreview: 从渲染结果提取视觉摘要', function () {
   assert.ok(Array.isArray(preview.elements));
 });
 
-test('extractPreview: 错误卡片预览含 action 元素', function () {
+test('extractPreview: 错误卡片预览含 button 元素', function () {
   var result = previewCard('session_list');
   var preview = result.preview;
-  var hasAction = preview.elements.some(function (e) { return e.type === 'action'; });
-  assert.ok(hasAction);
+  var hasButton = preview.elements.some(function (e) {
+    if (e.type === 'button') return true;
+    if (e.type === 'action' && Array.isArray(e.actions)) {
+      return e.actions.some(function (a) { return a.type === 'button'; });
+    }
+    return false;
+  });
+  assert.ok(hasButton);
 });
 
 // ===== 指标读取测试 =====

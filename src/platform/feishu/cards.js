@@ -80,6 +80,36 @@ function buildCallbackButton(opts) {
 }
 
 /**
+ * 将多个回调按钮横向排列为一行（schema 2.0 column_set）
+ * @param {Object[]} buttons - buildCallbackButton 生成的按钮元素数组
+ * @returns {Object} column_set 元素，所有按钮等宽分布在一行
+ */
+function buildButtonRow(buttons) {
+  const columns = buttons.map((button) => {
+    const callbackValue = (button.behaviors || []).find((b) => b.type === 'callback');
+    const actionButton = {
+      tag: 'button',
+      text: button.text,
+      type: button.type || 'default',
+      size: 'small',
+      value: callbackValue ? callbackValue.value : button.value,
+    };
+    return {
+      tag: 'column',
+      width: 'weighted',
+      weight: 1,
+      vertical_align: 'center',
+      elements: [actionButton],
+    };
+  });
+  return {
+    tag: 'column_set',
+    flex_mode: 'stretch',
+    columns,
+  };
+}
+
+/**
  * 渲染会话列表的飞书卡片 JSON 结构
  * @param {Object[]} sessions - 会话对象列表
  * @param {string|null} currentSessionId - 当前绑定的会话 ID
@@ -93,15 +123,14 @@ function renderSessionListCard(sessions, currentSessionId, routeKeyOrOptions) {
   const routeKey = options.routeKey;
   if (!sessions || sessions.length === 0) {
     return {
-      config: { wide_screen_mode: true },
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'fill' },
       header: { title: { tag: 'plain_text', content: 'Walker 会话列表' }, template: 'default' },
-      elements: [
-        { tag: 'div', text: { tag: 'lark_md', content: '暂无活跃会话\n发送 **/new** 创建新会话，或发送 **/attach** 纳入已有 OpenCode 会话' } },
-        { tag: 'action', actions: [
-          { tag: 'button', text: { tag: 'plain_text', content: '纳入已有 OpenCode' }, type: 'primary', value: buildCommandValue('cmd:/attach', routeKey) },
-          { tag: 'button', text: { tag: 'plain_text', content: '新建会话' }, type: 'default', value: buildCommandValue('cmd:/new', routeKey) },
-        ] },
-      ],
+      body: { elements: [
+        { tag: 'markdown', content: '暂无活跃会话\n发送 **/new** 创建新会话，或发送 **/attach** 纳入已有 OpenCode 会话' },
+        buildCallbackButton({ text: '纳入已有 OpenCode', type: 'primary', value: buildCommandValue('cmd:/attach', routeKey) }),
+        buildCallbackButton({ text: '新建会话', type: 'default', value: buildCommandValue('cmd:/new', routeKey) }),
+      ] },
     };
   }
 
@@ -115,7 +144,7 @@ function renderSessionListCard(sessions, currentSessionId, routeKeyOrOptions) {
 
   const elements = [];
   if (totalPages > 1) {
-    elements.push({ tag: 'div', text: { tag: 'lark_md', content: '第 ' + page + ' / ' + totalPages + ' 页' } });
+    elements.push({ tag: 'markdown', content: '第 ' + page + ' / ' + totalPages + ' 页' });
   }
 
   for (const s of pageSessions) {
@@ -131,55 +160,34 @@ function renderSessionListCard(sessions, currentSessionId, routeKeyOrOptions) {
     const opencodeLabel = opencodeSessionId ? ' · opencode: `' + opencodeSessionId + '`' : '';
 
     elements.push({
-      tag: 'column_set',
-      columns: [
-        {
-          tag: 'column',
-          width: 'weighted',
-          weight: 1,
-          vertical_align: 'top',
-          elements: [
-            {
-              tag: 'div',
-              text: {
-                tag: 'lark_md',
-                content: emoji + ' **' + escapeLarkMd(title) + '**' + marker + ' `' + s.id + '`'
-                  + '\n' + agentLabel + ' · ' + cwdLabel + opencodeLabel
-                  + '\n状态: ' + s.status + (timeLabel ? ' · ' + timeLabel : ''),
-              },
-            },
-          ],
-        },
-      ],
+      tag: 'markdown',
+      content: emoji + ' **' + escapeLarkMd(title) + '**' + marker + ' `' + s.id + '`'
+        + '\n' + agentLabel + ' · ' + cwdLabel + opencodeLabel
+        + '\n状态: ' + s.status + (timeLabel ? ' · ' + timeLabel : ''),
     });
-
-    elements.push({
-      tag: 'action',
-      actions: [
-        { tag: 'button', text: { tag: 'plain_text', content: isCurrent ? '已聚焦' : '设为焦点' }, type: isCurrent ? 'default' : 'primary', value: buildButtonValue('cmd:/use', s.id, routeKey) },
-        { tag: 'button', text: { tag: 'plain_text', content: '停止' }, type: 'default', value: buildButtonValue('cmd:/stop', s.id, routeKey) },
-        { tag: 'button', text: { tag: 'plain_text', content: '删除' }, type: 'danger', value: buildButtonValue('cmd:/delete', s.id, routeKey) },
-      ],
-    });
+    elements.push(buildButtonRow([
+      buildCallbackButton({ text: isCurrent ? '已聚焦' : '设为焦点', type: isCurrent ? 'default' : 'primary', value: buildButtonValue('cmd:/use', s.id, routeKey) }),
+      buildCallbackButton({ text: '停止', type: 'default', value: buildButtonValue('cmd:/stop', s.id, routeKey) }),
+      buildCallbackButton({ text: '删除', type: 'danger', value: buildButtonValue('cmd:/delete', s.id, routeKey) }),
+    ]));
   }
 
   if (totalPages > 1) {
-    const navigation = [];
+    const navButtons = [];
     if (page > 1) {
-      navigation.push({ tag: 'button', text: { tag: 'plain_text', content: '上一页' }, type: 'default', value: buildCommandValue('cmd:/list --page ' + (page - 1), routeKey) });
+      navButtons.push(buildCallbackButton({ text: '上一页', type: 'default', value: buildCommandValue('cmd:/list --page ' + (page - 1), routeKey) }));
     }
     if (page < totalPages) {
-      navigation.push({ tag: 'button', text: { tag: 'plain_text', content: '下一页' }, type: 'default', value: buildCommandValue('cmd:/list --page ' + (page + 1), routeKey) });
+      navButtons.push(buildCallbackButton({ text: '下一页', type: 'default', value: buildCommandValue('cmd:/list --page ' + (page + 1), routeKey) }));
     }
-    if (navigation.length > 0) {
-      elements.push({ tag: 'action', actions: navigation });
-    }
+    if (navButtons.length > 0) elements.push(buildButtonRow(navButtons));
   }
 
   return {
-    config: { wide_screen_mode: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: 'Walker 会话列表 (' + visible.length + ')' }, template: 'blue' },
-    elements,
+    body: { elements },
   };
 }
 
@@ -190,16 +198,15 @@ function renderSessionListCard(sessions, currentSessionId, routeKeyOrOptions) {
  */
 function renderUnboundRouteCard(routeKey) {
   return {
-    config: { wide_screen_mode: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: '未绑定会话' }, template: 'yellow' },
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: '当前对话未绑定任何 agent 会话\n\n可以直接纳入已启动的 OpenCode 会话，或新建一个会话。' } },
-      { tag: 'action', actions: [
-        { tag: 'button', text: { tag: 'plain_text', content: '纳入已有 OpenCode' }, type: 'primary', value: buildCommandValue('cmd:/attach', routeKey) },
-        { tag: 'button', text: { tag: 'plain_text', content: '新建会话' }, type: 'default', value: buildCommandValue('cmd:/new', routeKey) },
-        { tag: 'button', text: { tag: 'plain_text', content: '查看 Walker 会话' }, type: 'default', value: buildCommandValue('cmd:/list', routeKey) },
-      ] },
-    ],
+    body: { elements: [
+      { tag: 'markdown', content: '当前对话未绑定任何 agent 会话\n\n可以直接纳入已启动的 OpenCode 会话，或新建一个会话。' },
+      buildCallbackButton({ text: '纳入已有 OpenCode', type: 'primary', value: buildCommandValue('cmd:/attach', routeKey) }),
+      buildCallbackButton({ text: '新建会话', type: 'default', value: buildCommandValue('cmd:/new', routeKey) }),
+      buildCallbackButton({ text: '查看 Walker 会话', type: 'default', value: buildCommandValue('cmd:/list', routeKey) }),
+    ] },
   };
 }
 
@@ -392,15 +399,6 @@ function findModelByRef(models, ref) {
   return models.find((model) => model.id === id && (!provider || model.provider === provider)) || null;
 }
 
-function pushModelButton(elements, model, routeKey, type) {
-  elements.push({
-    tag: 'action',
-    actions: [
-      { tag: 'button', text: { tag: 'plain_text', content: getModelLabel(model) }, type: type || 'default', value: buildCommandValue(getModelCommand(model), routeKey) },
-    ],
-  });
-}
-
 /**
  * 渲染可用模型列表飞书卡片
  * @param {Object[]} models - 统一模型视图列表
@@ -416,11 +414,12 @@ function renderModelListCard(models, options) {
 
   if (available.length === 0) {
     return {
-      config: { wide_screen_mode: true },
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'fill' },
       header: { title: { tag: 'plain_text', content: 'Walker 模型列表' }, template: 'default' },
-      elements: [
-        { tag: 'div', text: { tag: 'lark_md', content: '暂无可用模型。' } },
-      ],
+      body: { elements: [
+        { tag: 'markdown', content: '暂无可用模型。' },
+      ] },
     };
   }
 
@@ -468,33 +467,30 @@ function renderModelListCard(models, options) {
   const start = (page - 1) * MAX_MODEL_CARD_ITEMS;
   const pageModels = ordered.slice(start, start + MAX_MODEL_CARD_ITEMS);
   const elements = [
-    { tag: 'div', text: { tag: 'lark_md', content: '第 ' + page + ' / ' + totalPages + ' 页' } },
+    { tag: 'markdown', content: '第 ' + page + ' / ' + totalPages + ' 页' },
   ];
 
   let previousSection = null;
   for (const item of pageModels) {
     if (item.section !== previousSection) {
-      elements.push({ tag: 'div', text: { tag: 'lark_md', content: '**' + escapeLarkMd(item.section) + '**' } });
+      elements.push({ tag: 'markdown', content: '**' + escapeLarkMd(item.section) + '**' });
       previousSection = item.section;
     }
-    pushModelButton(elements, item.model, routeKey, item.type);
+    elements.push(buildCallbackButton({ text: getModelLabel(item.model), type: item.type || 'default', value: buildCommandValue(getModelCommand(item.model), routeKey) }));
   }
 
-  const navigation = [];
   if (page > 1) {
-    navigation.push({ tag: 'button', text: { tag: 'plain_text', content: '上一页' }, type: 'default', value: buildCommandValue('cmd:/model --page ' + (page - 1), routeKey) });
+    elements.push(buildCallbackButton({ text: '上一页', type: 'default', value: buildCommandValue('cmd:/model --page ' + (page - 1), routeKey) }));
   }
   if (page < totalPages) {
-    navigation.push({ tag: 'button', text: { tag: 'plain_text', content: '下一页' }, type: 'default', value: buildCommandValue('cmd:/model --page ' + (page + 1), routeKey) });
-  }
-  if (navigation.length > 0) {
-    elements.push({ tag: 'action', actions: navigation });
+    elements.push(buildCallbackButton({ text: '下一页', type: 'default', value: buildCommandValue('cmd:/model --page ' + (page + 1), routeKey) }));
   }
 
   return {
-    config: { wide_screen_mode: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: 'Walker 模型列表 (' + ordered.length + ')' }, template: 'blue' },
-    elements,
+    body: { elements },
   };
 }
 
@@ -510,21 +506,14 @@ function renderHelpCard(commands, options) {
   const elements = [];
   for (const cmd of commands || []) {
     if (!cmd || !cmd.name) continue;
-    elements.push({
-      tag: 'div',
-      text: { tag: 'lark_md', content: '**' + escapeLarkMd(cmd.usage || ('/' + cmd.name)) + '** — ' + escapeLarkMd(cmd.desc || '') },
-    });
-    elements.push({
-      tag: 'action',
-      actions: [
-        { tag: 'button', text: { tag: 'plain_text', content: '/' + cmd.name }, type: 'default', value: buildCommandValue('cmd:/' + cmd.name, routeKey) },
-      ],
-    });
+    elements.push({ tag: 'markdown', content: '**' + escapeLarkMd(cmd.usage || ('/' + cmd.name)) + '** — ' + escapeLarkMd(cmd.desc || '') });
+    elements.push(buildCallbackButton({ text: '/' + cmd.name, type: 'default', value: buildCommandValue('cmd:/' + cmd.name, routeKey) }));
   }
   return {
-    config: { wide_screen_mode: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: 'Walker 命令帮助' }, template: 'blue' },
-    elements,
+    body: { elements },
   };
 }
 
@@ -556,11 +545,12 @@ function formatRelativeTime(ts) {
  */
 function renderErrorCard(message) {
   return {
-    config: { wide_screen_mode: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: '错误' }, template: 'red' },
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: message } },
-    ],
+    body: { elements: [
+      { tag: 'markdown', content: message },
+    ] },
   };
 }
 
@@ -591,19 +581,17 @@ function buildPermissionCard(permissionEvent, sessionId, routeKey) {
   const content = '**' + escapeLarkMd(title) + '**' + (metaLines.length ? '\n' + metaLines.join('\n') : '');
 
   return {
-    config: { wide_screen_mode: true, update_multi: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: '权限确认请求' }, template: 'red' },
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content } },
-	      { tag: 'action', actions: [
-	        { tag: 'button', text: { tag: 'plain_text', content: '允许' }, type: 'primary',
-	          value: buildButtonValue('cmd:/permit ' + permissionId + ' allow', sessionId, routeKey) },
-	        { tag: 'button', text: { tag: 'plain_text', content: '始终允许' }, type: 'default',
-	          value: buildButtonValue('cmd:/permit ' + permissionId + ' always', sessionId, routeKey) },
-	        { tag: 'button', text: { tag: 'plain_text', content: '拒绝' }, type: 'danger',
-	          value: buildButtonValue('cmd:/permit ' + permissionId + ' deny', sessionId, routeKey) },
-	      ] },
-    ],
+    body: { elements: [
+      { tag: 'markdown', content },
+      buildButtonRow([
+        buildCallbackButton({ text: '允许', type: 'primary', value: buildButtonValue('cmd:/permit ' + permissionId + ' allow', sessionId, routeKey) }),
+        buildCallbackButton({ text: '始终允许', type: 'default', value: buildButtonValue('cmd:/permit ' + permissionId + ' always', sessionId, routeKey) }),
+        buildCallbackButton({ text: '拒绝', type: 'danger', value: buildButtonValue('cmd:/permit ' + permissionId + ' deny', sessionId, routeKey) }),
+      ]),
+    ] },
   };
 }
 
@@ -622,11 +610,12 @@ function buildPermissionRepliedCard(permissionId, response) {
     action + '权限请求 `' + escapeLarkMd(permissionId) + '`',
   ];
   return {
-    config: { wide_screen_mode: true, update_multi: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: '权限已处理' }, template },
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: contentLines.join('\n') } },
-    ],
+    body: { elements: [
+      { tag: 'markdown', content: contentLines.join('\n') },
+    ] },
   };
 }
 
@@ -646,11 +635,12 @@ function buildQuestionCard(questionEvent, sessionId, routeKey) {
   const isSelectLike = (inputMode === 'single_select' || inputMode === 'multi_select');
   if (isSelectLike && options.length === 0) {
     return {
-      config: { wide_screen_mode: true, update_multi: true },
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'fill' },
       header: { title: { tag: 'plain_text', content: '交互式问题' }, template: 'blue' },
-      elements: [
-        { tag: 'div', text: { tag: 'lark_md', content: '选项缺失，无法渲染问题卡片' } },
-      ],
+      body: { elements: [
+        { tag: 'markdown', content: '选项缺失，无法渲染问题卡片' },
+      ] },
     };
   }
 
@@ -710,23 +700,40 @@ function buildQuestionCard(questionEvent, sessionId, routeKey) {
   }
 
   return {
-    config: { wide_screen_mode: true, update_multi: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: '交互式问题' }, template: 'blue' },
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content } },
-      { tag: 'action', actions },
-    ],
+    body: { elements: [
+      { tag: 'markdown', content },
+      ...(Array.isArray(actions) ? actions.map((act) => {
+        if (act.tag === 'multi_select_static' || act.tag === 'input') {
+          return {
+            tag: 'form',
+            name: 'question_form',
+            elements: [act, {
+              tag: 'button',
+              text: { tag: 'plain_text', content: '提交' },
+              type: 'primary',
+              action_type: 'form_submit',
+              value: previewButtonValue(questionId + ' --form'),
+            }],
+          };
+        }
+        return act;
+      }) : []),
+    ] },
   };
 }
 
 function buildQuestionRepliedCard(questionId, answer) {
   const formatted = Array.isArray(answer) ? answer.join(', ') : String(answer);
   return {
-    config: { wide_screen_mode: true, update_multi: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: '问题已回复' }, template: 'green' },
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: '已回答: ' + formatted } },
-    ],
+    body: { elements: [
+      { tag: 'markdown', content: '已回答: ' + formatted },
+    ] },
   };
 }
 
@@ -827,9 +834,10 @@ function buildNativeQuestionCard(options) {
       };
     }
     return {
-      config: { wide_screen_mode: true, update_multi: true },
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'fill' },
       header,
-      elements: [{ tag: 'div', text: { tag: 'lark_md', content: introLines.join('\n') } }],
+      body: { elements: [{ tag: 'markdown', content: introLines.join('\n') }] },
     };
   }
 
@@ -930,9 +938,8 @@ function buildNativeQuestionCard(options) {
   }
 
   const contentLines = [...introLines, '', ...optionLines];
-  const actions = presetOptions.map((option, index) => ({
-    tag: 'button',
-    text: { tag: 'plain_text', content: String(option.label || option.value || ('option_' + index)) },
+  const actions = presetOptions.map((option, index) => buildCallbackButton({
+    text: String(option.label || option.value || ('option_' + index)),
     type: 'default',
     value: buildButtonValue(
       'cmd:/answer ' + questionKey + ' --option option_' + index,
@@ -942,12 +949,13 @@ function buildNativeQuestionCard(options) {
   }));
 
   return {
-    config: { wide_screen_mode: true, update_multi: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header,
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: contentLines.join('\n') } },
-      { tag: 'action', actions },
-    ],
+    body: { elements: [
+      { tag: 'markdown', content: contentLines.join('\n') },
+      ...actions,
+    ] },
   };
 }
 
@@ -959,7 +967,6 @@ function buildNativeQuestionCard(options) {
 function buildNativeQuestionStatusCard(options) {
   const question = options.question || {};
   const questionIndex = Number.isInteger(options.questionIndex) ? options.questionIndex : 0;
-  const questionCount = Number.isInteger(options.questionCount) ? options.questionCount : 1;
   const questionKey = String(options.requestID || '') + ':' + questionIndex;
   const status = options.status || 'expired';
   const statusInfo = {
@@ -996,24 +1003,22 @@ function buildNativeQuestionStatusCard(options) {
       body: { elements },
     };
   }
-  const elements = [{ tag: 'div', text: { tag: 'lark_md', content } }];
+  const elements = [{ tag: 'markdown', content }];
 
   if (status === 'retryable') {
     elements.push({
-      tag: 'action',
-      actions: [{
-        tag: 'button',
-        text: { tag: 'plain_text', content: '重试提交' },
-        type: 'primary',
-        value: buildButtonValue('cmd:/answer ' + questionKey + ' --retry', options.walkerSessionId, options.routeKey),
-      }],
+      tag: 'button',
+      text: { tag: 'plain_text', content: '重试提交' },
+      type: 'primary',
+      behaviors: [{ type: 'callback', value: buildButtonValue('cmd:/answer ' + questionKey + ' --retry', options.walkerSessionId, options.routeKey) }],
     });
   }
 
   return {
-    config: { wide_screen_mode: true, update_multi: true },
+    schema: '2.0',
+    config: { update_multi: true, width_mode: 'fill' },
     header: { title: { tag: 'plain_text', content: info.title }, template: info.template },
-    elements,
+    body: { elements },
   };
 }
 

@@ -139,7 +139,7 @@ class FeishuApi {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
     const chunks = splitTextChunks(text);
-    const buildCard = (content) => ({ elements: [{ tag: 'div', text: { tag: 'lark_md', content } }] });
+    const buildCard = (content) => ({ schema: '2.0', body: { elements: [{ tag: 'markdown', content }] } });
     const results = [];
     if (replyCtx && replyCtx.messageId) {
       results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
@@ -179,7 +179,7 @@ class FeishuApi {
   async sendMarkdown(chatId, text) {
     const token = await this.getTenantToken();
     const results = [];
-    const buildCard = (content) => ({ elements: [{ tag: 'div', text: { tag: 'lark_md', content } }] });
+    const buildCard = (content) => ({ schema: '2.0', body: { elements: [{ tag: 'markdown', content }] } });
     for (const chunk of splitTextChunks(text)) {
       results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
         receive_id: chatId,
@@ -214,6 +214,7 @@ class FeishuApi {
           status: err.status,
           code: err.code,
           error: err.message,
+          response: err.response,
         });
         result = await sendByChat();
       }
