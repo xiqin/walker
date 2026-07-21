@@ -905,6 +905,99 @@ describe('OpencodeDriver listSessions', () => {
     assert.equal(sessions[0].id, 'ses_wrapped');
     assert.equal(sessions[0].title, 'wrapped');
   });
+
+  it('listSessions({}) 聚合 /project 所有目录的会话', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/project': {
+        status: 200,
+        data: [
+          { path: '/home/user/projectA' },
+          { path: '/home/user/projectB' },
+        ],
+      },
+      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectA': {
+        status: 200,
+        data: [{ id: 'ses_a1', title: 'a1', directory: '/home/user/projectA' }],
+      },
+      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectB': {
+        status: 200,
+        data: [{ id: 'ses_b1', title: 'b1', directory: '/home/user/projectB' }],
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const sessions = await driver.listSessions({});
+
+    assert.equal(sessions.length, 2);
+    const ids = sessions.map((s) => s.id).sort();
+    assert.deepEqual(ids, ['ses_a1', 'ses_b1']);
+  });
+
+  it('listSessions({}) 用 extraCwds 补查 /project 未返回的新项目目录', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/project': {
+        status: 200,
+        data: [{ path: '/home/user/projectA' }],
+      },
+      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectA': {
+        status: 200,
+        data: [{ id: 'ses_a1', title: 'a1', directory: '/home/user/projectA' }],
+      },
+      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fnewproject': {
+        status: 200,
+        data: [{ id: 'ses_new1', title: 'new1', directory: '/home/user/newproject' }],
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const sessions = await driver.listSessions({ extraCwds: ['/home/user/newproject'] });
+
+    const ids = sessions.map((s) => s.id).sort();
+    assert.deepEqual(ids, ['ses_a1', 'ses_new1'], '新项目目录的会话应被纳入');
+    assert.ok(http.calls.some((c) => c.url.includes('directory=%2Fhome%2Fuser%2Fnewproject')), '应请求新项目目录的 session');
+  });
+
+  it('listSessions({}) 对 extraCwds 与 /project 重复的目录去重，不重复请求', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/project': {
+        status: 200,
+        data: [{ path: '/home/user/projectA' }],
+      },
+      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectA': {
+        status: 200,
+        data: [{ id: 'ses_a1', title: 'a1', directory: '/home/user/projectA' }],
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const sessions = await driver.listSessions({ extraCwds: ['/home/user/projectA'] });
+
+    assert.equal(sessions.length, 1);
+    const projectACount = http.calls.filter((c) => c.url.includes('directory=%2Fhome%2Fuser%2FprojectA')).length;
+    assert.equal(projectACount, 1, '重复目录只请求一次');
+  });
+
+  it('listSessions({}) 对跨目录重复的 session id 去重', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/project': {
+        status: 200,
+        data: [{ path: '/home/user/projectA' }],
+      },
+      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectA': {
+        status: 200,
+        data: [{ id: 'ses_dup', title: 'a', directory: '/home/user/projectA' }],
+      },
+      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectB': {
+        status: 200,
+        data: [{ id: 'ses_dup', title: 'b', directory: '/home/user/projectB' }],
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const sessions = await driver.listSessions({ extraCwds: ['/home/user/projectB'] });
+
+    assert.equal(sessions.length, 1, '同一 session id 跨目录只保留一次');
+  });
 });
 
 describe('OpencodeDriver listModels', () => {

@@ -188,51 +188,151 @@ test('renderAttachableSessionCard 显示可纳入会话按钮', () => {
   const card = renderAttachableSessionCard([
     { id: 'ses_abc1234567890_full', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
   ], { managedIds: [] });
-  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
-  const actionEl = card.elements.find((el) => el.tag === 'action');
-  assert.ok(textEl.text.content.includes('terminal session'));
-  assert.ok(textEl.text.content.includes('ses_abc12345'));
-  assert.equal(actionEl.actions[0].value.action, 'cmd:/attach ses_abc1234567890_full');
+  const elements = card.body.elements;
+  const textEls = elements.filter((el) => el.tag === 'markdown');
+  const content = textEls.map((el) => el.content).join('\n');
+  assert.ok(content.includes('terminal session'));
+  assert.ok(content.includes('ses_abc1234567890_full'));
+  const attachBtns = elements.filter((el) => el.tag === 'button')
+    .map((el) => (el.behaviors || []).find((b) => b.type === 'callback'))
+    .filter((b) => b && b.value && b.value.action && b.value.action.startsWith('cmd:/attach ses_'));
+  const attachBtn = attachBtns[0];
+  assert.ok(attachBtn);
+  assert.equal(attachBtn.value.action, 'cmd:/attach ses_abc1234567890_full');
 });
 
-test('renderAttachableSessionCard 候选过多时限制展示数量避免飞书拒绝整卡', () => {
-  const sessions = Array.from({ length: 12 }, (_, index) => ({
+test('renderAttachableSessionCard 候选过多时分页展示避免飞书拒绝整卡', () => {
+  const sessions = Array.from({ length: 22 }, (_, index) => ({
     id: 'ses_candidate_' + String(index + 1).padStart(2, '0'),
     title: 'candidate ' + (index + 1),
     cwd: 'H:\\walker',
     status: 'idle',
   }));
   const card = renderAttachableSessionCard(sessions, { managedIds: [] });
-  const text = card.elements
-    .filter((el) => el.tag === 'div' && el.text)
-    .map((el) => el.text.content)
+  const elements = card.body.elements;
+  const content = elements
+    .filter((el) => el.tag === 'markdown')
+    .map((el) => el.content)
     .join('\n');
 
-  assert.ok(text.includes('candidate 1'));
-  assert.equal(text.includes('candidate 11'), false);
-  assert.ok(text.includes('还有 2 个候选未展示'));
-  assert.equal(card.elements.filter((el) => el.tag === 'action').length, 10);
+  assert.ok(content.includes('第 1 / 3 页'));
+  assert.ok(content.includes('candidate 1'));
+  assert.equal(content.includes('candidate 11'), false);
+  const attachBtns = elements.filter((el) => el.tag === 'button')
+    .map((el) => (el.behaviors || []).find((b) => b.type === 'callback'))
+    .filter((b) => b && b.value && b.value.action && b.value.action.startsWith('cmd:/attach ses_'));
+  assert.equal(attachBtns.length, 10);
+  const navBtns = elements.filter((el) => el.tag === 'button')
+    .map((el) => (el.behaviors || []).find((b) => b.type === 'callback'))
+    .filter((b) => b && b.value && b.value.action && b.value.action.startsWith('cmd:/attach --page '));
+  assert.ok(navBtns.some((b) => b.value.action.includes('--page 2')));
 });
 
 test('renderAttachableSessionCard 明确提示会话可能来自多个项目', () => {
   const card = renderAttachableSessionCard([
     { id: 'ses_abc123', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
   ], { managedIds: [], crossProject: true });
-  const text = card.elements
-    .filter((el) => el.tag === 'div' && el.text)
-    .map((el) => el.text.content)
+  const content = card.body.elements
+    .filter((el) => el.tag === 'markdown')
+    .map((el) => el.content)
     .join('\n');
 
-  assert.ok(text.includes('多个 OpenCode 项目'));
-  assert.ok(text.includes('工作目录'));
+  assert.ok(content.includes('多个 OpenCode 项目'));
+  assert.ok(content.includes('工作目录'));
 });
 
-test('renderAttachableSessionCard 过滤已管理会话', () => {
+test('renderAttachableSessionCard 已纳入会话做特殊标记且按钮变为切换', () => {
   const card = renderAttachableSessionCard([
     { id: 'ses_managed', title: 'managed', cwd: 'H:\\walker', status: 'idle' },
   ], { managedIds: ['ses_managed'] });
-  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
-  assert.ok(textEl.text.content.includes('没有发现'));
+  const elements = card.body.elements;
+  const content = elements
+    .filter((el) => el.tag === 'markdown')
+    .map((el) => el.content)
+    .join('\n');
+  assert.ok(content.includes('✓ 已纳入'));
+  assert.ok(content.includes('ses_managed'), '完整 id 显示');
+  const btn = elements.filter((el) => el.tag === 'button')
+    .filter((el) => (el.behaviors || []).some((b) => b.type === 'callback' && b.value && b.value.action && b.value.action.startsWith('cmd:/attach ses_')))[0];
+  assert.ok(btn, '已纳入会话仍有按钮');
+  const behavior = btn.behaviors.find((b) => b.type === 'callback');
+  assert.equal(behavior.value.action, 'cmd:/attach ses_managed');
+  assert.equal(btn.text.tag, 'plain_text');
+  assert.equal(btn.text.content, '切换到此会话');
+  assert.equal(btn.type, 'default');
+});
+
+test('renderAttachableSessionCard 未纳入会话按钮为纳入并绑定 primary', () => {
+  const card = renderAttachableSessionCard([
+    { id: 'ses_free', title: 'free', cwd: 'H:\\walker', status: 'idle' },
+  ], { managedIds: [] });
+  const elements = card.body.elements;
+  const btn = elements.filter((el) => el.tag === 'button')
+    .filter((el) => (el.behaviors || []).some((b) => b.type === 'callback' && b.value && b.value.action && b.value.action.startsWith('cmd:/attach ses_')))[0];
+  assert.ok(btn);
+  assert.equal(btn.text.content, '纳入并绑定');
+  assert.equal(btn.type, 'primary');
+});
+
+test('renderAttachableSessionCard 搜索框 form_submit 提交且有当前关键字提示', () => {
+  const routeKey = 'feishu:oc_chat1:root:om_root1';
+  const card = renderAttachableSessionCard([
+    { id: 'ses_abc123', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
+  ], { managedIds: [], routeKey, search: 'walker' });
+  const formEl = card.body.elements.find((el) => el.tag === 'form');
+  assert.ok(formEl);
+  const inputEl = formEl.elements.find((el) => el.tag === 'input');
+  assert.equal(inputEl.name, 'attach_search');
+  assert.equal(inputEl.value, undefined);
+  const currentHint = formEl.elements.find((el) => el.tag === 'markdown');
+  assert.ok(currentHint);
+  assert.ok(currentHint.content.includes('当前搜索'));
+  assert.ok(currentHint.content.includes('walker'));
+  const submitBtn = formEl.elements.find((el) => el.tag === 'button' && el.action_type === 'form_submit');
+  assert.ok(submitBtn);
+  assert.equal(submitBtn.value.action, 'cmd:/attach --search');
+  assert.equal(submitBtn.value.routeKey, routeKey);
+});
+
+test('renderAttachableSessionCard 按关键字过滤会话并高亮匹配结果', () => {
+  const sessions = [
+    { id: 'ses_a1', title: 'alpha project', cwd: 'H:\\alpha', status: 'idle' },
+    { id: 'ses_b2', title: 'beta project', cwd: 'H:\\beta', status: 'idle' },
+  ];
+  const card = renderAttachableSessionCard(sessions, { managedIds: [], search: 'alpha' });
+  const content = card.body.elements
+    .filter((el) => el.tag === 'markdown')
+    .map((el) => el.content)
+    .join('\n');
+  assert.ok(content.includes('alpha project'));
+  assert.equal(content.includes('beta project'), false);
+  assert.equal(card.header.title.content, 'OpenCode 会话列表 (1)');
+});
+
+test('renderAttachableSessionCard 翻页时保留搜索关键字', () => {
+  const routeKey = 'feishu:oc_chat1:root:om_root1';
+  const sessions = Array.from({ length: 15 }, (_, i) => ({
+    id: 'ses_' + String(i + 1).padStart(2, '0'),
+    title: 'project-' + i,
+    cwd: 'H:\\proj-' + i,
+    status: 'idle',
+  }));
+  const card = renderAttachableSessionCard(sessions, { managedIds: [], routeKey, page: 2, search: 'proj' });
+  const navBtns = card.body.elements.filter((el) => el.tag === 'button')
+    .map((el) => (el.behaviors || []).find((b) => b.type === 'callback'))
+    .filter((b) => b && b.value && b.value.action && b.value.action.startsWith('cmd:/attach --page '));
+  const prevBtn = navBtns.find((b) => b.value.action.includes('--page 1'));
+  assert.ok(prevBtn);
+  assert.ok(prevBtn.value.action.includes('--search proj'));
+});
+
+test('renderAttachableSessionCard 空列表也渲染搜索表单', () => {
+  const routeKey = 'feishu:oc_chat1:root:om_root1';
+  const card = renderAttachableSessionCard([], { managedIds: [], routeKey });
+  const formEl = card.body.elements.find((el) => el.tag === 'form');
+  assert.ok(formEl);
+  const inputEl = formEl.elements.find((el) => el.tag === 'input');
+  assert.equal(inputEl.name, 'attach_search');
 });
 
 test('renderModelListCard 对完整稳定去重序列分页为 20、20、13', () => {

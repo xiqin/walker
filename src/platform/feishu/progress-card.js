@@ -175,7 +175,7 @@ class ProgressCard {
       this.phase = 'error';
       return;
     }
-    if (event.type === 'text' || event.type === 'tool_use' || event.type === 'reasoning' || event.type === 'todo') {
+    if (event.type === 'text' || event.type === 'tool_use' || event.type === 'reasoning' || event.type === 'todo' || event.type === 'compacted') {
       if (this.phase === 'thinking') {
         this.phase = 'working';
       }

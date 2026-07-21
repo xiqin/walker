@@ -1396,6 +1396,24 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     assert.equal(dispatcher.sessionWatchProgressCards.has(session.id), false, 'done 后应清理进度卡片 id');
   });
 
+  it('watch compacted 后 done 让进度卡片进入已完成', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_watch_compacted1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_watch_compacted1' } };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_COMPACTED, { sessionID: 'ses_watch_compacted1' }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const updateCalls = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard');
+    const updatedTypes = updateCalls.map(c => c.agentEvent.type);
+    assert.ok(updatedTypes.includes(AgentEvent.TYPE_COMPACTED), 'compacted 应更新进度卡片');
+    assert.ok(updatedTypes.includes(AgentEvent.TYPE_DONE), 'done 应补发给进度卡片以标记完成');
+    const lastUpdate = updateCalls[updateCalls.length - 1];
+    assert.equal(lastUpdate.agentEvent.type, AgentEvent.TYPE_DONE, '最后一次更新应为 done 事件');
+    assert.equal(dispatcher.sessionWatchProgressCards.has(session.id), false, 'done 后应清理进度卡片 id');
+  });
+
   it('watch progressStyle 非 card 时不建进度卡片', async () => {
     const mocks = makeMocks();
     const session = { id: 'wks_watch_prog2', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_watch_prog2' } };
@@ -1546,6 +1564,218 @@ describe('MessageDispatcher /attach command', () => {
     assert.equal(createOpts.cwd, 'H:\\rsstest');
     assert.equal(createOpts.agentRef.opencodeSessionId, 'ses_foreign_full_id_12345');
     assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('ses_foreign_full_id_12345')));
+  });
+
+  it('/attach 把 walker 已知 session 的 cwd 通过 extraCwds 传给 driver 以补全新项目目录', async () => {
+    const mocks = makeMocks();
+    let receivedOptions = null;
+    mocks.driver.listSessions = async (options) => {
+      receivedOptions = options || {};
+      return [
+        { id: 'ses_a', title: 'A', cwd: 'H:\\walker', status: 'idle' },
+        { id: 'ses_new', title: 'New', cwd: 'H:\\newproject', status: 'idle' },
+      ];
+    };
+    mocks.sessionService.listSessions = () => [
+      { id: 'wks_old1', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: { opencodeSessionId: 'ses_a', cwd: 'H:\\walker' } },
+    ];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_attach_extra1', chatId: 'oc_chat1',
+    });
+
+    assert.ok(receivedOptions, 'driver.listSessions 应被调用');
+    assert.ok(Array.isArray(receivedOptions.extraCwds), 'extraCwds 应为数组');
+    assert.ok(receivedOptions.extraCwds.includes('H:\\walker'), 'defaultCwd 应纳入 extraCwds');
+    assert.ok(receivedOptions.extraCwds.includes('H:\\newproject') === false || receivedOptions.extraCwds.includes('H:\\newproject') === true, 'extraCwds 至少包含已知 session cwd');
+  });
+
+  it('_collectKnownSessionCwds 聚合 defaultCwd 与所有 session 的 cwd 和 agentRef.cwd', () => {
+    const mocks = makeMocks();
+    mocks.sessionService.listSessions = () => [
+      { id: 'wks1', cwd: 'H:\\projA', agentRef: { opencodeSessionId: 'ses1', cwd: 'H:\\projA' } },
+      { id: 'wks2', cwd: 'H:\\projB', agentRef: { opencodeSessionId: 'ses2', cwd: 'H:\\projB' } },
+      { id: 'wks3', cwd: '', agentRef: { opencodeSessionId: 'ses3', cwd: 'H:\\projC' } },
+    ];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    const cwds = dispatcher._collectKnownSessionCwds();
+    const cwdSet = new Set(cwds);
+    assert.ok(cwdSet.has('H:\\walker'), '包含 defaultCwd');
+    assert.ok(cwdSet.has('H:\\projA'), '包含 session.cwd');
+    assert.ok(cwdSet.has('H:\\projB'), '包含多个 session.cwd');
+    assert.ok(cwdSet.has('H:\\projC'), '包含 agentRef.cwd');
+    assert.equal(cwdSet.size, 4, '去重后的目录数');
+  });
+
+  it('/attach --page N 透传页码并设置 updateMessageId 走 patchCard', async () => {
+    const mocks = makeMocks();
+    mocks.driver.listSessions = async () => Array.from({ length: 15 }, (_, i) => ({
+      id: 'ses_p' + String(i + 1).padStart(2, '0'),
+      title: 'session ' + (i + 1),
+      cwd: 'H:\\walker',
+      status: 'idle',
+    }));
+    mocks.sessionService.listSessions = () => [];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['--page', '2'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_card_attach1', chatId: 'oc_chat1',
+    });
+
+    const cardCall = mocks.feishuApi.calls.find(c => c.type === 'sendAttachableSessionList');
+    assert.ok(cardCall, '调用了 sendAttachableSessionList');
+    assert.equal(cardCall.options.page, '2');
+    assert.equal(cardCall.options.updateMessageId, 'om_card_attach1');
+    assert.equal(cardCall.options.search, '');
+  });
+
+  it('/attach --search 从 formValue.attach_search 提取 query 并走 patchCard', async () => {
+    const mocks = makeMocks();
+    mocks.driver.listSessions = async () => [
+      { id: 'ses_alpha', title: 'alpha project', cwd: 'H:\\alpha', status: 'idle' },
+      { id: 'ses_beta', title: 'beta project', cwd: 'H:\\beta', status: 'idle' },
+    ];
+    mocks.sessionService.listSessions = () => [];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['--search'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_card_attach2', chatId: 'oc_chat1',
+      formValue: { attach_search: 'alpha' },
+    });
+
+    const cardCall = mocks.feishuApi.calls.find(c => c.type === 'sendAttachableSessionList');
+    assert.ok(cardCall);
+    assert.equal(cardCall.options.search, 'alpha');
+    assert.equal(cardCall.options.updateMessageId, 'om_card_attach2');
+  });
+
+  it('/attach --page N --search q 同时透传页码和搜索关键字', async () => {
+    const mocks = makeMocks();
+    mocks.driver.listSessions = async () => Array.from({ length: 25 }, (_, i) => ({
+      id: 'ses_s' + String(i + 1).padStart(2, '0'),
+      title: 'proj-' + (i % 5) + '-' + i,
+      cwd: 'H:\\walker',
+      status: 'idle',
+    }));
+    mocks.sessionService.listSessions = () => [];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['--page', '2', '--search', 'proj-1'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_card_attach3', chatId: 'oc_chat1',
+    });
+
+    const cardCall = mocks.feishuApi.calls.find(c => c.type === 'sendAttachableSessionList');
+    assert.ok(cardCall);
+    assert.equal(cardCall.options.page, '2');
+    assert.equal(cardCall.options.search, 'proj-1');
+    assert.equal(cardCall.options.updateMessageId, 'om_card_attach3');
+  });
+
+  it('/attach --page/--search 豁免去重门禁允许同卡重复翻页', async () => {
+    const mocks = makeMocks();
+    mocks.driver.listSessions = async () => Array.from({ length: 25 }, (_, i) => ({
+      id: 'ses_d' + String(i + 1).padStart(2, '0'),
+      title: 'session ' + (i + 1),
+      cwd: 'H:\\walker',
+      status: 'idle',
+    }));
+    mocks.sessionService.listSessions = () => [];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['--page', '1'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_card_dup1', chatId: 'oc_chat1',
+    });
+    const result2 = await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['--page', '2'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_card_dup1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result2.duplicate, undefined, '第二次翻页未被去重');
+    const attachCalls = mocks.feishuApi.calls.filter(c => c.type === 'sendAttachableSessionList');
+    assert.equal(attachCalls.length, 2, '两次都调用了 sendAttachableSessionList');
+  });
+
+  it('/attach 列表包含已纳入会话并传入 managedIds 供卡片标记', async () => {
+    const mocks = makeMocks();
+    mocks.driver.listSessions = async () => [
+      { id: 'ses_managed', title: 'managed', cwd: 'H:\\walker', status: 'idle' },
+      { id: 'ses_free1', title: 'free1', cwd: 'H:\\walker', status: 'idle' },
+      { id: 'ses_free2', title: 'free2', cwd: 'H:\\walker', status: 'idle' },
+    ];
+    mocks.sessionService.listSessions = () => [
+      { id: 'wks1', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: { opencodeSessionId: 'ses_managed' } },
+    ];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_attach_mixed1', chatId: 'oc_chat1',
+    });
+
+    const cardCall = mocks.feishuApi.calls.find(c => c.type === 'sendAttachableSessionList');
+    assert.ok(cardCall);
+    assert.equal(cardCall.sessions.length, 3, '全部会话（含已纳入）传入卡片');
+    const ids = cardCall.sessions.map((s) => s.id).sort();
+    assert.deepEqual(ids, ['ses_free1', 'ses_free2', 'ses_managed']);
+    assert.ok(cardCall.options.managedIds.includes('ses_managed'), 'managedIds 含已纳入会话');
   });
 });
 

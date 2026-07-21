@@ -284,3 +284,24 @@ test('ProgressCard done 后 statusLine 清空且不渲染', () => {
   assert.ok(!card.elements.some((el) => el.text && el.text.content.includes('仍在执行')), '完成后不显示 statusLine');
   assert.ok(card.elements.some((el) => el.text && el.text.content.includes('✅ 处理完成')));
 });
+
+test('ProgressCard compacted 事件从 thinking 切换到 working', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'compacted', data: {} });
+  const card = pc.render();
+  assert.equal(pc.phase, 'working', 'compacted 应将 thinking 切换为 working');
+  assert.equal(card.header.template, 'blue');
+  assert.equal(card.header.title.content, '处理中');
+  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('🗜️ 上下文已压缩')), '卡片渲染包含压缩提示');
+});
+
+test('ProgressCard compacted 事件不覆盖已有的 working 状态', () => {
+  const pc = new ProgressCard({ sessionId: 'wks_test' });
+  pc.append({ type: 'tool_use', name: 'Bash', status: 'done' });
+  pc.append({ type: 'compacted', data: {} });
+  const card = pc.render();
+  assert.equal(pc.phase, 'working');
+  assert.equal(card.header.template, 'blue');
+  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('Bash')), '已有工具事件保留');
+  assert.ok(card.elements.some((el) => el.text && el.text.content.includes('🗜️ 上下文已压缩')), '压缩提示进入 entries');
+});

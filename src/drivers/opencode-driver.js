@@ -235,7 +235,7 @@ class OpencodeDriver extends AgentDriver {
     if (cwd) {
       return this._listSessionsForDirectory(cwd);
     }
-    return this._listAllSessions();
+    return this._listAllSessions(options && options.extraCwds);
   }
 
   async prompt(sessionRef, text, options) {
@@ -677,7 +677,7 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
-  async _listAllSessions() {
+  async _listAllSessions(extraCwds) {
     try {
       const projectUrl = this._buildUrl('/project', {});
       const projectResp = await this.httpClient.request('GET', projectUrl, null);
@@ -685,12 +685,20 @@ class OpencodeDriver extends AgentDriver {
       const directories = projects
         .map((p) => p.worktree || p.path || p.directory)
         .filter((d) => d && d !== '/');
+      const extra = (Array.isArray(extraCwds) ? extraCwds : [])
+        .filter((d) => d && directories.indexOf(d) === -1);
+      const allDirectories = directories.concat(extra);
       const results = await Promise.all(
-        directories.map((dir) =>
+        allDirectories.map((dir) =>
           this._listSessionsForDirectory(dir).catch(() => []),
         ),
       );
-      const sessions = results.flat();
+      const seen = new Set();
+      const sessions = results.flat().filter((session) => {
+        if (!session || !session.id || seen.has(session.id)) return false;
+        seen.add(session.id);
+        return true;
+      });
       sessions.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       return sessions;
     } catch (_) {

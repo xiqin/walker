@@ -192,7 +192,13 @@ function createApp(config, deps) {
     return platform.api.replyCard(normalizeReplyCtx(replyCtx), card);
   };
   /** 发送可纳入 OpenCode 会话列表卡片到飞书 */
-  feishuApiTarget.sendAttachableSessionList = (replyCtx, sessions, options) => platform.api.replyCard(normalizeReplyCtx(replyCtx), renderAttachableSessionCard(sessions, options));
+  feishuApiTarget.sendAttachableSessionList = (replyCtx, sessions, options) => {
+    const card = renderAttachableSessionCard(sessions, options);
+    if (options && options.updateMessageId) {
+      return platform.api.patchCard(options.updateMessageId, card);
+    }
+    return platform.api.replyCard(normalizeReplyCtx(replyCtx), card);
+  };
   /** 发送模型列表卡片到飞书 */
   feishuApiTarget.sendModelList = (replyCtx, models, options) => {
     const card = renderModelListCard(models, options);

@@ -276,7 +276,9 @@ class MessageDispatcher {
     const dedupKey = cmd.messageId ? 'cmd:' + cmd.messageId + ':' + cmd.name + ':' + dedupArgs : null;
     const isModelPage = cmd.name === 'model' && cmd.args && cmd.args[0] === '--page';
     const isListPage = cmd.name === 'list' && cmd.args && cmd.args[0] === '--page';
-    if (cmd.name !== 'answer' && !isModelPage && !isListPage && dedupKey && this.dedup.isDuplicate(dedupKey)) {
+    const isAttachPage = cmd.name === 'attach' && cmd.args && cmd.args[0] === '--page';
+    const isAttachSearch = cmd.name === 'attach' && cmd.args && cmd.args[0] === '--search';
+    if (cmd.name !== 'answer' && !isModelPage && !isListPage && !isAttachPage && !isAttachSearch && dedupKey && this.dedup.isDuplicate(dedupKey)) {
       logger.info('skipping duplicate command', { command: cmd.name, messageId: cmd.messageId });
       return { duplicate: true };
     }
@@ -457,7 +459,27 @@ class MessageDispatcher {
       const pendingPrompt = this._promptQueues.get(current.id);
       if (pendingPrompt) await pendingPrompt.catch(() => {});
     }
-    const targetOpencodeSessionId = cmd.args[0] || '';
+    const args = cmd.args || [];
+    let targetOpencodeSessionId = '';
+    let page;
+    let search = '';
+    let updateMessageId;
+
+    if (args[0] === '--page') {
+      page = args[1];
+      updateMessageId = cmd.messageId;
+      if (args[2] === '--search' && typeof args[3] === 'string') {
+        search = args[3];
+      }
+    } else if (args[0] === '--search') {
+      updateMessageId = cmd.messageId;
+      if (cmd.formValue && typeof cmd.formValue.attach_search === 'string') {
+        search = cmd.formValue.attach_search;
+      }
+    } else {
+      targetOpencodeSessionId = args[0] || '';
+    }
+
     const driver = this.driverRegistry.get('opencode');
 
     if (!driver) {
@@ -470,7 +492,8 @@ class MessageDispatcher {
     }
 
     await driver.ensureReady();
-    const remoteSessions = await driver.listSessions({});
+    const extraCwds = this._collectKnownSessionCwds();
+    const remoteSessions = await driver.listSessions({ extraCwds });
     const managedIds = this._managedOpencodeSessionIds();
     const routeCwd = typeof this.sessionService.getRouteCwd === 'function'
       ? this.sessionService.getRouteCwd(routeKey)
@@ -478,14 +501,17 @@ class MessageDispatcher {
     const candidates = remoteSessions.filter((session) => session && session.id && !managedIds.has(session.id));
 
     if (!targetOpencodeSessionId) {
-      if (candidates.length === 1) {
+      if (candidates.length === 1 && !search && !page) {
         return this._attachOpencodeSession(cmd, driver, candidates[0]);
       }
       if (this.feishuApi.sendAttachableSessionList) {
-        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), candidates, {
+        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), remoteSessions, {
           managedIds: Array.from(managedIds),
           routeKey: cmd.routeKey,
-          crossProject: new Set(candidates.map((session) => session.cwd || '')).size > 1,
+          crossProject: new Set(remoteSessions.map((session) => session.cwd || '')).size > 1,
+          page,
+          search,
+          updateMessageId,
         }]);
       } else {
         await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatAttachableSessions(candidates)]);
@@ -844,6 +870,19 @@ class MessageDispatcher {
       .filter(Boolean));
   }
 
+  _collectKnownSessionCwds() {
+    const cwds = new Set();
+    if (this.defaultCwd) cwds.add(this.defaultCwd);
+    try {
+      for (const session of this.sessionService.listSessions()) {
+        if (session && session.cwd) cwds.add(session.cwd);
+        const ref = session && session.agentRef;
+        if (ref && ref.cwd) cwds.add(ref.cwd);
+      }
+    } catch (_) {}
+    return Array.from(cwds);
+  }
+
   _findSessionByOpencodeId(opencodeSessionId) {
     return this.sessionService.listSessions().find((session) => session
       && session.agentRef
@@ -1190,6 +1229,15 @@ class MessageDispatcher {
           progressCardId = newCardId;
           this.sessionWatchProgressCards.set(session.id, newCardId);
         }
+      }
+    }
+    const doneEvent = new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'watch' });
+    const doneRendered = await this._callFeishu('updateProgressCard', [progressCardId, session.id, doneEvent], null);
+    if (doneRendered && doneRendered.strategy === 'new_message') {
+      const newCardId = await this._callFeishu('sendProgressCard', [{ chatId }, session.id, doneEvent], null);
+      if (newCardId) {
+        progressCardId = newCardId;
+        this.sessionWatchProgressCards.set(session.id, newCardId);
       }
     }
   }
