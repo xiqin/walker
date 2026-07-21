@@ -198,10 +198,9 @@ class OpencodeSessionWatcher {
               }
               const lastComp = completed[completed.length - 1];
               self._lastPolledMessageId.set(sessionId, lastComp.info ? lastComp.info.id : lastComp.id);
-            } else {
-              const last = messages[messages.length - 1];
-              self._lastPolledMessageId.set(sessionId, last.info ? last.info.id : last.id);
             }
+            // 只有 pending（无 completed）时，不推进游标，保留为空，
+            // 让后续 poll 能识别 pending → completed 的状态变化并推送
           }
           return;
         }

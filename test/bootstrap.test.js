@@ -480,6 +480,67 @@ describe('createApp', () => {
     assert.deepEqual(stopped, ['feishu', 'admin']);
   });
 
+  it('start 调用 dispatcher.restoreWatches 恢复重启后的 session watch', async () => {
+    let restoreCalled = 0;
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: '',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    const deps = {
+      FeishuPlatform: class { start() { return Promise.resolve(); } stop() {} },
+      SessionService: class { constructor() {} recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class { constructor() {} },
+      OpencodeDriver: class { constructor() {} },
+      stubClaudeDriver: () => ({}),
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class { constructor() {} restoreWatches() { restoreCalled++; } },
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => ({ start() { return Promise.resolve({ ok: false, disabled: true }); }, stop() {}, getStatus() { return {}; } }),
+    };
+    const app = createApp(config, deps);
+    await app.start();
+    assert.equal(restoreCalled, 1, 'restoreWatches 应在 start 末尾被调用一次');
+    await app.stop();
+  });
+
+  it('start 不因 dispatcher 缺少 restoreWatches 方法而报错', async () => {
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: '',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    const deps = {
+      FeishuPlatform: class { start() { return Promise.resolve(); } stop() {} },
+      SessionService: class { constructor() {} recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class { constructor() {} },
+      OpencodeDriver: class { constructor() {} },
+      stubClaudeDriver: () => ({}),
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class {},
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => ({ start() { return Promise.resolve({ ok: false, disabled: true }); }, stop() {}, getStatus() { return {}; } }),
+    };
+    const app = createApp(config, deps);
+    await app.start();
+    assert.ok(app.dispatcher, 'dispatcher 仍应存在');
+    await app.stop();
+  });
+
   it('返回值包含 adminServer、runtime、attachmentService、eventStore', () => {
     const config = {
       feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',

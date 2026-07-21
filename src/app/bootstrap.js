@@ -354,6 +354,13 @@ function createApp(config, deps) {
       }
     }
     _restoreHealthPollers();
+    if (dispatcher && typeof dispatcher.restoreWatches === 'function') {
+      try {
+        dispatcher.restoreWatches();
+      } catch (err) {
+        logger.warn('restore session watches failed on startup', { error: err.message });
+      }
+    }
     logger.info('walker started successfully');
   }
 

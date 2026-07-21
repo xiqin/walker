@@ -772,6 +772,56 @@ describe('OpencodeDriver prompt with SSE', () => {
     const textEvents = delivered.filter((e) => e.type === 'text');
     assert.equal(textEvents.length, 1, 'resume 后不应重复投递');
   });
+
+  it('重启后首次 poll 只有 pending 消息时不推进游标，完成后能推送', async () => {
+    const delivered = [];
+    let messages = [
+      { info: { id: 'msg_pending', role: 'assistant', time: { completed: null } }, parts: [{ type: 'text', text: '执行中' }] },
+    ];
+    const http = {
+      calls: [],
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+          return { status: 200, data: messages };
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const sse = {
+      calls: [],
+      async connect(url, options) {
+        this.calls.push({ url, options });
+        return new Promise(() => {});
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      messagePollIntervalMs: 20,
+    });
+    // 模拟重启：不预设 _lastPolledMessageId
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    // 首次 poll 只有 pending，不应投递任何 text，游标应保持为空
+    const firstTexts = delivered.filter((e) => e.type === 'text');
+    assert.equal(firstTexts.length, 0, 'pending 消息不应投递');
+    assert.equal(driver._sessionWatcher._lastPolledMessageId.get('ses_abc'), undefined, '游标不应推进到 pending');
+
+    // pending 消息原地 completed
+    messages = [
+      { info: { id: 'msg_pending', role: 'assistant', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '执行完成' }] },
+    ];
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    if (typeof stopWatch === 'function') stopWatch();
+
+    const textEvents = delivered.filter((e) => e.type === 'text');
+    assert.equal(textEvents.length, 1, 'completed 后应投递一次');
+    assert.equal(textEvents[0].data.text, '执行完成');
+  });
 });
 
 describe('OpencodeDriver stop and delete', () => {
