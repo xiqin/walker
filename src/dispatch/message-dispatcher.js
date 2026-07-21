@@ -766,19 +766,27 @@ class MessageDispatcher {
     return { model: modelRef, sessionId: current.id };
   }
 
-  async _cmdPermit(cmd) {
-    const args = cmd.args || [];
-    if (args.length < 2) {
-      await this._callFeishu('replyText', [this._replyCtx(cmd), '用法: /permit <permissionId> <allow|deny>']);
-      return { error: 'missing_args' };
+	  async _cmdPermit(cmd) {
+	    const args = cmd.args || [];
+	    if (args.length < 2) {
+	      await this._callFeishu('replyText', [this._replyCtx(cmd), '用法: /permit <permissionId> <allow|deny|always>']);
+	      return { error: 'missing_args' };
+	    }
+	    const permissionId = args[0];
+	    const response = args[1];
+	    if (response !== 'allow' && response !== 'deny' && response !== 'always') {
+	      await this._callFeishu('replyText', [this._replyCtx(cmd), '参数错误: 只接受 allow、deny 或 always。用法: /permit <permissionId> <allow|deny|always>']);
+	      return { error: 'invalid_response' };
+	    }
+	    const remember = response === 'always';
+    const targetSessionId = args[2];
+    let current = targetSessionId && typeof this.sessionService.getSession === 'function'
+      ? this.sessionService.getSession(targetSessionId)
+      : this.sessionService.getCurrent(cmd.routeKey);
+    if (targetSessionId && current && typeof this.sessionService.getRouteForSession === 'function') {
+      const routeKey = this.sessionService.getRouteForSession(targetSessionId);
+      if (cmd.routeKey && routeKey && routeKey !== cmd.routeKey) current = null;
     }
-    const permissionId = args[0];
-    const response = args[1];
-    if (response !== 'allow' && response !== 'deny') {
-      await this._callFeishu('replyText', [this._replyCtx(cmd), '参数错误: 只接受 allow 或 deny。用法: /permit <permissionId> <allow|deny>']);
-      return { error: 'invalid_response' };
-    }
-    const current = this.sessionService.getCurrent(cmd.routeKey);
     if (!current) {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound to this conversation.']);
       return { noSession: true };
@@ -787,16 +795,23 @@ class MessageDispatcher {
     if (!driver || typeof driver.replyPermission !== 'function') {
       await this._callFeishu('replyText', [this._replyCtx(cmd), '当前 agent 不支持权限回复']);
       return { error: 'driver_not_supported' };
-    }
-    try {
-      await driver.replyPermission(current.agentRef, permissionId, response, false);
-      const patched = this.permissionHandler.patchReplied(permissionId, response);
-      if (!patched) {
-        await this._callFeishu('replyText', [this._replyCtx(cmd), '已' + (response === 'allow' ? '允许' : '拒绝') + '权限请求 ' + permissionId]);
-      }
-      return { replied: permissionId, response };
+	    }
+	    try {
+	      await driver.replyPermission(current.agentRef, permissionId, response, remember);
+	      const patched = this.permissionHandler.patchReplied(permissionId, response);
+	      if (!patched) {
+	        await this._callFeishu('replyText', [this._replyCtx(cmd), '已' + (response === 'deny' ? '拒绝' : '允许') + '权限请求 ' + permissionId]);
+	      }
+	      return { replied: permissionId, response };
     } catch (err) {
-      logger.warn('permit command failed', { permissionId, error: err && err.message });
+      logger.warn('permit command failed', {
+        permissionId,
+        error: err && err.message,
+        code: err && err.code,
+        deliveryPhase: err && err.deliveryPhase,
+        sdkInvoked: err && err.sdkInvoked,
+        safeToRetry: err && err.safeToRetry,
+      });
       await this._callFeishu('replyText', [this._replyCtx(cmd), '权限不存在或已过期: ' + permissionId]);
       return { error: 'reply_failed' };
     }

@@ -177,6 +177,13 @@ test('parseCommand /permit perm_abc deny', () => {
   assert.deepEqual(result.args, ['perm_abc', 'deny']);
 });
 
+test('parseCommand /permit perm_abc always', () => {
+  const result = parseCommand('/permit perm_abc always');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'permit');
+  assert.deepEqual(result.args, ['perm_abc', 'always']);
+});
+
 test('COMMANDS 包含 permit 条目', () => {
   assert.ok(COMMANDS.permit);
   assert.ok(COMMANDS.permit.desc);
@@ -184,6 +191,7 @@ test('COMMANDS 包含 permit 条目', () => {
   assert.match(COMMANDS.permit.usage, /permissionId/);
   assert.match(COMMANDS.permit.usage, /allow/);
   assert.match(COMMANDS.permit.usage, /deny/);
+  assert.match(COMMANDS.permit.usage, /always/);
 });
 
 test('COMMANDS 包含 answer 条目', () => {

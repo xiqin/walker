@@ -381,7 +381,7 @@ test('buildPermissionCard body 包含权限标题', () => {
   assert.ok(textEl.text.content.includes('执行 rm 命令'));
 });
 
-test('buildPermissionCard 包含允许和拒绝按钮', () => {
+test('buildPermissionCard 包含允许、始终允许和拒绝按钮', () => {
   const card = buildPermissionCard(
     { data: { id: 'perm_1', title: 'test' } },
     'wks_session1',
@@ -389,6 +389,7 @@ test('buildPermissionCard 包含允许和拒绝按钮', () => {
   );
   const buttons = collectButtons(card);
   assert.ok(buttons.some((b) => b.text.content === '允许' && b.type === 'primary'));
+  assert.ok(buttons.some((b) => b.text.content === '始终允许' && b.type === 'default'));
   assert.ok(buttons.some((b) => b.text.content === '拒绝' && b.type === 'danger'));
 });
 
@@ -403,6 +404,8 @@ test('buildPermissionCard 按钮 value 携带 permit 命令', () => {
   assert.match(allowBtn.value.action, /cmd:\/permit perm_abc allow/);
   assert.match(allowBtn.value.action, /wks_s1/);
   assert.equal(allowBtn.value.routeKey, 'rk1');
+  const alwaysBtn = buttons.find((b) => b.text.content === '始终允许');
+  assert.match(alwaysBtn.value.action, /cmd:\/permit perm_abc always/);
   const denyBtn = buttons.find((b) => b.text.content === '拒绝');
   assert.match(denyBtn.value.action, /cmd:\/permit perm_abc deny/);
 });
@@ -425,6 +428,17 @@ test('buildPermissionCard metadata 显示命令信息', () => {
   assert.ok(textEl.text.content.includes('npm test'));
 });
 
+test('buildPermissionCard metadata 显示权限匹配规则', () => {
+  const card = buildPermissionCard(
+    { data: { id: 'perm_1', type: 'external_directory', title: 'Access external directory', metadata: { patterns: ['H:\\sacpServ\\*'] } } },
+    'wks_s1',
+  );
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('external\\_directory'));
+  assert.ok(textEl.text.content.includes('匹配规则'));
+  assert.ok(textEl.text.content.includes('sacpServ'));
+});
+
 test('buildPermissionRepliedCard allow 显示绿色模板和最终选择', () => {
   const card = buildPermissionRepliedCard('perm_abc', 'allow');
   assert.equal(card.header.template, 'green');
@@ -441,6 +455,15 @@ test('buildPermissionRepliedCard deny 显示灰色模板和最终选择', () => 
   const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
   assert.ok(textEl.text.content.includes('最终选择'));
   assert.ok(textEl.text.content.includes('已拒绝'));
+  assert.ok(textEl.text.content.includes('perm\\_abc'));
+});
+
+test('buildPermissionRepliedCard always 显示绿色模板和始终允许', () => {
+  const card = buildPermissionRepliedCard('perm_abc', 'always');
+  assert.equal(card.header.template, 'green');
+  const textEl = card.elements.find((el) => el.tag === 'div' && el.text);
+  assert.ok(textEl.text.content.includes('最终选择'));
+  assert.ok(textEl.text.content.includes('已始终允许'));
   assert.ok(textEl.text.content.includes('perm\\_abc'));
 });
 

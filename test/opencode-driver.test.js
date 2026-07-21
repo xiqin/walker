@@ -1167,19 +1167,30 @@ describe('OpencodeDriver clearSession', () => {
 describe('OpencodeDriver replyPermission tui-bridge', () => {
   const tuiRef = { opencodeSessionId: 'ses_local', transport: 'tui-bridge', runtimeId: 'runtime-1' };
 
-  it('tui-bridge transport 保持不支持且绝不调用 tuiBridge.replyQuestion', async () => {
-    let bridgeCalled = false;
+  it('tui-bridge transport 转发到 tuiBridge.replyPermission 且不走 HTTP', async () => {
+    const calls = [];
     const bridge = {
-      replyQuestion: async () => { bridgeCalled = true; },
+      replyPermission: async (ref, permissionId, response, remember) => {
+        calls.push({ ref, permissionId, response, remember });
+      },
     };
     const http = new FakeHttpClient({});
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', tuiBridge: bridge });
 
+    await driver.replyPermission(tuiRef, 'perm_1', 'allow', false);
+
+    assert.deepEqual(calls, [{ ref: tuiRef, permissionId: 'perm_1', response: 'allow', remember: false }]);
+    assert.equal(http.calls.length, 0);
+  });
+
+  it('tui-bridge transport 缺少 replyPermission bridge 能力时报错', async () => {
+    const http = new FakeHttpClient({});
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', tuiBridge: {} });
+
     await assert.rejects(
       () => driver.replyPermission(tuiRef, 'perm_1', 'allow'),
-      { message: 'replyPermission is not supported for tui-bridge transport' },
+      { message: 'replyPermission requires configured tuiBridge with replyPermission' },
     );
-    assert.equal(bridgeCalled, false);
     assert.equal(http.calls.length, 0);
   });
 });

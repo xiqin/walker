@@ -3109,6 +3109,23 @@ describe('MessageDispatcher permission handling', () => {
     assert.equal(result.replied, 'perm_abc');
   });
 
+  it('/permit always 正确调用 replyPermission 并启用 remember', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } });
+    let replyCalls = [];
+    mocks.driver.replyPermission = async (sessionRef, permissionId, response, remember) => {
+      replyCalls.push({ sessionRef, permissionId, response, remember });
+    };
+    const dispatcher = new MessageDispatcher(mocks);
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'permit', args: ['perm_abc', 'always'],
+      routeKey: 'feishu:oc_chat1:root:om_root1', messageId: 'om_cmd1', chatId: 'oc_chat1',
+    });
+    assert.equal(replyCalls[0].response, 'always');
+    assert.equal(replyCalls[0].remember, true);
+    assert.equal(result.replied, 'perm_abc');
+  });
+
   it('/permit 缺少参数返回用法提示', async () => {
     const mocks = makeMocks();
     mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: {} });

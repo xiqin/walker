@@ -478,12 +478,17 @@ function buildPermissionCard(permissionEvent, sessionId, routeKey) {
   const title = data.title || '未知权限请求';
   const permissionId = data.id || '';
   const metaLines = [];
+  if (data.description && data.description !== title) metaLines.push('**说明**: ' + escapeLarkMd(data.description));
   if (data.type) metaLines.push('**类型**: ' + escapeLarkMd(data.type));
   if (data.metadata) {
     const meta = data.metadata;
     if (meta.command) metaLines.push('**命令**: `' + escapeLarkMd(meta.command) + '`');
     if (meta.tool) metaLines.push('**工具**: ' + escapeLarkMd(meta.tool));
     if (meta.path) metaLines.push('**路径**: ' + escapeLarkMd(meta.path));
+    if (meta.pattern) metaLines.push('**匹配规则**: `' + escapeLarkMd(meta.pattern) + '`');
+    if (Array.isArray(meta.patterns) && meta.patterns.length) {
+      metaLines.push('**匹配规则**: ' + meta.patterns.map((pattern) => '`' + escapeLarkMd(pattern) + '`').join(', '));
+    }
   }
   const content = '**' + escapeLarkMd(title) + '**' + (metaLines.length ? '\n' + metaLines.join('\n') : '');
 
@@ -492,12 +497,14 @@ function buildPermissionCard(permissionEvent, sessionId, routeKey) {
     header: { title: { tag: 'plain_text', content: '权限确认请求' }, template: 'red' },
     elements: [
       { tag: 'div', text: { tag: 'lark_md', content } },
-      { tag: 'action', actions: [
-        { tag: 'button', text: { tag: 'plain_text', content: '允许' }, type: 'primary',
-          value: buildButtonValue('cmd:/permit ' + permissionId + ' allow', sessionId, routeKey) },
-        { tag: 'button', text: { tag: 'plain_text', content: '拒绝' }, type: 'danger',
-          value: buildButtonValue('cmd:/permit ' + permissionId + ' deny', sessionId, routeKey) },
-      ] },
+	      { tag: 'action', actions: [
+	        { tag: 'button', text: { tag: 'plain_text', content: '允许' }, type: 'primary',
+	          value: buildButtonValue('cmd:/permit ' + permissionId + ' allow', sessionId, routeKey) },
+	        { tag: 'button', text: { tag: 'plain_text', content: '始终允许' }, type: 'default',
+	          value: buildButtonValue('cmd:/permit ' + permissionId + ' always', sessionId, routeKey) },
+	        { tag: 'button', text: { tag: 'plain_text', content: '拒绝' }, type: 'danger',
+	          value: buildButtonValue('cmd:/permit ' + permissionId + ' deny', sessionId, routeKey) },
+	      ] },
     ],
   };
 }
@@ -509,8 +516,8 @@ function buildPermissionCard(permissionEvent, sessionId, routeKey) {
  * @returns {Object} 飞书卡片 JSON 结构
  */
 function buildPermissionRepliedCard(permissionId, response) {
-  const allowed = response === 'allow';
-  const action = allowed ? '已允许' : '已拒绝';
+  const allowed = response === 'allow' || response === 'always';
+  const action = response === 'always' ? '已始终允许' : (allowed ? '已允许' : '已拒绝');
   const template = allowed ? 'green' : 'grey';
   const contentLines = [
     '**最终选择**',

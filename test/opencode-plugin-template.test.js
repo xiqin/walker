@@ -4,10 +4,10 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { getPluginSource } = require('../src/opencode-hook/plugin-template');
 
-describe('plugin-template v4 protocol', () => {
-  it('register payload 包含 bridgeProtocolVersion: 4', () => {
+describe('plugin-template v5 protocol', () => {
+  it('register payload 包含 bridgeProtocolVersion: 5', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    assert.ok(src.includes('bridgeProtocolVersion: 4'));
+    assert.ok(src.includes('bridgeProtocolVersion: 5'));
   });
 
   it('源码包含 accepted 上报', () => {
@@ -69,8 +69,9 @@ describe('plugin-template v4 protocol', () => {
 
   it('startHeartbeat 在 promptAsync 成功后调用', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    const promptAsyncIdx = src.indexOf('promptAsync');
-    const startHeartbeatCallIdx = src.indexOf('startHeartbeat(sessionId, delivery.deliveryId)');
+    const executeDeliveryIdx = src.indexOf('async function executeDelivery(');
+    const promptAsyncIdx = src.indexOf('promptAsync', executeDeliveryIdx);
+    const startHeartbeatCallIdx = src.indexOf('startHeartbeat(sessionId, delivery.deliveryId)', promptAsyncIdx);
     assert.ok(promptAsyncIdx > 0);
     assert.ok(startHeartbeatCallIdx > 0);
     assert.ok(startHeartbeatCallIdx > promptAsyncIdx, 'startHeartbeat 应在 promptAsync 之后');
@@ -109,9 +110,9 @@ describe('plugin-template v4 protocol', () => {
     }
   });
 
-  it('bridge version 注释保持为 9', () => {
+  it('bridge version 注释保持为 14', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    assert.ok(src.includes('// Walker TUI bridge version: 9'));
+    assert.ok(src.includes('// Walker TUI bridge version: 14'));
   });
 
   it('默认 heartbeat 间隔为 30000ms', () => {

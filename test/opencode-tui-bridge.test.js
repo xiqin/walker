@@ -1378,6 +1378,48 @@ describe('OpencodeTuiBridge replyQuestion', () => {
     }
   });
 
+  it('replyPermission 以 permission_reply 控制 delivery 入队并等待 final', async () => {
+    const h = setupReplyHarness({ bridgeProtocolVersion: 5 });
+    try {
+      const replyPromise = h.bridge.replyPermission(h.tuiSession.agentRef, 'perm_001', 'allow', false);
+      const delivery = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+
+      assert.ok(delivery, '应投递 permission_reply delivery');
+      assert.equal(delivery.type, 'permission_reply');
+      assert.equal(delivery.sessionId, 'ses_reply');
+      assert.equal(delivery.permissionId, 'perm_001');
+      assert.equal(delivery.response, 'allow');
+      assert.equal(delivery.remember, false);
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: delivery.deliveryId, deliveryState: 'accepted',
+      });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: delivery.deliveryId, events: [],
+      });
+
+      await replyPromise;
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('protocol 低于 5 时拒绝 permission reply 且不入队', async () => {
+    const h = setupReplyHarness({ bridgeProtocolVersion: 4 });
+    try {
+      await assert.rejects(
+        () => h.bridge.replyPermission(h.tuiSession.agentRef, 'perm_legacy', 'allow'),
+        (err) => err.code === 'PERMISSION_REPLY_UNSUPPORTED'
+          && err.deliveryPhase === 'preflight'
+          && err.sdkInvoked === false
+          && err.safeToRetry === false,
+      );
+      assert.equal(h.bridge.runtimes.get('runtime-reply').queue.length, 0);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('replyQuestion runtime 不在线时 reject', async () => {
     const h = setupReplyHarness();
     try {

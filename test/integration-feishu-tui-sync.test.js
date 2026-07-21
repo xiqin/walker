@@ -285,6 +285,36 @@ describe('飞书-TUI 双向链路集成测试', () => {
         return call.type === 'sendMarkdown' && call.chatId === chatId && call.text.includes('manual TUI turn reply');
       });
       assert.ok(manualReply, 'TUI 手工发起的回答应通过 watch 回传飞书');
+
+      bridge.reportEvents({
+        runtimeId,
+        sessionId: opencodeSessionId,
+        events: [
+          {
+            type: AgentEvent.TYPE_PERMISSION,
+            data: {
+              id: 'perm_external_dir',
+              type: 'tool',
+              title: 'Access external directory H:\\sacpserv',
+              metadata: { patterns: ['H:\\sacpServ\\*'] },
+              sessionID: opencodeSessionId,
+              messageID: 'msg_perm_external_dir',
+            },
+          },
+        ],
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const permissionCard = feishuApi.calls.find((call) => {
+        return call.type === 'replyCard'
+          && call.replyCtx
+          && call.replyCtx.chatId === chatId
+          && call.card
+          && call.card.header
+          && call.card.header.title
+          && call.card.header.title.content === '权限确认请求';
+      });
+      assert.ok(permissionCard, 'TUI permission 事件应通过 watch 回传飞书权限确认卡片');
       bridge.close();
     });
   });

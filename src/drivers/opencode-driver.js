@@ -525,7 +525,13 @@ class OpencodeDriver extends AgentDriver {
       throw new Error('replyPermission requires permissionId');
     }
     if (this._isTuiBridge(sessionRef)) {
-      throw new Error('replyPermission is not supported for tui-bridge transport');
+      if (!sessionRef.runtimeId) {
+        throw new Error('replyPermission requires tui-bridge sessionRef with runtimeId');
+      }
+      if (!this.tuiBridge || typeof this.tuiBridge.replyPermission !== 'function') {
+        throw new Error('replyPermission requires configured tuiBridge with replyPermission');
+      }
+      return this.tuiBridge.replyPermission(sessionRef, permissionId, response, remember);
     }
     const url = this._buildUrl(
       '/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/permissions/' + encodeURIComponent(permissionId),
@@ -543,7 +549,7 @@ class OpencodeDriver extends AgentDriver {
   }
 
   /**
-   * 通过 protocol v4 TUI Bridge 回复原生 question，不降级为 permission 或 prompt。
+   * 通过 protocol v4+ TUI Bridge 回复原生 question，不降级为 permission 或 prompt。
    */
   async replyQuestion(agentRef, requestID, answers) {
     if (!agentRef || agentRef.transport !== 'tui-bridge') {

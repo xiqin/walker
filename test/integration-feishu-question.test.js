@@ -112,7 +112,7 @@ async function createFixture(options) {
 
   const handlers = new Map();
   const requests = [];
-  const sdk = { promptCalls: [], questionCalls: [], createCalls: [], navigations: [] };
+  const sdk = { promptCalls: [], questionCalls: [], permissionCalls: [], createCalls: [], navigations: [] };
   const route = {
     current: { name: 'session', params: { sessionID: 'ses_native_question' } },
     navigate: (_name, params) => { route.current = { name: 'session', params }; },
@@ -168,6 +168,12 @@ async function createFixture(options) {
           create: async () => {
             sdk.createCalls.push(true);
             return { data: { id: 'ses_after_clear' } };
+          },
+        },
+        permission: {
+          reply: async (input) => {
+            sdk.permissionCalls.push(input);
+            return { data: true };
           },
         },
         question: {
@@ -297,7 +303,7 @@ function requestState(fixture, requestID) {
   );
 }
 
-describe('集成测试: 原生 question protocol v4', () => {
+describe('集成测试: 原生 question/permission protocol v5', () => {
   it('由原始飞书卡片回调经平台和 bootstrap adapter 逐题收集，并只调用一次原生 SDK', async () => {
     const fixture = await createFixture();
     try {
@@ -458,7 +464,7 @@ describe('集成测试: 原生 question protocol v4', () => {
       const parentPoll = fixture.requests.find((request) => request.response
         && request.response.delivery && request.response.delivery.type === 'prompt');
       const parentDeliveryId = parentPoll.response.delivery.deliveryId;
-      assert.deepEqual(parentPoll.body.acceptedTypes, ['prompt', 'clear', 'question_reply']);
+      assert.deepEqual(parentPoll.body.acceptedTypes, ['prompt', 'clear', 'question_reply', 'permission_reply']);
 
       const queuedPrompt = fixture.bridge.prompt(fixture.session.agentRef, '后续 prompt');
       const queuedClear = fixture.bridge.clearSession(fixture.session.agentRef);
@@ -473,8 +479,8 @@ describe('集成测试: 原生 question protocol v4', () => {
       await waitFor(() => fixture.sdk.questionCalls.length === 1);
       assert.deepEqual(fixture.sdk.questionCalls, [{ requestID: 'req_nested', answers: [['确认']] }]);
       assert.ok(fixture.requests.some((request) => request.url.endsWith('/poll')
-        && JSON.stringify(request.body.acceptedTypes) === JSON.stringify(['question_reply'])),
-      'busy 插件 poll 必须仅接受 question_reply');
+        && JSON.stringify(request.body.acceptedTypes) === JSON.stringify(['question_reply', 'permission_reply'])),
+      'busy 插件 poll 必须仅接受控制回复 delivery');
       assert.ok(fixture.requests.some((request) => request.url.endsWith('/events') && request.body.deliveryState === 'accepted'),
         '控制 delivery 必须由插件上报 accepted');
       assert.deepEqual(fixture.bridge.runtimes.get(fixture.runtimeId).queue.map((delivery) => delivery.type), ['prompt', 'clear']);
@@ -496,20 +502,25 @@ describe('集成测试: 原生 question protocol v4', () => {
     }
   });
 
-  it('真实 Driver 的 permission 回复失败会经飞书 /permit 回调显示错误，同时普通 prompt 与 clear 保持回归', async () => {
+  it('真实 Driver 的 permission 回复经飞书 /permit 回填到 TUI SDK，同时普通 prompt 与 clear 保持回归', async () => {
     const fixture = await createFixture();
     try {
-      await fixture.handlers.get('permission.updated')({ properties: {
-        id: 'perm_native', sessionID: 'ses_native_question', type: 'file_write', title: '写入文件', metadata: {},
+      await fixture.handlers.get('permission.asked')({ properties: {
+        id: 'perm_native', sessionID: 'ses_native_question', permission: 'edit', patterns: ['H:\\sacpserv\\frontend\\*'], metadata: {}, always: [],
       } });
       await waitFor(() => fixture.cards().length === 1);
-      void fixture.submitCard(0, undefined, '允许');
-      await waitFor(() => fixture.feishuApi.calls.some((call) => call.type === 'replyText'
-        && call.text.includes('权限不存在或已过期: perm_native')));
-      assert.ok(fixture.feishuApi.calls.some((call) => call.type === 'replyText'
-        && call.text.includes('权限不存在或已过期: perm_native')),
-      'TUI bridge transport 的 replyPermission 不支持时必须可见 dispatcher 错误反馈');
-      assert.equal(fixture.bridge.runtimes.get(fixture.runtimeId).queue.some((delivery) => delivery.type === 'question_reply'), false);
+      const permitAction = fixture.submitCard(0, undefined, '始终允许');
+      await fixture.handlers.get('tui.session.select')({ properties: { sessionID: 'ses_native_question' } });
+      await waitFor(() => fixture.sdk.permissionCalls.length === 1);
+      assert.deepEqual(fixture.sdk.permissionCalls, [{
+        requestID: 'perm_native',
+        reply: 'always',
+        directory: CWD,
+      }]);
+      await waitFor(() => fixture.patchCards().some((call) => call.card.header.title.content === '权限已处理'
+        && call.card.elements[0].text.content.includes('已始终允许权限请求')));
+      await permitAction;
+      assert.equal(fixture.bridge.runtimes.get(fixture.runtimeId).queue.some((delivery) => delivery.type === 'permission_reply'), false);
       assert.deepEqual(fixture.sdk.questionCalls, []);
 
       const prompt = fixture.dispatcher.handleIncomingMessage({
