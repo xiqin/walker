@@ -592,9 +592,21 @@ class OpencodeDriver extends AgentDriver {
     return this.tuiBridge.hasClearPending(sessionRef);
   }
 
+  /**
+   * 检查 agentRef 是否仍然可用（TUI bridge session 时 runtime 仍在线；HTTP session 总是可用）
+   * @param {Object} agentRef - Agent 引用对象
+   * @returns {boolean}
+   */
+  isSessionRefActive(agentRef) {
+    if (!agentRef) return false;
+    if (agentRef.transport !== 'tui-bridge') return true;
+    if (!this.tuiBridge || typeof this.tuiBridge.isSessionRefActive !== 'function') return false;
+    return this.tuiBridge.isSessionRefActive(agentRef);
+  }
+
   async _checkHealth() {
     try {
-      const resp = await this.httpClient.request('GET', this._buildUrl('/health', {}), null);
+      const resp = await this.httpClient.request('GET', this._buildUrl('/api/health', {}), null);
       if (resp.status === 200) return true;
       if (resp.status >= 500) {
         logger.warn('opencode server unhealthy but running', { status: resp.status });

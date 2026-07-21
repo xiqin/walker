@@ -240,6 +240,21 @@ class MessageDispatcher {
           this._markIdleIfActive(sessionId);
           return 'recovering';
         }
+        if (err && (err.code === 'TUI_RUNTIME_UNAVAILABLE' || err.code === 'TUI_RUNTIME_STALE')) {
+          logger.warn('tui runtime unavailable, prompting user to reconnect', {
+            messageId: event.messageId,
+            sessionId,
+            error: err.message,
+            code: err.code,
+          });
+          this._clearTurnState(sessionId, token);
+          this._markIdleIfActive(sessionId);
+          const hint = err.code === 'TUI_RUNTIME_STALE'
+            ? 'OpenCode TUI 连接已失活，请重新启动 OpenCode TUI 后再发消息；或使用 /attach 重新绑定已有会话。'
+            : 'OpenCode TUI 未连接，请先启动 OpenCode TUI 并确认会话已注册，再发送消息；或使用 /new 创建新会话。';
+          await this._callFeishu('replyText', [this._replyCtx(event), hint]);
+          return 'tui_unavailable';
+        }
         this._clearTurnState(sessionId, token);
         logger.error('driver prompt failed', {
           messageId: event.messageId,
@@ -527,13 +542,31 @@ class MessageDispatcher {
     if (managedIds.has(targetOpencodeSessionId)) {
       const existing = this._findSessionByOpencodeId(targetOpencodeSessionId);
       if (existing) {
-        this.sessionService.bindRoute(routeKey, existing.id);
-        await this._callFeishu('replyText', [this._replyCtx(cmd), 'Bound to existing Walker session: ' + existing.id]);
-        return { bound: existing.id };
+        if (this._isSessionRefActive(existing)) {
+          this.sessionService.bindRoute(routeKey, existing.id);
+          await this._callFeishu('replyText', [this._replyCtx(cmd), 'Bound to existing Walker session: ' + existing.id]);
+          return { bound: existing.id };
+        }
+        logger.info('existing session agentRef inactive, re-attaching', {
+          sessionId: existing.id,
+          opencodeSessionId: targetOpencodeSessionId,
+        });
       }
     }
 
     return this._attachOpencodeSession(cmd, driver, target);
+  }
+
+  /**
+   * 检查 Walker session 的 agentRef 是否仍然可用（TUI bridge session 时 runtime 仍在线；HTTP session 总是可用）
+   * @param {Object} session - Walker session 对象
+   * @returns {boolean}
+   */
+  _isSessionRefActive(session) {
+    if (!session || !session.agentRef) return false;
+    const driver = this.driverRegistry.get(session.agent || 'opencode');
+    if (!driver || typeof driver.isSessionRefActive !== 'function') return true;
+    return driver.isSessionRefActive(session.agentRef);
   }
 
   async _attachOpencodeSession(cmd, driver, remoteSession) {
@@ -884,9 +917,15 @@ class MessageDispatcher {
   }
 
   _findSessionByOpencodeId(opencodeSessionId) {
-    return this.sessionService.listSessions().find((session) => session
+    const sessions = this.sessionService.listSessions().filter((session) => session
       && session.agentRef
-      && session.agentRef.opencodeSessionId === opencodeSessionId) || null;
+      && session.agentRef.opencodeSessionId === opencodeSessionId);
+    if (sessions.length === 0) return null;
+    // 优先返回 agentRef 仍然可用的 session（TUI bridge runtime 仍在线，或 HTTP transport）
+    for (const session of sessions) {
+      if (this._isSessionRefActive(session)) return session;
+    }
+    return sessions[0];
   }
 
   _formatAttachableSessions(sessions) {
@@ -1033,13 +1072,21 @@ class MessageDispatcher {
     this._watchSessionEvents(session, { chatId }, driver);
   }
 
-  ensureWatchForSession(sessionId) {
+  _refreshWatch(session, chatId) {
+    if (!session || !session.agentRef || !session.agentRef.opencodeSessionId) return;
+    const driver = this.driverRegistry.get(session.agent || 'opencode');
+    if (!driver || typeof driver.watchSession !== 'function') return;
+    this._watchSessionEvents(session, { chatId }, driver);
+  }
+
+  ensureWatchForSession(sessionId, options) {
     if (!sessionId) return;
     const session = this.sessionService.getSession(sessionId);
     if (!session) return;
     const routeKey = this.sessionService.getRouteForSession(sessionId);
     const chatId = this._chatIdFromRouteKey(routeKey);
-    this._ensureWatch(session, chatId);
+    if (options && options.refresh) this._refreshWatch(session, chatId);
+    else this._ensureWatch(session, chatId);
   }
 
   restoreWatches() {

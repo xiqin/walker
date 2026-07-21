@@ -250,3 +250,24 @@ test('FeishuPlatform start 传播 WSClient.start 失败', async () => {
 
   await assert.rejects(platform.start(), /ws failed/);
 });
+
+test('FeishuPlatform 注册 reaction 事件 handler 避免 SDK no handle 警告', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const platform = createPlatform(FeishuPlatform);
+
+  await platform.start();
+
+  assert.equal(typeof fake.handlers['im.message.reaction.created_v1'], 'function', '应注册 reaction.created handler');
+  assert.equal(typeof fake.handlers['im.message.reaction.deleted_v1'], 'function', '应注册 reaction.deleted handler');
+
+  // handler 应能安全处理空数据，不抛错
+  fake.handlers['im.message.reaction.created_v1']({
+    type: 'im.message.reaction.created_v1',
+    reaction: { reaction_type: { emoji_type: 'OnIt' }, message_id: 'om_1' },
+  });
+  fake.handlers['im.message.reaction.deleted_v1']({
+    type: 'im.message.reaction.deleted_v1',
+    reaction: { reaction_type: { emoji_type: 'OnIt' }, message_id: 'om_1' },
+  });
+});

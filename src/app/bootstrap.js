@@ -121,7 +121,7 @@ function createApp(config, deps) {
   if (tuiBridge && typeof tuiBridge.setOnSessionEnrolled === 'function') {
     tuiBridge.setOnSessionEnrolled(({ sessionId }) => {
       if (dispatcher && typeof dispatcher.ensureWatchForSession === 'function') {
-        dispatcher.ensureWatchForSession(sessionId);
+        dispatcher.ensureWatchForSession(sessionId, { refresh: true });
       }
     });
   }
@@ -279,7 +279,7 @@ function createApp(config, deps) {
       config: adminConfig,
       defaultOpencodeUrl: config.opencodeServerUrl || 'http://localhost:4096',
       onSessionEnrolled: ({ sessionId, routeKey: _routeKey }) => {
-        dispatcher.ensureWatchForSession(sessionId);
+        dispatcher.ensureWatchForSession(sessionId, { refresh: true });
         const session = sessionService.getSession(sessionId);
         if (session && session.agentRef) {
           healthPoller.track(sessionId, session.agentRef);

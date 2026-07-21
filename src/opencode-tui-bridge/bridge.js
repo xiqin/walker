@@ -68,6 +68,9 @@ class OpencodeTuiBridge {
       transport: 'tui-bridge',
       runtimeId,
     };
+    const priorTuiSessions = (!session)
+      ? this._collectPriorTuiSessions(sessionId, runtimeId)
+      : [];
     if (!session) {
       session = this.sessionService.createSession({
         agent: 'opencode',
@@ -83,19 +86,21 @@ class OpencodeTuiBridge {
 
     let routeKey = this.sessionService.getRouteForSession(session.id);
     if (!routeKey) {
-      routeKey = findRouteKeyByCwd({ sessionService: this.sessionService }, cwd);
+      const priorRoute = priorTuiSessions.find((item) => item.routeKey);
+      routeKey = priorRoute
+        ? priorRoute.routeKey
+        : findRouteKeyByCwd({ sessionService: this.sessionService }, cwd);
       if (routeKey) this.sessionService.addSessionToRoute(routeKey, session.id, cwd);
     }
     if (routeKey) this.sessionService.setFocus(routeKey, session.id);
 
-    runtime.walkerSessionId = session.id;
-    if (typeof this.onSessionEnrolled === 'function') {
-      try {
-        this.onSessionEnrolled({ sessionId: session.id, routeKey, transport: 'tui-bridge' });
-      } catch (err) {
-        logger.warn('tui bridge enrollment callback failed', { sessionId: session.id, error: err.message });
-      }
+    // 新 session 已关联 route 并成为焦点后，再清理同 opencodeSessionId 的旧失效 TUI session。
+    for (const prior of priorTuiSessions) {
+      if (!prior.runtimeAvailable) this._retireStaleTuiSession(prior.id, sessionId, runtimeId);
     }
+
+    runtime.walkerSessionId = session.id;
+    this._notifySessionEnrolled(session.id, routeKey);
 
     logger.info('tui runtime registered', { runtimeId, opencodeSessionId: sessionId, walkerSessionId: session.id, routeKey });
     return { sessionId: session.id, routeKey };
@@ -139,6 +144,11 @@ class OpencodeTuiBridge {
     const runtime = this.runtimes.get(runtimeId);
     if (!runtime) throw new Error('unknown TUI runtime: ' + runtimeId);
     runtime.lastSeenAt = Date.now();
+    const queueLen = runtime.queue ? runtime.queue.length : 0;
+    if (queueLen > 0 || !runtime._polledOnce) {
+      logger.info('tui poll received', { runtimeId, sessionId, queueLen, acceptedTypes: (data.acceptedTypes || []).join(','), currentSessionId: runtime.currentSessionId, sessionIdMatch: runtime.currentSessionId === sessionId });
+      runtime._polledOnce = true;
+    }
     if (runtime.currentSessionId !== sessionId) return null;
     if (!Array.isArray(data.acceptedTypes)) {
       const delivery = runtime.queue[0] || null;
@@ -164,12 +174,12 @@ class OpencodeTuiBridge {
   prompt(sessionRef, text, options) {
     const ref = this._validateRef(sessionRef);
     const runtime = this.runtimes.get(ref.runtimeId);
-    if (!runtime) return Promise.reject(new Error('OpenCode TUI runtime is not connected'));
+    if (!runtime) return Promise.reject(tuiRuntimeUnavailableError());
     if (Date.now() - runtime.lastSeenAt > this.runtimeStaleMs) {
-      return Promise.reject(new Error('OpenCode TUI runtime connection is stale'));
+      return Promise.reject(tuiRuntimeStaleError());
     }
     if (runtime.currentSessionId !== ref.opencodeSessionId) {
-      return Promise.reject(new Error('OpenCode TUI current session has changed'));
+      return Promise.reject(tuiSessionChangedError());
     }
 
     const deliveryId = createId('del_');
@@ -347,13 +357,13 @@ class OpencodeTuiBridge {
     }
     const runtime = this.runtimes.get(ref.runtimeId);
     if (!runtime) {
-      return Promise.reject(new Error('OpenCode TUI runtime is not connected'));
+      return Promise.reject(tuiRuntimeUnavailableError());
     }
     if (Date.now() - runtime.lastSeenAt > this.runtimeStaleMs) {
-      return Promise.reject(new Error('OpenCode TUI runtime connection is stale'));
+      return Promise.reject(tuiRuntimeStaleError());
     }
     if (runtime.currentSessionId !== ref.opencodeSessionId) {
-      return Promise.reject(new Error('OpenCode TUI current session has changed'));
+      return Promise.reject(tuiSessionChangedError());
     }
     if ((runtime.bridgeProtocolVersion || 0) < 2) {
       return Promise.reject(new Error('OpenCode TUI plugin does not support /clear. Restart the OpenCode TUI to load the updated Walker plugin.'));
@@ -413,6 +423,14 @@ class OpencodeTuiBridge {
     if (!runtime) throw new Error('unknown TUI runtime: ' + runtimeId);
     runtime.lastSeenAt = Date.now();
     const events = normalizeEvents(data.events);
+    logger.info('tui reportEvents received', {
+      runtimeId,
+      sessionId,
+      deliveryId: data.deliveryId || '',
+      deliveryState: data.deliveryState || '',
+      eventCount: events.length,
+      eventTypes: events.map((e) => e.type).join(','),
+    });
 
     if (data.deliveryId) {
       const clearPending = this._clearPending.get(data.deliveryId);
@@ -431,8 +449,21 @@ class OpencodeTuiBridge {
       return this._handleFinal(data.deliveryId, runtimeId, sessionId, data, events);
     }
 
-    const handlers = this.watchers.get(watchKey(runtimeId, sessionId));
-    if (!handlers) return { delivered: false };
+    let handlers = this.watchers.get(watchKey(runtimeId, sessionId));
+    if (!handlers && runtime.walkerSessionId) {
+      const routeKey = this.sessionService.getRouteForSession(runtime.walkerSessionId);
+      this._notifySessionEnrolled(runtime.walkerSessionId, routeKey);
+      handlers = this.watchers.get(watchKey(runtimeId, sessionId));
+    }
+    if (!handlers) {
+      logger.warn('tui bridge events had no watcher', {
+        runtimeId,
+        opencodeSessionId: sessionId,
+        walkerSessionId: runtime.walkerSessionId || '',
+        routeKey: runtime.walkerSessionId ? this.sessionService.getRouteForSession(runtime.walkerSessionId) : null,
+      });
+      return { delivered: false };
+    }
     if (data.error) {
       for (const handler of handlers) {
         if (handler && handler.onError) handler.onError(new Error(errorMessage(data.error)));
@@ -753,6 +784,30 @@ class OpencodeTuiBridge {
     return false;
   }
 
+  /**
+   * 检查指定 runtimeId 是否仍然可用（已注册且未过期）
+   * @param {string} runtimeId - TUI runtime ID
+   * @returns {boolean}
+   */
+  isRuntimeAvailable(runtimeId) {
+    if (!runtimeId) return false;
+    const runtime = this.runtimes.get(runtimeId);
+    if (!runtime) return false;
+    if (Date.now() - runtime.lastSeenAt > this.runtimeStaleMs) return false;
+    return true;
+  }
+
+  /**
+   * 检查给定 agentRef 是否仍然可用（TUI bridge session 时 runtime 仍在线；HTTP session 总是可用）
+   * @param {Object} agentRef - Agent 引用对象
+   * @returns {boolean}
+   */
+  isSessionRefActive(agentRef) {
+    if (!agentRef) return false;
+    if (agentRef.transport !== 'tui-bridge') return true;
+    return this.isRuntimeAvailable(agentRef.runtimeId);
+  }
+
   _failClearsForRuntime(runtimeId, sessionRef, err) {
     for (const [deliveryId, clearPending] of this._clearPending) {
       if (clearPending.runtimeId !== runtimeId) continue;
@@ -866,6 +921,69 @@ class OpencodeTuiBridge {
     }) || null;
   }
 
+  _notifySessionEnrolled(sessionId, routeKey) {
+    if (typeof this.onSessionEnrolled !== 'function') return;
+    try {
+      this.onSessionEnrolled({ sessionId, routeKey, transport: 'tui-bridge' });
+    } catch (err) {
+      logger.warn('tui bridge enrollment callback failed', { sessionId, error: err.message });
+    }
+  }
+
+  /**
+   * 收集同 opencodeSessionId 但 runtimeId 不同的旧 TUI bridge session。
+   * TUI 重启后 runtimeId 变化，但 opencode 可能复用同一 sessionId，需要优先继承旧 session 所在 route。
+   * @param {string} opencodeSessionId - OpenCode session ID
+   * @param {string} currentRuntimeId - 当前注册的 runtimeId
+   * @returns {Array<{id:string, routeKey:string|null, runtimeAvailable:boolean}>} 旧 TUI session 信息
+   */
+  _collectPriorTuiSessions(opencodeSessionId, currentRuntimeId) {
+    const items = [];
+    const sessions = this.sessionService.listSessions();
+    for (const session of sessions) {
+      if (!session || !session.agentRef) continue;
+      const ref = session.agentRef;
+      if (ref.transport !== 'tui-bridge') continue;
+      if (ref.opencodeSessionId !== opencodeSessionId) continue;
+      if (ref.runtimeId === currentRuntimeId) continue;
+      if (session.status === 'deleted') continue;
+      items.push({
+        id: session.id,
+        routeKey: this.sessionService.getRouteForSession(session.id),
+        runtimeAvailable: this.isRuntimeAvailable(ref.runtimeId),
+      });
+    }
+    return items;
+  }
+
+  /**
+   * 清理单个旧 TUI bridge session：从 route 移除并标记 deleted。
+   * @param {string} sessionId - 要清理的 Walker session ID
+   * @param {string} opencodeSessionId - 对应的 OpenCode session ID（用于日志）
+   * @param {string} currentRuntimeId - 当前注册的 runtimeId（用于日志）
+   */
+  _retireStaleTuiSession(sessionId, opencodeSessionId, currentRuntimeId) {
+    const stale = this.sessionService.getSession(sessionId);
+    if (!stale || stale.status === 'deleted') return;
+    const oldRuntimeId = stale.agentRef && stale.agentRef.runtimeId;
+    const routeKey = this.sessionService.getRouteForSession(sessionId);
+    if (routeKey) this.sessionService.removeSessionFromRoute(routeKey, sessionId);
+    try {
+      this.sessionService.deleteSession(sessionId);
+      logger.info('retired stale tui session on register', {
+        sessionId,
+        opencodeSessionId,
+        oldRuntimeId,
+        newRuntimeId: currentRuntimeId,
+      });
+    } catch (err) {
+      logger.warn('failed to retire stale tui session', {
+        sessionId,
+        error: err.message,
+      });
+    }
+  }
+
   _validateRef(sessionRef) {
     if (!sessionRef || sessionRef.transport !== 'tui-bridge') {
       throw new Error('tui bridge requires transport=tui-bridge');
@@ -944,6 +1062,30 @@ function questionReplyErrorFromPayload(payload, deliveryPhase) {
     details.deliveryPhase || deliveryPhase, sdkInvoked,
     details.safeToRetry === true && sdkInvoked === false,
   );
+}
+
+function tuiRuntimeUnavailableError() {
+  const err = new Error('OpenCode TUI runtime is not connected');
+  err.code = 'TUI_RUNTIME_UNAVAILABLE';
+  err.safeToRetry = true;
+  err.sdkInvoked = false;
+  return err;
+}
+
+function tuiRuntimeStaleError() {
+  const err = new Error('OpenCode TUI runtime connection is stale');
+  err.code = 'TUI_RUNTIME_STALE';
+  err.safeToRetry = true;
+  err.sdkInvoked = false;
+  return err;
+}
+
+function tuiSessionChangedError() {
+  const err = new Error('OpenCode TUI current session has changed');
+  err.code = 'TUI_SESSION_CHANGED';
+  err.safeToRetry = false;
+  err.sdkInvoked = false;
+  return err;
 }
 
 module.exports = { OpencodeTuiBridge };

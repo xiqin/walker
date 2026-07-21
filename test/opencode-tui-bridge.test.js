@@ -137,6 +137,39 @@ describe('OpencodeTuiBridge', () => {
     }
   });
 
+  it('reportEvents 无 watcher 时会重新触发 enrollment 并重试投递', () => {
+    const h = createHarness();
+    try {
+      h.sessionService.createSession({ route: 'feishu:oc_bridge_retry:om_root', cwd: 'H:\\walker' });
+      h.sessionService.setRouteCwd('feishu:oc_bridge_retry:om_root', 'H:\\walker');
+      const received = [];
+      let enrollCount = 0;
+      h.bridge.setOnSessionEnrolled(({ sessionId }) => {
+        enrollCount++;
+        if (enrollCount === 1) return;
+        const session = h.sessionService.getSession(sessionId);
+        h.bridge.watchSession(session.agentRef, { onEvent: (event) => received.push(event) });
+      });
+
+      h.bridge.register({ runtimeId: 'runtime-retry-watch', sessionId: 'ses_retry_watch', cwd: 'H:\\walker' });
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-retry-watch',
+        sessionId: 'ses_retry_watch',
+        events: [
+          { type: 'text', data: { text: 'retry delivered' } },
+          { type: 'done', data: { reason: 'idle' } },
+        ],
+      });
+
+      assert.equal(result.delivered, true, '兜底 enrollment 后应投递成功');
+      assert.equal(enrollCount, 2, '无 watcher 时应重新触发 enrollment');
+      assert.deepEqual(received.map((event) => event.type), ['text', 'done']);
+      assert.equal(received[0].data.text, 'retry delivered');
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('permission 事件通过 watchSession 分发到飞书（无 deliveryId 路径）', () => {
     const h = createHarness();
     try {
@@ -250,6 +283,104 @@ describe('OpencodeTuiBridge', () => {
         () => h.bridge.prompt(oldRef, '不应误投'),
         { message: /current session|当前会话/i },
       );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('TUI 重启后 register 清理同 opencodeSessionId 的旧失效 TUI session', () => {
+    const h = createHarness();
+    try {
+      const routeKey = 'feishu:oc_restart:om_root';
+      const cwd = 'H:\\walker';
+      h.sessionService.setRouteCwd(routeKey, cwd);
+      // 旧 TUI bridge session（runtimeId R1）
+      const oldReg = h.bridge.register({ runtimeId: 'runtime-old', sessionId: 'ses_reused', cwd });
+      const oldSessionId = oldReg.sessionId;
+      assert.equal(h.sessionService.getSession(oldSessionId).status !== 'deleted', true, '旧 session 初始未删除');
+      // TUI 重启，新 runtimeId R2，复用同一 opencodeSessionId
+      h.bridge.dispose({ runtimeId: 'runtime-old' });
+      const newReg = h.bridge.register({ runtimeId: 'runtime-new', sessionId: 'ses_reused', cwd });
+
+      // 旧 session 应被清理
+      const oldSession = h.sessionService.getSession(oldSessionId);
+      assert.equal(oldSession.status, 'deleted', '旧失效 TUI session 应被标记 deleted');
+      // 新 session 应是 route 的 focus
+      const current = h.sessionService.getCurrent(routeKey);
+      assert.equal(current.id, newReg.sessionId, 'focus 应切到新 session');
+      // route 里不应再有旧 session
+      const routeSessions = h.sessionService.listSessionsInRoute(routeKey);
+      assert.equal(routeSessions.some((s) => s.id === oldSessionId), false, '旧 session 应已从 route 移除');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('TUI 重启后 register 优先继承同 opencodeSessionId 旧 TUI session 的 route', () => {
+    const h = createHarness();
+    try {
+      const oldRouteKey = 'feishu:oc_restart_old:om_root';
+      const newerRouteKey = 'feishu:oc_restart_newer:om_root';
+      const cwd = 'H:\\walker';
+      h.sessionService.setRouteCwd(oldRouteKey, cwd);
+      const oldReg = h.bridge.register({ runtimeId: 'runtime-old', sessionId: 'ses_reused_route', cwd });
+      h.sessionService.setRouteCwd(newerRouteKey, cwd);
+      h.bridge.dispose({ runtimeId: 'runtime-old' });
+
+      const newReg = h.bridge.register({ runtimeId: 'runtime-new', sessionId: 'ses_reused_route', cwd });
+
+      assert.equal(newReg.routeKey, oldRouteKey, '应优先继承旧 TUI session 所在 route，而非按 cwd 选最近 route');
+      assert.equal(h.sessionService.getCurrent(oldRouteKey).id, newReg.sessionId, '旧 route focus 应切到新 session');
+      assert.equal(h.sessionService.getCurrent(newerRouteKey), null, '同 cwd 的其他 route 不应被误绑定');
+      assert.equal(h.sessionService.getSession(oldReg.sessionId).status, 'deleted', '旧失效 TUI session 应被清理');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('register 不清理同 opencodeSessionId 且 runtime 仍在线的旧 TUI session', () => {
+    const h = createHarness();
+    try {
+      const oldRouteKey = 'feishu:oc_live_old:om_root';
+      const cwd = 'H:\\walker';
+      h.sessionService.setRouteCwd(oldRouteKey, cwd);
+      const oldReg = h.bridge.register({ runtimeId: 'runtime-live-old', sessionId: 'ses_live_shared', cwd });
+
+      const newReg = h.bridge.register({ runtimeId: 'runtime-live-new', sessionId: 'ses_live_shared', cwd });
+
+      const oldSession = h.sessionService.getSession(oldReg.sessionId);
+      assert.ok(oldSession && oldSession.status !== 'deleted', 'runtime 仍在线的旧 TUI session 不应被清理');
+      assert.equal(newReg.routeKey, oldRouteKey, '新 session 仍应继承旧 route');
+      assert.equal(h.sessionService.getCurrent(oldRouteKey).id, newReg.sessionId, 'focus 应切到新 session');
+      const routeSessions = h.sessionService.listSessionsInRoute(oldRouteKey);
+      assert.equal(routeSessions.some((s) => s.id === oldReg.sessionId), true, '在线旧 session 应保留在 route 中');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('register 不清理同 opencodeSessionId 但 runtime 仍在线的 HTTP session', () => {
+    const h = createHarness();
+    try {
+      const routeKey = 'feishu:oc_http_keep:om_root';
+      const cwd = 'H:\\walker';
+      h.sessionService.setRouteCwd(routeKey, cwd);
+      // 已有 HTTP transport session 持有同一 opencodeSessionId（例如 /attach 创建的）
+      const httpSession = h.sessionService.createSession({
+        route: routeKey,
+        agent: 'opencode',
+        cwd,
+        agentRef: { opencodeSessionId: 'ses_shared', serverUrl: 'http://localhost:4096' },
+      });
+      // TUI register 同 opencodeSessionId
+      const tuiReg = h.bridge.register({ runtimeId: 'runtime-tui', sessionId: 'ses_shared', cwd });
+
+      // HTTP session 不应被删除（它不是 tui-bridge transport）
+      const httpStill = h.sessionService.getSession(httpSession.id);
+      assert.ok(httpStill && httpStill.status !== 'deleted', 'HTTP session 不应被清理');
+      // TUI session 也应存在
+      const tuiSession = h.sessionService.getSession(tuiReg.sessionId);
+      assert.ok(tuiSession && tuiSession.status !== 'deleted', 'TUI session 应存在');
     } finally {
       h.cleanup();
     }
@@ -769,6 +900,94 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
       },
     };
   }
+
+  it('prompt runtime 不在线时以 TUI_RUNTIME_UNAVAILABLE reject', async () => {
+    const h = setupV3Harness();
+    try {
+      h.bridge.dispose({ runtimeId: 'runtime-v3' });
+      await assert.rejects(
+        () => h.bridge.prompt(h.tuiSession.agentRef, 'hello'),
+        (err) => err.code === 'TUI_RUNTIME_UNAVAILABLE'
+          && err.message === 'OpenCode TUI runtime is not connected'
+          && err.safeToRetry === true
+          && err.sdkInvoked === false,
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('prompt runtime 连接失活时以 TUI_RUNTIME_STALE reject', async () => {
+    const h = setupV3Harness({ runtimeStaleMs: 50 });
+    try {
+      // 让 runtime 最后看到时间过期
+      const runtime = h.bridge.runtimes.get('runtime-v3');
+      runtime.lastSeenAt = Date.now() - 100;
+      await assert.rejects(
+        () => h.bridge.prompt(h.tuiSession.agentRef, 'hello'),
+        (err) => err.code === 'TUI_RUNTIME_STALE'
+          && err.safeToRetry === true
+          && err.sdkInvoked === false,
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('prompt 当前 session 已变化时以 TUI_SESSION_CHANGED reject', async () => {
+    const h = setupV3Harness();
+    try {
+      const runtime = h.bridge.runtimes.get('runtime-v3');
+      runtime.currentSessionId = 'ses_other';
+      await assert.rejects(
+        () => h.bridge.prompt(h.tuiSession.agentRef, 'hello'),
+        (err) => err.code === 'TUI_SESSION_CHANGED'
+          && err.safeToRetry === false
+          && err.sdkInvoked === false,
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('clearSession runtime 不在线时以 TUI_RUNTIME_UNAVAILABLE reject', async () => {
+    const h = setupV3Harness();
+    try {
+      h.bridge.dispose({ runtimeId: 'runtime-v3' });
+      await assert.rejects(
+        () => h.bridge.clearSession(h.tuiSession.agentRef),
+        (err) => err.code === 'TUI_RUNTIME_UNAVAILABLE',
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('isRuntimeAvailable 反映 runtime 注册与过期状态', () => {
+    const h = setupV3Harness({ runtimeStaleMs: 100 });
+    try {
+      assert.equal(h.bridge.isRuntimeAvailable('runtime-v3'), true, '已注册 runtime 应可用');
+      assert.equal(h.bridge.isRuntimeAvailable('unknown'), false, '未注册 runtime 应不可用');
+      assert.equal(h.bridge.isRuntimeAvailable(''), false, '空 runtimeId 应不可用');
+      const runtime = h.bridge.runtimes.get('runtime-v3');
+      runtime.lastSeenAt = Date.now() - 200;
+      assert.equal(h.bridge.isRuntimeAvailable('runtime-v3'), false, '过期 runtime 应不可用');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('isSessionRefActive 区分 HTTP 与 TUI bridge session', () => {
+    const h = setupV3Harness();
+    try {
+      assert.equal(h.bridge.isSessionRefActive(h.tuiSession.agentRef), true, '在线 TUI session 应可用');
+      assert.equal(h.bridge.isSessionRefActive({ opencodeSessionId: 'ses_http', transport: 'http' }), true, 'HTTP session 总是可用');
+      assert.equal(h.bridge.isSessionRefActive({ opencodeSessionId: 'ses_tui', transport: 'tui-bridge', runtimeId: 'unknown' }), false, '未知 runtimeId 的 TUI session 应不可用');
+      assert.equal(h.bridge.isSessionRefActive(null), false, 'null agentRef 应不可用');
+    } finally {
+      h.cleanup();
+    }
+  });
 
   it('prompt 创建 queued 状态的 pending，无固定总超时 timer', () => {
     const h = setupV3Harness();

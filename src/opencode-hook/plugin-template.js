@@ -98,7 +98,10 @@ function stateParts(api, messageId) {
 function finalEvents(api, sessionId) {
   const messages = stateMessages(api, sessionId);
   const assistant = [...messages].reverse().find((message) => message && message.role === 'assistant');
-  if (!assistant || !assistant.id) return { messageId: '', events: [] };
+  if (!assistant || !assistant.id) {
+    console.warn('[walker-bridge] finalEvents: no assistant message found', { sessionId, messagesCount: messages.length, lastMessageRole: messages.length ? messages[messages.length - 1] && messages[messages.length - 1].role : 'none' });
+    return { messageId: '', events: [] };
+  }
   const events = [];
   for (const part of stateParts(api, assistant.id)) {
     const text = part && (part.text || part.content || part.value || '');
@@ -376,7 +379,11 @@ async function tui(api) {
   }
 
   async function executeDelivery(delivery) {
-    if (!delivery || !delivery.deliveryId) return;
+    if (!delivery || !delivery.deliveryId) {
+      console.warn('[walker-bridge] executeDelivery: empty delivery', { delivery });
+      return;
+    }
+    console.warn('[walker-bridge] executeDelivery: received', { deliveryId: delivery.deliveryId, type: delivery.type, deliverySessionId: delivery.sessionId, activeSessionId, text: (delivery.text || '').slice(0, 50) });
     if (delivery.type === 'question_reply') {
       await executeQuestionDelivery(delivery);
       return;
@@ -390,8 +397,12 @@ async function tui(api) {
       return;
     }
     const sessionId = activeSessionId;
-    if (sessionId !== delivery.sessionId) return;
+    if (sessionId !== delivery.sessionId) {
+      console.warn('[walker-bridge] executeDelivery: sessionId mismatch, skipping', { activeSessionId: sessionId, deliverySessionId: delivery.sessionId });
+      return;
+    }
     activeDeliveries.set(sessionId, { deliveryId: delivery.deliveryId, heartbeatTimer: null });
+    console.warn('[walker-bridge] executeDelivery: activeDeliveries set', { sessionId, deliveryId: delivery.deliveryId });
     try {
       await report(sessionId, delivery.deliveryId, [], null, null, 'accepted');
       if (currentSessionId(api) !== sessionId) {
@@ -608,27 +619,46 @@ async function tui(api) {
   api.event.on('session.idle', async (event) => {
     const properties = eventProperties(event);
     const sessionId = properties.sessionID || properties.sessionId;
-    if (!sessionId || !activeDeliveries.has(sessionId)) return;
+    if (!sessionId) {
+      console.warn('[walker-bridge] session.idle ignored: no sessionId');
+      return;
+    }
     const result = finalEvents(api, sessionId);
-    if (!result.messageId || sentAssistantIds.has(result.messageId)) return;
+    if (!result.messageId) {
+      console.warn('[walker-bridge] session.idle finalEvents empty, skipping report', { sessionId });
+      return;
+    }
+    if (sentAssistantIds.has(result.messageId)) {
+      console.warn('[walker-bridge] session.idle assistant already sent', { sessionId, messageId: result.messageId, eventCount: result.events.length });
+      return;
+    }
     sentAssistantIds.add(result.messageId);
     const entry = activeDeliveries.get(sessionId);
-    const deliveryId = entry.deliveryId;
-    stopHeartbeat(sessionId);
-    activeDeliveries.delete(sessionId);
-    await report(sessionId, deliveryId, result.events, null, null, 'final').catch(() => {});
+    const deliveryId = entry ? entry.deliveryId : '';
+    const deliveryState = entry ? 'final' : null;
+    if (entry) {
+      stopHeartbeat(sessionId);
+      activeDeliveries.delete(sessionId);
+    }
+    console.warn('[walker-bridge] session.idle reporting final', { sessionId, deliveryId, hasActiveDelivery: Boolean(entry), messageId: result.messageId, eventCount: result.events.length, eventTypes: result.events.map((e) => e.type).join(',') });
+    await report(sessionId, deliveryId, result.events, null, null, deliveryState).catch((err) => {
+      console.warn('[walker-bridge] session.idle report failed', { sessionId, deliveryId, error: err && err.message });
+    });
   });
 
   api.event.on('session.error', async (event) => {
     const properties = eventProperties(event);
     const sessionId = properties.sessionID || properties.sessionId || activeSessionId;
-    if (!sessionId || !activeDeliveries.has(sessionId)) return;
+    if (!sessionId) return;
     const entry = activeDeliveries.get(sessionId);
-    const deliveryId = entry.deliveryId;
-    stopHeartbeat(sessionId);
-    activeDeliveries.delete(sessionId);
+    const deliveryId = entry ? entry.deliveryId : '';
+    const deliveryState = entry ? 'final' : null;
+    if (entry) {
+      stopHeartbeat(sessionId);
+      activeDeliveries.delete(sessionId);
+    }
     const error = { message: errorMessage(properties.error) };
-    await report(sessionId, deliveryId, [], error, null, 'final').catch(() => {});
+    await report(sessionId, deliveryId, [], error, null, deliveryState).catch(() => {});
   });
 
   function reportPermissionEvent(type, event) {

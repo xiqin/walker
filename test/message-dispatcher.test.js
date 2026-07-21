@@ -1533,6 +1533,82 @@ describe('MessageDispatcher /attach command', () => {
     assert.deepEqual(boundRoute, { routeKey: 'feishu:oc_chat1:om_root1', sessionId: 'wks_existing1' });
   });
 
+  it('/attach <id> 已管理但 TUI runtime 失效时走 _attachOpencodeSession 创建新 HTTP session', async () => {
+    const mocks = makeMocks();
+    mocks.driver.listSessions = async () => [
+      { id: 'ses_reused', title: 'reused', cwd: 'H:\\walker', status: 'idle' },
+    ];
+    const staleAgentRef = { opencodeSessionId: 'ses_reused', transport: 'tui-bridge', runtimeId: 'rt_dead' };
+    mocks.sessionService.listSessions = () => [
+      { id: 'wks_stale_tui', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: staleAgentRef },
+    ];
+    mocks.driver.isSessionRefActive = (agentRef) => {
+      if (agentRef && agentRef.transport === 'tui-bridge') return false;
+      return true;
+    };
+    mocks.driver.resumeSession = async (ref) => ({ opencodeSessionId: ref.opencodeSessionId, serverUrl: 'http://localhost:4096', cwd: ref.cwd, transport: 'http' });
+    let createOpts;
+    mocks.sessionService.createSession = (opts) => {
+      createOpts = opts;
+      return { id: 'wks_http_new', agent: opts.agent, status: 'created', agentRef: opts.agentRef };
+    };
+    let boundRoute = null;
+    mocks.sessionService.bindRoute = () => { boundRoute = 'should-not-call'; };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['ses_reused'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_attach_reused1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.sessionId, 'wks_http_new', '应创建新 HTTP session 而非绑定失效的 TUI session');
+    assert.equal(boundRoute, null, '失效 session 不应走 bindRoute');
+    assert.equal(createOpts.agentRef.transport, 'http', '新 session 应为 HTTP transport');
+    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('ses_reused')));
+  });
+
+  it('/attach <id> 多个 Walker session 持有同一 opencodeSessionId 时优先绑定 runtime 仍在线的 TUI session', async () => {
+    const mocks = makeMocks();
+    mocks.driver.listSessions = async () => [
+      { id: 'ses_dup', title: 'dup', cwd: 'H:\\walker', status: 'idle' },
+    ];
+    const staleRef = { opencodeSessionId: 'ses_dup', transport: 'tui-bridge', runtimeId: 'rt_dead' };
+    const activeRef = { opencodeSessionId: 'ses_dup', transport: 'tui-bridge', runtimeId: 'rt_alive' };
+    mocks.sessionService.listSessions = () => [
+      { id: 'wks_stale', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: staleRef },
+      { id: 'wks_active', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: activeRef },
+    ];
+    mocks.driver.isSessionRefActive = (agentRef) => {
+      return !!(agentRef && agentRef.transport === 'tui-bridge' && agentRef.runtimeId === 'rt_alive');
+    };
+    let boundSessionId = null;
+    mocks.sessionService.bindRoute = (routeKey, sessionId) => { boundSessionId = sessionId; };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['ses_dup'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_attach_dup1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.bound, 'wks_active', '应绑定 runtime 仍在线的 session');
+    assert.equal(boundSessionId, 'wks_active');
+  });
+
   it('/attach <id> 可按完整 OpenCode session id 直接纳入指定会话', async () => {
     const mocks = makeMocks();
     let createOpts;
@@ -2611,6 +2687,40 @@ describe('MessageDispatcher ensureWatchForSession', () => {
     dispatcher.ensureWatchForSession(session.id);
     assert.equal(watchCallCount, 1, '重复调用 ensureWatchForSession 不应重复 watch');
   });
+
+  it('refresh=true 时会停止旧 watch 并按当前 agentRef 重新启动', () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_refresh1',
+      agent: 'opencode',
+      status: 'idle',
+      agentRef: { opencodeSessionId: 'ses_refresh1', transport: 'tui-bridge', runtimeId: 'rt_old' },
+    };
+    mocks.sessionService.getSession = (id) => id === session.id ? session : null;
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
+    const watchedRefs = [];
+    let stopCount = 0;
+    mocks.driver.watchSession = (agentRef) => {
+      watchedRefs.push(Object.assign({}, agentRef));
+      return () => { stopCount++; };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    dispatcher.ensureWatchForSession(session.id);
+    session.agentRef = { opencodeSessionId: 'ses_refresh1', transport: 'tui-bridge', runtimeId: 'rt_new' };
+    dispatcher.ensureWatchForSession(session.id, { refresh: true });
+
+    assert.equal(watchedRefs.length, 2, 'refresh=true 应重新启动 watch');
+    assert.equal(watchedRefs[0].runtimeId, 'rt_old');
+    assert.equal(watchedRefs[1].runtimeId, 'rt_new');
+    assert.equal(stopCount, 1, '重新 watch 前应停止旧 watch');
+  });
 });
 
 function makeClearMocks(overrides) {
@@ -3184,6 +3294,63 @@ describe('MessageDispatcher AbortSignal and transport recovery', () => {
 
     assert.equal(result, 'recovering');
     assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard'), false);
+  });
+
+  it('TUI_RUNTIME_UNAVAILABLE 发送友好提示卡且不标记 session error', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_tui_unavail1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_tui_unavail1' } };
+    let markedError = false;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.sessionService.markError = () => { markedError = true; };
+    const err = new Error('OpenCode TUI runtime is not connected');
+    err.code = 'TUI_RUNTIME_UNAVAILABLE';
+    mocks.driver.prompt = async () => { throw err; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_tui_unavail1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'tui_unavailable', 'TUI runtime 不可用应返回 tui_unavailable');
+    assert.equal(markedError, false, '不应标记 session error');
+    assert.equal(session.status, 'idle', 'session 应回 idle');
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard'), false, '不应发送 error 卡片');
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply, '应发送 replyText 友好提示');
+    assert.match(reply.text, /OpenCode TUI 未连接/, '提示文本应引导用户连接 TUI');
+  });
+
+  it('TUI_RUNTIME_STALE 发送友好提示卡且不标记 session error', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_tui_stale1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_tui_stale1' } };
+    let markedError = false;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.markRunning = () => { session.status = 'running'; };
+    mocks.sessionService.markIdle = () => { session.status = 'idle'; };
+    mocks.sessionService.markError = () => { markedError = true; };
+    const err = new Error('OpenCode TUI runtime connection is stale');
+    err.code = 'TUI_RUNTIME_STALE';
+    mocks.driver.prompt = async () => { throw err; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_tui_stale1', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'tui_unavailable');
+    assert.equal(markedError, false);
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendErrorCard'), false);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.ok(reply);
+    assert.match(reply.text, /连接已失活/, 'STALE 错误应提示连接失活');
   });
 
   it('真正业务错误仍标记 error 并发送错误卡片', async () => {

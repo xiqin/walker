@@ -317,6 +317,62 @@ describe('飞书-TUI 双向链路集成测试', () => {
       assert.ok(permissionCard, 'TUI permission 事件应通过 watch 回传飞书权限确认卡片');
       bridge.close();
     });
+
+    it('TUI 重启复用同 opencodeSessionId 后，手工 TUI 回复仍推送到原飞书 route', async () => {
+      const chatId = 'oc_chat_tui_restart_push';
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const oldRuntimeId = 'runtime-restart-old-e2e';
+      const newRuntimeId = 'runtime-restart-new-e2e';
+      const opencodeSessionId = 'ses_restart_push_e2e';
+
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const bridge = new OpencodeTuiBridge({
+        sessionService: ctx.sessionService,
+        promptTimeoutMs: 1000,
+        runtimeStaleMs: 1000,
+      });
+      const driver = new OpencodeDriver({
+        serverUrl: 'http://localhost:4096',
+        tuiBridge: bridge,
+        httpClient: { request: async () => { throw new Error('TUI bridge test must not use HTTP'); } },
+        sseClient: { connect: async () => { throw new Error('TUI bridge test must not use SSE'); } },
+      });
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+      bridge.setOnSessionEnrolled(({ sessionId }) => dispatcher.ensureWatchForSession(sessionId));
+
+      const oldReg = bridge.register({ runtimeId: oldRuntimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
+      assert.equal(oldReg.routeKey, routeKey);
+      bridge.dispose({ runtimeId: oldRuntimeId });
+
+      const newReg = bridge.register({ runtimeId: newRuntimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
+      assert.equal(newReg.routeKey, routeKey);
+      assert.notEqual(newReg.sessionId, oldReg.sessionId);
+
+      bridge.reportEvents({
+        runtimeId: newRuntimeId,
+        sessionId: opencodeSessionId,
+        events: [
+          { type: AgentEvent.TYPE_TEXT, data: { text: 'manual reply after TUI restart' } },
+          { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+        ],
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const manualReply = feishuApi.calls.find((call) => {
+        return call.type === 'sendMarkdown' && call.chatId === chatId && call.text.includes('manual reply after TUI restart');
+      });
+      assert.ok(manualReply, 'TUI 重启后的手工回复应继续推送到原飞书 route');
+      bridge.close();
+    });
   });
 
   describe('不会重复或跨 route 推送 TUI 回复', () => {

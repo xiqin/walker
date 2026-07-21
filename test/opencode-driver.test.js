@@ -78,7 +78,7 @@ describe('Stub drivers', () => {
 
 describe('OpencodeDriver ensureReady', () => {
   it('server 已可用时直接返回', async () => {
-    const http = new FakeHttpClient({ 'GET http://localhost:4096/health': { status: 200, data: { ok: true } } });
+    const http = new FakeHttpClient({ 'GET http://localhost:4096/api/health': { status: 200, data: { ok: true } } });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', autostart: false });
     const result = await driver.ensureReady();
     assert.equal(result, true);
@@ -90,7 +90,7 @@ describe('OpencodeDriver ensureReady', () => {
       calls: [],
       async request(method, url, body) {
         this.calls.push({ method, url, body });
-        if (url === 'http://localhost:4096/health') {
+        if (url === 'http://localhost:4096/api/health') {
           healthCallIndex++;
           if (healthCallIndex > 1) return { status: 200, data: { ok: true } };
           throw new Error('ECONNREFUSED');
@@ -115,7 +115,7 @@ describe('OpencodeDriver ensureReady', () => {
   });
 
   it('server 不可用且 autostart=false 时抛错含诊断信息', async () => {
-    const http = new FakeHttpClient({ 'GET http://localhost:4096/health': { error: new Error('ECONNREFUSED') } });
+    const http = new FakeHttpClient({ 'GET http://localhost:4096/api/health': { error: new Error('ECONNREFUSED') } });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', autostart: false });
     await assert.rejects(() => driver.ensureReady(), { message: /opencode server|ECONNREFUSED|serverUrl/i });
   });

@@ -53,6 +53,12 @@ class FeishuPlatform {
           logger.error('card action error', { err });
         });
       },
+      'im.message.reaction.created_v1': (data) => {
+        this._handleReactionEvent(data);
+      },
+      'im.message.reaction.deleted_v1': (data) => {
+        this._handleReactionEvent(data);
+      },
     });
 
     this.wsClient = new lark.WSClient({
@@ -115,6 +121,18 @@ class FeishuPlatform {
     } else {
       logger.warn('card action ignored: missing action value', { chatId: parsed.chatId, messageId: parsed.messageId, openId: parsed.openId });
     }
+  }
+
+  /**
+   * 处理飞书消息表情反应事件（im.message.reaction.created_v1 / deleted_v1）
+   * 当前不基于表情触发业务逻辑，仅记录 debug 日志以消除 Lark SDK 的 `no ${type} handle` 警告。
+   * @param {Object} data - 飞书 reaction 事件原始数据
+   */
+  _handleReactionEvent(data) {
+    const reactionType = data && data.reaction && data.reaction.reaction_type && data.reaction.reaction_type.emoji_type;
+    const messageId = data && data.reaction && data.reaction.message_id;
+    const chatId = data && data.reaction && data.reaction.chat_id || (data && data.operator && data.operator.open_id);
+    logger.debug('reaction event ignored', { type: data && data.type, reactionType, messageId, chatId });
   }
 
   /**
