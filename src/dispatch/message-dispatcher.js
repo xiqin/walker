@@ -54,6 +54,7 @@ class MessageDispatcher {
     this.sessionWatchBuffers = new Map();
     this.sessionWatchProgressCards = new Map();
     this.sessionWatchProgressPromises = new Map();
+    this.sessionDoneInFlight = new Map();
     this.sessionDeliveredTexts = new Map();
     this.promptHeartbeatStops = new Map();
     this.turnStates = new Map();
@@ -1168,49 +1169,72 @@ class MessageDispatcher {
     return this.promptHeartbeat._formatDuration(ms);
   }
 
-  _handleWatchedSessionEvent(session, chatId, agentEvent) {
+  async _handleWatchedSessionEvent(session, chatId, agentEvent) {
+    if (this._destroyed) return;
     if (this._isTurnSuppressed(session.id)) {
       this.sessionWatchBuffers.set(session.id, []);
       return;
     }
     const buffer = this.sessionWatchBuffers.get(session.id) || [];
     if (agentEvent.type === AgentEvent.TYPE_DONE) {
-      const pendingProgress = this.sessionWatchProgressPromises.get(session.id);
-      const displayEvents = this._coalesceDisplayEvents(buffer, '');
-      const text = this._textFromDisplayEvents(displayEvents);
+      const doneBuffer = buffer.slice();
       this.sessionWatchBuffers.set(session.id, []);
-      logger.info('watched session done', { sessionId: session.id, chatId, textLen: text.length, bufferLen: buffer.length });
-      const finishProgress = async () => {
-        if (pendingProgress) await pendingProgress.catch(() => {});
-        const progressCardId = this.sessionWatchProgressCards.get(session.id);
-        if (progressCardId && this.progressStyle === 'card') {
-          await this._renderWatchProgressCard(session, chatId, displayEvents, progressCardId);
+      const run = async () => {
+        if (this._destroyed) return;
+        const pendingProgress = this.sessionWatchProgressPromises.get(session.id);
+        const displayEvents = this._coalesceDisplayEvents(doneBuffer, '');
+        let text = this._textFromDisplayEvents(displayEvents);
+        if (!text && doneBuffer.length === 0 && this._shouldFetchLastCompletedText(session, agentEvent)) {
+          const fetched = await this._fetchLastCompletedText(session);
+          if (fetched) {
+            text = fetched;
+            logger.info('watched session done: buffer empty, fetched from history', { sessionId: session.id, chatId, textLen: text.length });
+          }
         }
-        this.sessionWatchProgressCards.delete(session.id);
-        this.sessionWatchProgressPromises.delete(session.id);
+        if (this._destroyed) return;
+        logger.info('watched session done', { sessionId: session.id, chatId, textLen: text.length, bufferLen: doneBuffer.length });
+        const finishProgress = async () => {
+          if (pendingProgress) await pendingProgress.catch(() => {});
+          const progressCardId = this.sessionWatchProgressCards.get(session.id);
+          if (progressCardId && this.progressStyle === 'card') {
+            await this._renderWatchProgressCard(session, chatId, displayEvents, progressCardId);
+          }
+          this.sessionWatchProgressCards.delete(session.id);
+          this.sessionWatchProgressPromises.delete(session.id);
+        };
+        finishProgress().catch((err) => {
+          logger.warn('watch progress card render failed', { sessionId: session.id, error: err && err.message });
+          this.sessionWatchProgressCards.delete(session.id);
+          this.sessionWatchProgressPromises.delete(session.id);
+        });
+        if (text) {
+          if (this._hasDeliveredText(session.id, text)) {
+            logger.info('skip duplicate watched session text', { sessionId: session.id, chatId, textLen: text.length });
+            return;
+          }
+          const isFocus = this._isFocusSession(session);
+          if (!isFocus && !this.nonFocusOutput) {
+            logger.info('non-focus output suppressed', { sessionId: session.id, chatId });
+            return;
+          }
+          this._rememberDeliveredText(session.id, text);
+          const outputText = (!isFocus && this.nonFocusOutput)
+            ? '[session: ' + session.id.slice(0, 8) + '] ' + text
+            : text;
+          if (this._destroyed) return;
+          this._sendFeishu('sendMarkdown', [chatId, outputText], { sessionId: session.id });
+        }
       };
-      finishProgress().catch((err) => {
-        logger.warn('watch progress card render failed', { sessionId: session.id, error: err && err.message });
-        this.sessionWatchProgressCards.delete(session.id);
-        this.sessionWatchProgressPromises.delete(session.id);
+      const prev = this.sessionDoneInFlight.get(session.id) || Promise.resolve();
+      const rawNext = prev.then(run, run);
+      const next = rawNext.catch((err) => {
+        logger.warn('watched session done handling failed', { sessionId: session.id, error: err && err.message });
       });
-      if (text) {
-        if (this._hasDeliveredText(session.id, text)) {
-          logger.info('skip duplicate watched session text', { sessionId: session.id, chatId, textLen: text.length });
-          return;
-        }
-        const isFocus = this._isFocusSession(session);
-        if (!isFocus && !this.nonFocusOutput) {
-          logger.info('non-focus output suppressed', { sessionId: session.id, chatId });
-          return;
-        }
-        this._rememberDeliveredText(session.id, text);
-        const outputText = (!isFocus && this.nonFocusOutput)
-          ? '[session: ' + session.id.slice(0, 8) + '] ' + text
-          : text;
-        this._sendFeishu('sendMarkdown', [chatId, outputText], { sessionId: session.id });
-      }
-      return;
+      this.sessionDoneInFlight.set(session.id, next);
+      next.finally(() => {
+        if (this.sessionDoneInFlight.get(session.id) === next) this.sessionDoneInFlight.delete(session.id);
+      }).catch(() => {});
+      return next;
     }
     if (agentEvent.type === AgentEvent.TYPE_PERMISSION) {
       this._handlePermissionEvent(session, chatId, agentEvent);
@@ -1318,6 +1342,42 @@ class MessageDispatcher {
     this.sessionDeliveredTexts.set(sessionId, next.slice(-5));
   }
 
+  async _fetchLastCompletedText(session) {
+    if (!session || !session.agentRef || !session.agentRef.opencodeSessionId) return null;
+    const driver = this.driverRegistry.get(session.agent || 'opencode');
+    if (!driver || typeof driver.getSessionMessages !== 'function') return null;
+    try {
+      const messages = await driver.getSessionMessages(session.agentRef);
+      if (!Array.isArray(messages)) return null;
+      const completedAssistant = messages.filter((m) => {
+        const role = m.info ? m.info.role : m.role;
+        const comp = m.info && m.info.time && m.info.time.completed;
+        return role === 'assistant' && comp;
+      });
+      if (completedAssistant.length === 0) return null;
+      const last = completedAssistant[completedAssistant.length - 1];
+      const parts = (last && last.parts) || [];
+      const text = parts
+        .filter((p) => p && p.type === 'text' && p.text)
+        .map((p) => p.text)
+        .join('\n')
+        .trim();
+      return text || null;
+    } catch (err) {
+      logger.warn('fetch last completed text failed', { sessionId: session.id, error: err && err.message });
+      return null;
+    }
+  }
+
+  _shouldFetchLastCompletedText(session, agentEvent) {
+    if (!session || !session.id) return false;
+    const reason = agentEvent && agentEvent.data && agentEvent.data.reason;
+    const hasActiveTurn = this.turnStates && this.turnStates.has(session.id);
+    if (reason === 'idle' && !hasActiveTurn) return false;
+    if (hasActiveTurn) return true;
+    return reason === 'polled';
+  }
+
   _hasDeliveredText(sessionId, text) {
     const normalized = (text || '').trim();
     if (!sessionId || !normalized) return false;
@@ -1412,6 +1472,7 @@ class MessageDispatcher {
     this.sessionWatchBuffers.clear();
     this.sessionWatchProgressCards.clear();
     this.sessionWatchProgressPromises.clear();
+    this.sessionDoneInFlight.clear();
     this.sessionDeliveredTexts.clear();
     this.turnStates.clear();
     this.cancelledTurnSessions.clear();

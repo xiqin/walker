@@ -3592,3 +3592,212 @@ describe('MessageDispatcher 原生 question 路由', () => {
     assert.deepEqual(calls, [AgentEvent.TYPE_QUESTION_REPLIED, AgentEvent.TYPE_QUESTION_REJECTED]);
   });
 });
+
+describe('MessageDispatcher watch buffer 空时从历史补取完成回答', () => {
+  function makeSession(extra) {
+    return Object.assign({ id: 'wks_fetch1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_fetch1', serverUrl: 'http://localhost:4096' } }, extra);
+  }
+
+  it('buffer 为空且 polled DONE 返回已完成 assistant 消息时，DONE 后发送该消息 text', async () => {
+    const mocks = makeMocks();
+    const session = makeSession();
+    mocks.driver.getSessionMessages = async () => ([
+      { info: { id: 'msg_0', role: 'user', time: { completed: 1 } }, parts: [{ type: 'text', text: 'hi' }] },
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: '重启后完成的回答' }] },
+    ]);
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === '重启后完成的回答');
+    assert.equal(sends.length, 1, 'buffer 为空时应从历史取最后一条 completed assistant text 发飞书');
+  });
+
+  it('buffer 为空且 idle DONE 没有活跃 turn 时，不补发历史旧回答', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch_idle_old', agentRef: { opencodeSessionId: 'ses_fetch_idle_old' } });
+    let getSessionCalled = false;
+    mocks.driver.getSessionMessages = async () => {
+      getSessionCalled = true;
+      return [
+        { info: { id: 'msg_old', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: '重启前旧回答' }] },
+      ];
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+
+    assert.equal(getSessionCalled, false, 'idle DONE 无活跃 turn 时不应拉历史，避免重启后补发旧回答');
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    assert.equal(sends.length, 0, 'idle 旧状态不应发送历史旧回答');
+  });
+
+  it('buffer 为空且 idle DONE 有活跃 turn 时，可从历史补发完成回答', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch_idle_turn', agentRef: { opencodeSessionId: 'ses_fetch_idle_turn' } });
+    mocks.driver.getSessionMessages = async () => ([
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: '活跃 turn 完成回答' }] },
+    ]);
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    dispatcher.turnStates.set(session.id, { startedAt: Date.now() });
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === '活跃 turn 完成回答');
+    assert.equal(sends.length, 1, '有活跃 turn 时 idle DONE 可以补取当前回答');
+  });
+
+  it('buffer 非空时走原路径，不调用 getSessionMessages', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch2', agentRef: { opencodeSessionId: 'ses_fetch2' } });
+    let getSessionCalled = false;
+    mocks.driver.getSessionMessages = async () => { getSessionCalled = true; return []; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: '正常 buffer 内容' }));
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+
+    assert.equal(getSessionCalled, false, 'buffer 非空不应调用 getSessionMessages');
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === '正常 buffer 内容');
+    assert.equal(sends.length, 1, '正常场景应发送 buffer 中的 text');
+  });
+
+  it('重复 DONE 不重复发送从历史补取的 text', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch3', agentRef: { opencodeSessionId: 'ses_fetch3' } });
+    mocks.driver.getSessionMessages = async () => ([
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: '历史回答' }] },
+    ]);
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === '历史回答');
+    assert.equal(sends.length, 1, '历史补取的 text 也应被 _hasDeliveredText 去重');
+  });
+
+  it('getSessionMessages 返回无 completed assistant 时，不发送任何 text', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch4', agentRef: { opencodeSessionId: 'ses_fetch4' } });
+    mocks.driver.getSessionMessages = async () => ([
+      { info: { id: 'msg_0', role: 'user', time: { completed: 1 } }, parts: [{ type: 'text', text: 'hi' }] },
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: null } }, parts: [{ type: 'text', text: 'pending' }] },
+    ]);
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    assert.equal(sends.length, 0, '无 completed assistant 时不发送 text');
+  });
+
+  it('getSessionMessages 抛错时降级为不发送 text', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch5', agentRef: { opencodeSessionId: 'ses_fetch5' } });
+    mocks.driver.getSessionMessages = async () => { throw new Error('http failed'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    assert.equal(sends.length, 0, 'getSessionMessages 失败时不应抛错，降级为不发送');
+  });
+
+  it('driver 没有 getSessionMessages 方法时不发送 text', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch6', agentRef: { opencodeSessionId: 'ses_fetch6' } });
+    delete mocks.driver.getSessionMessages;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    assert.equal(sends.length, 0, 'driver 无 getSessionMessages 方法时降级为不发送');
+  });
+
+  it('tui-bridge session（getSessionMessages 返回 []) 不发送 text', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch7', agentRef: { transport: 'tui-bridge', runtimeId: 'rt_1', opencodeSessionId: 'ses_fetch7' } });
+    mocks.driver.getSessionMessages = async () => [];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    assert.equal(sends.length, 0, 'tui-bridge 返回空消息列表时不应发送 text');
+  });
+
+  it('buffer 非空但无 text 事件（纯进度任务）时不误拉历史', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch8', agentRef: { opencodeSessionId: 'ses_fetch8' } });
+    let getSessionCalled = false;
+    mocks.driver.getSessionMessages = async () => { getSessionCalled = true; return [{ info: { id: 'old1', role: 'assistant', time: { completed: 100 } }, parts: [{ type: 'text', text: '之前的旧回答' }] }]; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TODO, { todos: [{ id: 't1', status: 'completed' }] }));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_COMMAND_EXECUTED, { command: 'ls', exitCode: 0 }));
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+
+    assert.equal(getSessionCalled, false, 'buffer 非空时即使无 text 也不应拉历史');
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    assert.equal(sends.length, 0, '纯进度任务不应误推历史文本');
+  });
+
+  it('并发 DONE 串行化，第二个 DONE 看到第一个已投递后不再重复发同一条 text', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch9', agentRef: { opencodeSessionId: 'ses_fetch9' } });
+    mocks.driver.getSessionMessages = async () => ([
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: '同一条回答' }] },
+    ]);
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await Promise.all([
+      dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' })),
+      dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })),
+    ]);
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === '同一条回答');
+    assert.equal(sends.length, 1, '并发 DONE 拉到同一条历史 text 时应被 _hasDeliveredText 去重为 1 次');
+  });
+
+  it('历史补取期间到达的新 text 不会被旧 DONE 清空', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch_race', agentRef: { opencodeSessionId: 'ses_fetch_race' } });
+    let resolveMessages;
+    mocks.driver.getSessionMessages = async () => new Promise((resolve) => { resolveMessages = resolve; });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const firstDone = dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+    await new Promise((resolve) => setImmediate(resolve));
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: '补取期间的新回答' }));
+    resolveMessages([
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: '历史回答' }] },
+    ]);
+    await firstDone;
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+
+    const newSends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === '补取期间的新回答');
+    assert.equal(newSends.length, 1, '旧 DONE 完成后不应清掉补取期间到达的新 text');
+  });
+
+  it('历史补取未完成时 destroy，不应在补取返回后继续发送飞书消息', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_fetch_destroy', agentRef: { opencodeSessionId: 'ses_fetch_destroy' } });
+    let resolveMessages;
+    mocks.driver.getSessionMessages = async () => new Promise((resolve) => { resolveMessages = resolve; });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const done = dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+    await new Promise((resolve) => setImmediate(resolve));
+    dispatcher.destroy();
+    resolveMessages([
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: '销毁后不应发送' }] },
+    ]);
+    await done;
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    assert.equal(sends.length, 0, 'dispatcher destroy 后，悬挂的 DONE 补取不应继续发送飞书消息');
+    assert.equal(dispatcher.sessionDoneInFlight.size, 0, 'destroy 后 in-flight DONE 队列应保持清空');
+  });
+});
