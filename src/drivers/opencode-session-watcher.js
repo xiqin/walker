@@ -18,6 +18,7 @@ class OpencodeSessionWatcher {
     this.suspendedWatches = new Set();
     this._pollTimers = null;
     this._lastPolledMessageId = null;
+    this._pollInitializedSessions = new Set();
   }
 
   watch(sessionRef, handlers) {
@@ -174,7 +175,8 @@ class OpencodeSessionWatcher {
           const knownIdx = messages.findIndex((m) => (m.info && m.info.id) === lastKnownId || m.id === lastKnownId);
           if (knownIdx >= 0) newMessages = messages.slice(knownIdx + 1);
           else newMessages = messages;
-        } else {
+        } else if (!self._pollInitializedSessions.has(sessionId)) {
+          self._pollInitializedSessions.add(sessionId);
           if (messages.length > 0) {
             const completed = messages.filter((m) => {
               const role = m.info ? m.info.role : m.role;
@@ -182,20 +184,6 @@ class OpencodeSessionWatcher {
               return role === 'assistant' && comp;
             });
             if (completed.length > 0) {
-              for (const msg of completed) {
-                if (self.suspendedWatches.has(sessionId)) return;
-                const parts = msg.parts || [];
-                for (const part of parts) {
-                  if (part.type === 'text' && part.text) {
-                    if (handlers && handlers.onEvent) {
-                      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: part.text }));
-                    }
-                  }
-                }
-              }
-              if (handlers && handlers.onEvent) {
-                handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
-              }
               const lastComp = completed[completed.length - 1];
               self._lastPolledMessageId.set(sessionId, lastComp.info ? lastComp.info.id : lastComp.id);
             }
@@ -203,6 +191,8 @@ class OpencodeSessionWatcher {
             // 让后续 poll 能识别 pending → completed 的状态变化并推送
           }
           return;
+        } else {
+          newMessages = messages;
         }
         const assistantMessages = newMessages.filter((m) => {
           const role = m.info ? m.info.role : m.role;

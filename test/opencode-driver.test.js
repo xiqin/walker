@@ -773,6 +773,40 @@ describe('OpencodeDriver prompt with SSE', () => {
     assert.equal(textEvents.length, 1, 'resume 后不应重复投递');
   });
 
+  it('重启后首次 poll 只建立 completed 历史基线，不投递旧消息', async () => {
+    const delivered = [];
+    const messages = [
+      { info: { id: 'msg_old_1', role: 'assistant', time: { completed: Date.now() - 86400000 } }, parts: [{ type: 'text', text: '昨天的回复' }] },
+      { info: { id: 'msg_old_2', role: 'assistant', time: { completed: Date.now() - 1000 } }, parts: [{ type: 'text', text: '较新的旧回复' }] },
+    ];
+    const http = {
+      async request(method, url) {
+        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+          return { status: 200, data: messages };
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const sse = {
+      async connect() {
+        return new Promise(() => {});
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      messagePollIntervalMs: 60000,
+    });
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
+    await new Promise((resolve) => setImmediate(resolve));
+    if (typeof stopWatch === 'function') stopWatch();
+
+    assert.deepEqual(delivered, [], '首次 poll 不应投递已有 completed 历史');
+    assert.equal(driver._sessionWatcher._lastPolledMessageId.get('ses_abc'), 'msg_old_2');
+  });
+
   it('重启后首次 poll 只有 pending 消息时不推进游标，完成后能推送', async () => {
     const delivered = [];
     let messages = [
