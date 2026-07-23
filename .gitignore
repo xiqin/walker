@@ -6,3 +6,5 @@ adapter.pid
 walker.pid
 token-usage-output.txt
 config.json
+.worktrees/
+.worktree/

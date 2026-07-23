@@ -551,5 +551,140 @@
       "fail，0 cancelled，duration 5372ms |",
       "fail，0 cancelled（引用 test-report 证据） |"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-22+admin-console-redesign",
+    "timestamp": "2026-07-22T13:29:11.967Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-22+admin-console-redesign",
+    "timestamp": "2026-07-22T13:43:11.157Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-22+admin-console-redesign",
+    "timestamp": "2026-07-23T01:25:34.069Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-22+admin-console-redesign",
+    "timestamp": "2026-07-23T02:09:17.997Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-22+admin-console-redesign",
+    "timestamp": "2026-07-23T02:12:21.256Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-22+admin-console-redesign",
+    "timestamp": "2026-07-23T02:15:28.402Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-22+admin-console-redesign",
+    "timestamp": "2026-07-23T02:16:40.882Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-refactor",
+    "timestamp": "2026-07-23T07:10:04.684Z",
+    "stage": "git-worktree",
+    "skill": "loom-using-git-worktrees",
+    "passed": false,
+    "violations": [
+      "stale approval after replanning: spec.md and plan.md changed after previous approved gate"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-refactor",
+    "timestamp": "2026-07-23T07:44:08.141Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failures |",
+      "failures |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-refactor",
+    "timestamp": "2026-07-23T07:51:36.596Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail, duration 659.2263 ms |",
+      "fail, duration 10800.1653 ms |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-refactor",
+    "timestamp": "2026-07-23T07:55:20.088Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail, duration 659.2263 ms |",
+      "fail, duration 10800.1653 ms |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-refactor",
+    "timestamp": "2026-07-23T08:12:46.380Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail, duration 659.2263 ms |",
+      "fail, duration 10800.1653 ms |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-refactor",
+    "timestamp": "2026-07-23T08:13:57.039Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail, duration 659.2263 ms |",
+      "fail, duration 10800.1653 ms |"
+    ]
   }
 ]

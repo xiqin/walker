@@ -1,6 +1,22 @@
 {
   "entries": [
     {
+      "id": "0b69f707",
+      "type": "踩坑",
+      "content": "在 git worktree H:\\\\walker\\\\.worktree\\\\2026-07-23-admin-refactor 中运行 loom index --check 时，CodeGraph 报告索引属于主工作区 H:\\\\walker 而非当前 worktree；此时不能用该索引判断 worktree 未提交改动的新鲜调用关系或符号状态。不要自动运行 codegraph init -i，除非用户明确同意为 worktree 建本地索引；应以当前源码、git diff 和测试结果为准，并在报告中标明图索引跳过。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-23T08:15:57.829Z"
+    },
+    {
       "id": "f3bc9482",
       "type": "决策",
       "content": "飞书原生 question 多选 checker 卡片不再在顶部 Markdown 重复列出选项说明；选项 label/description 只放在 checker 内容中，并在 form 内用 question_custom input 支持自定义答案。",
