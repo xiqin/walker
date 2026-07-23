@@ -40,6 +40,8 @@ function createHealthPoller(options) {
       failureCount: 0,
       timer: null,
       polling: false,
+      checkedAt: null,
+      reason: null,
     };
     trackers.set(sessionId, entry);
     const timer = setInterval(() => {
@@ -75,11 +77,14 @@ function createHealthPoller(options) {
     entry.polling = true;
     try {
       const ok = await _checkHealth(entry.agentRef);
+      entry.checkedAt = Date.now();
       if (ok) {
         entry.failureCount = 0;
+        entry.reason = null;
         return;
       }
       entry.failureCount += 1;
+      entry.reason = 'health check failed';
       logger.info('health check failed', { sessionId, failureCount: entry.failureCount });
       if (entry.failureCount >= failureThreshold) {
         logger.warn('session detached, handling', { sessionId, failureCount: entry.failureCount });
@@ -101,6 +106,36 @@ function createHealthPoller(options) {
       logger.debug('health check error', { url, err: err && err.message ? err.message : String(err) });
       return false;
     }
+  }
+
+  /**
+   * 获取单个 tracker 的健康快照。
+   * @param {string} sessionId - Walker session ID。
+   * @returns {Object|null} 健康快照，不存在时返回 null。
+   */
+  function getHealthSnapshot(sessionId) {
+    const entry = trackers.get(sessionId);
+    if (!entry) return null;
+    const status = entry.polling && !entry.checkedAt ? 'unknown'
+      : entry.failureCount >= failureThreshold ? 'failed'
+        : entry.failureCount > 0 ? 'warning'
+          : entry.checkedAt ? 'healthy' : 'unknown';
+    return {
+      sessionId,
+      status,
+      reason: entry.reason,
+      failureCount: entry.failureCount,
+      checkedAt: entry.checkedAt,
+      polling: entry.polling,
+    };
+  }
+
+  /**
+   * 获取全部 tracker 的健康快照。
+   * @returns {Object[]} 健康快照列表。
+   */
+  function getHealthSnapshots() {
+    return Array.from(trackers.keys()).map(getHealthSnapshot);
   }
 
   async function _handleDetached(sessionId, _entry) {
@@ -143,7 +178,7 @@ function createHealthPoller(options) {
     }
   }
 
-  return { start, stop, track, untrack, getTrackedSessions };
+  return { start, stop, track, untrack, getTrackedSessions, getHealthSnapshot, getHealthSnapshots };
 }
 
 module.exports = { createHealthPoller };

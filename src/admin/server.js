@@ -60,31 +60,54 @@ function createAdminServer(options) {
    * @param {import('http').ServerResponse} res - HTTP 响应
    */
   function handleRequest(req, res) {
-    const parsed = url.parse(req.url, false);
-    const pathname = parsed.pathname || '/';
-    const method = req.method || 'GET';
+    try {
+      const parsed = url.parse(req.url, false);
+      const pathname = parsed.pathname || '/';
+      const method = req.method || 'GET';
 
-    req.urlPath = pathname;
-    req.queryString = parsed.query || '';
+      req.urlPath = pathname;
+      req.queryString = parsed.query || '';
 
-    if (isAdminApiPath(pathname)) {
-      const matched = router.match(method, pathname);
-      if (matched) {
-        req.params = matched.params;
-        matched.handler(req, res, matched.params);
+      if (isAdminApiPath(pathname)) {
+        const matched = router.match(method, pathname);
+        if (matched) {
+          req.params = matched.params;
+          const result = matched.handler(req, res, matched.params);
+          if (result && typeof result.then === 'function') {
+            result.catch((err) => sendRequestError(res, err));
+          }
+          return;
+        }
+
+        send(res, error('NOT_FOUND', 'API 路径未找到'), 404);
         return;
       }
 
-      send(res, error('NOT_FOUND', 'API 路径未找到'), 404);
+      if (publicDir) {
+        const result = handleStatic(req, res, publicDir, responseModule);
+        if (result && typeof result.then === 'function') {
+          result.catch((err) => sendRequestError(res, err));
+        }
+        return;
+      }
+
+      send(res, error('NOT_FOUND', '未找到'), 404);
+    } catch (err) {
+      sendRequestError(res, err);
+    }
+  }
+
+  function sendRequestError(res, err) {
+    if (res.writableEnded || res.headersSent) {
+      logger.error('admin request failed after response started', { err });
       return;
     }
-
-    if (publicDir) {
-      handleStatic(req, res, publicDir, responseModule);
+    if (err && err.name === 'URIError') {
+      send(res, error('BAD_REQUEST', '请求路径编码无效'), 400);
       return;
     }
-
-    send(res, error('NOT_FOUND', '未找到'), 404);
+    logger.error('admin request failed', { err });
+    send(res, error('INTERNAL_ERROR', 'Admin 请求处理失败'), 500);
   }
 
   /**

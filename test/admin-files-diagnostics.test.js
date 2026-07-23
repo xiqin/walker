@@ -55,6 +55,34 @@ function createFakeSessionService(initialSessions, initialRoutes) {
     listSessions() { return Object.values(sessionsData).filter((s) => s.status !== 'deleted'); },
     bindRoute(rk, sid) { routesData[rk] = sid; },
     unbindRoute(rk) { delete routesData[rk]; },
+    cleanOrphanRoutes() {
+      const cleaned = [];
+      for (const routeKey of Object.keys(routesData)) {
+        const value = routesData[routeKey];
+        const route = typeof value === 'string'
+          ? { focusSessionId: value, sessions: [value] }
+          : value;
+        if (!route || !Array.isArray(route.sessions)) {
+          delete routesData[routeKey];
+          cleaned.push(routeKey);
+          continue;
+        }
+        const validSessions = route.sessions.filter((id) => sessionsData[id] && sessionsData[id].status !== 'deleted');
+        if (validSessions.length === 0) {
+          delete routesData[routeKey];
+          cleaned.push(routeKey);
+        } else if (validSessions.length !== route.sessions.length || !validSessions.includes(route.focusSessionId)) {
+          route.sessions = validSessions;
+          if (!validSessions.includes(route.focusSessionId)) route.focusSessionId = validSessions[0];
+          route.updatedAt = Date.now();
+          routesData[routeKey] = route;
+          cleaned.push(routeKey);
+        } else if (route !== value) {
+          routesData[routeKey] = route;
+        }
+      }
+      return cleaned;
+    },
     stopSession(id) { if (sessionsData[id]) { sessionsData[id].status = 'stopped'; } },
     deleteSession(id) { if (sessionsData[id]) { sessionsData[id].status = 'deleted'; } },
     createSession(opts) {
@@ -523,6 +551,8 @@ test('REQ-018: runHealthCheck 返回完整检查项', async () => {
   assert.ok(names.includes('runtime'));
   assert.ok(names.includes('log_files'));
   assert.ok(names.includes('dangling_routes'));
+  assert.equal(checks.every((item) => typeof item.group === 'string'), true);
+  assert.equal(checks.every((item) => typeof item.checkedAt === 'string'), true);
 });
 
 test('REQ-018: 飞书凭据完整时 pass', async () => {

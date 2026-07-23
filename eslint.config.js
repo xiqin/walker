@@ -40,6 +40,16 @@ module.exports = [
     ],
   },
   {
+    files: ['src/admin/public/js/**/*.js'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: {
+        ...Object.fromEntries(Object.keys(globals.node).map(name => [name, 'off'])),
+        ...globals.browser,
+      },
+    },
+  },
+  {
     files: ['test/**/*.js'],
     languageOptions: {
       globals: {

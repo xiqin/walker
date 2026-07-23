@@ -118,7 +118,8 @@ async function ensureReadyAgent(ctx) {
  * @param {Object} ctx - 上下文对象
  * @param {Object} [opts] - 检测选项
  * @param {Function} [opts.detectWslIp] - WSL IP 探测函数
- * @param {Function} [opts.checkCwd] - cwd 存在性检查函数
+ * @param {Function} [opts.checkCwd] - Windows cwd 存在性检查函数
+ * @param {Function} [opts.checkWslCwd] - WSL cwd 存在性检查函数
  * @returns {Object} runtime 检测结果，含 Windows/WSL 配置和探测摘要
  */
 function detectRuntime(ctx, opts) {
@@ -129,6 +130,7 @@ function detectRuntime(ctx, opts) {
       type: 'windows',
       cwd: envConfig.walkerDefaultCwd || '',
       cwdExists: false,
+      cwdChecked: false,
     },
     wsl: null,
   };
@@ -136,24 +138,42 @@ function detectRuntime(ctx, opts) {
   const cwdPath = envConfig.walkerDefaultCwd || process.cwd();
   if (options.checkCwd) {
     runtimeConfig.windows.cwdExists = options.checkCwd(cwdPath);
+    runtimeConfig.windows.cwdChecked = true;
   }
 
   const distro = envConfig.walkerWslDistro || 'Ubuntu-24.04';
+  const wslCwd = envConfig.walkerWslCwd || (cwdPath.startsWith('/') ? cwdPath : '');
   runtimeConfig.wsl = {
     type: 'wsl',
     distro,
-    cwd: envConfig.walkerDefaultCwd || '',
-    cwdExists: runtimeConfig.windows.cwdExists,
+    cwd: wslCwd,
+    cwdExists: false,
+    cwdChecked: false,
+    cwdError: wslCwd ? '' : 'WSL cwd not configured',
     ipDetected: false,
     ip: '',
     ipError: '',
   };
 
+  if (wslCwd && options.checkWslCwd) {
+    try {
+      runtimeConfig.wsl.cwdExists = options.checkWslCwd(wslCwd, distro);
+      runtimeConfig.wsl.cwdChecked = true;
+      if (!runtimeConfig.wsl.cwdExists) runtimeConfig.wsl.cwdError = 'WSL cwd does not exist';
+    } catch (err) {
+      runtimeConfig.wsl.cwdError = err.message;
+    }
+  }
+
   if (options.detectWslIp) {
     try {
       const ip = options.detectWslIp(distro);
-      runtimeConfig.wsl.ipDetected = true;
-      runtimeConfig.wsl.ip = ip;
+      if (typeof ip === 'string' && ip.trim()) {
+        runtimeConfig.wsl.ipDetected = true;
+        runtimeConfig.wsl.ip = ip.trim();
+      } else {
+        runtimeConfig.wsl.ipError = 'WSL IP not detected';
+      }
     } catch (err) {
       runtimeConfig.wsl.ipError = err.message;
     }

@@ -246,6 +246,81 @@ test('cleanOrphanRoutes 清除指向 missing session 的 route', () => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+test('cleanOrphanRoutes 检查全部成员并稳定修复四种悬空状态', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  stateStore.update((state) => {
+    state.sessions = {
+      wks_focus: { id: 'wks_focus', status: 'idle' },
+      wks_first: { id: 'wks_first', status: 'idle' },
+      wks_second: { id: 'wks_second', status: 'idle' },
+      wks_deleted: { id: 'wks_deleted', status: 'deleted' },
+    };
+    state.routes = {
+      'route:valid-focus': {
+        focusSessionId: 'wks_focus',
+        sessions: ['wks_missing', 'wks_focus', 'wks_deleted'],
+        cwd: '/mnt/h/valid-focus',
+        updatedAt: 1,
+      },
+      'route:bad-focus': {
+        focusSessionId: 'wks_missing',
+        sessions: ['wks_missing', 'wks_first', 'wks_second'],
+        cwd: '/mnt/h/bad-focus',
+        updatedAt: 1,
+      },
+      'route:focus-outside-members': {
+        focusSessionId: 'wks_focus',
+        sessions: ['wks_second', 'wks_first'],
+        cwd: '/mnt/h/focus-outside-members',
+        updatedAt: 1,
+      },
+      'route:no-valid': {
+        focusSessionId: 'wks_deleted',
+        sessions: ['wks_deleted', 'wks_missing'],
+        cwd: '/mnt/h/no-valid',
+        updatedAt: 1,
+      },
+      'route:healthy': {
+        focusSessionId: 'wks_second',
+        sessions: ['wks_first', 'wks_second'],
+        cwd: '/mnt/h/healthy',
+        updatedAt: 1,
+      },
+    };
+    state._schemaVersion = 3;
+  });
+
+  assert.deepEqual(service.cleanOrphanRoutes().sort(), [
+    'route:bad-focus',
+    'route:focus-outside-members',
+    'route:no-valid',
+    'route:valid-focus',
+  ]);
+  const afterFirst = stateStore.read().routes;
+  assert.deepEqual(afterFirst['route:valid-focus'].sessions, ['wks_focus']);
+  assert.equal(afterFirst['route:valid-focus'].focusSessionId, 'wks_focus');
+  assert.equal(afterFirst['route:valid-focus'].cwd, '/mnt/h/valid-focus');
+  assert.deepEqual(afterFirst['route:bad-focus'].sessions, ['wks_first', 'wks_second']);
+  assert.equal(afterFirst['route:bad-focus'].focusSessionId, 'wks_first');
+  assert.equal(afterFirst['route:bad-focus'].cwd, '/mnt/h/bad-focus');
+  assert.deepEqual(afterFirst['route:focus-outside-members'].sessions, ['wks_second', 'wks_first']);
+  assert.equal(afterFirst['route:focus-outside-members'].focusSessionId, 'wks_second');
+  assert.equal(afterFirst['route:focus-outside-members'].cwd, '/mnt/h/focus-outside-members');
+  assert.equal(afterFirst['route:no-valid'], undefined);
+  assert.deepEqual(afterFirst['route:healthy'], {
+    focusSessionId: 'wks_second',
+    sessions: ['wks_first', 'wks_second'],
+    cwd: '/mnt/h/healthy',
+    updatedAt: 1,
+  });
+
+  const stable = structuredClone(afterFirst);
+  assert.deepEqual(service.cleanOrphanRoutes(), []);
+  assert.deepEqual(stateStore.read().routes, stable, '重复清理不得损坏成员、焦点、cwd 或时间戳');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
 test('旧单值 routes 格式自动迁移', () => {
   const { tmpDir, stateStore } = createTempStore();
   const service = new SessionService({ stateStore });
@@ -349,8 +424,9 @@ test('setFocus 拒绝不在 sessions 列表中的 sessionId', () => {
   const service = new SessionService({ stateStore });
   const routeKey = 'feishu:oc_abc:ou_user';
   service.createSession({ route: routeKey, agent: 'opencode' });
+  const other = service.createSession({ agent: 'opencode' });
 
-  assert.throws(() => service.setFocus(routeKey, 'wks_not_in_route'), /not in route/);
+  assert.throws(() => service.setFocus(routeKey, other.id), /not in route/);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -442,14 +518,66 @@ test('setRouteCwd 设置 route 的 cwd 字段', () => {
   const { tmpDir, stateStore } = createTempStore();
   const service = new SessionService({ stateStore });
   const routeKey = 'feishu:oc_abc:ou_user';
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-route-cwd-'));
   service.createSession({ route: routeKey, agent: 'opencode' });
 
-  service.setRouteCwd(routeKey, '/new/cwd');
-  assert.equal(service.getRouteCwd(routeKey), '/new/cwd');
+  service.setRouteCwd(routeKey, cwd);
+  assert.equal(service.getRouteCwd(routeKey), fs.realpathSync(cwd));
 
   const state = stateStore.read();
-  assert.equal(state.routes[routeKey].cwd, '/new/cwd');
+  assert.equal(state.routes[routeKey].cwd, fs.realpathSync(cwd));
 
+  fs.rmSync(cwd, { recursive: true, force: true });
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('setRouteCwd 在 Windows 上验证并规范化合法 POSIX/WSL 绝对路径', { skip: process.platform !== 'win32' }, () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore, wslPathExists: cwd => cwd === '/mnt/h/walker/src' });
+  const routeKey = 'feishu:wsl:ou_user';
+  service.createSession({ route: routeKey, agent: 'opencode', cwd: 'C:\\walker' });
+
+  service.setRouteCwd(routeKey, '/mnt/h/walker//src/');
+  assert.equal(service.getRouteCwd(routeKey), '/mnt/h/walker/src');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('setRouteCwd 在 Windows 上拒绝无法验证或不存在的 WSL 路径', { skip: process.platform !== 'win32' }, () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const routeKey = 'feishu:wsl-missing:ou_user';
+  const serviceWithoutChecker = new SessionService({ stateStore });
+  serviceWithoutChecker.createSession({ route: routeKey, agent: 'opencode', cwd: 'C:\\walker' });
+  const before = structuredClone(stateStore.read().routes[routeKey]);
+
+  assert.throws(() => serviceWithoutChecker.setRouteCwd(routeKey, '/mnt/h/missing'), /cannot be verified/);
+  assert.deepEqual(stateStore.read().routes[routeKey], before);
+
+  const serviceWithChecker = new SessionService({ stateStore, wslPathExists: () => false });
+  assert.throws(() => serviceWithChecker.setRouteCwd(routeKey, '/mnt/h/missing'), /does not exist in WSL/);
+  assert.deepEqual(stateStore.read().routes[routeKey], before);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('setRouteCwd 拒绝非法 WSL 边界且失败保持 Route 原子不变', { skip: process.platform !== 'win32' }, () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:wsl-invalid:ou_user';
+  service.createSession({ route: routeKey, agent: 'opencode', cwd: 'C:\\walker' });
+  const before = structuredClone(stateStore.read().routes[routeKey]);
+
+  for (const invalid of [
+    '',
+    'mnt/h/walker',
+    '\\root-relative',
+    'C:foo',
+    '//server/share',
+    '/mnt/h/../etc',
+    '/mnt/h/walker\0bad',
+    '/mnt\\h\\walker',
+  ]) {
+    assert.throws(() => service.setRouteCwd(routeKey, invalid));
+    assert.deepEqual(stateStore.read().routes[routeKey], before);
+  }
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -576,6 +704,133 @@ test('createSession 未传 model 时不写入 model 字段', () => {
 
   const stored = service.getSession(session.id);
   assert.equal(stored.model, undefined);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('REQ-007-B02 Route v3 状态转换持久化', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:route-v3:ou_user';
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-route-v3-'));
+  const s1 = service.createSession({ agent: 'opencode', cwd });
+  const s2 = service.createSession({ agent: 'opencode', cwd });
+
+  service.addSessionToRoute(routeKey, s1.id, cwd);
+  service.addSessionToRoute(routeKey, s2.id, cwd);
+  service.setFocus(routeKey, s2.id);
+  service.setRouteCwd(routeKey, cwd);
+  service.removeSessionFromRoute(routeKey, s1.id);
+
+  const reloaded = new SessionService({ stateStore });
+  assert.deepEqual(reloaded.listRoutes()[routeKey].sessions, [s2.id]);
+  assert.equal(reloaded.listRoutes()[routeKey].focusSessionId, s2.id);
+  assert.equal(reloaded.getRouteCwd(routeKey), fs.realpathSync(cwd));
+
+  assert.equal(reloaded.deleteRoute(routeKey), true);
+  assert.equal(new SessionService({ stateStore }).listRoutes()[routeKey], undefined);
+  fs.rmSync(cwd, { recursive: true, force: true });
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('REQ-007-B03 Route 写失败不保留部分状态', async (t) => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-route-atomic-'));
+  const nextCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-route-atomic-next-'));
+  const routeKey = 'feishu:atomic:ou_user';
+  const operations = {
+    add: (service) => service.addSessionToRoute(routeKey, 'wks_c'),
+    setFocus: (service) => service.setFocus(routeKey, 'wks_b'),
+    remove: (service) => service.removeSessionFromRoute(routeKey, 'wks_a'),
+    setCwd: (service) => service.setRouteCwd(routeKey, nextCwd),
+    delete: (service) => service.deleteRoute(routeKey),
+  };
+
+  for (const [name, operation] of Object.entries(operations)) {
+    await t.test(name, () => {
+      const persisted = {
+        sessions: {
+          wks_a: { id: 'wks_a', status: 'idle', cwd },
+          wks_b: { id: 'wks_b', status: 'idle', cwd },
+          wks_c: { id: 'wks_c', status: 'idle', cwd },
+        },
+        routes: {
+          [routeKey]: {
+            focusSessionId: 'wks_a',
+            sessions: ['wks_a', 'wks_b'],
+            cwd,
+            updatedAt: 1,
+          },
+        },
+        _schemaVersion: 3,
+      };
+      const before = structuredClone(persisted);
+      const stateStore = {
+        read() { return structuredClone(persisted); },
+        update(mutator) {
+          const candidate = structuredClone(persisted);
+          mutator(candidate);
+          throw new Error('disk full');
+        },
+      };
+
+      assert.throws(() => operation(new SessionService({ stateStore })), /disk full/);
+      assert.deepEqual(persisted, before);
+    });
+  }
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+  fs.rmSync(nextCwd, { recursive: true, force: true });
+});
+
+test('REQ-007-B04 Route 领域操作拒绝非法 Session、焦点和 CWD', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:invalid:ou_user';
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-route-valid-'));
+  const filePath = path.join(cwd, 'file.txt');
+  const missingPath = path.join(cwd, 'missing');
+  const unresolvedTraversal = cwd + path.sep + 'missing-segment' + path.sep + '..' + path.sep + 'other';
+  fs.writeFileSync(filePath, 'not a directory');
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode', cwd });
+  const s2 = service.createSession({ agent: 'opencode', cwd });
+  const deleted = service.createSession({ agent: 'opencode', cwd });
+  service.addSessionToRoute(routeKey, deleted.id);
+  service.deleteSession(deleted.id);
+  stateStore.update((state) => {
+    state.routes[routeKey].sessions.push(deleted.id);
+    state.routes[routeKey].sessions.push('wks_missing_focus');
+  });
+  const before = structuredClone(stateStore.read().routes[routeKey]);
+
+  assert.throws(() => service.addSessionToRoute(routeKey, 'wks_missing'), /session not found/);
+  assert.throws(() => service.setFocus(routeKey, s2.id), /session not in route/);
+  assert.throws(() => service.setFocus(routeKey, 'wks_missing_focus'), /session not found/);
+  assert.throws(() => service.setFocus(routeKey, deleted.id), /session deleted/);
+  assert.throws(() => service.setRouteCwd(routeKey, 'relative\\path'), /absolute path/);
+  assert.throws(() => service.setRouteCwd(routeKey, missingPath), /does not exist/);
+  assert.throws(() => service.setRouteCwd(routeKey, filePath), /not a directory/);
+  assert.throws(() => service.setRouteCwd(routeKey, unresolvedTraversal), /cannot be resolved/);
+  assert.deepEqual(stateStore.read().routes[routeKey], before);
+  assert.equal(service.getCurrent(routeKey).id, s1.id);
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('REQ-008-B04 Route 成员操作具备稳定幂等结果', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const routeKey = 'feishu:idempotent:ou_user';
+  const s1 = service.createSession({ route: routeKey, agent: 'opencode' });
+  const s2 = service.createSession({ agent: 'opencode' });
+  service.addSessionToRoute(routeKey, s2.id);
+
+  assert.equal(service.removeSessionFromRoute(routeKey, 'wks_missing'), false);
+  assert.equal(service.removeSessionFromRoute(routeKey, 'wks_missing'), false);
+  assert.deepEqual(stateStore.read().routes[routeKey].sessions, [s1.id, s2.id]);
+  assert.equal(service.deleteRoute('feishu:missing:ou_user'), false);
+  assert.equal(service.deleteRoute('feishu:missing:ou_user'), false);
+  assert.deepEqual(stateStore.read().routes[routeKey].sessions, [s1.id, s2.id]);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

@@ -33,7 +33,7 @@ function createConfigRoutes(appContext) {
     method: 'GET',
     pattern: '/api/admin/config',
     handler: function configGetHandler(_req, res) {
-      const summary = buildConfigSummary();
+      const summary = buildConfigSummary(ctx.env || process.env);
       send(res, success(summary));
     },
   });
@@ -63,7 +63,7 @@ function createConfigRoutes(appContext) {
       }
 
       if (body.WALKER_ADMIN_HOST && !isLoopbackHost(body.WALKER_ADMIN_HOST)) {
-        const currentToken = process.env.WALKER_ADMIN_TOKEN || '';
+        const currentToken = (ctx.env || process.env).WALKER_ADMIN_TOKEN || '';
         if (!currentToken) {
           send(res, error('BAD_REQUEST', '将 WALKER_ADMIN_HOST 设为非 loopback 地址时必须先配置 WALKER_ADMIN_TOKEN'), 400);
           return;
@@ -84,6 +84,8 @@ function createConfigRoutes(appContext) {
         send(res, success({
           restartRequired: result.restartRequired,
           updatedKeys: result.updatedKeys,
+          effectiveValues: result.effectiveValues,
+          source: 'env-file',
         }));
       } catch (err) {
         send(res, error('BAD_REQUEST', err.message), 400);

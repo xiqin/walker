@@ -25,11 +25,17 @@ const { handleServiceStop } = require('./service-control');
  * @param {Object} [deps] - 注入依赖（用于测试）
  * @param {Function} [deps.stopApp] - 停止应用的函数
  * @param {Function} [deps.exitProcess] - 退出进程的函数
+ * @param {Function} [deps.simulateCommand] - 命令模拟函数
+ * @param {Function} [deps.listCardTypes] - 卡片类型查询函数
+ * @param {Function} [deps.previewCard] - 卡片预览函数
  * @returns {Array<{ method: string, pattern: string, handler: Function }>} 路由数组
  */
 function createToolsRoutes(appContext, deps) {
   const ctx = appContext || {};
   const injectedDeps = deps || {};
+  const simulateCommandFn = injectedDeps.simulateCommand || simulateCommand;
+  const listCardTypesFn = injectedDeps.listCardTypes || listCardTypes;
+  const previewCardFn = injectedDeps.previewCard || previewCard;
   const routes = [];
 
   /**
@@ -55,7 +61,7 @@ function createToolsRoutes(appContext, deps) {
         dryRun: params.dryRun === 'false' ? false : true,
       };
 
-      const result = simulateCommand(text, options);
+      const result = simulateCommandFn(text, options);
       send(res, success(result));
     },
   });
@@ -68,7 +74,7 @@ function createToolsRoutes(appContext, deps) {
     method: 'GET',
     pattern: '/api/admin/tools/cards',
     handler: function cardsListHandler(_req, res) {
-      const types = listCardTypes();
+      const types = listCardTypesFn();
       send(res, success({ types: types, total: types.length }));
     },
   });
@@ -88,7 +94,16 @@ function createToolsRoutes(appContext, deps) {
         return;
       }
 
-      const result = previewCard(body.type, body.data);
+      let result;
+      try {
+        result = previewCardFn(body.type, body.data);
+      } catch (err) {
+        if (err && err.code === 'BAD_REQUEST') {
+          send(res, error('BAD_REQUEST', err.message), 400);
+          return;
+        }
+        throw err;
+      }
       if (!result) {
         send(res, error('NOT_FOUND', '未知的卡片类型：' + body.type), 404);
         return;

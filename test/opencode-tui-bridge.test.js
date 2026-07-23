@@ -39,6 +39,62 @@ function createHarness() {
 }
 
 describe('OpencodeTuiBridge', () => {
+  it('runtime 快照默认参数下区分刚注册、临期和到期', () => {
+    const h = createHarness();
+    const originalNow = Date.now;
+    try {
+      Date.now = () => 1000;
+      h.bridge.register({ runtimeId: 'runtime-default-lease', sessionId: 'ses_default', cwd: 'H:\\walker' });
+
+      const fresh = h.bridge.getRuntimeSnapshot('runtime-default-lease', 1000);
+      const expiring = h.bridge.getRuntimeSnapshot('runtime-default-lease', 9501);
+      const expired = h.bridge.getRuntimeSnapshot('runtime-default-lease', 11000);
+
+      assert.equal(fresh.lease.status, 'active');
+      assert.equal(fresh.health.status, 'healthy');
+      assert.equal(expiring.lease.status, 'expiring');
+      assert.equal(expiring.health.status, 'warning');
+      assert.equal(expired.lease.status, 'expired');
+      assert.equal(expired.health.status, 'failed');
+    } finally {
+      Date.now = originalNow;
+      h.cleanup();
+    }
+  });
+
+  it('runtime 快照按租约时间分类', () => {
+    const h = createHarness();
+    const originalNow = Date.now;
+    try {
+      Date.now = () => 1000;
+      h.bridge.runtimeStaleMs = 100;
+      h.bridge.heartbeatIntervalMs = 30;
+      h.bridge.register({
+        runtimeId: 'runtime-snapshot', sessionId: 'ses_snapshot', cwd: 'H:\\walker',
+        opencodeVersion: '1.2.3', bridgeProtocolVersion: 5,
+      });
+
+      const active = h.bridge.getRuntimeSnapshot('runtime-snapshot', 1040);
+      const expiring = h.bridge.getRuntimeSnapshot('runtime-snapshot', 1080);
+      const expired = h.bridge.getRuntimeSnapshot('runtime-snapshot', 1110);
+
+      assert.equal(active.lease.status, 'active');
+      assert.equal(active.health.status, 'healthy');
+      assert.equal(expiring.lease.status, 'expiring');
+      assert.equal(expiring.health.status, 'warning');
+      assert.equal(expired.lease.status, 'expired');
+      assert.equal(expired.health.status, 'failed');
+      assert.equal(expired.lease.remainingMs, 0);
+      assert.equal(h.bridge.getRuntimeSnapshot('missing'), null);
+
+      active.health.status = 'failed';
+      assert.equal(h.bridge.getRuntimeSnapshot('runtime-snapshot', 1040).health.status, 'healthy', '快照应为副本');
+    } finally {
+      Date.now = originalNow;
+      h.cleanup();
+    }
+  });
+
   it('普通 TUI runtime 注册当前 session，并成为同 cwd route 的焦点', () => {
     const h = createHarness();
     try {
@@ -616,11 +672,13 @@ describe('OpencodeTuiBridge clearSession', () => {
   });
 
   it('新 Walker session 继承旧模型与关联注册 cwd', async () => {
-    const h = setupClearHarness({ oldModel: { providerID: 'cpa', modelID: 'gpt-5-custom' }, cwd: 'D:\\projects\\alpha' });
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-clear-cwd-'));
+    const newCwd = path.join(cwd, 'sub');
+    fs.mkdirSync(newCwd);
+    const h = setupClearHarness({ oldModel: { providerID: 'cpa', modelID: 'gpt-5-custom' }, cwd });
     try {
       const clearPromise = h.bridge.clearSession(h.tuiSession.agentRef);
       const delivery = h.bridge.poll({ runtimeId: 'runtime-clear', sessionId: 'ses_old' });
-      const newCwd = 'D:\\projects\\alpha\\sub';
       h.bridge.register({
         runtimeId: 'runtime-clear', sessionId: 'ses_new', cwd: newCwd, controlDeliveryId: delivery.deliveryId,
       });
@@ -638,6 +696,7 @@ describe('OpencodeTuiBridge clearSession', () => {
       });
     } finally {
       h.cleanup();
+      fs.rmSync(cwd, { recursive: true, force: true });
     }
   });
 

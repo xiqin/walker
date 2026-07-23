@@ -3,13 +3,12 @@
 /**
  * 核心 API 路由注册
  * 导出 createCoreRoutes(appContext) 返回路由数组供集成组装
- * 覆盖 overview、sessions、routes、agents、runtime、events、metrics 等 API
+ * 覆盖 overview、sessions、routes、agents、runtime 等兼容 API
  */
 
-const { success, error, send, parseQueryString } = require('./response');
+const { success, error, send } = require('./response');
 const { parseBody } = require('./auth');
 const { listEvents, getMetrics } = require('./event-store');
-const config = require('./config');
 
 const sessionAdmin = require('./session-admin');
 const routeAdmin = require('./route-admin');
@@ -31,6 +30,7 @@ const agentRuntimeAdmin = require('./agent-runtime-admin');
 function createCoreRoutes(appContext) {
   const ctx = appContext || {};
   const routes = [];
+  const secrets = collectSecrets(ctx);
 
   /**
    * GET /api/admin/overview
@@ -74,36 +74,7 @@ function createCoreRoutes(appContext) {
         recentErrors,
       };
 
-      send(res, success(data));
-    },
-  });
-
-  /**
-   * GET /api/admin/metrics
-   * 返回本进程内存指标和最近 60 分钟桶统计
-   */
-  routes.push({
-    method: 'GET',
-    pattern: '/api/admin/metrics',
-    handler: function metricsHandler(_req, res) {
-      send(res, success(getMetrics(ctx.eventStore)));
-    },
-  });
-
-  /**
-   * GET /api/admin/events
-   * 返回内存事件，支持 limit 和 type 查询参数
-   */
-  routes.push({
-    method: 'GET',
-    pattern: '/api/admin/events',
-    handler: function eventsHandler(req, res) {
-      const qs = req.queryString || '';
-      const params = parseQueryString(qs);
-      const opts = {};
-      if (params.type) opts.type = params.type;
-      if (params.limit) opts.limit = parseInt(params.limit, 10);
-      send(res, success(listEvents(ctx.eventStore, opts)));
+      send(res, success(redactValue(data, secrets)));
     },
   });
 
@@ -116,7 +87,7 @@ function createCoreRoutes(appContext) {
     pattern: '/api/admin/sessions',
     handler: function sessionsListHandler(_req, res) {
       const sessions = sessionAdmin.listSessions(ctx);
-      send(res, success({ list: sessions, total: sessions.length }));
+      send(res, success(redactValue({ list: sessions, total: sessions.length }, secrets)));
     },
   });
 
@@ -142,7 +113,7 @@ function createCoreRoutes(appContext) {
           route: body.route,
           createAgentSession: body.createAgentSession,
         });
-        send(res, success(session));
+        send(res, success(redactValue(session, secrets)));
       } catch (err) {
         send(res, error('INTERNAL_ERROR', err.message), 500);
       }
@@ -162,7 +133,7 @@ function createCoreRoutes(appContext) {
         send(res, error('NOT_FOUND', 'session not found'), 404);
         return;
       }
-      send(res, success(session));
+      send(res, success(redactValue(session, secrets)));
     },
   });
 
@@ -180,7 +151,7 @@ function createCoreRoutes(appContext) {
           send(res, error(result.error.code, result.error.message), 404);
           return;
         }
-        send(res, success({ session: result.session, warning: result.warning }));
+        send(res, success(redactValue({ session: result.session, warning: result.warning }, secrets)));
       } catch (err) {
         send(res, error('INTERNAL_ERROR', err.message), 500);
       }
@@ -201,7 +172,7 @@ function createCoreRoutes(appContext) {
           send(res, error(result.error.code, result.error.message), 404);
           return;
         }
-        send(res, success({ warning: result.warning }));
+        send(res, success(redactValue({ warning: result.warning }, secrets)));
       } catch (err) {
         send(res, error('INTERNAL_ERROR', err.message), 500);
       }
@@ -228,7 +199,7 @@ function createCoreRoutes(appContext) {
           send(res, error(result.error.code, result.error.message), status);
           return;
         }
-        send(res, success({ events: result.events }));
+        send(res, success(redactValue({ events: result.events }, secrets)));
       } catch (err) {
         send(res, error('INTERNAL_ERROR', err.message), 500);
       }
@@ -244,7 +215,7 @@ function createCoreRoutes(appContext) {
     pattern: '/api/admin/sessions/:id/timeline',
     handler: function sessionTimelineHandler(_req, res, params) {
       const timeline = sessionAdmin.getTimeline(ctx, params.id);
-      send(res, success({ list: timeline, total: timeline.length }));
+      send(res, success(redactValue({ list: timeline, total: timeline.length }, secrets)));
     },
   });
 
@@ -257,43 +228,7 @@ function createCoreRoutes(appContext) {
     pattern: '/api/admin/routes',
     handler: function routesListHandler(_req, res) {
       const routeList = routeAdmin.listRoutes(ctx);
-      send(res, success({ list: routeList, total: routeList.length }));
-    },
-  });
-
-  /**
-   * POST /api/admin/routes
-   * 绑定 route
-   */
-  routes.push({
-    method: 'POST',
-    pattern: '/api/admin/routes',
-    handler: async function routesBindHandler(req, res) {
-      const body = await parseBody(req);
-      if (!body || !body.routeKey || !body.sessionId) {
-        send(res, error('BAD_REQUEST', '需要 routeKey 和 sessionId'), 400);
-        return;
-      }
-      const result = routeAdmin.bindRoute(ctx, body.routeKey, body.sessionId);
-      if (!result.ok) {
-        send(res, error(result.error.code, result.error.message), 400);
-        return;
-      }
-      send(res, success(result));
-    },
-  });
-
-  /**
-   * DELETE /api/admin/routes/:encodedRouteKey
-   * 解除绑定
-   */
-  routes.push({
-    method: 'DELETE',
-    pattern: '/api/admin/routes/:encodedRouteKey',
-    handler: function routesUnbindHandler(_req, res, params) {
-      const routeKey = decodeURIComponent(params.encodedRouteKey);
-      const result = routeAdmin.unbindRoute(ctx, routeKey);
-      send(res, success(result));
+      send(res, success(redactValue({ list: routeList, total: routeList.length }, secrets)));
     },
   });
 
@@ -393,22 +328,10 @@ function createCoreRoutes(appContext) {
     handler: function runtimeCheckHandler(_req, res) {
       const runtimeInfo = agentRuntimeAdmin.detectRuntime(ctx, {
         checkCwd: checkCwdExists,
+        checkWslCwd: checkWslCwdExists,
         detectWslIp: detectWslIpSync,
       });
       send(res, success(runtimeInfo));
-    },
-  });
-
-  /**
-   * GET /api/admin/config
-   * 返回脱敏配置摘要
-   */
-  routes.push({
-    method: 'GET',
-    pattern: '/api/admin/config',
-    handler: function configHandler(_req, res) {
-      const summary = config.buildConfigSummary();
-      send(res, success(summary));
     },
   });
 
@@ -430,10 +353,46 @@ function countBy(items, field) {
   return result;
 }
 
+function collectSecrets(ctx) {
+  const envConfig = ctx.envConfig || {};
+  const env = ctx.env || {};
+  return [
+    envConfig.feishuAppSecret,
+    envConfig.admin && envConfig.admin.token,
+    env.FEISHU_APP_SECRET,
+    env.WALKER_ADMIN_TOKEN,
+    ctx.config && ctx.config.token,
+  ].filter((value) => typeof value === 'string' && value);
+}
+
+function redactValue(value, secrets) {
+  if (typeof value === 'string') {
+    let result = value;
+    for (const secret of secrets) result = result.split(secret).join('[REDACTED]');
+    return result;
+  }
+  if (Array.isArray(value)) return value.map((item) => redactValue(item, secrets));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactValue(item, secrets)]));
+  }
+  return value;
+}
+
 function checkCwdExists(dirPath) {
   try {
     const fs = require('fs');
     return fs.existsSync(dirPath);
+  } catch (_e) {
+    return false;
+  }
+}
+
+function checkWslCwdExists(dirPath, distro) {
+  if (process.platform !== 'win32') return false;
+  try {
+    const { execFileSync } = require('child_process');
+    execFileSync('wsl.exe', ['-d', distro || 'Ubuntu-24.04', '--', 'test', '-d', dirPath], { stdio: 'ignore', timeout: 3000 });
+    return true;
   } catch (_e) {
     return false;
   }

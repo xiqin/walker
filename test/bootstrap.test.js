@@ -1,6 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { createApp } = require('../src/app/bootstrap');
+const { createStatusAdmin } = require('../src/admin/status-admin');
 const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
 const { AgentEvent } = require('../src/drivers/agent-driver');
 
@@ -443,6 +444,108 @@ describe('createApp', () => {
     assert.ok(app.adminServer);
     await app.start();
     assert.deepEqual(started, ['feishu', 'admin']);
+  });
+
+  it('Admin bootstrap 的八项 statusChecks 使用生产对象形状并实时反映变化', async () => {
+    let adminContext;
+    let opencodeHealthy = false;
+    let runtimeSnapshots = [];
+    let healthSnapshots = [];
+    let feishuConnection = { state: 'idle', reconnectAttempts: 0 };
+    const adminState = { started: false, disabled: false };
+    const app = createApp({
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: '', walkerDataDir: '',
+      opencodeServerUrl: '', opencodeServerAutostart: false, opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: true, host: '127.0.0.1', port: 8787, token: '' },
+    }, {
+      FeishuPlatform: class {
+        constructor() { this.api = {}; this.wsClient = { getConnectionStatus: () => ({ ...feishuConnection }) }; }
+        start() { feishuConnection = { state: 'connected', reconnectAttempts: 0, lastConnectTime: 100 }; }
+        stop() { feishuConnection = { state: 'idle', reconnectAttempts: 0 }; }
+      },
+      SessionService: class { recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } listSessions() { return []; } },
+      JsonStore: class {},
+      OpencodeDriver: class { async _checkHealth() { return opencodeHealthy; } },
+      OpencodeTuiBridge: class {
+        constructor() { this.runtimes = new Map(); }
+        setOnSessionEnrolled() {}
+        close() {}
+        getRuntimeSnapshots() { return runtimeSnapshots; }
+      },
+      stubClaudeDriver: () => ({}), stubCodexDriver: () => ({}),
+      DriverRegistry: class { constructor() { this.drivers = new Map(); } register(name, driver) { this.drivers.set(name, driver); } get(name) { return this.drivers.get(name); } },
+      createRuntime: () => ({}), MessageDedup: class {},
+      MessageDispatcher: class { constructor() { this.sessionWatchStops = new Map(); } restoreWatches() {} }, AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: (context) => {
+        adminContext = context;
+        return {
+          start() { adminState.started = true; return { ok: true, host: '127.0.0.1', port: 8787 }; },
+          stop() { adminState.started = false; },
+          getStatus() { return { ...adminState }; },
+        };
+      },
+    });
+    assert.equal(adminContext.platform, app.platform);
+    assert.equal(adminContext.feishu, app.platform);
+    assert.equal(adminContext.dispatcher, app.dispatcher);
+    assert.equal(adminContext.healthPoller, app.healthPoller);
+    assert.equal(adminContext.tuiBridge, app.tuiBridge);
+    assert.equal(adminContext.adminServer, app.adminServer);
+    assert.equal(Object.hasOwn(adminContext, 'feishuSummary'), false);
+    assert.deepEqual(Object.keys(adminContext.statusChecks), [
+      'walker', 'feishu', 'opencode', 'tuiBridge', 'runtimes', 'watchers', 'health', 'admin',
+    ]);
+    for (const check of Object.values(adminContext.statusChecks)) assert.equal(typeof check, 'function');
+    app.healthPoller.getHealthSnapshots = () => healthSnapshots;
+
+    const initial = Object.fromEntries(await Promise.all(Object.entries(adminContext.statusChecks)
+      .map(async ([name, check]) => [name, await check()])));
+    assert.deepEqual(Object.fromEntries(Object.entries(initial).map(([name, value]) => [name, value.status])), {
+      walker: 'failed', feishu: 'failed', opencode: 'failed', tuiBridge: 'healthy',
+      runtimes: 'healthy', watchers: 'healthy', health: 'healthy', admin: 'failed',
+    });
+
+    opencodeHealthy = true;
+    runtimeSnapshots = [{ health: { status: 'warning', reason: 'lease expiring' } }];
+    healthSnapshots = [{ status: 'failed', reason: 'health failed' }];
+    app.tuiBridge.runtimes.set('rt_1', {});
+    app.dispatcher.sessionWatchStops.set('wks_1', () => {});
+    await app.start();
+
+    const changed = Object.fromEntries(await Promise.all(Object.entries(adminContext.statusChecks)
+      .map(async ([name, check]) => [name, await check()])));
+    assert.equal(changed.walker.status, 'healthy');
+    assert.equal(changed.feishu.status, 'healthy');
+    assert.equal(changed.feishu.lastConnectTime, 100);
+    assert.equal(changed.opencode.status, 'healthy');
+    assert.equal(changed.tuiBridge.runtimeCount, 1);
+    assert.equal(changed.runtimes.status, 'warning');
+    assert.equal(changed.watchers.watcherCount, 1);
+    assert.equal(changed.health.status, 'failed');
+    assert.equal(changed.admin.status, 'healthy');
+
+    feishuConnection = { state: 'reconnecting', reconnectAttempts: 2, nextConnectTime: 200 };
+    const reconnecting = await adminContext.statusChecks.feishu();
+    assert.equal(reconnecting.status, 'warning');
+    assert.equal(reconnecting.reconnectAttempts, 2);
+    assert.equal(reconnecting.nextConnectTime, 200);
+
+    feishuConnection = { state: 'failed', reconnectAttempts: 3 };
+    assert.equal((await adminContext.statusChecks.feishu()).status, 'failed');
+
+    const checkedAt = 1721642400000;
+    adminContext.statusChecks.opencode = () => new Promise(() => {});
+    const aggregated = await createStatusAdmin(adminContext, { timeoutMs: 20, now: () => checkedAt }).getStatus();
+    assert.equal(aggregated.opencode.status, 'failed');
+    assert.match(aggregated.opencode.reason, /timed out/);
+    for (const status of Object.values(aggregated)) assert.equal(status.checkedAt, checkedAt);
+    await app.stop();
+    const stoppedFeishu = await adminContext.statusChecks.feishu();
+    assert.notEqual(stoppedFeishu.status, 'healthy');
+    assert.match(stoppedFeishu.reason, /idle/i);
   });
 
   it('stop 触发 admin 和 platform 的关闭调用', async () => {

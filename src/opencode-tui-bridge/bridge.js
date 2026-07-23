@@ -798,6 +798,52 @@ class OpencodeTuiBridge {
   }
 
   /**
+   * 获取单个 TUI runtime 的只读快照。
+   * @param {string} runtimeId - TUI runtime ID。
+   * @param {number} [now] - 用于测试的当前时间。
+   * @returns {Object|null} runtime 快照，不存在时返回 null。
+   */
+  getRuntimeSnapshot(runtimeId, now) {
+    const runtime = this.runtimes.get(runtimeId);
+    if (!runtime) return null;
+    const checkedAt = Number.isFinite(now) ? now : Date.now();
+    const expiresAt = runtime.lastSeenAt + this.runtimeStaleMs;
+    const remainingMs = Math.max(0, expiresAt - checkedAt);
+    const warningWindowMs = Math.min(
+      Math.max(this.heartbeatIntervalMs, 1),
+      Math.max(Math.floor(this.runtimeStaleMs / 2), 1),
+    );
+    const leaseStatus = remainingMs === 0 ? 'expired'
+      : remainingMs <= warningWindowMs ? 'expiring' : 'active';
+    const healthStatus = leaseStatus === 'expired' ? 'failed'
+      : leaseStatus === 'expiring' ? 'warning' : 'healthy';
+    return {
+      runtimeId: runtime.runtimeId,
+      sessionId: runtime.currentSessionId || null,
+      walkerSessionId: runtime.walkerSessionId || null,
+      cwd: runtime.cwd || '',
+      opencodeVersion: runtime.opencodeVersion || '',
+      bridgeProtocolVersion: runtime.bridgeProtocolVersion || 0,
+      lastHeartbeatAt: runtime.lastSeenAt || null,
+      lease: { status: leaseStatus, remainingMs, expiresAt },
+      health: {
+        status: healthStatus,
+        reason: leaseStatus === 'expired' ? 'runtime lease expired'
+          : leaseStatus === 'expiring' ? 'runtime lease expiring' : null,
+      },
+    };
+  }
+
+  /**
+   * 获取全部 TUI runtime 的只读快照。
+   * @param {number} [now] - 用于测试的当前时间。
+   * @returns {Object[]} runtime 快照列表。
+   */
+  getRuntimeSnapshots(now) {
+    return Array.from(this.runtimes.keys()).map((runtimeId) => this.getRuntimeSnapshot(runtimeId, now));
+  }
+
+  /**
    * 检查给定 agentRef 是否仍然可用（TUI bridge session 时 runtime 仍在线；HTTP session 总是可用）
    * @param {Object} agentRef - Agent 引用对象
    * @returns {boolean}

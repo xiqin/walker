@@ -19,7 +19,7 @@ function listSessions(ctx) {
   const state = ctx.sessionService._readNormalized ? ctx.sessionService._readNormalized() : ctx.sessionService.stateStore.read();
   const routes = state.routes || {};
 
-  return sessions.map((session) => withRouteDiagnostics(session, routes));
+  return sessions.map((session) => withRuntimeDiagnostics(ctx, withRouteDiagnostics(session, routes), routes));
 }
 
 /**
@@ -37,7 +37,58 @@ function getSession(ctx, sessionId) {
 
   const timeline = timelineForSession(ctx.eventStore, sessionId, { limit: 10 });
 
-  return { ...withRouteDiagnostics(session, routes), timeline };
+  return { ...withRuntimeDiagnostics(ctx, withRouteDiagnostics(session, routes), routes), timeline };
+}
+
+/**
+ * 聚合 Session 的 transport、runtime、watch、health 和活动时间。
+ * @param {Object} ctx - 应用上下文。
+ * @param {Object} session - 已附加路由信息的 Session。
+ * @param {Object} routes - 规范化路由映射。
+ * @returns {Object} 运行态诊断 DTO。
+ */
+function withRuntimeDiagnostics(ctx, session, routes) {
+  const agentRef = session.agentRef || {};
+  const runtimeId = agentRef.runtimeId || null;
+  const runtime = runtimeId && ctx.tuiBridge && typeof ctx.tuiBridge.getRuntimeSnapshot === 'function'
+    ? ctx.tuiBridge.getRuntimeSnapshot(runtimeId) : null;
+  const health = ctx.healthPoller && typeof ctx.healthPoller.getHealthSnapshot === 'function'
+    ? ctx.healthPoller.getHealthSnapshot(session.id) : null;
+  const transport = normalizeTransport(agentRef.transport);
+  const watchActive = !!(ctx.dispatcher && ctx.dispatcher.sessionWatchStops
+    && typeof ctx.dispatcher.sessionWatchStops.has === 'function'
+    && ctx.dispatcher.sessionWatchStops.has(session.id));
+  const currentTurn = ctx.dispatcher && typeof ctx.dispatcher.getTurnState === 'function'
+    ? ctx.dispatcher.getTurnState(session.id) : null;
+  const routeActivity = session.routeKeys.reduce((latest, routeKey) => {
+    const route = routes[routeKey];
+    return Math.max(latest, route && route.lastActiveAt || 0);
+  }, 0);
+  const lastHeartbeatAt = runtime && runtime.lastHeartbeatAt || null;
+  return {
+    ...session,
+    transport,
+    runtimeId,
+    watch: { active: watchActive, mode: watchActive ? transport : 'unknown' },
+    health: health ? { status: health.status || 'unknown', reason: health.reason || null }
+      : runtime && runtime.health ? { ...runtime.health }
+        : { status: 'unknown', reason: null },
+    lastHeartbeatAt,
+    currentTurn: currentTurn ? { ...currentTurn } : null,
+    lastActiveAt: Math.max(session.updatedAt || 0, routeActivity, lastHeartbeatAt || 0) || null,
+  };
+}
+
+/**
+ * 将内部 transport 名称转换为 Admin DTO 枚举。
+ * @param {string} transport - 内部 transport 名称。
+ * @returns {string} tui、sse、polling 或 unknown。
+ */
+function normalizeTransport(transport) {
+  if (transport === 'tui-bridge' || transport === 'tui') return 'tui';
+  if (transport === 'sse') return 'sse';
+  if (transport === 'polling' || transport === 'http') return 'polling';
+  return 'unknown';
 }
 
 function withRouteDiagnostics(session, routes) {
@@ -55,7 +106,7 @@ function withRouteDiagnostics(session, routes) {
     routeKeys,
     focusRouteKeys,
     isUnbound: routeKeys.length === 0,
-    opencodeSessionId: agentRef.opencodeSessionId || '',
+    opencodeSessionId: agentRef.opencodeSessionId || null,
     serverUrl: agentRef.serverUrl || '',
   };
 }

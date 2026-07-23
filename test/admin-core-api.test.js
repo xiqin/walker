@@ -7,13 +7,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('events');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
-const { createEventStore, recordEvent, recordMetric } = require('../src/admin/event-store');
+const { createEventStore, recordEvent } = require('../src/admin/event-store');
 const { createRouter } = require('../src/admin/router');
 const { createCoreRoutes } = require('../src/admin/core-routes');
 const sessionAdmin = require('../src/admin/session-admin');
 const routeAdmin = require('../src/admin/route-admin');
 const agentRuntimeAdmin = require('../src/admin/agent-runtime-admin');
+const { SessionService } = require('../src/core/session-service');
+const { JsonStore } = require('../src/core/json-store');
 
 /**
  * 创建 fake SessionService，支持所有方法签名
@@ -105,6 +110,22 @@ function createFakeSessionService(initialSessions, initialRoutes) {
     },
     unbindRoute(routeKey) {
       delete routesData[routeKey];
+    },
+    cleanOrphanRoutes() {
+      const cleaned = [];
+      for (const routeKey of Object.keys(routesData)) {
+        const route = routesData[routeKey];
+        const valid = route.sessions.filter((id) => sessionsData[id] && sessionsData[id].status !== 'deleted');
+        const changed = valid.length !== route.sessions.length || !valid.includes(route.focusSessionId);
+        if (valid.length === 0) {
+          delete routesData[routeKey];
+        } else {
+          route.sessions = valid;
+          if (!valid.includes(route.focusSessionId)) route.focusSessionId = valid[0];
+        }
+        if (changed || !routesData[routeKey]) cleaned.push(routeKey);
+      }
+      return cleaned;
     },
     stopSession(id) {
       if (sessionsData[id] && sessionsData[id].status !== 'deleted') {
@@ -645,6 +666,80 @@ test('REQ-008: cleanupDangling 确认后清理悬空绑定', () => {
   assert.equal(remainingRoutes.length, 0);
 });
 
+test('REQ-008: cleanupDangling 检查所有成员并保留有效 Route 状态', () => {
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      { id: 'wks_focus', status: 'idle' },
+      { id: 'wks_first', status: 'idle' },
+      { id: 'wks_second', status: 'idle' },
+      { id: 'wks_deleted', status: 'deleted' },
+    ], {
+      'route:valid-focus': { focusSessionId: 'wks_focus', sessions: ['wks_focus', 'wks_missing', 'wks_deleted'], cwd: '/mnt/h/one' },
+      'route:bad-focus': { focusSessionId: 'wks_missing', sessions: ['wks_missing', 'wks_first', 'wks_second'], cwd: '/mnt/h/two' },
+      'route:no-valid': { focusSessionId: 'wks_deleted', sessions: ['wks_deleted', 'wks_missing'], cwd: '/mnt/h/three' },
+      'route:healthy': { focusSessionId: 'wks_second', sessions: ['wks_first', 'wks_second'], cwd: '/mnt/h/four' },
+    }),
+  });
+
+  const detected = routeAdmin.detectDangling(ctx).map((item) => item.routeKey).sort();
+  assert.deepEqual(detected, ['route:bad-focus', 'route:no-valid', 'route:valid-focus']);
+  assert.equal(routeAdmin.cleanupDangling(ctx, true).ok, true);
+  const routes = ctx.sessionService.stateStore.read().routes;
+  assert.deepEqual(routes['route:valid-focus'].sessions, ['wks_focus']);
+  assert.equal(routes['route:valid-focus'].focusSessionId, 'wks_focus');
+  assert.equal(routes['route:valid-focus'].cwd, '/mnt/h/one');
+  assert.deepEqual(routes['route:bad-focus'].sessions, ['wks_first', 'wks_second']);
+  assert.equal(routes['route:bad-focus'].focusSessionId, 'wks_first');
+  assert.equal(routes['route:bad-focus'].cwd, '/mnt/h/two');
+  assert.equal(routes['route:no-valid'], undefined);
+  assert.deepEqual(routes['route:healthy'].sessions, ['wks_first', 'wks_second']);
+
+  const stable = structuredClone(routes);
+  assert.deepEqual(routeAdmin.cleanupDangling(ctx, true), { ok: true, cleaned: [] });
+  assert.deepEqual(ctx.sessionService.stateStore.read().routes, stable);
+});
+
+test('REQ-008: cleanupDangling 使用真实 SessionService 修复成员外焦点且重复执行幂等', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-admin-cleanup-'));
+  const stateStore = new JsonStore(path.join(tmpDir, 'state.json'), {});
+  const sessionService = new SessionService({ stateStore });
+  stateStore.update((state) => {
+    state.sessions = {
+      wks_focus: { id: 'wks_focus', status: 'idle' },
+      wks_first: { id: 'wks_first', status: 'idle' },
+      wks_second: { id: 'wks_second', status: 'idle' },
+    };
+    state.routes = {
+      'route:focus-outside-members': {
+        focusSessionId: 'wks_focus',
+        sessions: ['wks_second', 'wks_first'],
+        cwd: '/mnt/h/production-boundary',
+        updatedAt: 1,
+      },
+    };
+    state._schemaVersion = 3;
+  });
+  const ctx = buildAppContext({ sessionService });
+
+  const beforeCleanup = routeAdmin.listRoutes(ctx)[0];
+  assert.equal(beforeCleanup.dangling, true);
+  assert.equal(beforeCleanup.health, 'dangling');
+  assert.deepEqual(routeAdmin.detectDangling(ctx).map((item) => item.routeKey), ['route:focus-outside-members']);
+  assert.deepEqual(routeAdmin.cleanupDangling(ctx, true), { ok: true, cleaned: ['route:focus-outside-members'] });
+  const repaired = stateStore.read().routes['route:focus-outside-members'];
+  assert.deepEqual(repaired.sessions, ['wks_second', 'wks_first']);
+  assert.equal(repaired.focusSessionId, 'wks_second');
+  assert.equal(repaired.cwd, '/mnt/h/production-boundary');
+  const afterCleanup = routeAdmin.listRoutes(ctx)[0];
+  assert.equal(afterCleanup.dangling, false);
+  assert.equal(afterCleanup.health, 'idle');
+
+  const stable = structuredClone(repaired);
+  assert.deepEqual(routeAdmin.cleanupDangling(ctx, true), { ok: true, cleaned: [] });
+  assert.deepEqual(stateStore.read().routes['route:focus-outside-members'], stable);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
 // ── REQ-009: driver 列表展示 opencode 与 stub 状态 ──
 
 test('REQ-009: listAgents 展示 opencode 可用状态', () => {
@@ -750,11 +845,27 @@ test('REQ-011: detectRuntime 返回 Windows 和 WSL 配置', () => {
 
 test('REQ-011: detectRuntime 带 cwd 存在性检查', () => {
   const ctx = buildAppContext();
+  ctx.envConfig.walkerWslCwd = '/mnt/c/test';
   const result = agentRuntimeAdmin.detectRuntime(ctx, {
     checkCwd: (dirPath) => dirPath === 'C:\\test',
+    checkWslCwd: (dirPath, distro) => dirPath === '/mnt/c/test' && distro === 'Ubuntu-24.04',
   });
   assert.equal(result.windows.cwdExists, true);
+  assert.equal(result.windows.cwdChecked, true);
   assert.equal(result.wsl.cwdExists, true);
+  assert.equal(result.wsl.cwdChecked, true);
+  assert.equal(result.wsl.cwd, '/mnt/c/test');
+});
+
+test('REQ-011: detectRuntime 不复用 Windows CWD 结果冒充 WSL CWD', () => {
+  const ctx = buildAppContext();
+  const result = agentRuntimeAdmin.detectRuntime(ctx, {
+    checkCwd: () => true,
+  });
+  assert.equal(result.windows.cwdExists, true);
+  assert.equal(result.wsl.cwdExists, false);
+  assert.equal(result.wsl.cwdChecked, false);
+  assert.ok(result.wsl.cwdError);
 });
 
 test('REQ-011: detectRuntime 带 WSL IP 探测', () => {
@@ -765,6 +876,16 @@ test('REQ-011: detectRuntime 带 WSL IP 探测', () => {
   });
   assert.equal(result.wsl.ipDetected, true);
   assert.equal(result.wsl.ip, '172.25.0.1');
+});
+
+test('REQ-011: detectRuntime 空 WSL IP 不标记为已检测', () => {
+  const ctx = buildAppContext();
+  const result = agentRuntimeAdmin.detectRuntime(ctx, {
+    detectWslIp: () => '',
+  });
+  assert.equal(result.wsl.ipDetected, false);
+  assert.equal(result.wsl.ip, '');
+  assert.match(result.wsl.ipError, /not detected/);
 });
 
 test('REQ-011: detectRuntime WSL IP 探测失败', () => {
@@ -944,10 +1065,10 @@ test('REQ-018: detectHealth 无悬空 route 时 pass', async () => {
 
 // ── 路由注册集成测试 ──
 
-test('createCoreRoutes 注册所有路由', () => {
+test('createCoreRoutes 只注册无歧义的兼容核心路由', () => {
   const ctx = buildAppContext();
   const routes = createCoreRoutes(ctx);
-  assert.ok(routes.length >= 18);
+  assert.ok(routes.length >= 14);
 
   const patterns = routes.map((r) => r.method + ' ' + r.pattern);
   assert.ok(patterns.includes('GET /api/admin/overview'));
@@ -959,16 +1080,16 @@ test('createCoreRoutes 注册所有路由', () => {
   assert.ok(patterns.includes('POST /api/admin/sessions/:id/prompt'));
   assert.ok(patterns.includes('GET /api/admin/sessions/:id/timeline'));
   assert.ok(patterns.includes('GET /api/admin/routes'));
-  assert.ok(patterns.includes('POST /api/admin/routes'));
-  assert.ok(patterns.includes('DELETE /api/admin/routes/:encodedRouteKey'));
   assert.ok(patterns.includes('POST /api/admin/routes/cleanup-dangling'));
   assert.ok(patterns.includes('GET /api/admin/agents'));
   assert.ok(patterns.includes('POST /api/admin/agents/:id/check'));
   assert.ok(patterns.includes('POST /api/admin/agents/opencode/ensure-ready'));
   assert.ok(patterns.includes('GET /api/admin/runtime'));
   assert.ok(patterns.includes('POST /api/admin/runtime/check'));
-  assert.ok(patterns.includes('GET /api/admin/events'));
-  assert.ok(patterns.includes('GET /api/admin/metrics'));
+  assert.ok(!patterns.includes('GET /api/admin/metrics'));
+  assert.ok(!patterns.includes('POST /api/admin/routes'));
+  assert.ok(!patterns.includes('DELETE /api/admin/routes/:encodedRouteKey'));
+  assert.ok(!patterns.includes('GET /api/admin/events'));
 });
 
 test('路由 overview handler 返回 JSON 响应', () => {
@@ -1006,24 +1127,6 @@ test('路由 GET routes 列表', () => {
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.data.total, 1);
   assert.equal(result.body.data.list[0].routeKey, 'feishu:abc');
-});
-
-test('路由 GET events 列表', () => {
-  const ctx = buildAppContext();
-  recordEvent(ctx.eventStore, { type: 'test', message: 'test event' });
-  const routes = createCoreRoutes(ctx);
-  const result = callRoute(routes, 'GET', '/api/admin/events');
-  assert.equal(result.statusCode, 200);
-  assert.ok(result.body.data.length >= 1);
-});
-
-test('路由 GET metrics', () => {
-  const ctx = buildAppContext();
-  recordMetric(ctx.eventStore, 'messages');
-  const routes = createCoreRoutes(ctx);
-  const result = callRoute(routes, 'GET', '/api/admin/metrics');
-  assert.equal(result.statusCode, 200);
-  assert.equal(result.body.data.messages, 1);
 });
 
 // ── REQ-026: 核心测试可独立运行 ──

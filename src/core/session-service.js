@@ -1,11 +1,14 @@
 const { createId } = require('./id');
 const { createLogger } = require('./logger');
+const fs = require('fs');
+const path = require('path');
 
 const logger = createLogger('session-service');
 
 class SessionService {
-  constructor({ stateStore }) {
+  constructor({ stateStore, wslPathExists }) {
     this.stateStore = stateStore;
+    this.wslPathExists = wslPathExists;
   }
 
   _ensureState(state) {
@@ -292,12 +295,13 @@ class SessionService {
           delete s.routes[routeKey];
           cleaned.push(routeKey);
           logger.info('cleaned orphan route', { routeKey, sessionId: route.focusSessionId });
-        } else if (validSessions.length !== route.sessions.length) {
+        } else if (validSessions.length !== route.sessions.length || !validSessions.includes(route.focusSessionId)) {
           route.sessions = validSessions;
           if (!validSessions.includes(route.focusSessionId)) {
             route.focusSessionId = validSessions[0];
           }
           route.updatedAt = Date.now();
+          cleaned.push(routeKey);
         }
       }
     });
@@ -327,6 +331,14 @@ class SessionService {
   }
 
   addSessionToRoute(routeKey, sessionId, cwd) {
+    const state = this._readNormalized();
+    const session = state.sessions[sessionId];
+    if (!session) {
+      throw new Error('session not found: ' + sessionId);
+    }
+    if (session.status === 'deleted') {
+      throw new Error('session deleted: ' + sessionId);
+    }
     this.stateStore.update((state) => {
       this._ensureState(state);
       this._normalizeRoute(state);
@@ -340,6 +352,13 @@ class SessionService {
     const route = state.routes[routeKey];
     if (!route) {
       throw new Error('route not found: ' + routeKey);
+    }
+    const session = state.sessions[sessionId];
+    if (!session) {
+      throw new Error('session not found: ' + sessionId);
+    }
+    if (session.status === 'deleted') {
+      throw new Error('session deleted: ' + sessionId);
     }
     if (!route.sessions.includes(sessionId)) {
       throw new Error('session not in route: ' + sessionId);
@@ -358,6 +377,9 @@ class SessionService {
   }
 
   removeSessionFromRoute(routeKey, sessionId) {
+    const state = this._readNormalized();
+    const existing = state.routes[routeKey];
+    if (!existing || !existing.sessions.includes(sessionId)) return false;
     this.stateStore.update((state) => {
       this._ensureState(state);
       this._normalizeRoute(state);
@@ -372,6 +394,7 @@ class SessionService {
       }
     });
     logger.info('session removed from route', { routeKey, sessionId });
+    return true;
   }
 
   listSessionsInRoute(routeKey) {
@@ -398,6 +421,43 @@ class SessionService {
   }
 
   setRouteCwd(routeKey, cwd) {
+    if (typeof cwd !== 'string' || !cwd) {
+      throw new Error('route cwd must be an absolute path');
+    }
+    const segments = cwd.split(/[\\/]+/);
+    if (segments.includes('..')) {
+      throw new Error('route cwd cannot be resolved: ' + cwd);
+    }
+
+    let realCwd;
+    const isWindowsDrivePath = process.platform === 'win32' && /^[A-Za-z]:[\\/]/.test(cwd);
+    const isWindowsUncPath = process.platform === 'win32' && /^\\\\[^\\/]+\\[^\\/]+(?:\\|$)/.test(cwd);
+    const isWindowsHostPath = isWindowsDrivePath || isWindowsUncPath;
+    const isWindowsPosixPath = process.platform === 'win32' && /^\/(?!\/)/.test(cwd);
+    if (isWindowsPosixPath) {
+      if (cwd.includes('\\') || Array.from(cwd).some((char) => char.charCodeAt(0) < 32)) {
+        throw new Error('route cwd is invalid: ' + cwd);
+      }
+      realCwd = path.posix.normalize(cwd).replace(/\/$/, '') || '/';
+      if (typeof this.wslPathExists !== 'function') {
+        throw new Error('route cwd WSL path cannot be verified: ' + cwd);
+      }
+      if (!this.wslPathExists(realCwd)) {
+        throw new Error('route cwd does not exist in WSL: ' + cwd);
+      }
+    } else {
+      if (!(isWindowsHostPath || (process.platform !== 'win32' && path.isAbsolute(cwd)))) {
+        throw new Error('route cwd must be an absolute path');
+      }
+      try {
+        realCwd = fs.realpathSync(cwd);
+      } catch (_err) {
+        throw new Error('route cwd does not exist: ' + cwd);
+      }
+      if (!fs.statSync(realCwd).isDirectory()) {
+        throw new Error('route cwd is not a directory: ' + cwd);
+      }
+    }
     this.stateStore.update((state) => {
       this._ensureState(state);
       this._normalizeRoute(state);
@@ -406,16 +466,33 @@ class SessionService {
         route = {
           focusSessionId: '',
           sessions: [],
-          cwd: cwd || '',
+          cwd: realCwd,
           updatedAt: Date.now(),
         };
         state.routes[routeKey] = route;
       } else {
-        route.cwd = cwd || '';
+        route.cwd = realCwd;
         route.updatedAt = Date.now();
       }
     });
-    logger.info('route cwd set', { routeKey, cwd });
+    logger.info('route cwd set', { routeKey, cwd: realCwd });
+  }
+
+  /**
+   * 删除整条 Route，不修改其中 Session 的生命周期状态。
+   * @param {string} routeKey - 要删除的 Route 键
+   * @returns {boolean} Route 存在并被删除时返回 true
+   */
+  deleteRoute(routeKey) {
+    const state = this._readNormalized();
+    if (!state.routes[routeKey]) return false;
+    this.stateStore.update((current) => {
+      this._ensureState(current);
+      this._normalizeRoute(current);
+      delete current.routes[routeKey];
+    });
+    logger.info('route deleted', { routeKey });
+    return true;
   }
 
   touchRoute(routeKey) {

@@ -3,6 +3,95 @@
 const fs = require('fs');
 const path = require('path');
 
+const CHECK_GROUPS = Object.freeze({
+  feishu_credentials: 'connections',
+  data_directory: 'storage',
+  json_files: 'storage',
+  opencode: 'connections',
+  runtime: 'runtime',
+  log_files: 'observability',
+  dangling_routes: 'sessions-routes',
+});
+
+/**
+ * 收集上下文中的敏感值，用于诊断错误脱敏。
+ * @param {Object} ctx - 应用上下文。
+ * @returns {string[]} 非空敏感值列表。
+ */
+function collectSecrets(ctx) {
+  const envConfig = ctx.envConfig || {};
+  const values = [
+    envConfig.feishuAppSecret,
+    envConfig.admin && envConfig.admin.token,
+    ctx.config && ctx.config.token,
+  ];
+  return values.filter((value) => typeof value === 'string' && value);
+}
+
+/**
+ * 从诊断文本中移除已知敏感值。
+ * @param {*} value - 原始字段值。
+ * @param {string[]} secrets - 敏感值列表。
+ * @returns {*} 脱敏后的字段值。
+ */
+function redactValue(value, secrets) {
+  if (typeof value === 'string') {
+    let result = value;
+    for (const secret of secrets) result = result.split(secret).join('[REDACTED]');
+    return result;
+  }
+  if (Array.isArray(value)) return value.map((item) => redactValue(item, secrets));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactValue(item, secrets)]));
+  }
+  return value;
+}
+
+/**
+ * 将旧检查结果规范为前端和导出共用 DTO。
+ * @param {Object} result - 原始检查结果。
+ * @param {Object} definition - 检查定义。
+ * @param {string[]} secrets - 敏感值列表。
+ * @returns {Object} 结构化检查项。
+ */
+function normalizeCheck(result, definition, secrets) {
+  const item = redactValue(result || {}, secrets);
+  const name = item.name || definition.name;
+  const detail = redactValue(item.detail || '', secrets);
+  return {
+    ...item,
+    name,
+    group: item.group || definition.group || CHECK_GROUPS[name] || 'walker',
+    status: item.status || 'fail',
+    checkedAt: item.checkedAt || new Date().toISOString(),
+    detail,
+    reason: redactValue(item.reason || detail || null, secrets),
+    suggestion: redactValue(item.suggestion || null, secrets),
+    action: item.action || null,
+  };
+}
+
+/**
+ * 执行单项诊断并把异常转换为失败项。
+ * @param {Object} definition - 检查定义。
+ * @param {Object} ctx - 应用上下文。
+ * @param {string[]} secrets - 敏感值列表。
+ * @returns {Promise<Object>} 结构化检查项。
+ */
+async function executeCheck(definition, ctx, secrets) {
+  try {
+    const result = await definition.run(ctx);
+    return normalizeCheck(result, definition, secrets);
+  } catch (err) {
+    return normalizeCheck({
+      name: definition.name,
+      status: 'fail',
+      detail: err.message,
+      reason: err.message,
+    }, definition, secrets);
+  }
+}
+
 /**
  * 一键健康检查：返回 pass/warn/fail 项目数组
  * 单项检查失败不导致整体抛错，保证页面所需状态始终可获取
@@ -15,16 +104,19 @@ const path = require('path');
  * @returns {Promise<Object[]>} 检查结果数组，每项含 name、status、detail
  */
 async function runHealthCheck(ctx) {
+  const context = ctx || {};
+  const definitions = Array.isArray(context.diagnosticChecks) ? context.diagnosticChecks : [
+    { name: 'feishu_credentials', group: CHECK_GROUPS.feishu_credentials, run: checkFeishuCredentials },
+    { name: 'data_directory', group: CHECK_GROUPS.data_directory, run: checkDataDirectory },
+    { name: 'json_files', group: CHECK_GROUPS.json_files, run: checkJsonFiles },
+    { name: 'opencode', group: CHECK_GROUPS.opencode, run: checkOpenCode },
+    { name: 'runtime', group: CHECK_GROUPS.runtime, run: checkRuntime },
+    { name: 'log_files', group: CHECK_GROUPS.log_files, run: checkLogFiles },
+    { name: 'dangling_routes', group: CHECK_GROUPS.dangling_routes, run: checkDanglingRoutes },
+  ];
+  const secrets = collectSecrets(context);
   const checks = [];
-
-  checks.push(checkFeishuCredentials(ctx));
-  checks.push(checkDataDirectory(ctx));
-  checks.push(checkJsonFiles(ctx));
-  checks.push(await checkOpenCode(ctx));
-  checks.push(checkRuntime(ctx));
-  checks.push(checkLogFiles(ctx));
-  checks.push(checkDanglingRoutes(ctx));
-
+  for (const definition of definitions) checks.push(await executeCheck(definition, context, secrets));
   return checks;
 }
 

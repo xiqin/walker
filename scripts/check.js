@@ -5,6 +5,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
+const browserModulesDir = path.join(root, 'src', 'admin', 'public', 'js');
 
 function collectJsFiles(dir) {
   const result = [];
@@ -22,7 +23,14 @@ function collectJsFiles(dir) {
 
 function checkFile(file) {
   try {
-    execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });
+    if (file.startsWith(browserModulesDir + path.sep)) {
+      execFileSync(process.execPath, ['--input-type=module', '--check'], {
+        input: fs.readFileSync(file),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } else {
+      execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });
+    }
     return null;
   } catch (err) {
     return file + '\n' + (err.stderr ? err.stderr.toString().trim() : err.message);

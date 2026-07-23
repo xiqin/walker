@@ -1,6 +1,6 @@
 const MAX_EVENTS = 1000;
 const MAX_METRIC_ENTRIES = 1000;
-const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
 const METRIC_KEYS = ['messages', 'commands', 'prompts', 'errors'];
 
 /**
@@ -79,7 +79,7 @@ function recordEvent(storeOrEvent, maybeEvent) {
 }
 
 /**
- * 查询事件列表，支持按类型过滤和限制返回条数
+ * 查询事件列表，按时间倒序稳定扫描并支持组合过滤
  * 省略 store 参数时自动使用默认内存 store
  * @param {Object} [storeOrOpts] - store 实例或过滤选项
  * @param {Object} [maybeOpts] - 过滤选项（仅当第一个参数为 store 时传入）
@@ -90,14 +90,23 @@ function listEvents(storeOrOpts, maybeOpts) {
   const state = hasStore ? storeOrOpts : getDefaultStore();
   const opts = hasStore ? maybeOpts : storeOrOpts;
   const filterOpts = opts || {};
-  let events = state.events;
-  if (filterOpts.type) {
-    events = events.filter((event) => event.type === filterOpts.type);
+  const requestedLimit = filterOpts.limit == null ? MAX_EVENTS : Number(filterOpts.limit);
+  const limit = Math.min(Math.max(requestedLimit || MAX_EVENTS, 1), MAX_EVENTS);
+  const after = filterOpts.after == null ? null : Number(filterOpts.after);
+  const matches = [];
+
+  for (let index = 0; index < state.events.length; index += 1) {
+    const event = state.events[index];
+    if (filterOpts.level && event.level !== filterOpts.level) continue;
+    if (filterOpts.sessionId && event.sessionId !== filterOpts.sessionId) continue;
+    if (filterOpts.routeKey && event.routeKey !== filterOpts.routeKey) continue;
+    if (filterOpts.type && event.type !== filterOpts.type) continue;
+    if (after !== null && event.createdAt <= after) continue;
+    matches.push({ event, index });
   }
-  if (filterOpts.limit) {
-    events = events.slice(-filterOpts.limit);
-  }
-  return events.slice();
+
+  matches.sort((left, right) => right.event.createdAt - left.event.createdAt || right.index - left.index);
+  return matches.slice(0, limit).map((match) => match.event);
 }
 
 /**
@@ -133,24 +142,22 @@ function recordMetric(storeOrName, nameOrValue, valueOrTime, maybeCreatedAt) {
 }
 
 /**
- * 将时间戳对齐到所在整点小时
+ * 将时间戳按 Unix 时间对齐到所在 UTC 分钟
  * @param {number} timestamp - 毫秒时间戳
- * @returns {number} 整点小时毫秒时间戳
+ * @returns {number} 分钟起点的毫秒时间戳
  */
-function hourStart(timestamp) {
-  const date = new Date(timestamp);
-  date.setMinutes(0, 0, 0);
-  return date.getTime();
+function minuteStart(timestamp) {
+  return Math.floor(timestamp / MINUTE_MS) * MINUTE_MS;
 }
 
 /**
  * 创建空指标桶
- * @param {number} hour - 整点小时时间戳
+ * @param {number} minute - 分钟起点时间戳
  * @returns {Object} 空桶对象
  */
-function createEmptyBucket(hour) {
+function createEmptyBucket(minute) {
   return {
-    minute: hour,
+    minute,
     messages: 0,
     commands: 0,
     prompts: 0,
@@ -160,25 +167,25 @@ function createEmptyBucket(hour) {
 }
 
 /**
- * 从 store 的 metrics.entries 构建 60 小时桶统计
+ * 从 store 的 metrics.entries 构建最近 60 个分钟桶统计
  * @param {Object} state - store 实例
- * @returns {Object[]} 桶数组，每个桶含整点时间戳和各指标累计值
+ * @returns {Object[]} 桶数组，每个桶含分钟起点时间戳和各指标累计值
  */
 function buildBuckets(state) {
-  const end = hourStart(state.now());
-  const start = end - (59 * HOUR_MS);
+  const end = minuteStart(state.now());
+  const start = end - (59 * MINUTE_MS);
   const buckets = [];
-  const byHour = new Map();
+  const byMinute = new Map();
 
-  for (let hour = start; hour <= end; hour += HOUR_MS) {
-    const bucket = createEmptyBucket(hour);
+  for (let minute = start; minute <= end; minute += MINUTE_MS) {
+    const bucket = createEmptyBucket(minute);
     buckets.push(bucket);
-    byHour.set(hour, bucket);
+    byMinute.set(minute, bucket);
   }
 
   for (const entry of state.metrics.entries) {
-    const hour = hourStart(entry.createdAt);
-    const bucket = byHour.get(hour);
+    const minute = minuteStart(entry.createdAt);
+    const bucket = byMinute.get(minute);
     if (!bucket) continue;
     if (METRIC_KEYS.includes(entry.name)) {
       bucket[entry.name] += entry.value;

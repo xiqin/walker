@@ -181,9 +181,9 @@ test('simulateCommand: 未知命令无 commandDef', function () {
 
 // ===== 卡片预览测试 =====
 
-test('listCardTypes: 返回 11 种卡片类型', function () {
+test('listCardTypes: 返回包含八类预览所需的 14 种卡片类型', function () {
   var types = listCardTypes();
-  assert.equal(types.length, 11);
+  assert.equal(types.length, 14);
   var names = types.map(function (t) { return t.name; });
   assert.ok(names.includes('unbound_route'));
   assert.ok(names.includes('session_list'));
@@ -196,6 +196,9 @@ test('listCardTypes: 返回 11 种卡片类型', function () {
   assert.ok(names.includes('question_text'));
   assert.ok(names.includes('question_replied'));
   assert.ok(names.includes('question_replied_multi'));
+  assert.ok(names.includes('model'));
+  assert.ok(names.includes('permission'));
+  assert.ok(names.includes('help'));
 });
 
 test('listCardTypes: 每个类型含 name 和 description', function () {
@@ -264,7 +267,8 @@ test('previewCard: 预览 progress 卡片', function () {
 test('previewCard: 使用自定义数据预览 error 卡片', function () {
   var result = previewCard('error', { message: '自定义错误' });
   assert.ok(result);
-  assert.equal(result.data.message, '自定义错误');
+  assert.equal(result.data, undefined);
+  assert.equal(JSON.stringify(result).includes('自定义错误'), false);
 });
 
 test('previewCard: 未知类型返回 null', function () {
@@ -382,8 +386,8 @@ test('GET /api/admin/tools/cards: 返回卡片类型列表', function () {
 
   assert.equal(res.statusCode, 200);
   assert.ok(res.body.ok);
-  assert.equal(res.body.data.total, 11);
-  assert.equal(res.body.data.types.length, 11);
+  assert.equal(res.body.data.total, 14);
+  assert.equal(res.body.data.types.length, 14);
 });
 
 test('POST /api/admin/tools/cards/preview: 预览指定卡片类型', async function () {
@@ -404,6 +408,107 @@ test('POST /api/admin/tools/cards/preview: 预览指定卡片类型', async func
   assert.ok(res.body.data.rendered);
   assert.ok(res.body.data.preview);
   assert.equal(res.body.data.typeName, 'error');
+});
+
+test('POST /api/admin/tools/cards/preview: Model、Permission、Help 返回真实服务端卡片 DTO', async function () {
+  var store = createEventStore();
+  var routeList = createToolsRoutes({ eventStore: store });
+  var router = setupRouter(routeList);
+  var matched = router.match('POST', '/api/admin/tools/cards/preview');
+  var expectedHeaders = {
+    model: 'Walker 模型列表',
+    permission: '权限确认请求',
+    help: 'Walker 命令帮助',
+  };
+
+  for (var type of Object.keys(expectedHeaders)) {
+    var res = await awaitRequest(function (res) {
+      var req = createMockReq({ method: 'POST', body: { type: type } });
+      matched.handler(req, res);
+    });
+
+    assert.equal(res.statusCode, 200, type);
+    assert.equal(res.body.ok, true, type);
+    assert.equal(res.body.data.typeName, type);
+    assert.equal(res.body.data.data, undefined, type);
+    assert.equal(res.body.data.rendered.schema, '2.0', type);
+    assert.ok(res.body.data.rendered.header.title.content.includes(expectedHeaders[type]), type);
+    assert.equal(res.body.data.rendered.header.template, type === 'permission' ? 'red' : 'blue', type);
+    assert.ok(res.body.data.preview && Array.isArray(res.body.data.preview.elements), type);
+    assert.notEqual(res.body.data.preview.header.title, '[REDACTED]', type);
+  }
+});
+
+test('POST /api/admin/tools/cards/preview: 八类工具预览共享服务端契约且无发送或执行副作用', async function () {
+  var store = createEventStore();
+  var previewCalls = [];
+  var routeList = createToolsRoutes({ eventStore: store }, {
+    previewCard: function (type, data) {
+      previewCalls.push(type);
+      return previewCard(type, data);
+    },
+  });
+  var router = setupRouter(routeList);
+  var matched = router.match('POST', '/api/admin/tools/cards/preview');
+  var types = ['session_list', 'attachable_session', 'model', 'progress', 'permission', 'question_confirm', 'error', 'help'];
+
+  for (var type of types) {
+    var res = await awaitRequest(function (res) {
+      var req = createMockReq({ method: 'POST', body: { type: type } });
+      matched.handler(req, res);
+    });
+
+    assert.equal(res.statusCode, 200, type);
+    assert.deepEqual(Object.keys(res.body.data).sort(), ['preview', 'rendered', 'typeName']);
+    assert.equal(res.body.data.typeName, type);
+    assert.ok(res.body.data.rendered && res.body.data.rendered.header, type);
+    assert.ok(res.body.data.preview && res.body.data.preview.header, type);
+  }
+
+  assert.deepEqual(previewCalls, types);
+});
+
+test('POST /api/admin/tools/cards/preview: 自定义 Secret 与 HTML 不进入序列化响应或可执行结构', async function () {
+  var store = createEventStore();
+  var routeList = createToolsRoutes({ eventStore: store });
+  var router = setupRouter(routeList);
+  var matched = router.match('POST', '/api/admin/tools/cards/preview');
+  var sentinels = [
+    'secret-value-001',
+    'token-value-002',
+    'authorization-value-003',
+    'cookie-value-004',
+    'password-value-005',
+    'ordinary-field-sensitive-006',
+    '<img src=x onerror="globalThis.pwned=true">',
+  ];
+  var res = await awaitRequest(function (res) {
+    var req = createMockReq({
+      method: 'POST',
+      body: {
+        type: 'error',
+        data: {
+          secret: sentinels[0],
+          token: sentinels[1],
+          authorization: sentinels[2],
+          cookie: sentinels[3],
+          password: sentinels[4],
+          message: sentinels[5] + ' ' + sentinels[6],
+        },
+      },
+    });
+    matched.handler(req, res);
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.deepEqual(Object.keys(res.body.data).sort(), ['preview', 'rendered', 'typeName']);
+  var serialized = JSON.stringify(res.body);
+  for (var sentinel of sentinels) assert.equal(serialized.includes(sentinel), false, sentinel);
+  assert.equal(serialized.includes('onerror'), false);
+  assert.equal(res.body.data.rendered.body.elements[0].tag, 'markdown');
+  assert.equal(res.body.data.rendered.body.elements[0].content, '[REDACTED]');
+  assert.deepEqual(Object.keys(res.body.data.rendered.body.elements[0]).sort(), ['content', 'tag']);
 });
 
 test('POST /api/admin/tools/cards/preview: 缺少 type 返回 400', async function () {
@@ -434,6 +539,31 @@ test('POST /api/admin/tools/cards/preview: 未知类型返回 404', async functi
 
   assert.equal(res.statusCode, 404);
   assert.equal(res.body.ok, false);
+});
+
+test('POST /api/admin/tools/cards/preview: 已知类型但 DTO 结构非法返回 400', async function () {
+  var store = createEventStore();
+  var routeList = createToolsRoutes({ eventStore: store });
+  var router = setupRouter(routeList);
+  var matched = router.match('POST', '/api/admin/tools/cards/preview');
+  var cases = [
+    { type: 'session_list', data: { sessions: {} } },
+    { type: 'attachable_session', data: { sessions: {} } },
+    { type: 'progress', data: { entries: {} } },
+    { type: 'question_confirm', data: { questionEvent: null } },
+    { type: 'permission', data: { permissionEvent: null } },
+    { type: 'model', data: { models: {} } },
+  ];
+
+  for (var body of cases) {
+    var res = await awaitRequest(function (res) {
+      var req = createMockReq({ method: 'POST', body: body });
+      matched.handler(req, res);
+    });
+    assert.equal(res.statusCode, 400, body.type);
+    assert.equal(res.body.ok, false, body.type);
+    assert.equal(res.body.error.code, 'BAD_REQUEST', body.type);
+  }
 });
 
 // ===== 服务控制测试 =====

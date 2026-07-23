@@ -2,7 +2,7 @@
 
 /**
  * 卡片预览模块
- * 返回支持的飞书卡片类型名、示例数据 JSON 和简化视觉预览数据
+ * 返回支持的飞书卡片类型名和不含动态明文的结构预览数据
  * 覆盖未绑定引导、session 列表、可纳入 session、错误卡片和进度卡片类型
  * REQ-021
  */
@@ -11,12 +11,16 @@ const {
   renderSessionListCard,
   renderUnboundRouteCard,
   renderAttachableSessionCard,
+  renderModelListCard,
+  renderHelpCard,
   renderErrorCard,
+  buildPermissionCard,
   buildQuestionCard,
   buildQuestionRepliedCard,
 } = require('../platform/feishu/cards');
 
 const { ProgressCard } = require('../platform/feishu/progress-card');
+const { COMMAND_LIST } = require('../platform/feishu/commands');
 
 /** 卡片类型定义表：名称、描述、示例数据生成函数和渲染函数 */
 const CARD_TYPES = [
@@ -43,6 +47,7 @@ const CARD_TYPES = [
       };
     },
     render: function (data) {
+      requireArray(data.sessions, 'sessions');
       return renderSessionListCard(data.sessions || [], data.currentSessionId || null);
     },
   },
@@ -58,7 +63,33 @@ const CARD_TYPES = [
       };
     },
     render: function (data) {
+      requireArray(data.sessions, 'sessions');
+      if (data.managedIds != null) requireArray(data.managedIds, 'managedIds');
       return renderAttachableSessionCard(data.sessions || [], { managedIds: data.managedIds || [] });
+    },
+  },
+  {
+    name: 'model',
+    description: '可用模型列表卡片',
+    sampleData: function () {
+      return {
+        models: [
+          { id: 'gpt-5', name: 'GPT-5', provider: 'openai', status: 'available', enabled: true, groups: ['recent'] },
+          { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic', status: 'available', enabled: true, groups: ['configured'] },
+          { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'google', status: 'available', enabled: true, groups: [] },
+        ],
+        currentModel: { providerID: 'openai', modelID: 'gpt-5' },
+        routeKey: 'test_route_key',
+        page: 1,
+      };
+    },
+    render: function (data) {
+      requireArray(data.models, 'models');
+      return renderModelListCard(data.models || [], {
+        currentModel: data.currentModel,
+        routeKey: data.routeKey,
+        page: data.page,
+      });
     },
   },
   {
@@ -82,6 +113,7 @@ const CARD_TYPES = [
       };
     },
     render: function (data) {
+      if (data.entries != null) requireArray(data.entries, 'entries');
       var card = new ProgressCard({ sessionId: data.sessionId || 'preview_session' });
       if (data.phase === 'done') {
         card.phase = 'done';
@@ -93,6 +125,29 @@ const CARD_TYPES = [
       }
       card.entries = data.entries || [];
       return card.render();
+    },
+  },
+  {
+    name: 'permission',
+    description: '权限确认请求卡片',
+    sampleData: function () {
+      return {
+        permissionEvent: {
+          data: {
+            id: 'perm_preview_001',
+            title: '允许读取项目配置？',
+            type: 'read',
+            description: 'Agent 请求读取工作区内的配置文件',
+            metadata: { tool: 'read', path: '/home/user/project/package.json' },
+          },
+        },
+        sessionId: 'wks_sample_001',
+        routeKey: 'test_route_key',
+      };
+    },
+    render: function (data) {
+      requireObject(data.permissionEvent, 'permissionEvent');
+      return buildPermissionCard(data.permissionEvent || {}, data.sessionId || 'preview_session', data.routeKey);
     },
   },
   {
@@ -113,6 +168,7 @@ const CARD_TYPES = [
       };
     },
     render: function (data) {
+      requireObject(data.questionEvent, 'questionEvent');
       return buildQuestionCard(data.questionEvent, data.sessionId, data.routeKey);
     },
   },
@@ -142,6 +198,7 @@ const CARD_TYPES = [
       };
     },
     render: function (data) {
+      requireObject(data.questionEvent, 'questionEvent');
       return buildQuestionCard(data.questionEvent, data.sessionId, data.routeKey);
     },
   },
@@ -171,6 +228,7 @@ const CARD_TYPES = [
       };
     },
     render: function (data) {
+      requireObject(data.questionEvent, 'questionEvent');
       return buildQuestionCard(data.questionEvent, data.sessionId, data.routeKey);
     },
   },
@@ -192,6 +250,7 @@ const CARD_TYPES = [
       };
     },
     render: function (data) {
+      requireObject(data.questionEvent, 'questionEvent');
       return buildQuestionCard(data.questionEvent, data.sessionId, data.routeKey);
     },
   },
@@ -213,6 +272,17 @@ const CARD_TYPES = [
     },
     render: function (data) {
       return buildQuestionRepliedCard(data.questionId, data.answer);
+    },
+  },
+  {
+    name: 'help',
+    description: 'Walker 命令帮助卡片',
+    sampleData: function () {
+      return { commands: COMMAND_LIST, routeKey: 'test_route_key' };
+    },
+    render: function (data) {
+      if (data.commands != null) requireArray(data.commands, 'commands');
+      return renderHelpCard(Array.isArray(data.commands) ? data.commands : COMMAND_LIST, { routeKey: data.routeKey });
     },
   },
 ];
@@ -242,23 +312,69 @@ function getSampleData(typeName) {
  * 渲染指定卡片类型的预览，使用示例数据或传入的数据
  * @param {string} typeName - 卡片类型名称
  * @param {Object} [customData] - 自定义数据，未传入时使用示例数据
- * @returns {Object|null} 渲染结果和预览摘要，未找到类型时返回 null
+ * @returns {Object|null} 安全渲染结构和预览摘要，未找到类型时返回 null
  */
 function previewCard(typeName, customData) {
   var found = CARD_TYPES.find(function (t) { return t.name === typeName; });
   if (!found) return null;
 
-  var data = customData || found.sampleData();
-  var rendered = found.render(data);
-
+  var isSample = customData == null;
+  var data = isSample ? found.sampleData() : customData;
+  var rendered = sanitizeCardStructure(found.render(data), '', { allowText: isSample });
   var preview = extractPreview(rendered);
 
   return {
     typeName: typeName,
-    data: data,
     rendered: rendered,
     preview: preview,
   };
+}
+
+function badPreviewInput(field, expected) {
+  var err = new Error('invalid card preview data: ' + field + ' must be ' + expected);
+  err.code = 'BAD_REQUEST';
+  return err;
+}
+
+function requireArray(value, field) {
+  if (value != null && !Array.isArray(value)) throw badPreviewInput(field, 'an array');
+}
+
+function requireObject(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw badPreviewInput(field, 'an object');
+}
+
+var SAFE_STRUCTURE_KEYS = new Set(['schema', 'tag', 'template', 'type', 'width_mode', 'format', 'style']);
+
+function sanitizeCardStructure(value, key, options) {
+  var opts = options || {};
+  if (typeof value === 'string') {
+    if (SAFE_STRUCTURE_KEYS.has(key) && /^[a-z0-9][a-z0-9._-]{0,47}$/i.test(value)) return value;
+    if (opts.allowText && isDisplayTextKey(key) && isSafePreviewText(value)) return value;
+    return '[REDACTED]';
+  }
+  if (Array.isArray(value)) {
+    return value.map(function (item) { return sanitizeCardStructure(item, '', opts); });
+  }
+  if (value && typeof value === 'object') {
+    var result = {};
+    Object.keys(value).forEach(function (name) {
+      result[name] = sanitizeCardStructure(value[name], name, opts);
+    });
+    return result;
+  }
+  return value;
+}
+
+function isDisplayTextKey(key) {
+  return key === 'content' || key === 'label' || key === 'placeholder' || key === 'value';
+}
+
+function isSafePreviewText(value) {
+  return value.length <= 240
+    && !/[<>]/.test(value)
+    && !/\b(?:secret|token|authorization|cookie|password)\b/i.test(value)
+    && !/on[a-z]+\s*=/i.test(value);
 }
 
 /**

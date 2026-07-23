@@ -117,14 +117,16 @@ test('上报 cwd 匹配子目录 route（子目录次之）', async () => {
   const ctx = createCtx();
   try {
     const routeKey = 'feishu:oc_parent:ou_user';
-    const parentCwd = 'H:\\projects';
+    const parentCwd = path.join(ctx.tmpDir, 'projects');
+    const childCwd = path.join(parentCwd, 'subdir');
+    fs.mkdirSync(childCwd, { recursive: true });
     ctx.sessionService.setRouteCwd(routeKey, parentCwd);
 
     const routes = createHookReceiverRoutes(ctx);
     const { res, parsed } = await callRoute(routes, 'POST', '/opencode/hook/session-created', {
       opencodeBaseUrl: 'http://127.0.0.1:1234',
       sessionId: 'oc_sess_sub',
-      cwd: 'H:\\projects\\subdir',
+      cwd: childCwd,
     });
 
     assert.equal(res.statusCode, 200);

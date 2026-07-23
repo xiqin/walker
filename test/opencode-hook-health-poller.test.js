@@ -351,3 +351,35 @@ test('health 端点 URL 正确拼接', async () => {
   assert.match(calls[0].url, /\/global\/health/);
   poller.stop();
 });
+
+test('health 快照返回 tracker 状态副本', async () => {
+  const httpClient = createMockHttpClient([
+    { throw: 'ECONNREFUSED' },
+    { resp: { status: 200 } },
+  ]);
+  const sessionService = createMockSessionService({
+    sessions: { s11: { id: 's11', agentRef: { opencodeSessionId: 'op11', serverUrl: 'http://localhost:4096' } } },
+    routes: { r11: { focusSessionId: 's11', sessions: ['s11'] } },
+  });
+  const poller = createHealthPoller({
+    sessionService,
+    dispatcher: createMockDispatcher(),
+    pollIntervalMs: 15,
+    failureThreshold: 3,
+    httpClient,
+  });
+  poller.track('s11', { opencodeSessionId: 'op11', serverUrl: 'http://localhost:4096', token: 'secret' });
+  await sleep(20);
+
+  const first = poller.getHealthSnapshot('s11');
+  assert.equal(first.sessionId, 's11');
+  assert.equal(first.status, 'warning');
+  assert.equal(first.failureCount, 1);
+  assert.ok(first.checkedAt);
+  assert.equal('agentRef' in first, false);
+
+  first.status = 'failed';
+  assert.equal(poller.getHealthSnapshot('s11').status, 'warning', '快照应为副本');
+  assert.equal(poller.getHealthSnapshot('missing'), null);
+  poller.stop();
+});

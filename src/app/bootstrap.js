@@ -23,6 +23,7 @@ const { createHealthPoller } = require('../opencode-hook/health-poller');
 const { OpencodeTuiBridge } = require('../opencode-tui-bridge/bridge');
 const { createTuiBridgeRoutes } = require('../opencode-tui-bridge/routes');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const logger = createLogger('bootstrap');
 
@@ -54,7 +55,16 @@ function createApp(config, deps) {
   const eventStore = createEventStoreFn();
 
   const stateStore = new JsonStoreClass(path.join(dataDir, 'state.json'), {});
-  const sessionService = new SessionServiceClass({ stateStore });
+  const wslPathExists = deps.wslPathExists || ((cwd) => {
+    if (process.platform !== 'win32') return false;
+    try {
+      execFileSync('wsl.exe', ['-d', config.walkerWslDistro || 'Ubuntu-24.04', '--', 'test', '-d', cwd], { stdio: 'ignore', timeout: 3000 });
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  });
+  const sessionService = new SessionServiceClass({ stateStore, wslPathExists });
 
   const runtime = createRuntimeFn(config.walkerDefaultRuntime, {
     distro: config.walkerWslDistro || 'Ubuntu-24.04',
@@ -254,6 +264,7 @@ function createApp(config, deps) {
 
   const adminEnabled = config.admin ? config.admin.enabled !== false : true;
   const adminConfig = config.admin || { enabled: true, host: '127.0.0.1', port: 8787, token: '' };
+  const lifecycle = { started: false };
 
   const healthPoller = createHealthPoller({
     sessionService,
@@ -270,10 +281,6 @@ function createApp(config, deps) {
    */
   function createAdminIfEnabled() {
     if (!adminEnabled) return null;
-    const feishuSummary = {
-      connected: false,
-      source: config.feishuConfigSource || 'missing',
-    };
     const hookReceiverRoutes = createHookReceiverRoutes({
       sessionService,
       config: adminConfig,
@@ -286,12 +293,16 @@ function createApp(config, deps) {
         }
       },
     }).concat(createTuiBridgeRoutes({ bridge: tuiBridge, config: adminConfig }));
-    return createAdminServerFn({
+    const adminContext = {
       sessionService,
       registry,
       eventStore,
       envConfig: config,
-      feishuSummary,
+      platform,
+      feishu: platform,
+      dispatcher,
+      healthPoller,
+      tuiBridge,
       dataDir,
       version: config.walkerVersion || '',
       startTime: Date.now(),
@@ -299,10 +310,35 @@ function createApp(config, deps) {
       attachmentService,
       config: adminConfig,
       hookReceiverRoutes,
-    }, {
+      lifecycle,
+      statusChecks: {
+        walker: () => lifecycle.started ? { status: 'healthy' } : { status: 'failed', reason: 'Walker not started' },
+        feishu: () => readFeishuConnectionStatus(platform),
+        opencode: async () => typeof opencodeDriver._checkHealth !== 'function'
+          ? { status: 'unknown', reason: 'OpenCode health probe unavailable' }
+          : await opencodeDriver._checkHealth()
+            ? { status: 'healthy' } : { status: 'failed', reason: 'OpenCode server unavailable' },
+        tuiBridge: () => tuiBridge.runtimes instanceof Map
+          ? { status: 'healthy', runtimeCount: tuiBridge.runtimes.size }
+          : { status: 'unknown', reason: 'TUI Bridge runtime registry unavailable' },
+        runtimes: () => typeof tuiBridge.getRuntimeSnapshots === 'function'
+          ? summarizeRuntimeHealth(tuiBridge.getRuntimeSnapshots())
+          : { status: 'unknown', reason: 'runtime snapshots unavailable' },
+        watchers: () => dispatcher.sessionWatchStops instanceof Map
+          ? { status: 'healthy', watcherCount: dispatcher.sessionWatchStops.size }
+          : { status: 'unknown', reason: 'watcher registry unavailable' },
+        health: () => typeof healthPoller.getHealthSnapshots === 'function'
+          ? summarizeHealthSnapshots(healthPoller.getHealthSnapshots())
+          : { status: 'unknown', reason: 'health snapshots unavailable' },
+        admin: () => summarizeAdminLifecycle(adminServer),
+      },
+    };
+    const server = createAdminServerFn(adminContext, {
       stopApp: async function stopWalkerApp() { stop(); return { ok: true }; },
       exitProcess: function exitWalkerProcess(code) { process.exit(code || 0); },
     });
+    adminContext.adminServer = server;
+    return server;
   }
 
   let adminServer = createAdminIfEnabled();
@@ -361,6 +397,7 @@ function createApp(config, deps) {
         logger.warn('restore session watches failed on startup', { error: err.message });
       }
     }
+    lifecycle.started = true;
     logger.info('walker started successfully');
   }
 
@@ -370,6 +407,7 @@ function createApp(config, deps) {
    */
   async function stop() {
     logger.info('walker stopping');
+    lifecycle.started = false;
     healthPoller.stop();
     if (dispatcher && typeof dispatcher.destroy === 'function') {
       dispatcher.destroy();
@@ -385,6 +423,51 @@ function createApp(config, deps) {
   }
 
   return { start, stop, platform, dispatcher, sessionService, registry, adminServer, runtime, attachmentService, eventStore, healthPoller, tuiBridge };
+}
+
+function summarizeRuntimeHealth(snapshots) {
+  return summarizeHealthSnapshots(snapshots.map((snapshot) => snapshot.health));
+}
+
+function summarizeHealthSnapshots(snapshots) {
+  if (!Array.isArray(snapshots)) return { status: 'unknown', reason: 'snapshots unavailable' };
+  for (const status of ['failed', 'warning', 'unknown']) {
+    const match = snapshots.find((snapshot) => snapshot && snapshot.status === status);
+    if (match) return { status, reason: match.reason || status };
+  }
+  return { status: 'healthy', count: snapshots.length };
+}
+
+function summarizeAdminLifecycle(adminServer) {
+  if (!adminServer || typeof adminServer.getStatus !== 'function') {
+    return { status: 'unknown', reason: 'Admin lifecycle unavailable' };
+  }
+  const value = adminServer.getStatus();
+  if (!value || typeof value.started !== 'boolean') return { status: 'unknown', reason: 'Admin lifecycle unavailable' };
+  if (value.disabled) return { ...value, status: 'warning', reason: 'Admin server disabled' };
+  return value.started ? { ...value, status: 'healthy' }
+    : { ...value, status: 'failed', reason: 'Admin server not started' };
+}
+
+function readFeishuConnectionStatus(platform) {
+  if (!platform || !platform.wsClient || typeof platform.wsClient.getConnectionStatus !== 'function') {
+    return { status: 'unknown', reason: 'Feishu websocket status unavailable' };
+  }
+  try {
+    const value = platform.wsClient.getConnectionStatus();
+    if (!value || typeof value !== 'object' || typeof value.state !== 'string') {
+      return { status: 'unknown', reason: 'Feishu websocket status invalid' };
+    }
+    if (value.state === 'connected') return { ...value, status: 'healthy' };
+    if (value.state === 'connecting' || value.state === 'reconnecting') {
+      return { ...value, status: 'warning', reason: 'Feishu websocket ' + value.state };
+    }
+    if (value.state === 'failed') return { ...value, status: 'failed', reason: 'Feishu websocket failed' };
+    if (value.state === 'idle') return { ...value, status: 'failed', reason: 'Feishu websocket idle' };
+    return { ...value, status: 'unknown', reason: 'Feishu websocket state unsupported: ' + value.state };
+  } catch (err) {
+    return { status: 'unknown', reason: 'Feishu websocket status unavailable: ' + (err && err.message ? err.message : String(err)) };
+  }
 }
 
 function normalizeReplyCtx(replyCtx) {

@@ -242,6 +242,48 @@ test('REQ-002: authGuard 拦截未认证写操作请求', async () => {
   });
 });
 
+test('Admin API malformed URI parameter returns 400 without escaping request listener', async () => {
+  await withServer({
+    token: '',
+    routes: (router) => {
+      router.add('GET', '/api/admin/routes/:encodedRouteKey', (_req, res) => {
+        send(res, success({ unreachable: true }));
+      });
+    },
+  }, async ({ port }) => {
+    const res = await httpRequest({
+      hostname: '127.0.0.1',
+      port,
+      path: '/api/admin/routes/%E0%A4%A',
+      method: 'GET',
+    });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.ok, false);
+    assert.equal(res.body.error.code, 'BAD_REQUEST');
+  });
+});
+
+test('Admin API async route rejection returns 500 without unhandled rejection', async () => {
+  await withServer({
+    token: '',
+    routes: (router) => {
+      router.add('GET', '/api/admin/rejects', async () => {
+        throw new Error('async boom');
+      });
+    },
+  }, async ({ port }) => {
+    const res = await httpRequest({
+      hostname: '127.0.0.1',
+      port,
+      path: '/api/admin/rejects',
+      method: 'GET',
+    });
+    assert.equal(res.statusCode, 500);
+    assert.equal(res.body.ok, false);
+    assert.equal(res.body.error.code, 'INTERNAL_ERROR');
+  });
+});
+
 // ── 统一 JSON 格式 ──
 
 test('response.success 返回标准成功格式', () => {

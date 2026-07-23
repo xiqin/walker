@@ -103,6 +103,38 @@ test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知�
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+test('updateDotEnv 保留 CRLF 行尾及非目标行逐字节内容', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-admin-env-crlf-'));
+  const envPath = path.join(tmpDir, '.env');
+  const original = Buffer.from([
+    '# walker config  ',
+    'FEISHU_APP_SECRET=keep-secret',
+    '',
+    '  WALKER_ADMIN_HOST = 127.0.0.1  ',
+    'UNKNOWN_KEY="keep = value # literal"',
+    '',
+  ].join('\r\n'), 'utf8');
+  fs.writeFileSync(envPath, original);
+
+  updateDotEnv(envPath, { WALKER_ADMIN_HOST: 'localhost' });
+
+  const actual = fs.readFileSync(envPath);
+  const expected = Buffer.from([
+    '# walker config  ',
+    'FEISHU_APP_SECRET=keep-secret',
+    '',
+    'WALKER_ADMIN_HOST=localhost',
+    'UNKNOWN_KEY="keep = value # literal"',
+    '',
+  ].join('\r\n'), 'utf8');
+  assert.deepEqual(actual, expected);
+  assert.equal(actual.includes(Buffer.from('\n')),
+    true);
+  assert.equal(actual.toString('utf8').replace(/\r\n/g, '').includes('\n'), false);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
 test('updateDotEnv 拒绝 allowlist 外字段', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-admin-env-'));
   const envPath = path.join(tmpDir, '.env');
@@ -129,40 +161,58 @@ test('event store 裁剪最近 1000 条事件并支持类型与 session 过滤',
 
   const all = listEvents(store);
   assert.equal(all.length, 1000);
-  assert.equal(all[0].message, 'event 5');
-  assert.equal(all[999].message, 'event 1004');
+  assert.equal(all[0].message, 'event 1004');
+  assert.equal(all[999].message, 'event 5');
   assert.equal(listEvents(store, { type: 'error' }).every((event) => event.type === 'error'), true);
   assert.equal(listEvents(store, { limit: 3 }).length, 3);
   assert.equal(timelineForSession(store, 'wks_a').every((event) => event.sessionId === 'wks_a'), true);
 });
 
-test('event store 记录指标计数、平均耗时和 60 分钟桶', () => {
-  const store = createEventStore({ now: () => Date.UTC(2026, 6, 10, 10, 30, 0) });
-  recordMetric(store, 'messages', 1, Date.UTC(2026, 6, 10, 10, 0, 0));
-  recordMetric(store, 'commands', 2, Date.UTC(2026, 6, 10, 10, 5, 0));
-  recordMetric(store, 'errors', 1, Date.UTC(2026, 6, 10, 9, 59, 0));
+test('event store 记录指标计数、平均耗时和最近 60 个 UTC 分钟桶', () => {
+  const now = Date.UTC(2026, 6, 10, 10, 30, 45);
+  const store = createEventStore({ now: () => now });
+  recordMetric(store, 'messages', 1, Date.UTC(2026, 6, 10, 10, 29, 1));
+  recordMetric(store, 'messages', 2, Date.UTC(2026, 6, 10, 10, 29, 59));
+  recordMetric(store, 'commands', 2, Date.UTC(2026, 6, 10, 10, 30, 0));
+  recordMetric(store, 'errors', 1, Date.UTC(2026, 6, 10, 9, 31, 0));
+  recordMetric(store, 'errors', 5, Date.UTC(2026, 6, 10, 9, 30, 59));
   recordMetric(store, 'prompts', 1, Date.UTC(2026, 6, 10, 10, 15, 0));
-  recordMetric(store, 'promptDurationMs', 120, Date.UTC(2026, 6, 10, 10, 15, 0));
-  recordMetric(store, 'promptDurationMs', 80, Date.UTC(2026, 6, 10, 10, 45, 0));
+  recordMetric(store, 'promptDurationMs', 120, Date.UTC(2026, 6, 10, 10, 15, 30));
+  recordMetric(store, 'promptDurationMs', 80, Date.UTC(2026, 6, 10, 10, 15, 59));
 
   const metrics = getMetrics(store);
-  assert.equal(metrics.messages, 1);
+  assert.equal(metrics.messages, 3);
   assert.equal(metrics.commands, 2);
-  assert.equal(metrics.errors, 1);
+  assert.equal(metrics.errors, 6);
   assert.equal(metrics.prompts, 1);
   assert.deepEqual(metrics.promptDurationsMs, [120, 80]);
   assert.equal(metrics.averagePromptDurationMs, 100);
   assert.equal(metrics.buckets.length, 60);
+  assert.equal(metrics.buckets[0].minute, Date.UTC(2026, 6, 10, 9, 31, 0));
+  assert.equal(metrics.buckets[59].minute, Date.UTC(2026, 6, 10, 10, 30, 0));
+  assert.equal(metrics.buckets.every((bucket, index) => index === 0
+    || bucket.minute - metrics.buckets[index - 1].minute === 60 * 1000), true);
 
-  const ten = metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 0, 0));
-  assert.equal(ten.messages, 1);
-  assert.equal(ten.commands, 2);
-  assert.equal(ten.errors, 0);
-  assert.equal(ten.prompts, 1);
-  assert.equal(ten.promptDurationMs, 200);
-
-  const nine = metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 9, 0, 0));
-  assert.equal(nine.errors, 1);
+  const sameMinute = metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 29, 0));
+  assert.equal(sameMinute.messages, 3);
+  const earliest = metrics.buckets[0];
+  assert.equal(earliest.errors, 1);
+  const current = metrics.buckets[59];
+  assert.equal(current.commands, 2);
+  const durationMinute = metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 15, 0));
+  assert.equal(durationMinute.prompts, 1);
+  assert.equal(durationMinute.promptDurationMs, 200);
+  const emptyMinute = metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 14, 0));
+  assert.deepEqual(emptyMinute, {
+    minute: Date.UTC(2026, 6, 10, 10, 14, 0),
+    messages: 0,
+    commands: 0,
+    prompts: 0,
+    errors: 0,
+    promptDurationMs: 0,
+  });
+  assert.equal(metrics.buckets.reduce((sum, bucket) => sum + bucket.errors, 0), 1,
+    '窗口前一毫秒记录的旧指标不得进入最近 60 分钟桶');
 });
 
 test('event store 导出函数支持默认内存 store', () => {

@@ -21,7 +21,6 @@ function listRoutes(ctx) {
     const route = routes[routeKey];
     const sessionId = route ? route.focusSessionId : null;
     const session = sessionId ? sessions[sessionId] : null;
-    const dangling = !session || session.status === 'deleted';
     const sessionIds = route && Array.isArray(route.sessions) ? route.sessions.slice() : [];
     const activeSessions = [];
     const missingSessionIds = [];
@@ -36,6 +35,12 @@ function listRoutes(ctx) {
         activeSessions.push(summarizeSession(item, id === sessionId));
       }
     }
+    const dangling = !sessionId
+      || !session
+      || session.status === 'deleted'
+      || !sessionIds.includes(sessionId)
+      || missingSessionIds.length > 0
+      || deletedSessionIds.length > 0;
 
     return {
       routeKey,
@@ -74,6 +79,115 @@ function summarizeSession(session, isFocus) {
 }
 
 /**
+ * 获取单条 Route 的稳定 v3 DTO。
+ * @param {Object} ctx - 上下文对象
+ * @param {string} routeKey - Route 键
+ * @returns {Object|null} Route DTO，不存在时返回 null
+ */
+function getRoute(ctx, routeKey) {
+  return listRoutes(ctx).find((route) => route.routeKey === routeKey) || null;
+}
+
+/**
+ * 将 Session 添加到 Route，但不改变已有 Route 的焦点。
+ * @param {Object} ctx - 上下文对象
+ * @param {string} routeKey - Route 键
+ * @param {string} sessionId - Session ID
+ * @returns {Object} 操作结果
+ */
+function addSession(ctx, routeKey, sessionId) {
+  try {
+    ctx.sessionService.addSessionToRoute(routeKey, sessionId);
+  } catch (err) {
+    return operationError(err);
+  }
+  recordRouteEvent(ctx, 'route.session.add', routeKey, sessionId, 'session added to route');
+  return { ok: true, route: getRoute(ctx, routeKey) };
+}
+
+/**
+ * 从 Route 移除指定 Session。
+ * @param {Object} ctx - 上下文对象
+ * @param {string} routeKey - Route 键
+ * @param {string} sessionId - Session ID
+ * @returns {Object} 操作结果，removed 表示本次是否实际移除
+ */
+function removeSession(ctx, routeKey, sessionId) {
+  try {
+    const removed = ctx.sessionService.removeSessionFromRoute(routeKey, sessionId);
+    if (removed) recordRouteEvent(ctx, 'route.session.remove', routeKey, sessionId, 'session removed from route');
+    return { ok: true, removed, route: getRoute(ctx, routeKey) };
+  } catch (err) {
+    return operationError(err);
+  }
+}
+
+/**
+ * 设置 Route 焦点 Session。
+ * @param {Object} ctx - 上下文对象
+ * @param {string} routeKey - Route 键
+ * @param {string} sessionId - Session ID
+ * @returns {Object} 操作结果
+ */
+function setFocus(ctx, routeKey, sessionId) {
+  try {
+    ctx.sessionService.setFocus(routeKey, sessionId);
+  } catch (err) {
+    return operationError(err);
+  }
+  recordRouteEvent(ctx, 'route.focus', routeKey, sessionId, 'route focus changed');
+  return { ok: true, route: getRoute(ctx, routeKey) };
+}
+
+/**
+ * 更新 Route CWD。
+ * @param {Object} ctx - 上下文对象
+ * @param {string} routeKey - Route 键
+ * @param {string} cwd - 绝对路径
+ * @returns {Object} 操作结果
+ */
+function updateRoute(ctx, routeKey, cwd) {
+  if (!getRoute(ctx, routeKey)) {
+    return { ok: false, error: { code: 'NOT_FOUND', message: 'route not found: ' + routeKey } };
+  }
+  try {
+    ctx.sessionService.setRouteCwd(routeKey, cwd);
+  } catch (err) {
+    return operationError(err);
+  }
+  recordRouteEvent(ctx, 'route.update', routeKey, '', 'route cwd updated');
+  return { ok: true, route: getRoute(ctx, routeKey) };
+}
+
+/**
+ * 删除整条 Route。
+ * @param {Object} ctx - 上下文对象
+ * @param {string} routeKey - Route 键
+ * @returns {Object} 操作结果
+ */
+function deleteRoute(ctx, routeKey) {
+  try {
+    const deleted = ctx.sessionService.deleteRoute(routeKey);
+    if (deleted) recordRouteEvent(ctx, 'route.delete', routeKey, '', 'route deleted');
+    return { ok: true, deleted, routeKey };
+  } catch (err) {
+    return operationError(err);
+  }
+}
+
+/** 将领域错误转换为稳定 Admin 错误语义。 */
+function operationError(err) {
+  const message = err && err.message ? err.message : 'route operation failed';
+  const code = /not found/.test(message) ? 'NOT_FOUND' : 'BAD_REQUEST';
+  return { ok: false, error: { code, message } };
+}
+
+/** 记录 Route 写操作事件。 */
+function recordRouteEvent(ctx, type, routeKey, sessionId, message) {
+  recordEvent(ctx.eventStore, { type, routeKey, sessionId, message });
+}
+
+/**
  * 将路由键绑定到指定会话
  * @param {Object} ctx - 上下文对象
  * @param {string} routeKey - 路由键
@@ -94,7 +208,7 @@ function bindRoute(ctx, routeKey, sessionId) {
     message: 'route bound to session',
   });
 
-  return { ok: true, routeKey, sessionId };
+  return { ok: true, routeKey, sessionId, route: getRoute(ctx, routeKey) };
 }
 
 /**
@@ -132,11 +246,11 @@ function detectDangling(ctx) {
   const dangling = [];
   for (const routeKey of Object.keys(routes)) {
     const route = routes[routeKey];
-    if (!route || !route.focusSessionId) {
+    if (!route || !Array.isArray(route.sessions) || !route.focusSessionId) {
       dangling.push({
         routeKey,
         sessionId: route ? route.focusSessionId : null,
-        reason: 'route has no focusSessionId',
+        reason: !route || !Array.isArray(route.sessions) ? 'route has invalid sessions' : 'route has no focusSessionId',
       });
       continue;
     }
@@ -147,6 +261,17 @@ function detectDangling(ctx) {
         routeKey,
         sessionId,
         reason: !session ? 'session not found' : 'session deleted',
+      });
+      continue;
+    }
+    const invalidMember = route.sessions.find((id) => !sessions[id] || sessions[id].status === 'deleted');
+    if (invalidMember || !route.sessions.includes(sessionId)) {
+      dangling.push({
+        routeKey,
+        sessionId: invalidMember || sessionId,
+        reason: invalidMember
+          ? (!sessions[invalidMember] ? 'session not found' : 'session deleted')
+          : 'focus session not in route',
       });
     }
   }
@@ -164,18 +289,17 @@ function cleanupDangling(ctx, confirm) {
     return { ok: false, error: { code: 'BAD_REQUEST', message: 'cleanup requires confirm=true' } };
   }
 
-  const dangling = detectDangling(ctx);
-  const cleaned = [];
+  const danglingByRoute = new Map(detectDangling(ctx).map((item) => [item.routeKey, item]));
+  const cleaned = ctx.sessionService.cleanOrphanRoutes();
 
-  for (const item of dangling) {
-    ctx.sessionService.unbindRoute(item.routeKey);
+  for (const routeKey of cleaned) {
+    const item = danglingByRoute.get(routeKey);
     recordEvent(ctx.eventStore, {
       type: 'route.bind',
-      routeKey: item.routeKey,
+      routeKey,
       message: 'dangling route cleaned up',
-      data: { reason: item.reason },
+      data: { reason: item ? item.reason : 'dangling route member removed' },
     });
-    cleaned.push(item.routeKey);
   }
 
   return { ok: true, cleaned };
@@ -183,8 +307,14 @@ function cleanupDangling(ctx, confirm) {
 
 module.exports = {
   listRoutes,
+  getRoute,
   bindRoute,
   unbindRoute,
+  addSession,
+  removeSession,
+  setFocus,
+  updateRoute,
+  deleteRoute,
   detectDangling,
   cleanupDangling,
 };
