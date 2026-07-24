@@ -686,5 +686,38 @@
       "fail, duration 659.2263 ms |",
       "fail, duration 10800.1653 ms |"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-v2-rewrite",
+    "timestamp": "2026-07-23T11:43:07.141Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail / 0 cancelled。",
+      "fail / 0 cancelled。 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-v2-rewrite",
+    "timestamp": "2026-07-23T11:57:56.123Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail / 0 cancelled。",
+      "fail / 0 cancelled。 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-23-admin-v2-rewrite",
+    "timestamp": "2026-07-23T12:10:23.646Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail / 0 cancelled。",
+      "fail / 0 cancelled。 |"
+    ]
   }
 ]
