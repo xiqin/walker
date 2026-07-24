@@ -2,6 +2,7 @@ import { createApiClient } from './api.js';
 import { createRouter } from './router.js';
 import { createInitialState, createStore } from './state.js';
 import { createAppShell } from './components/app-shell.js';
+import { listen } from './dom.js';
 
 const RETURN_HASH_KEY = 'walker.admin.returnHash';
 
@@ -29,6 +30,28 @@ export function createAuthRecovery(options = {}) {
   };
 }
 
+function clockTime(date) {
+  const value = date || new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return pad(value.getHours()) + ':' + pad(value.getMinutes()) + ':' + pad(value.getSeconds());
+}
+
+function formatUptime(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '未知';
+  const total = Math.floor(ms / 1000);
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  if (days > 0) return `${days} 天 ${hours} 小时`;
+  if (hours > 0) return `${hours} 小时 ${mins} 分`;
+  if (mins > 0) return `${mins} 分`;
+  return `${total} 秒`;
+}
+
+function responseData(response) {
+  return response && Object.hasOwn(response, 'data') ? response.data : response;
+}
+
 /** 启动无构建 Admin 应用并返回可显式释放的运行时。 */
 export async function startApp(options = {}) {
   const documentRef = options.document || document;
@@ -44,7 +67,7 @@ export async function startApp(options = {}) {
   });
   const router = createRouter({
     window: windowRef,
-    root: shell.main,
+    root: shell.viewport,
     routes: options.pages || {},
     context: { api, store, shell, document: documentRef, window: windowRef },
     onRoute: route => {
@@ -54,5 +77,26 @@ export async function startApp(options = {}) {
     },
   });
   await router.start();
-  return { api, router, shell, store, authRecovery: recovery, cleanup: () => { router.stop(); shell.cleanup(); } };
+
+  /** 取 /overview 设置底部状态药丸（失败显示诚实未知态，不造假 PID）。 */
+  async function loadStatus() {
+    try {
+      const overview = responseData(await api.get('/api/admin/overview', { signal: undefined }));
+      const process = overview && overview.process ? overview.process : null;
+      const pid = process && process.pid;
+      const uptime = process ? formatUptime(process.uptime) : '未知';
+      shell.setStatus(pid ? `walker 运行中 · PID ${pid} · ${uptime}` : 'Walker 状态未知', pid ? 'green' : 'gray');
+    } catch (_err) {
+      shell.setStatus('Walker 状态未知', 'gray');
+    }
+  }
+  shell.setClock(clockTime());
+  const clockTimer = windowRef.setInterval(() => shell.setClock(clockTime()), 1000);
+  const offRefresh = listen(shell.viewport, 'walker:refresh', () => { loadStatus(); });
+  loadStatus();
+
+  return {
+    api, router, shell, store, authRecovery: recovery,
+    cleanup: () => { router.stop(); shell.cleanup(); windowRef.clearInterval(clockTimer); offRefresh(); },
+  };
 }

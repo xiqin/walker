@@ -106,234 +106,142 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function assertSelectedPanel(workspace, selected) {
-  assert.equal(workspace.tabs.getSelected(), selected);
-  for (const [id, panel] of workspace.tabs.panels) assert.equal(panel.hidden, id !== selected);
-  for (const [id, button] of workspace.tabs.buttons) assert.equal(button.attributes['aria-selected'], String(id === selected));
-  return workspace.tabs.panels.get(selected);
-}
-
-function feedbackIn(panel) {
-  return findElements(panel, node => node.className === 'feedback')[0];
-}
-
-function parseMetricsContent(panel) {
-  const output = findElements(panel, node => node.tagName === 'PRE')[0];
-  return JSON.parse(output.textContent.slice(output.textContent.indexOf('{')));
-}
 
 test.before(prepareModules);
 test.after(() => fs.rmSync(moduleDir, { recursive: true, force: true }));
 
-test('活动工作区切换 Tab 会按各数据源能力实际应用共享过滤', async () => {
-  const { createActivityWorkspace } = await importModule('pages/activity.js');
+test('日志工作区渲染结构化 log-line 并按级别/来源/关键词过滤', async () => {
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
   const urls = [];
-  const after = new Date('2026-07-22T08:30').getTime();
-  const workspace = createActivityWorkspace({
+  const lines = [
+    { createdAt: 1000, level: 'INFO', source: 'AgentDriver', message: 'turn started' },
+    { createdAt: 2000, level: 'WARN', source: '飞书 WSClient', message: 'retry after timeout' },
+    { createdAt: 3000, level: 'ERROR', source: 'OpenCode Hook', message: 'connection lost' },
+    { createdAt: 4000, level: 'DEBUG', source: 'TUI Bridge', message: 'packet forwarded' },
+    JSON.stringify({ createdAt: 5000, level: 'INFO', source: 'ProgressCard', message: 'step completed' }),
+  ];
+  const workspace = createLogsWorkspace({
     document: createFakeDocument(),
-    api: {
-      get: async url => {
-        urls.push(url);
-        if (url.startsWith('/api/admin/events')) {
-          return { data: { events: [
-            { createdAt: 2000, level: 'warn', sessionId: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'timeout waiting' },
-            { createdAt: 2001, level: 'warn', sessionId: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'other failure' },
-          ] } };
-        }
-        if (url.startsWith('/api/admin/logs')) {
-          return { data: { lines: [
-            { timestamp: after - 1, level: 'warn', sessionId: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'timeout object before' },
-            { timestamp: after, level: 'warn', sessionId: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'timeout object equal' },
-            { timestamp: after + 1, level: 'warn', sessionId: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'timeout object after' },
-            JSON.stringify({ ts: new Date(after - 1).toISOString(), level: 'warn', sessionID: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'timeout string before' }),
-            JSON.stringify({ ts: new Date(after).toISOString(), level: 'warn', sessionID: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'timeout string equal' }),
-            JSON.stringify({ ts: new Date(after + 1).toISOString(), level: 'warn', sessionID: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'timeout string after' }),
-            JSON.stringify({ ts: new Date(after + 1).toISOString(), level: 'warn', sessionId: 'wks_2', routeKey: 'chat_1', type: 'error', message: 'timeout wrong session' }),
-            JSON.stringify({ ts: new Date(after + 1).toISOString(), level: 'warn', message: 'timeout sessionId=wks_1 routeKey=chat_1 type=error only in message' }),
-            `not json ${new Date(after + 1).toISOString()} sessionId=wks_1 routeKey=chat_1 type=error timeout raw`,
-          ] } };
-        }
-        return { data: {
-          messages: 8,
-          commands: 3,
-          prompts: 2,
-          errors: 4,
-          averagePromptDurationMs: 25,
-          buckets: [
-            { minute: after - 60000, errors: 3 },
-            { minute: after + 60000, errors: 1 },
-          ],
-        } };
-      },
-    },
-    filters: {
-      after: '2026-07-22T08:30',
-      level: 'warn',
-      keyword: 'timeout',
-      sessionId: 'wks_1',
-      routeKey: 'chat_1',
-      type: 'error',
-    },
+    api: { get: async url => { urls.push(url); return { data: { lines } }; } },
   });
-
-  const eventsPanel = assertSelectedPanel(workspace, 'events');
-  await workspace.refreshEvents();
+  await workspace.refreshLogs();
   assert.equal(urls.length, 1);
-  const eventUrl = new URL('http://localhost' + urls[0]);
-  assert.deepEqual(Object.fromEntries(eventUrl.searchParams), {
-    after: String(after),
-    level: 'warn',
-    sessionId: 'wks_1',
-    routeKey: 'chat_1',
-    type: 'error',
-  });
-  assert.match(collectText(eventsPanel), /timeout waiting/);
-  assert.doesNotMatch(collectText(eventsPanel), /other failure/);
-  assert.match(collectText(eventsPanel), /关键词.*本地/);
+  assert.match(urls[0], /\/api\/admin\/logs/);
 
-  workspace.tabs.select('logs');
-  await flushPromises();
-  const logsPanel = assertSelectedPanel(workspace, 'logs');
-  assert.equal(urls.length, 2);
-  const logUrl = new URL('http://localhost' + urls[1]);
-  assert.equal(logUrl.pathname, '/api/admin/logs');
-  assert.deepEqual(Object.fromEntries(logUrl.searchParams), { level: 'warn', keyword: 'timeout' });
-  assert.equal(workspace.logOutput.textContent, ['timeout object after', JSON.stringify({ ts: new Date(after + 1).toISOString(), level: 'warn', sessionID: 'wks_1', routeKey: 'chat_1', type: 'error', message: 'timeout string after' })].join('\n'));
-  assert.doesNotMatch(collectText(logsPanel), /before|equal|wrong session|only in message|timeout raw/);
-  assert.match(collectText(logsPanel), /起始时间.*Session.*Route.*类型.*本地/);
+  const logLines = findElements(workspace.element, node => node.className === 'log-line');
+  assert.equal(logLines.length, 5);
+  const allText = collectText(workspace.element);
+  assert.match(allText, /turn started/);
+  assert.match(allText, /retry after timeout/);
+  assert.match(allText, /connection lost/);
 
-  workspace.setFilter('type', 'errors');
-  workspace.tabs.select('metrics');
-  await flushPromises();
-  const metricsPanel = assertSelectedPanel(workspace, 'metrics');
-  assert.deepEqual(urls.slice(2), ['/api/admin/metrics']);
-  const metricsContent = parseMetricsContent(metricsPanel);
-  assert.deepEqual(metricsContent.summary, { errors: 1 });
-  assert.deepEqual(metricsContent.buckets, [{ minute: after + 60000, errors: 1 }]);
-  assert.match(collectText(metricsPanel), /级别.*Session.*Route.*关键词.*不适用/);
-});
+  const noteBox = findElements(workspace.element, node => node.className === 'note-box')[0];
+  assert.match(collectText(noteBox), /walker logs.*walker.log/);
 
-test('指标总量使用 averagePromptDurationMs，时间窗口平均耗时明确不适用', async () => {
-  const { createActivityWorkspace } = await importModule('pages/activity.js');
-  const after = new Date('2026-07-22T08:30').getTime();
-  const urls = [];
-  const workspace = createActivityWorkspace({
-    document: createFakeDocument(),
-    api: { get: async url => {
-      urls.push(url);
-      return { data: {
-        messages: 8,
-        commands: 3,
-        prompts: 2,
-        errors: 4,
-        averagePromptDurationMs: 25,
-        promptDurationMs: 999,
-        buckets: [{ minute: after + 60000, messages: 2, commands: 1, prompts: 1, errors: 1, promptDurationMs: 900 }],
-      } };
-    } },
-  });
+  const levelSelect = findElements(workspace.element, node => node.attributes?.['aria-label'] === '级别筛选')[0];
+  levelSelect.value = 'ERROR';
+  levelSelect.dispatch('change');
+  const afterLevel = findElements(workspace.element, node => node.className === 'log-line');
+  assert.equal(afterLevel.length, 1);
+  assert.match(collectText(afterLevel[0]), /connection lost/);
+  levelSelect.value = '';
+  levelSelect.dispatch('change');
 
-  workspace.tabs.select('metrics');
-  await flushPromises();
-  let metricsPanel = assertSelectedPanel(workspace, 'metrics');
-  assert.deepEqual(parseMetricsContent(metricsPanel).summary, {
-    messages: 8,
-    commands: 3,
-    prompts: 2,
-    errors: 4,
-    averagePromptDurationMs: 25,
-  });
+  const searchInput = findElements(workspace.element, node => node.attributes?.['aria-label'] === '搜索日志')[0];
+  searchInput.value = 'timeout';
+  searchInput.dispatch('input');
+  const afterSearch = findElements(workspace.element, node => node.className === 'log-line');
+  assert.equal(afterSearch.length, 1);
+  assert.match(collectText(afterSearch[0]), /retry after timeout/);
+  searchInput.value = '';
+  searchInput.dispatch('input');
 
-  workspace.setFilter('after', '2026-07-22T08:30');
-  workspace.setFilter('type', 'averagePromptDurationMs');
-  await workspace.refreshMetrics();
-  metricsPanel = assertSelectedPanel(workspace, 'metrics');
-  const filtered = parseMetricsContent(metricsPanel);
-  assert.deepEqual(filtered.summary, {});
-  assert.match(filtered.typeNote, /averagePromptDurationMs.*不适用/);
-  assert.deepEqual(urls, ['/api/admin/metrics', '/api/admin/metrics']);
+  const sourceSelect = findElements(workspace.element, node => node.attributes?.['aria-label'] === '来源筛选')[0];
+  sourceSelect.value = 'OpenCode Hook';
+  sourceSelect.dispatch('change');
+  const afterSource = findElements(workspace.element, node => node.className === 'log-line');
+  assert.equal(afterSource.length, 1);
+  assert.match(collectText(afterSource[0]), /connection lost/);
 });
 
 test('日志单飞且 cleanup 隔离在途 resolve，定时器仅清一次', async () => {
-  const { createActivityWorkspace } = await importModule('pages/activity.js');
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
   const pending = deferred();
   let calls = 0;
   let timerCallback;
   let cleared = 0;
-  const workspace = createActivityWorkspace({
+  const workspace = createLogsWorkspace({
     document: createFakeDocument(),
     api: { get: () => { calls++; return pending.promise; } },
     setInterval: callback => { timerCallback = callback; return 7; },
     clearInterval: id => { if (id === 7) cleared++; },
   });
   workspace.setAutoRefresh(true);
-  workspace.logOutput.textContent = 'before cleanup';
-  workspace.logOutput.scrollTop = 17;
-  const logsPanel = workspace.tabs.panels.get('logs');
   const first = timerCallback();
   const second = timerCallback();
   assert.equal(calls, 1);
   workspace.cleanup();
   workspace.cleanup();
   assert.equal(cleared, 1);
-  const feedbackState = feedbackIn(logsPanel).dataset.state;
   pending.resolve({ data: { lines: ['after cleanup'] } });
   await Promise.all([first, second]);
-  assert.equal(workspace.logOutput.textContent, 'before cleanup');
-  assert.equal(workspace.logOutput.scrollTop, 17);
-  assert.equal(feedbackIn(logsPanel).dataset.state, feedbackState);
+  const logLines = findElements(workspace.element, node => node.className === 'log-line');
+  assert.equal(logLines.length, 0);
   await timerCallback();
   assert.equal(calls, 1);
 });
 
 test('cleanup 隔离在途日志 reject，不写错误反馈', async () => {
-  const { createActivityWorkspace } = await importModule('pages/activity.js');
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
   const pending = deferred();
   let calls = 0;
-  const workspace = createActivityWorkspace({
+  const workspace = createLogsWorkspace({
     document: createFakeDocument(),
     api: { get: () => { calls++; return pending.promise; } },
   });
-  const logsPanel = workspace.tabs.panels.get('logs');
   const request = workspace.refreshLogs();
   assert.equal(calls, 1);
-  const before = collectText(logsPanel);
-  const feedbackState = feedbackIn(logsPanel).dataset.state;
   workspace.cleanup();
   pending.reject(new Error('after cleanup failure'));
   await request;
-  assert.equal(collectText(logsPanel), before);
-  assert.equal(feedbackIn(logsPanel).dataset.state, feedbackState);
-  assert.doesNotMatch(collectText(logsPanel), /after cleanup failure/);
+  const logLines = findElements(workspace.element, node => node.className === 'log-line');
+  assert.equal(logLines.length, 0);
+  assert.doesNotMatch(collectText(workspace.element), /after cleanup failure/);
 });
 
-test('暂停日志跟随不修改 scrollTop', async () => {
-  const { createActivityWorkspace } = await importModule('pages/activity.js');
-  const document = createFakeDocument();
-  const workspace = createActivityWorkspace({ document, api: { get: async () => ({ data: { lines: ['new'] } }) } });
-  workspace.logOutput.scrollTop = 19;
-  workspace.logOutput.scrollHeight = 200;
-  workspace.setFollowLogs(false);
-  await workspace.refreshLogs();
-  assert.equal(workspace.logOutput.scrollTop, 19);
-  workspace.setFollowLogs(true);
-  await workspace.refreshLogs();
-  assert.equal(workspace.logOutput.scrollTop, 200);
-});
-
-test('活动 datetime-local 过滤转换为非负毫秒时间戳', async () => {
-  const { createActivityWorkspace } = await importModule('pages/activity.js');
-  const urls = [];
-  const workspace = createActivityWorkspace({
+test('自动滚动和行数限制', async () => {
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
+  const lines = [];
+  for (let i = 0; i < 100; i++) lines.push({ createdAt: i, level: 'INFO', source: 'AgentDriver', message: `line ${i}` });
+  const workspace = createLogsWorkspace({
     document: createFakeDocument(),
-    api: { get: async url => { urls.push(url); return { data: { events: [] } }; } },
+    api: { get: async () => ({ data: { lines } }) },
   });
-  workspace.setFilter('after', '2026-07-22T08:30');
-  await workspace.refreshEvents();
-  const query = new URL('http://localhost' + urls[0]).searchParams;
-  assert.match(query.get('after'), /^\d+$/);
-  assert.equal(Number(query.get('after')), new Date('2026-07-22T08:30').getTime());
-  assert.ok(Number(query.get('after')) >= 0);
+  await workspace.refreshLogs();
+  const logLines = findElements(workspace.element, node => node.className === 'log-line');
+  assert.equal(logLines.length, 80);
+
+  const rowCountSelect = findElements(workspace.element, node => node.attributes?.['aria-label'] === '行数')[0];
+  rowCountSelect.value = '200';
+  rowCountSelect.dispatch('change');
+  const afterChange = findElements(workspace.element, node => node.className === 'log-line');
+  assert.equal(afterChange.length, 100);
+});
+
+test('导出按钮触发下载', async () => {
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
+  const downloads = [];
+  const workspace = createLogsWorkspace({
+    document: createFakeDocument(),
+    api: { get: async () => ({ data: { lines: [{ createdAt: 1000, level: 'INFO', source: 'AgentDriver', message: 'test log' }] } }) },
+    download: (name, text) => downloads.push({ name, text }),
+  });
+  await workspace.refreshLogs();
+  const exportButton = findElements(workspace.element, node => node.tagName === 'BUTTON' && node.textContent === '⬇ 导出')[0];
+  exportButton.onclick();
+  assert.equal(downloads.length, 1);
+  assert.match(downloads[0].name, /walker-logs-.*\.log/);
+  assert.match(downloads[0].text, /test log/);
 });
 
 test('诊断页渲染结构化检查、action 后复检并导出当前报告', async () => {
@@ -355,7 +263,7 @@ test('诊断页渲染结构化检查、action 后复检并导出当前报告', a
     download: (name, data) => downloads.push({ name, data }),
   });
   await workspace.refresh();
-  assert.match(collectText(workspace.element), /总体.*degraded.*connections.*opencode.*offline.*start it.*恢复/);
+  assert.match(collectText(workspace.element), /opencode.*offline.*start it.*恢复/);
   await workspace.runAction(workspace.getReport().checks[0]);
   assert.equal(healthCalls, 2);
   workspace.exportReport();
@@ -401,17 +309,26 @@ test('诊断 action 单飞、busy、失败反馈且 cleanup 后不更新', async
   assert.match(collectText(failed.element), /recover failed/);
 });
 
-test('配置页按八组渲染且 Secret 永不进入 DOM', async () => {
+test('配置页按六组渲染且 Secret 永不进入 DOM', async () => {
   const { createConfigWorkspace } = await importModule('pages/config.js');
-  const groups = ['walker', 'admin', 'feishu', 'opencode', 'runtime', 'session-route', 'timeout-recovery', 'ui'];
+  const groups = [
+    { id: 'walker', items: [{ env: 'WALKER_DEFAULT_AGENT', label: 'Agent', value: 'opencode', editable: true, input: { type: 'text' } }] },
+    { id: 'admin', items: [{ env: 'WALKER_ADMIN_TOKEN', label: 'Token', secret: true, configured: true, masked: 'SECRET_SENTINEL', editable: false, source: 'environment', restartRequired: true }] },
+    { id: 'feishu', items: [{ env: 'FEISHU_APP_ID', label: 'App ID', value: 'cli_a1', editable: true, input: { type: 'text' } }] },
+    { id: 'opencode', items: [{ env: 'OPENCODE_SERVER_URL', label: 'URL', value: '', editable: true, input: { type: 'url', protocols: ['http:', 'https:'], allowEmpty: true } }] },
+    { id: 'runtime', items: [{ env: 'WALKER_DEFAULT_RUNTIME', label: 'Runtime', value: 'windows', editable: true, input: { type: 'enum', values: ['windows', 'wsl'] } }] },
+    { id: 'timeout-recovery', items: [{ env: 'WALKER_OPENCODE_NON_FOCUS_OUTPUT', label: '输出回群', value: 'true', editable: true, display: 'switch', input: { type: 'boolean', values: ['true', 'false'] } }] },
+  ];
   const workspace = createConfigWorkspace({
     document: createFakeDocument(),
-    api: { get: async () => ({ data: { editableKeys: ['WALKER_ADMIN_PORT'], groups: groups.map((id, index) => ({ id, label: id, items: index === 1 ? [{ env: 'WALKER_ADMIN_TOKEN', label: 'Token', secret: true, configured: true, masked: 'SECRET_SENTINEL', editable: false, source: 'environment', restartRequired: true }, { env: 'WALKER_ADMIN_PORT', label: 'Port', value: '8787', defaultValue: '8787', editable: true, source: 'default', restartRequired: true, input: { type: 'number', integer: true, min: 1, max: 65535 } }] : [] })) } }) },
+    api: { get: async () => ({ data: { editableKeys: ['WALKER_ADMIN_PORT'], groups } }) },
   });
   await workspace.load();
-  assert.equal(workspace.getGroups().length, 8);
+  assert.equal(workspace.getGroups().length, 6);
   assert.doesNotMatch(collectText(workspace.element), /SECRET_SENTINEL/);
-  assert.match(collectText(workspace.element), /已配置.*来源.*默认.*重启/);
+  assert.match(collectText(workspace.element), /已配置/);
+  assert.match(collectText(workspace.element), /飞书后台需/);
+  assert.match(collectText(workspace.element), /Hook 端点/);
 });
 
 test('配置表单阻止非法提交、过滤未知字段并在保存失败时恢复', async () => {
@@ -451,7 +368,7 @@ test('存储维护页从 DOM 展示附件并执行查看下载和确认删除', 
     confirm: async message => { confirmations.push(message); return true; },
   });
   await workspace.loadAttachments();
-  assert.match(collectText(workspace.element), /数据文件.*附件.*备份.*导出.*清理.*危险区/);
+  assert.match(collectText(workspace.element), /磁盘占用.*维护操作.*附件/);
   assert.match(collectText(workspace.element), /wks_1.*a file\.txt.*12/);
   const download = findElements(workspace.element, node => node.tagName === 'A' && node.textContent === '查看/下载')[0];
   assert.equal(download.attributes.href, '/api/admin/attachments/wks_1/a%20file.txt');
@@ -470,7 +387,7 @@ test('存储维护页从 DOM 展示附件并执行查看下载和确认删除', 
 });
 
 test('调试工具生产 mount 默认隐藏服务端字符串并保留结构调试信息', async () => {
-  const { mount, PREVIEW_CATEGORIES } = await importModule('pages/tools.js');
+  const { mount, PREVIEW_CATEGORIES } = await importModule('pages/debug.js');
   const getRequests = [];
   const postRequests = [];
   const document = createFakeDocument();

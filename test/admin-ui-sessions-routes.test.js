@@ -158,12 +158,13 @@ test.after(() => fs.rmSync(moduleDir, { recursive: true, force: true }));
 test('Session 组合过滤只保留满足全部条件的项', async () => {
   const { filterSessions } = await importPage();
   const sessions = [
-    { id: 's1', title: 'Alpha Worker', status: 'running', transport: 'tui', routeKeys: ['r1'] },
-    { id: 's2', title: 'Alpha Other', status: 'running', transport: 'sse', routeKeys: ['r1'] },
-    { id: 's3', title: 'Alpha Orphan', status: 'running', transport: 'tui', routeKeys: [] },
+    { id: 's1', title: 'Alpha Worker', status: 'running', agent: 'opencode', runtime: 'node', routeKeys: ['r1'] },
+    { id: 's2', title: 'Alpha Other', status: 'running', agent: 'claude', runtime: 'node', routeKeys: ['r1'] },
+    { id: 's3', title: 'Alpha Orphan', status: 'idle', agent: 'opencode', runtime: 'node', routeKeys: [] },
   ];
-  assert.deepEqual(filterSessions(sessions, { query: 'alpha', status: 'running', transport: 'tui', route: 'r1', orphan: false }).map(item => item.id), ['s1']);
-  assert.deepEqual(filterSessions(sessions, { query: 'alpha', status: 'running', transport: 'tui', route: '', orphan: true }).map(item => item.id), ['s3']);
+  assert.deepEqual(filterSessions(sessions, { query: 'alpha', status: 'running', agent: 'opencode' }).map(item => item.id), ['s1']);
+  assert.deepEqual(filterSessions(sessions, { query: 'alpha', agent: 'opencode', status: 'idle' }).map(item => item.id), ['s3']);
+  assert.deepEqual(filterSessions(sessions, { query: 'alpha', runtime: 'node', agent: 'claude' }).map(item => item.id), ['s2']);
 });
 
 test('Session 搜索使用本地过滤且缺失运行字段显示 unknown', async () => {
@@ -179,8 +180,8 @@ test('Session 搜索使用本地过滤且缺失运行字段显示 unknown', asyn
   query.value = 'gamma';
   await query.dispatch('input');
   assert.equal(harness.calls.filter(call => call[0] === 'get' && call[1] === '/api/admin/sessions').length, 1);
-  assert.match(collectText(mounted.tabs.panels.get('sessions')), /Gamma/);
-  assert.doesNotMatch(collectText(mounted.tabs.panels.get('sessions')), /Beta/);
+  assert.match(collectText(mounted.tabs.panels.get('sessions')), /wks_orphan_345678/);
+  assert.doesNotMatch(collectText(mounted.tabs.panels.get('sessions')), /wks_idle_234567/);
   mounted.cleanup();
 });
 
@@ -189,7 +190,7 @@ test('Session 深链详情展示运行字段，关闭恢复筛选 Tab 和滚动'
   const saved = [];
   const harness = createHarness({
     route: { params: { id: 'wks_focus_123456' }, query: { tab: 'sessions' } },
-    store: { getState: () => ({ filters: { sessions: { query: 'alpha', status: 'running', transport: 'tui', route: 'feishu:chat-a', orphan: false, tab: 'sessions', scrollTop: 88 } } }), setPageFilters(_page, state) { saved.push(state); } },
+    store: { getState: () => ({ filters: { sessions: { query: 'alpha', status: 'running', agent: 'opencode', runtime: 'windows', tab: 'sessions', scrollTop: 88 } } }), setPageFilters(_page, state) { saved.push(state); } },
   });
   const mounted = await page.mount(harness.context);
   assert.equal(harness.rootNode.scrollTop, 88);
@@ -284,76 +285,58 @@ test('Route Tab 区分 1:N 成员、焦点、CWD 和状态', async () => {
   const harness = createHarness({ route: { params: {}, query: { tab: 'routes' } } });
   const mounted = await page.mount(harness.context);
   const text = collectText(harness.rootNode);
-  assert.match(text, /feishu:chat-a.*正常.*焦点.*wks_focus_123456.*H:\\walker.*成员.*wks_idle_234567/s);
-  assert.match(text, /feishu:dangling.*悬空/s);
-  assert.ok(findButton(harness.rootNode, '添加 Session'));
-  assert.ok(findButton(harness.rootNode, '切换焦点'));
-  assert.ok(findButton(harness.rootNode, '移除成员'));
-  assert.ok(findButton(harness.rootNode, '修改 CWD'));
-  assert.ok(findButton(harness.rootNode, '清理悬空 Route'));
-  assert.ok(findButton(harness.rootNode, '删除整条 Route'));
+  assert.match(text, /feishu:chat-a/);
+  assert.match(text, /wks_focus_123456/);
+  assert.match(text, /wks_idle_234567/);
+  assert.match(text, /H:\\walker/);
+  assert.match(text, /feishu:dangling/);
+  assert.match(text, /Route 映射表/);
+  assert.ok(findButton(harness.rootNode, '+ 添加路由说明'));
+  assert.equal(findButton(harness.rootNode, '添加 Session'), undefined);
+  assert.equal(findButton(harness.rootNode, '切换焦点'), undefined);
+  assert.equal(findButton(harness.rootNode, '移除成员'), undefined);
+  assert.equal(findButton(harness.rootNode, '修改 CWD'), undefined);
+  assert.equal(findButton(harness.rootNode, '清理悬空 Route'), undefined);
+  assert.equal(findButton(harness.rootNode, '删除整条 Route'), undefined);
   mounted.cleanup();
 });
 
-test('Route 操作调用明确 API，成功与失败均重新加载服务端状态', async () => {
+test('Route 操作查看打开详情，解绑仅提示', async () => {
   const page = await importPage();
-  let failFocus = true;
-  const harness = createHarness({
-    route: { params: {}, query: { tab: 'routes' } },
-    api: {
-      async post(url, body) { harness.calls.push(['post', url, body]); return { data: {} }; },
-      async patch(url, body) { harness.calls.push(['patch', url, body]); if (url.endsWith('/focus') && failFocus) { failFocus = false; throw new Error('focus failed'); } return { data: {} }; },
-      async delete(url, options) { harness.calls.push(['delete', url, options]); return { data: {} }; },
-    },
-  });
+  const harness = createHarness({ route: { params: {}, query: { tab: 'routes' } } });
   const mounted = await page.mount(harness.context);
-  const routeSelect = findControl(harness.rootNode, 'route-key');
-  const memberInput = findControl(harness.rootNode, 'route-session-id');
-  const cwdInput = findControl(harness.rootNode, 'route-cwd');
-  routeSelect.value = 'feishu:chat-a';
-  memberInput.value = 'wks_idle_234567';
-  cwdInput.value = 'H:\\walker';
-  await findButton(harness.rootNode, '添加 Session').dispatch('click');
-  await findButton(harness.rootNode, '切换焦点').dispatch('click');
-  const reloadsAfterFailedFocus = harness.calls.filter(call => call[0] === 'get' && call[1] === '/api/admin/routes').length;
-  await findButton(harness.rootNode, '移除成员').dispatch('click');
-  await findButton(harness.rootNode, '修改 CWD').dispatch('click');
-  await findButton(harness.rootNode, '清理悬空 Route').dispatch('click');
-  await findButton(harness.rootNode, '删除整条 Route').dispatch('click');
-  const encoded = encodeURIComponent('feishu:chat-a');
-  assert.ok(harness.calls.some(call => call[0] === 'post' && call[1] === `/api/admin/routes/${encoded}/sessions` && call[2].sessionId === 'wks_idle_234567'));
-  assert.ok(harness.calls.some(call => call[0] === 'patch' && call[1] === `/api/admin/routes/${encoded}/focus`));
-  assert.ok(harness.calls.some(call => call[0] === 'delete' && call[1] === `/api/admin/routes/${encoded}/sessions/wks_idle_234567`));
-  assert.ok(harness.calls.some(call => call[0] === 'patch' && call[1] === `/api/admin/routes/${encoded}` && call[2].cwd === 'H:\\walker'));
-  assert.ok(harness.calls.some(call => call[0] === 'post' && call[1] === '/api/admin/routes/cleanup-dangling' && call[2].confirm === true));
-  assert.ok(harness.calls.some(call => call[0] === 'delete' && call[1] === `/api/admin/routes/${encoded}` && call[2].body.confirm === true));
-  assert.match(harness.confirmations.join(' '), /从 Route feishu:chat-a 移除成员 wks_idle_234567/);
-  assert.match(harness.confirmations.join(' '), /删除整条 Route feishu:chat-a.*全部成员关系/);
-  assert.ok(harness.calls.filter(call => call[0] === 'get' && call[1] === '/api/admin/routes').length >= 7);
-  assert.ok(reloadsAfterFailedFocus >= 3);
+  const viewLinks = findAll(harness.rootNode, node => node.tagName === 'SPAN' && node.textContent === '查看');
+  assert.ok(viewLinks.length > 0);
+  await viewLinks[0].dispatch('click');
+  assert.equal(findButton(mounted.drawer.element, '停止 Session') != null, true);
+  await mounted.drawer.closeButton.dispatch('click');
+
+  const unbindLinks = findAll(harness.rootNode, node => node.tagName === 'SPAN' && node.textContent === '解绑');
+  assert.ok(unbindLinks.length > 0);
+  const callsBefore = harness.calls.length;
+  await unbindLinks[0].dispatch('click');
+  assert.equal(harness.calls.length, callsBefore);
+  const feedbackText = collectText(harness.rootNode);
+  assert.match(feedbackText, /已解绑/);
   mounted.cleanup();
 });
 
 test('列表重拉后旧 Session 和 Route 控件监听失效', async () => {
   const page = await importPage();
-  const harness = createHarness({ route: { params: {}, query: { tab: 'routes' } } });
+  const harness = createHarness({ route: { params: {}, query: { tab: 'sessions' } } });
   const mounted = await page.mount(harness.context);
-  const oldSessionButton = findButton(harness.rootNode, '查看详情');
-  const oldRouteButton = findButton(harness.rootNode, '添加 Session');
+  const oldStatusLink = findAll(harness.rootNode, node => node.tagName === 'SPAN' && node.textContent === '/status')[0];
+  assert.ok(oldStatusLink);
 
-  await oldRouteButton.dispatch('click');
-  const reloadedSessionButton = findButton(harness.rootNode, '查看详情');
-  const reloadedRouteButton = findButton(harness.rootNode, '添加 Session');
-  await reloadedRouteButton.dispatch('click');
+  await harness.context.root.dispatch('walker:refresh');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const newStatusLinks = findAll(harness.rootNode, node => node.tagName === 'SPAN' && node.textContent === '/status');
+  assert.ok(newStatusLinks.length > 0);
   const callsAfterReload = harness.calls.length;
-  await oldRouteButton.dispatch('click');
-  await reloadedRouteButton.dispatch('click');
-  await oldSessionButton.dispatch('click');
-  await reloadedSessionButton.dispatch('click');
-
-  assert.equal(harness.calls.length, callsAfterReload);
-  assert.equal(harness.calls.filter(call => call[0] === 'post' && call[1].endsWith('/sessions')).length, 2);
-  assert.equal(harness.calls.filter(call => call[0] === 'get' && call[1].startsWith('/api/admin/sessions/')).length, 0);
+  await oldStatusLink.dispatch('click');
+  await newStatusLinks[0].dispatch('click');
+  assert.ok(harness.calls.length > callsAfterReload);
+  assert.equal(harness.calls.filter(call => call[0] === 'get' && call[1].startsWith('/api/admin/sessions/')).length, 1);
   mounted.cleanup();
 });
 

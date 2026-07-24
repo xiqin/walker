@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Walker 本机 Agent Hub</title>
+  <title>Walker · 飞书 Agent 桥接控制台</title>
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/base.css">
   <link rel="stylesheet" href="styles/layout.css">
@@ -27,12 +27,13 @@
     import { createApiClient } from './js/api.js';
     import * as dashboard from './js/pages/dashboard.js';
     import * as sessions from './js/pages/sessions.js';
-    import * as activity from './js/pages/activity.js';
+    import * as logs from './js/pages/logs.js';
     import * as diagnostics from './js/pages/diagnostics.js';
     import * as connections from './js/pages/connections.js';
     import * as config from './js/pages/config.js';
+    import * as process from './js/pages/process.js';
     import * as storage from './js/pages/storage.js';
-    import * as tools from './js/pages/tools.js';
+    import * as debug from './js/pages/debug.js';
 
     const login = document.getElementById('login');
     const form = document.getElementById('login-form');
@@ -44,9 +45,9 @@
     document.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
       const focusMenu = () => {
-        const shell = document.querySelector('.app-shell');
+        const shell = document.querySelector('.app');
         const menu = document.querySelector('.nav-toggle');
-        if (shell?.dataset.navOpen === 'false' && menu && document.activeElement?.closest('.app-sidebar')) menu.focus();
+        if (shell?.dataset.navOpen === 'false' && menu && document.activeElement?.closest('.sidebar')) menu.focus();
       };
       queueMicrotask(focusMenu);
       requestAnimationFrame(focusMenu);
@@ -67,7 +68,7 @@
         runtime = await startApp({
           api,
           authRecovery,
-          pages: { dashboard, sessions, activity, diagnostics, connections, config, storage, tools },
+          pages: { dashboard, sessions, logs, diagnostics, connections, config, process, storage, debug },
         });
       }
       else {

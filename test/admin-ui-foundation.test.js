@@ -112,14 +112,14 @@ test('前端模块可独立导入且不依赖构建工具', async () => {
   assert.doesNotMatch(packageText + source, /\b(?:react|vue|vite|redux)\b/i);
 });
 
-test('应用壳渲染四组八个语义导航入口', async () => {
+test('应用壳渲染四组九个语义导航入口', async () => {
   const { createAppShell, NAVIGATION } = await importModule('components/app-shell.js');
   const document = createFakeDocument();
   const shell = createAppShell({ document, navigation: NAVIGATION });
   assert.equal(NAVIGATION.length, 4);
-  assert.equal(NAVIGATION.flatMap(group => group.items).length, 8);
+  assert.equal(NAVIGATION.flatMap(group => group.items).length, 9);
   assert.deepEqual(NAVIGATION.map(group => group.label), ['运行', '可观测性', '系统', '开发']);
-  assert.match(collectText(shell.element), /控制台.*会话与路由.*活动与日志.*诊断.*连接与运行时.*配置.*存储与维护.*调试工具/);
+  assert.match(collectText(shell.element), /控制台.*会话与路由.*活动与日志.*诊断.*连接与集成.*配置.*进程管理.*存储与维护.*调试工具/);
   assert.equal(shell.nav.attributes['aria-label'], '主导航');
   assert.equal(shell.main.tagName, 'MAIN');
   assert.equal(shell.menuButton.attributes['aria-expanded'], 'false');
@@ -546,11 +546,12 @@ test('Tabs 建立 tabpanel 关联并支持方向键、Home 和 End', async () =>
 test('五层 CSS 定义视觉 token、四档响应式、焦点和 reduced motion', () => {
   const files = ['tokens.css', 'base.css', 'layout.css', 'components.css', 'responsive.css'];
   const css = Object.fromEntries(files.map(file => [file, fs.readFileSync(path.join(publicDir, 'styles', file), 'utf8')]));
-  assert.match(css['tokens.css'], /--sidebar-width:\s*240px/);
-  assert.match(css['tokens.css'], /--color-(?:success|warning|danger)/);
+  assert.match(css['tokens.css'], /--sidebar-width:\s*236px/);
+  assert.match(css['tokens.css'], /--accent:\s*#2563eb/);
+  assert.match(css['tokens.css'], /--green/);
   assert.match(css['base.css'], /:focus-visible/);
-  assert.match(css['layout.css'], /\.app-shell/);
-  assert.match(css['components.css'], /\.status-label/);
+  assert.match(css['layout.css'], /\.app\b/);
+  assert.match(css['components.css'], /\.badge/);
   assert.match(css['responsive.css'], /min-width:\s*1200px/);
   assert.match(css['responsive.css'], /min-width:\s*768px.*max-width:\s*1199px/s);
   assert.match(css['responsive.css'], /max-width:\s*767px/);

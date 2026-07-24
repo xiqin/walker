@@ -46,11 +46,11 @@ export function createToast(options = {}) {
     if (timer) clearTimeout(timer);
     root.textContent = String(message);
     root.dataset.tone = tone;
-    root.hidden = false;
-    timer = duration > 0 ? setTimeout(() => { root.hidden = true; }, duration) : null;
+    root.className = 'toast show';
+    timer = duration > 0 ? setTimeout(() => { root.className = 'toast'; }, duration) : null;
   }
 
-  return { element: root, show, hide: () => { root.hidden = true; } };
+  return { element: root, show, hide: () => { root.className = 'toast'; if (timer) clearTimeout(timer); timer = null; } };
 }
 
 /** 创建返回 Promise<boolean> 的语义确认对话框。 */

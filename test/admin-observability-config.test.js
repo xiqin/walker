@@ -193,7 +193,7 @@ test('导出结构化诊断报告包含时间、总体状态和全部检查', as
   assert.equal(JSON.stringify(result.body).includes(secret), false);
 });
 
-test('配置元数据完整覆盖八个分组和全部 allowlist', () => {
+test('配置元数据完整覆盖六个分组和全部 allowlist', () => {
   const summary = buildConfigSummary({
     WALKER_ADMIN_HOST: '127.0.0.1',
     FEISHU_APP_SECRET: 'T3_SENTINEL_SECRET',
@@ -202,7 +202,7 @@ test('配置元数据完整覆盖八个分组和全部 allowlist', () => {
   const items = summary.groups.flatMap((group) => group.items);
 
   assert.deepEqual(summary.groups.map((group) => group.id), CONFIG_GROUPS.map((group) => group.id));
-  assert.equal(summary.groups.length, 8);
+  assert.equal(summary.groups.length, 6);
   assert.deepEqual(new Set(items.map((item) => item.env)), new Set(summary.editableKeys.concat(summary.sensitiveKeys, ['FEISHU_APP_ID'])));
   for (const item of items) {
     assert.equal(typeof item.label, 'string');
@@ -246,7 +246,8 @@ test('配置 DTO 暴露客户端可复用的类型和约束元数据', () => {
   });
   assert.deepEqual(items.get('FEISHU_ROUTE_MODE').input, {
     type: 'enum',
-    values: ['thread', 'chat'],
+    values: ['thread', 'user', 'channel'],
+    labels: { thread: 'thread（按消息线程）', user: 'user（按用户）', channel: 'channel（按群）' },
   });
   assert.deepEqual(items.get('WALKER_ADMIN_HOST').input, {
     type: 'text',
@@ -273,11 +274,12 @@ test('配置客户端约束覆盖全部可编辑项的专用服务端校验类�
     boolean: { type: 'boolean', values: ['true', 'false'] },
     port: { type: 'number', integer: true, min: 1, max: 65535 },
     'positive-int': { type: 'number', integer: true, min: 1 },
+    'non-negative-int': { type: 'number', integer: true, min: 0 },
     host: { type: 'text', required: true, pattern: '^[^\\s/\\\\]+$' },
     runtime: { type: 'enum', values: ['windows', 'wsl'] },
-    'route-mode': { type: 'enum', values: ['thread', 'chat'] },
-    'progress-style': { type: 'enum', values: ['card', 'reaction', 'none'] },
-    'exit-action': { type: 'enum', values: ['cancel', 'stop', 'none'] },
+    'route-mode': { type: 'enum', values: ['thread', 'user', 'channel'], labels: { thread: 'thread（按消息线程）', user: 'user（按用户）', channel: 'channel（按群）' } },
+    'progress-style': { type: 'enum', values: ['card', 'legacy'], labels: { card: 'card（结构化卡片）', legacy: 'legacy（逐条文本）' } },
+    'exit-action': { type: 'enum', values: ['cancel', 'stop', 'none'], labels: { cancel: 'cancel（取消 turn 并移出 route）', none: 'none（仅记录 detached）' } },
     url: { type: 'url', protocols: ['http:', 'https:'], allowEmpty: true },
     'non-empty': { type: 'text', required: true, trim: true, minLength: 1 },
   };

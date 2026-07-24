@@ -96,7 +96,7 @@ function serveFile(res, filePath, response) {
     const mime = getMimeType(filePath);
     res.writeHead(200, {
       'Content-Type': mime,
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'no-cache',
       'ETag': etag,
     });
     res.end(data);

@@ -4,6 +4,7 @@ export function element(tagName, options = {}, ...children) {
   const node = documentRef.createElement(tagName);
   if (options.className) node.className = options.className;
   if (options.text != null) node.textContent = String(options.text);
+  if (options.style != null) node.setAttribute('style', String(options.style));
   if (options.attributes) {
     for (const [name, value] of Object.entries(options.attributes)) {
       if (value != null) node.setAttribute(name, value);

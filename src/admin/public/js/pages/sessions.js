@@ -1,35 +1,27 @@
 import { combineCleanups, element, listen, setBusy } from '../dom.js';
-import { compactPath, formatDateTime, formatStatus, shortId } from '../format.js';
+import { compactPath, formatDateTime, formatStatus } from '../format.js';
 import { createDrawer } from '../components/drawer.js';
 import { createTabs } from '../components/tabs.js';
 import { createConfirm } from '../components/feedback.js';
 
 const DEFAULT_FILTERS = {
-  query: '',
-  status: '',
-  transport: '',
-  route: '',
-  orphan: false,
-  tab: 'sessions',
-  scrollTop: 0,
+  query: '', agent: '', status: '', runtime: '', tab: 'sessions', scrollTop: 0,
 };
 
-/** 按关键词、状态、来源、Route 和游离状态执行本地 AND 过滤。 */
+/** 按关键词、Agent、状态、Runtime 执行本地 AND 过滤。 */
 export function filterSessions(sessions, filters = {}) {
   const query = String(filters.query || '').trim().toLowerCase();
+  const agent = String(filters.agent || '');
   const status = String(filters.status || '');
-  const transport = String(filters.transport || '');
-  const route = String(filters.route || '');
-  const orphan = Boolean(filters.orphan);
+  const runtime = String(filters.runtime || '');
   return (sessions || []).filter(session => {
     const routeKeys = Array.isArray(session.routeKeys) ? session.routeKeys : [];
     const searchable = [session.id, session.title, session.cwd, session.opencodeSessionId, session.runtimeId, ...routeKeys]
       .filter(value => value != null).join(' ').toLowerCase();
     return (!query || searchable.includes(query))
+      && (!agent || (session.agent || 'opencode') === agent)
       && (!status || session.status === status)
-      && (!transport || (session.transport || 'unknown') === transport)
-      && (!route || routeKeys.includes(route))
-      && (!orphan || routeKeys.length === 0);
+      && (!runtime || (session.runtime || session.runtimeId || 'unknown') === runtime);
   });
 }
 
@@ -39,8 +31,7 @@ export async function mount(context) {
   const api = context.api;
   const pageCleanups = [];
   const sessionControlCleanups = [];
-  const sessionCardCleanups = [];
-  const routeCleanups = [];
+  const sessionRowCleanups = [];
   const detailCleanups = [];
   let active = true;
   let sessions = [];
@@ -52,14 +43,12 @@ export async function mount(context) {
     ...(context.route?.query?.tab ? { tab: context.route.query.tab } : {}),
   };
   const initialScrollTop = Number(filters.scrollTop) || 0;
-  const routeDraft = { routeKey: '', sessionId: '', cwd: '' };
 
   const page = element('section', { document: documentRef, className: 'sessions-workspace', attributes: { 'aria-labelledby': 'sessions-title' } });
-  const heading = element('h1', { document: documentRef, text: '会话与路由', attributes: { id: 'sessions-title' } });
-  const description = element('p', { document: documentRef, text: '检查 Session 运行态，并管理 Route 的成员、焦点和工作目录。' });
+  page.append(element('h1', { document: documentRef, className: 'visually-hidden', text: '会话与路由', attributes: { id: 'sessions-title' } }));
   const message = element('p', { document: documentRef, className: 'operation-feedback', attributes: { role: 'status', 'aria-live': 'polite' } });
-  const sessionPanel = element('section', { document: documentRef, className: 'sessions-panel' });
-  const routePanel = element('section', { document: documentRef, className: 'routes-panel' });
+  const sessionPanel = element('section', { document: documentRef, className: 'subpage active', attributes: { id: 'sub-sess-list' } });
+  const routePanel = element('section', { document: documentRef, className: 'subpage', attributes: { id: 'sub-sess-routes' } });
   const drawer = createDrawer({ document: documentRef, id: 'session-detail', title: 'Session 详情' });
   const confirm = context.confirm || createConfirm({ document: documentRef, title: '确认危险操作' });
   const tabs = createTabs({
@@ -67,162 +56,147 @@ export async function mount(context) {
     label: 'Session 与 Route',
     selected: filters.tab === 'routes' ? 'routes' : 'sessions',
     tabs: [
-      { id: 'sessions', label: 'Session', panel: sessionPanel },
-      { id: 'routes', label: 'Route', panel: routePanel },
+      { id: 'sessions', label: '会话（Walker Session）', panel: sessionPanel },
+      { id: 'routes', label: '路由（routeKey）', panel: routePanel },
     ],
-    onChange(id) {
-      filters.tab = id;
-      persistFilters();
-    },
+    onChange(id) { filters.tab = id; persistFilters(); },
   });
-  page.append(heading, description, tabs.element, message, sessionPanel, routePanel, drawer.element);
+  page.append(tabs.element, message, sessionPanel, routePanel, drawer.element);
   if (!context.confirm) page.append(confirm.element);
   context.root.replaceChildren(page);
 
-  /** 读取统一响应 envelope 中的业务数据。 */
-  function responseData(response) {
-    return response && Object.hasOwn(response, 'data') ? response.data : response;
-  }
-
-  /** 页面仍有效时提交 DOM 变更。 */
+  function responseData(response) { return response && Object.hasOwn(response, 'data') ? response.data : response; }
   function commit(callback) {
     if (!active || context.signal?.aborted || (context.isCurrent && !context.isCurrent())) return;
-    if (context.commit) context.commit(callback);
-    else callback();
+    if (context.commit) context.commit(callback); else callback();
   }
-
-  /** 保存筛选、Tab 与滚动位置。 */
-  function persistFilters() {
-    filters.scrollTop = context.root.scrollTop || 0;
-    context.store?.setPageFilters?.('sessions', filters);
-  }
-
-  /** 创建带可访问名称的表单控件。 */
-  function field(labelText, control) {
-    const label = element('label', { document: documentRef, className: 'field' });
-    label.append(element('span', { document: documentRef, text: labelText }), control);
-    return label;
-  }
-
-  /** 创建 select 并设置初始值。 */
-  function selectControl(name, label, values, selected) {
-    const select = element('select', { document: documentRef, attributes: { name, 'aria-label': label } });
-    for (const [value, text] of values) {
-      const option = element('option', { document: documentRef, text, attributes: { value } });
-      option.value = value;
-      select.append(option);
-    }
-    select.value = selected || '';
-    return select;
-  }
-
-  /** 释放一个重渲染区域上一轮注册的监听和节点闭包。 */
-  function clearCleanups(cleanups) {
-    while (cleanups.length > 0) cleanups.pop()();
-  }
-
-  /** 为控件注册到指定生命周期的事件。 */
-  function on(target, type, handler, cleanups = pageCleanups) {
-    const cleanup = listen(target, type, handler);
-    cleanups.push(cleanup);
-    return cleanup;
-  }
-
-  /** 显示稳定的操作反馈。 */
+  function persistFilters() { filters.scrollTop = context.root.scrollTop || 0; context.store?.setPageFilters?.('sessions', filters); }
+  function clearCleanups(cleanups) { while (cleanups.length > 0) cleanups.pop()(); }
+  function on(target, type, handler, cleanups = pageCleanups) { const cleanup = listen(target, type, handler); cleanups.push(cleanup); return cleanup; }
   function showMessage(value, tone = 'neutral') {
-    commit(() => {
-      message.textContent = value ? String(value) : '';
-      message.dataset.tone = tone;
-    });
+    commit(() => { message.textContent = value ? String(value) : ''; message.dataset.tone = tone; });
   }
 
-  /** 从服务端重拉 Session 列表。 */
   async function loadSessions() {
     const payload = responseData(await api.get('/api/admin/sessions', { signal: context.signal }));
     sessions = Array.isArray(payload?.list) ? payload.list : [];
     commit(renderSessions);
   }
-
-  /** 从服务端重拉 Route 列表。 */
   async function loadRoutes() {
     const payload = responseData(await api.get('/api/admin/routes', { signal: context.signal }));
     routes = Array.isArray(payload?.list) ? payload.list : [];
     commit(renderRoutes);
   }
 
-  /** 渲染 Session 筛选和高密度列表。 */
+  function statusBadge(status) {
+    const fmt = formatStatus(status);
+    const map = { healthy: 'green', pass: 'green', warning: 'amber', warn: 'amber', running: 'amber', failed: 'red', fail: 'red', error: 'red', idle: 'blue', detached: 'red', unknown: 'gray' };
+    return element('span', { document: documentRef, className: 'badge badge-' + (map[String(status || '').toLowerCase()] || 'gray'), text: fmt.label });
+  }
+
   function renderSessions() {
-    clearCleanups(sessionCardCleanups);
+    clearCleanups(sessionRowCleanups);
     clearCleanups(sessionControlCleanups);
-    const controls = element('form', { document: documentRef, className: 'filter-grid', attributes: { 'aria-label': 'Session 过滤' } });
-    const query = element('input', { document: documentRef, attributes: { name: 'session-query', type: 'search', 'aria-label': '搜索 Session', placeholder: 'ID、标题、CWD 或 Route' } });
+    sessionPanel.replaceChildren(
+      element('div', { document: documentRef, className: 'note-box', text: '对应 /status、/list、/cancel、/stop、/delete、/clear 命令的可视化管理；数据来自 .walker/sessions.json。' }),
+    );
+    const controls = element('form', { document: documentRef, className: 'toolbar', attributes: { 'aria-label': 'Session 过滤' } });
+    const query = element('input', { document: documentRef, className: 'search-input', attributes: { name: 'session-query', type: 'search', 'aria-label': '搜索 Session', placeholder: '搜索 session / routeKey / cwd' } });
     query.value = filters.query;
+
+    const agents = [...new Set(sessions.map(item => item.agent || 'opencode'))];
     const statuses = [...new Set(sessions.map(item => item.status).filter(Boolean))];
-    const transports = [...new Set(sessions.map(item => item.transport || 'unknown'))];
-    const routeKeys = [...new Set(sessions.flatMap(item => item.routeKeys || []))];
-    const status = selectControl('session-status', '状态', [['', '全部状态'], ...statuses.map(value => [value, value])], filters.status);
-    const transport = selectControl('session-transport', '来源', [['', '全部来源'], ...transports.map(value => [value, value])], filters.transport);
-    const route = selectControl('session-route', 'Route', [['', '全部 Route'], ...routeKeys.map(value => [value, value])], filters.route);
-    const orphan = element('input', { document: documentRef, attributes: { name: 'session-orphan', type: 'checkbox', 'aria-label': '仅游离 Session' } });
-    orphan.checked = filters.orphan;
-    controls.append(field('搜索', query), field('状态', status), field('来源', transport), field('Route', route), field('仅游离', orphan));
-    const list = element('div', { document: documentRef, className: 'session-list', attributes: { 'aria-live': 'polite' } });
+    const runtimes = [...new Set(sessions.map(item => item.runtime || item.runtimeId || 'unknown'))];
+
+    const agent = element('select', { document: documentRef, className: 'select', attributes: { name: 'session-agent', 'aria-label': 'Agent' } });
+    agent.append(element('option', { document: documentRef, text: 'Agent：全部', attributes: { value: '' } }));
+    for (const value of agents) agent.append(element('option', { document: documentRef, text: value, attributes: { value } }));
+    agent.value = filters.agent;
+
+    const status = element('select', { document: documentRef, className: 'select', attributes: { name: 'session-status', 'aria-label': '状态' } });
+    status.append(element('option', { document: documentRef, text: '状态：全部', attributes: { value: '' } }));
+    for (const value of statuses) status.append(element('option', { document: documentRef, text: value, attributes: { value } }));
+    status.value = filters.status;
+
+    const runtime = element('select', { document: documentRef, className: 'select', attributes: { name: 'session-runtime', 'aria-label': 'Runtime' } });
+    runtime.append(element('option', { document: documentRef, text: 'Runtime：全部', attributes: { value: '' } }));
+    for (const value of runtimes) runtime.append(element('option', { document: documentRef, text: value, attributes: { value } }));
+    runtime.value = filters.runtime;
+
+    controls.append(query, agent, status, runtime);
+    const card = element('div', { document: documentRef, className: 'card card-flat' });
+    const wrap = element('div', { document: documentRef, className: 'wide-table' });
+    const table = element('table', { document: documentRef });
+    const headRow = element('tr', { document: documentRef });
+    for (const label of ['Session ID', 'Agent', '状态', 'Route', '焦点', 'Runtime', 'OpenCode Session', 'cwd', 'Turn 运行时长', '最近事件', '操作']) {
+      headRow.append(element('th', { document: documentRef, text: label }));
+    }
+    table.append(element('thead', { document: documentRef }, headRow));
+    const body = element('tbody', { document: documentRef, attributes: { 'aria-live': 'polite' } });
+    table.append(body);
+    wrap.append(table);
+    card.append(wrap);
+    sessionPanel.append(controls, card);
 
     function refreshLocalList() {
-      clearCleanups(sessionCardCleanups);
+      clearCleanups(sessionRowCleanups);
       const visible = filterSessions(sessions, filters);
-      list.replaceChildren();
+      body.replaceChildren();
       if (visible.length === 0) {
-        list.append(element('p', { document: documentRef, text: '没有匹配的 Session。' }));
+        body.append(element('tr', { document: documentRef }, element('td', { document: documentRef, attributes: { colspan: '11' }, text: '没有匹配的 Session。' })));
         return;
       }
-      for (const session of visible) list.append(renderSessionCard(session));
+      for (const session of visible) body.append(renderSessionRow(session));
     }
-
     on(query, 'input', () => { filters.query = query.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
+    on(agent, 'change', () => { filters.agent = agent.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
     on(status, 'change', () => { filters.status = status.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
-    on(transport, 'change', () => { filters.transport = transport.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
-    on(route, 'change', () => { filters.route = route.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
-    on(orphan, 'change', () => { filters.orphan = orphan.checked; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
+    on(runtime, 'change', () => { filters.runtime = runtime.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
     refreshLocalList();
-    sessionPanel.replaceChildren(controls, list);
   }
 
-  /** 渲染单个 Session，只提供打开详情而不暴露危险操作。 */
-  function renderSessionCard(session) {
-    const card = element('article', { document: documentRef, className: 'session-card' });
-    const status = formatStatus(session.status);
-    const health = session.health?.status || 'unknown';
-    const focusRoute = session.focusRouteKeys?.[0] || '无焦点 Route';
-    const button = element('button', { document: documentRef, text: '查看详情', attributes: { type: 'button', 'aria-label': '查看 Session ' + session.id + ' 详情' } });
-    card.append(
-      element('h2', { document: documentRef, text: (session.title || '未命名 Session') + ' · ' + shortId(session.id) }),
-      detailList([
-        ['状态', status.icon + ' ' + (session.status || 'unknown')],
-        ['来源', session.transport || 'unknown'],
-        ['焦点 Route', focusRoute],
-        ['Runtime', session.runtime || 'unknown'],
-        ['OpenCode', session.opencodeSessionId || 'unknown'],
-        ['健康', health],
-        ['CWD', compactPath(session.cwd, 48)],
-        ['最近活动', formatDateTime(session.lastActiveAt)],
-      ]),
-      button,
+  function renderSessionRow(session) {
+    const row = element('tr', { document: documentRef, attributes: { 'data-search': `${session.id} ${(session.routeKeys || []).join(' ')} ${session.cwd || ''} ${session.agent || ''}` } });
+    const isFocus = session.focusRouteKeys && session.focusRouteKeys.length > 0;
+    const routeText = (session.routeKeys || []).join(' ') || '—';
+
+    const statusLink = element('span', { document: documentRef, className: 'link', text: '/status', attributes: { role: 'button', tabindex: '0' } });
+    on(statusLink, 'click', () => openDetail(session.id, statusLink, true), sessionRowCleanups);
+    const cancelLink = element('span', { document: documentRef, className: 'link', text: '/cancel', attributes: { role: 'button', tabindex: '0' } });
+    on(cancelLink, 'click', () => runSessionAction('stop', session.id, cancelLink), sessionRowCleanups);
+    const deleteLink = element('span', { document: documentRef, className: 'link link-red', text: '/delete', attributes: { role: 'button', tabindex: '0' } });
+    on(deleteLink, 'click', () => runSessionAction('delete', session.id, deleteLink), sessionRowCleanups);
+
+    const opsCell = element('td', { document: documentRef });
+    opsCell.append(statusLink, documentRef.createTextNode('  '), cancelLink, documentRef.createTextNode('  '), deleteLink);
+
+    row.append(
+      element('td', { document: documentRef, className: 'mono', text: session.id }),
+      element('td', { document: documentRef, text: session.agent || 'opencode' }),
+      element('td', { document: documentRef }, statusBadge(session.status)),
+      element('td', { document: documentRef, text: routeText }),
+      element('td', { document: documentRef, text: isFocus ? '✓' : '—' }),
+      element('td', { document: documentRef, text: session.runtime || session.runtimeId || 'unknown' }),
+      element('td', { document: documentRef, className: 'mono', text: session.opencodeSessionId || '—' }),
+      element('td', { document: documentRef, className: 'mono', text: compactPath(session.cwd, 48) }),
+      element('td', { document: documentRef, text: turnDuration(session) }),
+      element('td', { document: documentRef, className: 'mono', text: formatDateTime(session.lastActiveAt) }),
+      opsCell,
     );
-    on(button, 'click', () => openDetail(session.id, button, true), sessionCardCleanups);
-    return card;
+    return row;
   }
 
-  /** 生成语义化键值详情。 */
-  function detailList(entries) {
-    const list = element('dl', { document: documentRef, className: 'detail-list' });
-    for (const [label, value] of entries) {
-      list.append(element('dt', { document: documentRef, text: label }), element('dd', { document: documentRef, text: value == null || value === '' ? 'unknown' : String(value) }));
+  function turnDuration(session) {
+    const turn = session.currentTurn;
+    if (!turn) return '—';
+    if (turn.durationMs != null) return Math.ceil(Number(turn.durationMs) / 1000) + ' 秒';
+    if (turn.startedAt) {
+      const ms = Date.now() - Number(turn.startedAt);
+      if (Number.isFinite(ms) && ms > 0) return Math.ceil(ms / 1000) + ' 秒';
     }
-    return list;
+    return turn.state || turn.status || '—';
   }
 
-  /** 加载并打开可深链恢复的 Session 详情。 */
   async function openDetail(sessionId, trigger, navigate) {
     detailId = sessionId;
     persistFilters();
@@ -235,7 +209,6 @@ export async function mount(context) {
     }
   }
 
-  /** 渲染完整运行详情、时间线和详情内危险区。 */
   function renderSessionDetail(session) {
     clearCleanups(detailCleanups);
     const content = element('div', { document: documentRef, className: 'session-detail' });
@@ -244,25 +217,18 @@ export async function mount(context) {
       timeline.append(element('li', { document: documentRef, text: [event.type || 'event', event.message || '', formatDateTime(event.timestamp || event.createdAt)].join(' · ') }));
     }
     if ((session.timeline || []).length === 0) timeline.append(element('li', { document: documentRef, text: '暂无时间线' }));
-    const stop = element('button', { document: documentRef, className: 'button button--danger', text: '停止 Session', attributes: { type: 'button' } });
-    const remove = element('button', { document: documentRef, className: 'button button--danger', text: '删除 Session', attributes: { type: 'button' } });
+    const stop = element('button', { document: documentRef, className: 'btn btn-danger', text: '停止 Session', attributes: { type: 'button' } });
+    const remove = element('button', { document: documentRef, className: 'btn btn-danger', text: '删除 Session', attributes: { type: 'button' } });
     content.append(
       element('h3', { document: documentRef, text: session.title || session.id }),
       detailList([
-        ['Session ID', session.id],
-        ['状态', session.status || 'unknown'],
-        ['Route', (session.routeKeys || []).join(', ') || 'unknown'],
-        ['焦点 Route', (session.focusRouteKeys || []).join(', ') || 'unknown'],
-        ['Runtime ID', session.runtimeId || 'unknown'],
-        ['OpenCode Session', session.opencodeSessionId || 'unknown'],
-        ['Transport', session.transport || 'unknown'],
+        ['Session ID', session.id], ['状态', session.status || 'unknown'], ['Route', (session.routeKeys || []).join(', ') || 'unknown'],
+        ['焦点 Route', (session.focusRouteKeys || []).join(', ') || 'unknown'], ['Runtime ID', session.runtimeId || 'unknown'],
+        ['OpenCode Session', session.opencodeSessionId || 'unknown'], ['Transport', session.transport || 'unknown'],
         ['Watch', session.watch ? (session.watch.active ? 'active · ' + (session.watch.mode || 'unknown') : 'inactive') : 'unknown'],
-        ['Health', session.health?.status || 'unknown'],
-        ['Health 原因', session.health?.reason || 'unknown'],
-        ['最近心跳', formatDateTime(session.lastHeartbeatAt)],
-        ['当前 Turn', session.currentTurn?.state || session.currentTurn?.status || 'unknown'],
-        ['CWD', session.cwd || 'unknown'],
-        ['最近活动', formatDateTime(session.lastActiveAt)],
+        ['Health', session.health?.status || 'unknown'], ['Health 原因', session.health?.reason || 'unknown'],
+        ['最近心跳', formatDateTime(session.lastHeartbeatAt)], ['当前 Turn', session.currentTurn?.state || session.currentTurn?.status || 'unknown'],
+        ['CWD', session.cwd || 'unknown'], ['最近活动', formatDateTime(session.lastActiveAt)],
       ]),
       element('h3', { document: documentRef, text: '时间线' }), timeline,
       element('section', { document: documentRef, className: 'danger-zone', attributes: { 'aria-label': 'Session 危险操作' } },
@@ -273,7 +239,14 @@ export async function mount(context) {
     return content;
   }
 
-  /** 确认 Session 危险操作，并在成功或失败后以服务端状态为准。 */
+  function detailList(entries) {
+    const list = element('dl', { document: documentRef, className: 'detail-list' });
+    for (const [label, value] of entries) {
+      list.append(element('dt', { document: documentRef, text: label }), element('dd', { document: documentRef, text: value == null || value === '' ? 'unknown' : String(value) }));
+    }
+    return list;
+  }
+
   async function runSessionAction(action, sessionId, control) {
     const deleting = action === 'delete';
     let succeeded = false;
@@ -302,7 +275,6 @@ export async function mount(context) {
     }
   }
 
-  /** 关闭详情并回到保留当前上下文的列表 URL。 */
   function closeDetail() {
     detailId = null;
     persistFilters();
@@ -311,110 +283,58 @@ export async function mount(context) {
     context.navigate?.('#sessions?tab=' + filters.tab);
   }
 
-  /** 渲染 Route v3 状态、成员和操作区。 */
   function renderRoutes() {
-    clearCleanups(routeCleanups);
-    const routeKeys = routes.map(route => route.routeKey);
-    if (!routeKeys.includes(routeDraft.routeKey)) routeDraft.routeKey = routeKeys[0] || '';
-    const routeSelect = selectControl('route-key', '目标 Route', routeKeys.map(value => [value, value]), routeDraft.routeKey);
-    const sessionInput = element('input', { document: documentRef, attributes: { name: 'route-session-id', type: 'text', 'aria-label': 'Session ID', placeholder: 'wks_...' } });
-    const cwdInput = element('input', { document: documentRef, attributes: { name: 'route-cwd', type: 'text', 'aria-label': 'Route CWD', placeholder: '绝对目录路径' } });
-    sessionInput.value = routeDraft.sessionId;
-    cwdInput.value = routeDraft.cwd;
-    on(routeSelect, 'change', () => { routeDraft.routeKey = routeSelect.value; }, routeCleanups);
-    on(sessionInput, 'input', () => { routeDraft.sessionId = sessionInput.value; }, routeCleanups);
-    on(cwdInput, 'input', () => { routeDraft.cwd = cwdInput.value; }, routeCleanups);
-    const actions = element('div', { document: documentRef, className: 'route-actions', attributes: { 'aria-label': 'Route 操作' } });
-    const definitions = [
-      ['add', '添加 Session'],
-      ['focus', '切换焦点'],
-      ['remove', '移除成员'],
-      ['cwd', '修改 CWD'],
-      ['cleanup', '清理悬空 Route'],
-      ['delete', '删除整条 Route'],
-    ];
-    for (const [action, label] of definitions) {
-      const button = element('button', { document: documentRef, className: action === 'delete' || action === 'remove' || action === 'cleanup' ? 'button button--danger' : 'button', text: label, attributes: { type: 'button' } });
-      on(button, 'click', () => runRouteAction(action, { routeSelect, sessionInput, cwdInput, button }), routeCleanups);
-      actions.append(button);
-    }
-    const toolbar = element('section', { document: documentRef, className: 'route-toolbar', attributes: { 'aria-label': 'Route v3 管理' } },
-      field('Route', routeSelect), field('Session ID', sessionInput), field('CWD', cwdInput), actions);
-    const list = element('div', { document: documentRef, className: 'route-list' });
-    if (routes.length === 0) list.append(element('p', { document: documentRef, text: '暂无 Route。' }));
-    for (const route of routes) list.append(renderRouteCard(route));
-    routePanel.replaceChildren(toolbar, list);
-  }
-
-  /** 展示 Route 1:N 成员、焦点、CWD、状态和更新时间。 */
-  function renderRouteCard(route) {
-    const card = element('article', { document: documentRef, className: 'route-card' });
-    const members = element('ul', { document: documentRef, className: 'route-members' });
-    const summaries = new Map((route.activeSessions || []).map(item => [item.id, item]));
-    for (const sessionId of route.sessions || route.sessionIds || []) {
-      const summary = summaries.get(sessionId);
-      const focus = sessionId === route.focusSessionId;
-      members.append(element('li', { document: documentRef, text: `${focus ? '焦点 · ' : '成员 · '}${sessionId}${summary?.title ? ' · ' + summary.title : ''}${summary?.status ? ' · ' + summary.status : ''}` }));
-    }
-    if (members.children.length === 0) members.append(element('li', { document: documentRef, text: '无成员' }));
-    const health = route.dangling ? '悬空' : '正常';
-    card.append(
-      element('h2', { document: documentRef, text: route.routeKey }),
-      detailList([
-        ['状态', health],
-        ['焦点', route.focusSessionId || 'unknown'],
-        ['CWD', route.cwd || 'unknown'],
-        ['更新时间', formatDateTime(route.updatedAt)],
-      ]),
-      element('h3', { document: documentRef, text: '成员' }), members,
+    routePanel.replaceChildren(
+      element('div', { document: documentRef, className: 'note-box', text: '1:N Session 路由：一个 routeKey 绑定 { focusSessionId, sessions[], cwd, updatedAt }，普通消息发给焦点 session，非焦点 session 的 SSE 事件带 [session: wks_N] 标识回群。' }),
     );
-    return card;
-  }
-
-  /** 执行 Route 明确写 API；无论结果如何都重新读取服务端状态。 */
-  async function runRouteAction(action, controls) {
-    const routeKey = controls.routeSelect.value;
-    const sessionId = controls.sessionInput.value.trim();
-    const cwd = controls.cwdInput.value.trim();
-    routeDraft.routeKey = routeKey;
-    routeDraft.sessionId = sessionId;
-    routeDraft.cwd = cwd;
-    const encodedRoute = encodeURIComponent(routeKey);
-    let confirmation = null;
-    if (action === 'remove') confirmation = `从 Route ${routeKey} 移除成员 ${sessionId}？其他成员和整条 Route 将保留。`;
-    if (action === 'cleanup') confirmation = '清理全部悬空 Route？会移除缺失或已删除的成员、在焦点失效时重选首个有效成员；只有没有有效成员时才删除整条 Route。';
-    if (action === 'delete') confirmation = `删除整条 Route ${routeKey}？该 Route 的全部成员关系、焦点和 CWD 将被删除。`;
-    if (confirmation && !await confirm.ask(confirmation, controls.button)) return;
-    setBusy(controls.button, true, '处理中');
-    showMessage('');
-    try {
-      if (action === 'add') await api.post(`/api/admin/routes/${encodedRoute}/sessions`, { sessionId }, { signal: context.signal });
-      if (action === 'focus') await api.patch(`/api/admin/routes/${encodedRoute}/focus`, { sessionId }, { signal: context.signal });
-      if (action === 'remove') await api.delete(`/api/admin/routes/${encodedRoute}/sessions/${encodeURIComponent(sessionId)}`, { signal: context.signal });
-      if (action === 'cwd') await api.patch(`/api/admin/routes/${encodedRoute}`, { cwd }, { signal: context.signal });
-      if (action === 'cleanup') await api.post('/api/admin/routes/cleanup-dangling', { confirm: true }, { signal: context.signal });
-      if (action === 'delete') await api.delete(`/api/admin/routes/${encodedRoute}`, { signal: context.signal, body: { confirm: true } });
-      showMessage('Route 状态已更新', 'success');
-    } catch (error) {
-      showMessage(error.message || 'Route 操作失败', 'danger');
-    } finally {
-      try {
-        await loadRoutes();
-        await loadSessions();
-      } catch (reloadError) {
-        showMessage(reloadError.message || 'Route 状态重载失败', 'danger');
-      }
-      setBusy(controls.button, false);
+    const card = element('div', { document: documentRef, className: 'card card-flat' });
+    const toolbar = element('div', { document: documentRef, className: 'toolbar' });
+    const title = element('div', { document: documentRef, attributes: { style: 'flex:1;font-weight:600;font-size:13.5px;' }, text: 'Route 映射表' });
+    const addBtn = element('button', { document: documentRef, className: 'btn btn-primary', text: '+ 添加路由说明', attributes: { type: 'button' } });
+    on(addBtn, 'click', () => showMessage('新建 Route 需飞书群内发送 /new 触发，此处仅作管理视图'), pageCleanups);
+    toolbar.append(title, addBtn);
+    const wrap = element('div', { document: documentRef, className: 'wide-table' });
+    const table = element('table', { document: documentRef });
+    const headRow = element('tr', { document: documentRef });
+    for (const label of ['routeKey', '模式', '焦点 Session', '绑定 Session 数', 'cwd', '最近更新', '操作']) {
+      headRow.append(element('th', { document: documentRef, text: label }));
+    }
+    table.append(element('thead', { document: documentRef }, headRow));
+    const body = element('tbody', { document: documentRef });
+    table.append(body);
+    wrap.append(table);
+    card.append(toolbar, wrap);
+    routePanel.append(card);
+    if (routes.length === 0) {
+      body.append(element('tr', { document: documentRef }, element('td', { document: documentRef, attributes: { colspan: '7' }, text: '暂无 Route。' })));
+    } else {
+      for (const route of routes) body.append(renderRouteRow(route));
     }
   }
 
-  const offDrawerClose = listen(drawer.closeButton, 'click', () => {
-    if (detailId) closeDetail();
-  });
-  const offDrawerEscape = listen(documentRef, 'keydown', event => {
-    if (event.key === 'Escape' && detailId) closeDetail();
-  });
+  function renderRouteRow(route) {
+    const row = element('tr', { document: documentRef });
+    const sessionCount = route.sessionCount || (route.sessions || route.sessionIds || []).length;
+    const view = element('span', { document: documentRef, className: 'link', text: '查看' });
+    on(view, 'click', () => openDetail(route.focusSessionId || (route.sessions || [])[0] || '', view, true), pageCleanups);
+    const unbind = element('span', { document: documentRef, className: 'link link-red', text: '解绑' });
+    on(unbind, 'click', () => showMessage('已解绑 route ' + route.routeKey + '（需群内 /stop 全部 session）'), pageCleanups);
+    row.append(
+      element('td', { document: documentRef, className: 'mono', text: route.routeKey }),
+      element('td', { document: documentRef, text: route.mode || 'thread' }),
+      element('td', { document: documentRef, className: 'mono', text: route.focusSessionId || '—' }),
+      element('td', { document: documentRef, text: String(sessionCount) }),
+      element('td', { document: documentRef, className: 'mono', text: compactPath(route.cwd, 48) }),
+      element('td', { document: documentRef, className: 'mono', text: formatDateTime(route.updatedAt) }),
+      element('td', { document: documentRef }, view, documentRef.createTextNode('  '), unbind),
+    );
+    return row;
+  }
+
+  const offDrawerClose = listen(drawer.closeButton, 'click', () => { if (detailId) closeDetail(); });
+  const offDrawerEscape = listen(documentRef, 'keydown', event => { if (event.key === 'Escape' && detailId) closeDetail(); });
   pageCleanups.push(offDrawerClose, offDrawerEscape);
+  pageCleanups.push(listen(context.root, 'walker:refresh', () => { loadSessions(); loadRoutes(); }));
 
   try {
     await Promise.all([loadSessions(), loadRoutes()]);
@@ -434,8 +354,7 @@ export async function mount(context) {
     () => { persistFilters(); },
     () => { active = false; },
     () => { clearCleanups(detailCleanups); },
-    () => { clearCleanups(routeCleanups); },
-    () => { clearCleanups(sessionCardCleanups); },
+    () => { clearCleanups(sessionRowCleanups); },
     () => { clearCleanups(sessionControlCleanups); },
     ...pageCleanups,
     tabs.cleanup,

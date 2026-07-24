@@ -177,9 +177,13 @@ async function main() {
     for (const page of [
       ['#dashboard', '.dashboard-page'],
       ['#sessions/wks_smoke', '.session-detail'],
-      ['#config', '#config-title'],
+      ['#logs', '#activity-title'],
       ['#diagnostics', '#diagnostics-title'],
-      ['#tools', '#tools-title'],
+      ['#connections', '.connections-page'],
+      ['#config', '#config-title'],
+      ['#process', '.process-page'],
+      ['#storage', '#storage-title'],
+      ['#debug', '#tools-title'],
     ]) {
       await navigateHash(cdp, page[0], page[1]);
       await assertNoSecretDom(cdp, page[0]);
@@ -190,7 +194,7 @@ async function main() {
     }
 
     if (consoleErrors.length) throw new Error('浏览器 console/page error: ' + consoleErrors.join(' | '));
-    console.log('PASS admin browser smoke: 登录、运行中 401 重登录恢复、Dashboard、五页面 Secret 扫描、Session 抽屉、Route Tab、移动导航、390/768/1199/1440 布局、console 扫描通过。');
+    console.log('PASS admin browser smoke: 登录、运行中 401 重登录恢复、Dashboard、九页面 Secret 扫描、Session 抽屉、Route Tab、移动导航、390/768/1199/1440 布局、console 扫描通过。');
   } finally {
     cdp?.close();
     browser.kill();
@@ -221,14 +225,15 @@ async function assertNoSecretDom(cdp, page) {
 }
 
 async function assertDashboard(cdp, width) {
+  await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('.dashboard-page .stat-card'))`));
   const result = await evaluate(cdp, `(() => ({
     title: document.querySelector('.dashboard-page h1')?.textContent,
-    groups: document.querySelectorAll('.app-sidebar .nav-group').length,
-    links: document.querySelectorAll('.app-sidebar .nav-link').length,
-    status: [...document.querySelectorAll('.workspace-section h2')].some(e=>e.textContent==='服务状态'),
-    issues: [...document.querySelectorAll('.workspace-section h2')].some(e=>e.textContent==='需处理问题')
+    groups: document.querySelectorAll('.sidebar .nav-group').length,
+    links: document.querySelectorAll('.sidebar .nav-item').length,
+    stats: document.querySelectorAll('[aria-label="服务状态"] .stat-card').length,
+    issues: [...document.querySelectorAll('.section-title')].some(e=>e.textContent.startsWith('需处理问题'))
   }))()`);
-  if (result.title !== '控制台' || result.groups !== 4 || result.links !== 8 || !result.status || !result.issues) {
+  if (result.title !== '运行控制台' || result.groups !== 4 || result.links !== 9 || result.stats < 4 || !result.issues) {
     throw new Error(`${width}px Dashboard 稳定结构不完整: ${JSON.stringify(result)}`);
   }
 }
@@ -246,7 +251,7 @@ async function verifyViewport(cdp, baseUrl, width) {
   await cdp.send('Page.navigate', { url: `${baseUrl}/#dashboard` });
   await waitForPage(cdp, '#dashboard', '.dashboard-page');
   await assertDashboard(cdp, width);
-  await assertLayout(cdp, width, [width < 768 ? '.nav-toggle' : '.app-sidebar .nav-link', '.dashboard-page h1']);
+  await assertLayout(cdp, width, [width < 768 ? '.nav-toggle' : '.sidebar .nav-item', '.topbar-title']);
   await assertNoSecretDom(cdp, `${width}px Dashboard`);
 
   if (width < 768) await verifyMobileNavigation(cdp, width);
@@ -266,20 +271,20 @@ async function verifyViewport(cdp, baseUrl, width) {
 async function verifyMobileNavigation(cdp, width) {
   await cdp.send('Page.bringToFront');
   await evaluate(cdp, `window.focus(); document.querySelector('.nav-toggle').focus(); document.querySelector('.nav-toggle').click()`);
-  await waitFor(async () => evaluate(cdp, `document.querySelector('.app-shell').dataset.navOpen==='true' && !document.querySelector('.app-sidebar').hidden && !document.querySelector('.app-sidebar').inert`));
+  await waitFor(async () => evaluate(cdp, `document.querySelector('.app').dataset.navOpen==='true' && !document.querySelector('.sidebar').hidden && !document.querySelector('.sidebar').inert`));
   const opened = await evaluate(cdp, `(() => ({
-    links: [...document.querySelectorAll('.app-sidebar .nav-link')].filter(link=>link.getBoundingClientRect().width>0).length,
-    focused: document.activeElement?.classList.contains('nav-link')
+    links: [...document.querySelectorAll('.sidebar .nav-item')].filter(link=>link.getBoundingClientRect().width>0).length,
+    focused: document.activeElement?.classList.contains('nav-item')
   }))()`);
-  if (opened.links !== 8) throw new Error(`${width}px 移动导航入口不可达: ${JSON.stringify(opened)}`);
-  await evaluate(cdp, `document.querySelector('.app-sidebar .nav-link').focus()`);
-  await waitFor(async () => evaluate(cdp, `document.activeElement?.classList.contains('nav-link')`));
+  if (opened.links !== 9) throw new Error(`${width}px 移动导航入口不可达: ${JSON.stringify(opened)}`);
+  await evaluate(cdp, `document.querySelector('.sidebar .nav-item').focus()`);
+  await waitFor(async () => evaluate(cdp, `document.activeElement?.classList.contains('nav-item')`));
   await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
   await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
   try {
-    await waitFor(async () => evaluate(cdp, `document.querySelector('.app-shell').dataset.navOpen==='false' && document.activeElement===document.querySelector('.nav-toggle')`));
+    await waitFor(async () => evaluate(cdp, `document.querySelector('.app').dataset.navOpen==='false' && document.activeElement===document.querySelector('.nav-toggle')`));
   } catch (error) {
-    const state = await evaluate(cdp, `({open:document.querySelector('.app-shell').dataset.navOpen,active:document.activeElement?.outerHTML})`);
+    const state = await evaluate(cdp, `({open:document.querySelector('.app').dataset.navOpen,active:document.activeElement?.outerHTML})`);
     throw new Error(`${width}px Escape 未关闭导航或恢复焦点: ${JSON.stringify(state)}`, { cause: error });
   }
 }

@@ -17,8 +17,8 @@ test('Admin 静态入口加载五层 CSS 和原生 ES Modules', () => {
   assert.match(html, /from ['"]\.\/js\/app\.js['"]/);
 });
 
-test('Admin 新入口注册四组八个页面并恢复认证目标', () => {
-  const pages = ['dashboard', 'sessions', 'activity', 'diagnostics', 'connections', 'config', 'storage', 'tools'];
+test('Admin 新入口注册四组九个页面并恢复认证目标', () => {
+  const pages = ['dashboard', 'sessions', 'logs', 'diagnostics', 'connections', 'config', 'process', 'storage', 'debug'];
   for (const page of pages) {
     assert.match(html, new RegExp(`pages/${page}\\.js`), `缺少 ${page} 页面导入`);
     assert.match(html, new RegExp(`\\b${page}\\b`), `缺少 ${page} 页面注册`);

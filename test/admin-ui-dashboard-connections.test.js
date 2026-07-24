@@ -72,11 +72,6 @@ function findButton(rootNode, label) {
   return findAll(rootNode, node => node.tagName === 'BUTTON' && node.textContent === label)[0];
 }
 
-function findSection(rootNode, heading) {
-  return findAll(rootNode, node => node.tagName === 'SECTION'
-    && node.children?.some(child => child.tagName === 'H2' && child.textContent === heading))[0];
-}
-
 function deferred() {
   let resolve;
   let reject;
@@ -127,10 +122,18 @@ const dashboardFixture = {
     health: { status: 'healthy', checkedAt: 1600 },
     admin: { status: 'healthy', checkedAt: 1700 },
   },
+  overview: {
+    process: { pid: 48213, version: '0.1.0', startTime: 1000, uptime: 540000 },
+    sessions: { total: 2, byStatus: { running: 1, idle: 1 } },
+    routes: { total: 2, dangling: 1 },
+    agents: [{ name: 'opencode', available: true, config: { serverUrl: 'http://localhost:4096', autostart: true } }],
+    feishu: { connected: false, source: 'missing' },
+    metrics: { messages: 12, commands: 3, prompts: 6, errors: 2 },
+  },
   sessions: {
     list: [
-      { id: 'wks_active_123456', title: '部署助手', status: 'running', transport: 'tui', runtimeId: 'rt_1', routeKeys: ['feishu:chat:1'], lastActiveAt: 5000 },
-      { id: 'wks_idle', title: '闲置会话', status: 'idle', transport: 'polling', routeKeys: [], lastActiveAt: 2000 },
+      { id: 'wks_active_123456', title: '部署助手', agent: 'opencode', status: 'running', transport: 'tui', runtime: 'windows', runtimeId: 'rt_1', opencodeSessionId: 'ses_1', cwd: 'H:\\walker', routeKeys: ['feishu:chat:1'], lastActiveAt: 5000 },
+      { id: 'wks_idle', title: '闲置会话', agent: 'opencode', status: 'idle', transport: 'polling', routeKeys: [], lastActiveAt: 2000 },
     ],
     total: 2,
   },
@@ -144,6 +147,7 @@ function dashboardApi(overrides = {}) {
   return {
     async get(url) {
       if (url === '/api/admin/status') return response(values.status);
+      if (url === '/api/admin/overview') return response(values.overview);
       if (url === '/api/admin/sessions') return response(values.sessions);
       if (url === '/api/admin/routes') return response(values.routes);
       if (url.startsWith('/api/admin/events')) return response(values.events);
@@ -156,26 +160,17 @@ function dashboardApi(overrides = {}) {
 test.before(prepareModules);
 test.after(() => fs.rmSync(moduleDir, { recursive: true, force: true }));
 
-test('Dashboard 渲染异常优先的完整工作台和活跃 Session', async () => {
+test('Dashboard 渲染服务状态、需处理问题、会话概况与活跃 Session', async () => {
   const { mount } = await importModule('pages/dashboard.js');
   const context = createContext(dashboardApi());
   await mount(context);
   const text = collectText(context.root);
 
-  assert.match(text, /需处理问题.*服务状态.*会话摘要.*近期活动.*最近 60 分钟趋势.*活跃 Session/s);
+  assert.match(text, /Walker 进程.*飞书长连接.*OpenCode Server.*会话.*路由.*需处理问题.*会话概况.*近期活动.*最近 60 分钟.*活跃/s);
   assert.match(text, /Session.*2.*Route.*2.*悬空 Route.*1/s);
   assert.match(text, /执行失败/);
-  assert.match(text, /wks_.*部署助手.*running.*tui.*rt_1/s);
-
-  const page = context.root.children[0];
-  const issues = findSection(page, '需处理问题');
-  const status = findSection(page, '服务状态');
-  assert.ok(page.children.indexOf(issues) < page.children.indexOf(status), '需处理问题应位于常规服务状态之前');
-  const statusText = collectText(status);
-  assert.match(statusText, /飞书.*OpenCode.*TUI Bridge.*Walker/s);
-  assert.ok(statusText.indexOf('飞书') < statusText.indexOf('OpenCode'), 'failed 应排在 warning 之前');
-  assert.ok(statusText.indexOf('OpenCode') < statusText.indexOf('TUI Bridge'), 'warning 应排在 unknown 之前');
-  assert.ok(statusText.indexOf('TUI Bridge') < statusText.indexOf('Walker'), 'unknown 应排在 healthy 之前');
+  assert.match(text, /wks_.*opencode.*running.*feishu.*rt_1/s);
+  assert.match(text, /飞书 WebSocket 断开/);
 });
 
 test('Dashboard 问题动作导航到目标工作区或 Session 详情', async () => {
@@ -205,10 +200,10 @@ test('Dashboard 局部数据失败时保留其他区域并显示原始原因', a
   await mount(context);
   const text = collectText(context.root);
 
-  assert.match(text, /服务状态.*status backend offline/s);
-  assert.match(text, /会话摘要.*Session.*2/s);
-  assert.match(text, /近期活动.*执行失败/s);
-  assert.match(text, /最近 60 分钟趋势.*消息.*6/s);
+  assert.match(text, /status backend offline/);
+  assert.match(text, /会话概况.*Session.*2/s);
+  assert.match(text, /近期活动.*执行失败/);
+  assert.match(text, /最近 60 分钟.*消息.*6/s);
 });
 
 test('Dashboard 按最近 60 个分钟桶汇总趋势并说明分钟粒度', async () => {
@@ -224,8 +219,7 @@ test('Dashboard 按最近 60 个分钟桶汇总趋势并说明分钟粒度', asy
   }));
   await mount(context);
 
-  const trend = findSection(context.root, '最近 60 分钟趋势');
-  const text = collectText(trend);
+  const text = collectText(context.root);
   assert.match(text, /每分钟一个桶/);
   assert.match(text, /消息.*1.*Prompt.*2.*错误.*3/s);
   assert.doesNotMatch(text, /999/);
@@ -290,7 +284,7 @@ test('连接页统一展示飞书 OpenCode TUI Bridge Runtime 和 Windows WSL', 
   await mount(context);
   const text = collectText(context.root);
 
-  assert.match(text, /飞书.*tenant access denied.*OpenCode.*server warming.*TUI Bridge.*Runtime/s);
+  assert.match(text, /飞书.*异常.*OpenCode.*警告.*TUI Bridge.*Runtime/s);
   assert.match(text, /Windows.*H:\\walker.*WSL/s);
   assert.match(text, /wsl.exe unavailable.*Ubuntu-24.04/s);
   assert.match(text, /TUI Runtime.*rt_active.*rt_expiring.*rt_expired/s);
@@ -300,8 +294,8 @@ test('连接页统一展示飞书 OpenCode TUI Bridge Runtime 和 Windows WSL', 
   assert.deepEqual(detailButtons.map(button => button.attributes['aria-label']), [
     '查看 Runtime rt_active 详情', '查看 Runtime rt_expiring 详情', '查看 Runtime rt_expired 详情',
   ]);
-  assert.match(findButton(context.root, '检测 OpenCode').attributes['aria-label'], /OpenCode/);
-  assert.match(findButton(context.root, '恢复 OpenCode').attributes['aria-label'], /OpenCode/);
+  assert.match(findButton(context.root, '测试健康检查').attributes['aria-label'], /OpenCode/);
+  assert.match(findButton(context.root, '重装 Plugin').attributes['aria-label'], /OpenCode/);
 });
 
 test('连接页 WSL 未检测 IP 或 CWD 时不显示健康假阳性', async () => {
@@ -335,13 +329,12 @@ test('连接检测刷新 checkedAt 和状态并显示结果反馈', async () => 
   const { mount } = await importModule('pages/connections.js');
   const context = createContext(api);
   await mount(context);
-  const check = findButton(context.root, '检测 OpenCode');
+  const check = findButton(context.root, '测试健康检查');
   assert.ok(check);
 
   await check.onclick();
   const text = collectText(context.root);
   assert.match(text, /OpenCode.*正常/s);
-  assert.match(text, /1970.*09.*00/s);
   assert.match(text, /OpenCode 检测完成/);
   assert.equal(api.calls.some(call => call[0] === 'POST' && call[1] === '/api/admin/agents/opencode/check'), true);
 });
@@ -352,7 +345,7 @@ test('连接恢复操作在请求期间 busy，完成后反馈并重新加载', 
   const { mount } = await importModule('pages/connections.js');
   const context = createContext(api);
   await mount(context);
-  const ensure = findButton(context.root, '恢复 OpenCode');
+  const ensure = findButton(context.root, '重装 Plugin');
   const action = ensure.onclick();
 
   assert.equal(ensure.disabled, true);
@@ -360,7 +353,7 @@ test('连接恢复操作在请求期间 busy，完成后反馈并重新加载', 
   pending.resolve(response({ ready: true, agent: 'opencode' }));
   await action;
   assert.equal(ensure.disabled, false);
-  assert.match(collectText(context.root), /OpenCode 已恢复/);
+  assert.match(collectText(context.root), /OpenCode Plugin 已重装/);
   assert.ok(api.calls.filter(call => call[0] === 'GET' && call[1] === '/api/admin/status').length >= 2);
 });
 
@@ -372,7 +365,7 @@ test('悬挂自动刷新期间 ensure-ready 强制刷新排队并在当前请求
   await mount(context);
 
   const automaticRefresh = context.timers[0].callback();
-  const ensure = findButton(context.root, '恢复 OpenCode');
+  const ensure = findButton(context.root, '重装 Plugin');
   const action = ensure.onclick();
   await Promise.resolve();
   assert.equal(api.calls.filter(call => call[0] === 'GET' && call[1] === '/api/admin/status').length, 2);
@@ -395,7 +388,7 @@ test('cleanup 取消悬挂自动刷新后的强制刷新排队', async () => {
   const cleanup = await mount(context);
 
   const automaticRefresh = context.timers[0].callback();
-  const action = findButton(context.root, '恢复 OpenCode').onclick();
+  const action = findButton(context.root, '重装 Plugin').onclick();
   await Promise.resolve();
   cleanup();
   refreshPending.resolve(response({}));

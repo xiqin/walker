@@ -1,11 +1,24 @@
-*, *::before, *::after { box-sizing: border-box; }
-html { background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-sans); }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--color-canvas); }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: 14px;
+  height: 100vh;
+  overflow: hidden;
+}
 button, input, select, textarea { color: inherit; font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
-a { color: var(--color-info); text-decoration: none; }
-a:hover { text-decoration: underline; }
-:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 45%, white); outline-offset: 2px; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, white); outline-offset: 2px; }
 h1, h2, h3, p { margin-top: 0; }
-.muted { color: var(--color-muted); }
+.muted { color: var(--text-secondary); }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.link { color: var(--accent); cursor: pointer; text-decoration: none; font-size: 12.5px; font-weight: 600; }
+.link:hover { text-decoration: underline; }
+.link-red { color: var(--red); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.secret-value, .masked { font-family: var(--mono); letter-spacing: .08em; }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: #d5d9df; border-radius: 6px; }
+.sidebar::-webkit-scrollbar-thumb { background: #2a3646; }

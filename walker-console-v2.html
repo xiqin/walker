@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Walker · 飞书 Agent 桥接控制台</title>
+<style>
+  :root{
+    --bg-sidebar:#141b26;
+    --bg-sidebar-active:#1e2a3a;
+    --bg-app:#f5f6f8;
+    --bg-card:#ffffff;
+    --border:#e5e7eb;
+    --border-soft:#eef0f2;
+    --text-primary:#111827;
+    --text-secondary:#6b7280;
+    --text-muted:#8a94a3;
+    --text-inverse:#f2f4f7;
+    --accent:#2563eb;
+    --accent-soft:#eaf0fe;
+    --green:#16a34a; --green-bg:#e7f6ec;
+    --amber:#d97706; --amber-bg:#fef3c7;
+    --red:#dc2626; --red-bg:#fde8e8;
+    --purple:#7c3aed; --purple-bg:#f1eafe;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif;
+    background:var(--bg-app);
+    color:var(--text-primary);
+    font-size:14px;
+    height:100vh;
+    overflow:hidden;
+  }
+  .app{display:flex;height:100vh;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:236px;flex-shrink:0;background:var(--bg-sidebar);color:var(--text-inverse);
+    display:flex;flex-direction:column;padding:20px 12px;overflow-y:auto;
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 6px 8px;}
+  .brand-mark{
+    width:30px;height:30px;border-radius:8px;
+    background:linear-gradient(135deg,#3b82f6,#8b5cf6);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:14px;color:#fff;flex-shrink:0;
+  }
+  .brand-name{font-size:17px;font-weight:700;letter-spacing:0.5px;}
+  .brand-sub{font-size:9px;color:var(--text-muted);letter-spacing:1px;margin-top:1px;}
+
+
+  .nav-group{margin-top:10px;}
+  .nav-group-label{font-size:11px;color:var(--text-muted);padding:0 10px 6px 10px;letter-spacing:1px;}
+  .nav-item{
+    display:flex;align-items:center;gap:9px;padding:9px 10px;margin:2px 0;
+    border-radius:8px;cursor:pointer;color:#b6bfcc;font-size:13.5px;
+    border-left:3px solid transparent;transition:background .12s,color .12s;user-select:none;
+  }
+  .nav-item:hover{background:#1a2432;color:#fff;}
+  .nav-item.active{background:var(--bg-sidebar-active);color:#fff;border-left:3px solid var(--accent);font-weight:600;}
+  .nav-icon{width:16px;text-align:center;font-size:14px;opacity:.9;}
+  .sidebar-footer{margin-top:auto;padding-top:14px;}
+  .status-pill{display:flex;align-items:center;gap:8px;background:#1a2432;border-radius:8px;padding:10px;font-size:11.5px;color:#a9b3c1;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;}
+
+  /* ---------- Main ---------- */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 28px;border-bottom:1px solid var(--border);background:var(--bg-card);flex-shrink:0;
+  }
+  .topbar-title{font-size:20px;font-weight:700;}
+  .topbar-sub{font-size:12.5px;color:var(--text-secondary);margin-top:3px;}
+  .topbar-actions{display:flex;align-items:center;gap:10px;}
+  .meta-time{font-size:12px;color:var(--text-secondary);margin-right:6px;}
+  .btn{
+    border:1px solid var(--border);background:#fff;color:var(--text-primary);
+    padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;transition:background .12s;font-family:inherit;
+  }
+  .btn:hover{background:#f3f4f6;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn-primary:hover{background:#1d4ed8;}
+  .btn-danger{background:#fff;border-color:#f3c6c6;color:var(--red);}
+  .btn-danger:hover{background:var(--red-bg);}
+  .btn-danger-solid{background:var(--red);border-color:var(--red);color:#fff;}
+  .btn-danger-solid:hover{background:#b91c1c;}
+  .btn-sm{padding:5px 10px;font-size:12px;}
+
+  .content{flex:1;overflow-y:auto;padding:22px 28px 40px 28px;}
+  .page{display:none;}
+  .page.active{display:block;animation:fadein .15s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  .section-title{font-size:15px;font-weight:700;margin:0 0 12px 2px;display:flex;align-items:center;gap:8px;}
+  .section-sub{font-size:12.5px;color:var(--text-secondary);margin:-8px 0 14px 2px;}
+
+  .grid{display:grid;gap:14px;}
+  .grid-4{grid-template-columns:repeat(4,1fr);}
+  .grid-3{grid-template-columns:repeat(3,1fr);}
+  .grid-2{grid-template-columns:1fr 1fr;}
+  .grid-2-1{grid-template-columns:2fr 1fr;}
+  @media(max-width:1200px){.grid-4{grid-template-columns:repeat(2,1fr);}}
+
+  .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+  .card-flat{padding:0;overflow:hidden;}
+
+  .stat-card{display:flex;flex-direction:column;gap:8px;}
+  .stat-head{display:flex;align-items:center;gap:10px;}
+  .stat-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;flex-shrink:0;}
+  .stat-name{font-weight:700;font-size:14px;}
+  .status-line{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);}
+  .stat-body{font-size:12.5px;color:var(--text-secondary);display:flex;justify-content:space-between;}
+  .stat-foot{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--text-muted);border-top:1px solid var(--border-soft);padding-top:8px;margin-top:2px;}
+
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:600;}
+  .badge-green{color:var(--green);background:var(--green-bg);}
+  .badge-amber{color:var(--amber);background:var(--amber-bg);}
+  .badge-red{color:var(--red);background:var(--red-bg);}
+  .badge-gray{color:var(--text-secondary);background:#f0f1f3;}
+  .badge-blue{color:var(--accent);background:var(--accent-soft);}
+  .badge-purple{color:var(--purple);background:var(--purple-bg);}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;color:var(--text-muted);font-weight:600;font-size:11.5px;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap;letter-spacing:.3px;}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--border-soft);white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fafbfc;}
+  .mono{font-family:var(--mono);font-size:12.5px;}
+  .link{color:var(--accent);cursor:pointer;text-decoration:none;font-size:12.5px;font-weight:600;}
+  .link:hover{text-decoration:underline;}
+  .link-red{color:var(--red);}
+
+  .toolbar{display:flex;gap:10px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .search-input{flex:1;min-width:180px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:#fafbfc;}
+  .select{padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;font-family:inherit;color:var(--text-primary);}
+
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap;}
+  .tab{padding:9px 16px;font-size:13.5px;color:var(--text-secondary);cursor:pointer;border-bottom:2px solid transparent;font-weight:600;}
+  .tab:hover{color:var(--text-primary);}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .subpage{display:none;}
+  .subpage.active{display:block;}
+
+  .issue-row{display:flex;justify-content:space-between;align-items:center;padding:14px;border:1px solid var(--border-soft);border-radius:8px;margin-bottom:10px;gap:10px;flex-wrap:wrap;}
+  .issue-left{display:flex;gap:12px;align-items:flex-start;}
+
+  .progress-bar{height:8px;border-radius:5px;background:#eef0f2;overflow:hidden;display:flex;}
+  .progress-seg{height:100%;}
+
+  .log-line{display:flex;gap:10px;padding:7px 14px;font-size:12.5px;border-bottom:1px solid var(--border-soft);font-family:var(--mono);align-items:flex-start;}
+  .log-line:hover{background:#fafbfc;}
+  .log-time{color:var(--text-muted);flex-shrink:0;width:70px;}
+  .log-level{flex-shrink:0;width:52px;font-weight:700;}
+  .log-source{flex-shrink:0;width:110px;color:var(--text-secondary);}
+  .log-msg{color:var(--text-primary);}
+  .lvl-INFO{color:var(--accent);}
+  .lvl-WARN{color:var(--amber);}
+  .lvl-ERROR{color:var(--red);}
+  .lvl-DEBUG{color:var(--text-muted);}
+
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:flex;justify-content:space-between;font-size:12.5px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;}
+  .field label .envkey{font-family:var(--mono);font-weight:400;color:var(--text-muted);font-size:11px;}
+  .field input[type=text],.field input[type=number],.field input[type=url],.field input[type=password],.field select,.field textarea{
+    width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;
+    font-size:13px;font-family:inherit;background:#fff;color:var(--text-primary);
+  }
+  .field .hint{font-size:11.5px;color:var(--text-muted);margin-top:5px;}
+  .switch-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border-soft);gap:12px;}
+  .switch-row:last-child{border-bottom:none;}
+  .switch-name{font-size:13.5px;font-weight:600;}
+  .switch-desc{font-size:12px;color:var(--text-secondary);margin-top:2px;}
+  .switch-desc .envkey{font-family:var(--mono);color:var(--text-muted);}
+  .switch{position:relative;width:38px;height:22px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:#d1d5db;border-radius:22px;cursor:pointer;transition:.15s;}
+  .slider:before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;}
+  input:checked + .slider{background:var(--accent);}
+  input:checked + .slider:before{transform:translateX(16px);}
+
+  .diag-item{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border:1px solid var(--border-soft);border-radius:8px;margin-bottom:8px;gap:10px;flex-wrap:wrap;}
+  .diag-left{display:flex;align-items:center;gap:12px;}
+  .diag-name{font-weight:600;font-size:13.5px;}
+  .diag-detail{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
+  .spin{width:14px;height:14px;border:2px solid #d1d5db;border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .console-box{
+    background:#0d1117;color:#d1d9e0;border-radius:8px;padding:14px;
+    font-family:var(--mono);font-size:12.5px;height:260px;overflow-y:auto;
+    white-space:pre-wrap;line-height:1.6;
+  }
+  .console-input-row{display:flex;gap:8px;margin-top:10px;}
+  .console-input-row input{flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12.5px;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:#111827;color:#fff;padding:11px 20px;border-radius:8px;font-size:13px;
+    opacity:0;transition:.2s;pointer-events:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,.2);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .cmd-table td:first-child{font-weight:700;color:var(--accent);}
+  .kv-table td:first-child{color:var(--text-secondary);width:220px;}
+
+  .note-box{
+    background:var(--accent-soft);border:1px solid #cfe0fd;border-radius:8px;
+    padding:10px 14px;font-size:12px;color:#1d4ed8;margin-bottom:14px;line-height:1.6;
+  }
+
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:#d5d9df;border-radius:6px;}
+  .sidebar::-webkit-scrollbar-thumb{background:#2a3646;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ================= SIDEBAR ================= -->
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">W</div>
+      <div>
+        <div class="brand-name">WALKER</div>
+        <div class="brand-sub">飞书 AGENT 桥接器</div>
+      </div>
+    </div>
+
+
+    <div class="nav-group">
+      <div class="nav-group-label">运行</div>
+      <div class="nav-item active" data-page="dashboard"><span class="nav-icon">◎</span>控制台</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">可观测性</div>
+      <div class="nav-item" data-page="sessions"><span class="nav-icon">☰</span>会话与路由</div>
+      <div class="nav-item" data-page="logs"><span class="nav-icon">▤</span>活动与日志</div>
+      <div class="nav-item" data-page="diagnostics"><span class="nav-icon">⚡</span>诊断</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">系统</div>
+      <div class="nav-item" data-page="connections"><span class="nav-icon">⇄</span>连接与集成</div>
+      <div class="nav-item" data-page="config"><span class="nav-icon">⚙</span>配置</div>
+      <div class="nav-item" data-page="process"><span class="nav-icon">▣</span>进程管理</div>
+      <div class="nav-item" data-page="storage"><span class="nav-icon">▢</span>存储与维护</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">开发</div>
+      <div class="nav-item" data-page="debug"><span class="nav-icon">⌘</span>调试工具</div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="status-pill">
+        <div class="dot"></div>
+        <div>walker start 运行中 · PID 48213</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="page-title">运行控制台</div>
+        <div class="topbar-sub" id="page-sub">飞书长连接 · OpenCode Agent 会话实时状态</div>
+      </div>
+      <div class="topbar-actions">
+        <span class="meta-time">最近更新 <span id="clock">14:32:18</span></span>
+        <button class="btn" id="refresh-btn">↻ 刷新</button>
+        <button class="btn">🕐 最近 60 分钟 ⌄</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ============ 1. 控制台 DASHBOARD ============ -->
+      <div class="page active" id="page-dashboard">
+        <div class="grid grid-4" style="margin-bottom:16px;">
+          <div class="card stat-card">
+            <div class="stat-head">
+              <div class="stat-icon" style="background:#111827;">W</div>
+              <div><div class="stat-name">Walker 进程</div><div class="status-line"><span class="dot" style="background:var(--green)"></span>运行中（daemon）</div></div>
+            </div>
+            <div class="stat-body"><span>PID</span><span class="mono">48213</span></div>
+            <div class="stat-body"><span>运行时长</span><span>6 天 2 小时</span></div>
+            <div class="stat-foot"><span>walker status</span><span style="color:var(--green)">✓</span></div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-head">
+              <div class="stat-icon" style="background:#2563eb;">◆</div>
+              <div><div class="stat-name">飞书长连接</div><div class="status-line"><span class="dot" style="background:var(--green)"></span>WSClient 已连接</div></div>
+            </div>
+            <div class="stat-body"><span>Route 模式</span><span>thread</span></div>
+            <div class="stat-body"><span>去重窗口</span><span>5 分钟</span></div>
+            <div class="stat-foot"><span>im.message.receive_v1</span><span style="color:var(--green)">✓</span></div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-head">
+              <div class="stat-icon" style="background:#7c3aed;">&lt;/&gt;</div>
+              <div><div class="stat-name">OpenCode Server</div><div class="status-line"><span class="dot" style="background:var(--green)"></span>正常（autostart）</div></div>
+            </div>
+            <div class="stat-body"><span>Endpoint</span><span class="mono">:4096</span></div>
+            <div class="stat-body"><span>Hook 纳入</span><span style="color:var(--green)">已启用</span></div>
+            <div class="stat-foot"><span>health poll 5s</span><span style="color:var(--green)">✓</span></div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-head">
+              <div class="stat-icon" style="background:#0891b2;">◐</div>
+              <div><div class="stat-name">会话 / 路由</div><div class="status-line"><span class="dot" style="background:var(--amber)"></span>1 个 turn 疑似卡住</div></div>
+            </div>
+            <div class="stat-body"><span>活跃会话</span><span>6</span></div>
+            <div class="stat-body"><span>Route（routeKey）</span><span>4</span></div>
+            <div class="stat-foot"><span>stuck 阈值 300s</span><span style="color:var(--amber)">⚠</span></div>
+          </div>
+        </div>
+
+        <div class="grid grid-2-1" style="margin-bottom:16px;">
+          <div class="card">
+            <div class="section-title" style="justify-content:space-between;">
+              <span>需处理问题 <span class="badge badge-red">2</span></span>
+            </div>
+            <div class="issue-row">
+              <div class="issue-left">
+                <span style="color:var(--red);font-size:16px;">⚠</span>
+                <div>
+                  <div style="font-weight:600;">wks_8f2a 心跳轮询失败 2 次，判定 detached <span class="badge badge-red" style="margin-left:4px;">严重</span></div>
+                  <div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">Route: r-chat（thread）　OpenCode /global/health 连续超时　退出动作: cancel</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button class="btn btn-sm" onclick="goPage('sessions')">查看会话</button>
+                <button class="btn btn-sm btn-danger-solid" onclick="resolveIssue(this,'已对 wks_8f2a 重新发起健康检查')">重新检测</button>
+              </div>
+            </div>
+            <div class="issue-row">
+              <div class="issue-left">
+                <span style="color:var(--amber);font-size:16px;">⚠</span>
+                <div>
+                  <div style="font-weight:600;">wks_9a4e 进度卡片已达 stuck 阈值</div>
+                  <div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">Turn 运行 5 分 08 秒，超过 WALKER_PROMPT_HEARTBEAT_STUCK_MS (300000ms)</div>
+                </div>
+              </div>
+              <div style="flex-shrink:0;">
+                <button class="btn btn-sm" onclick="goPage('sessions')">前往 /cancel</button>
+              </div>
+            </div>
+            <div style="margin-top:6px;"><span class="link" onclick="goPage('diagnostics')">查看全部问题 (2) ›</span></div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">会话概况</div>
+            <div class="grid grid-2" style="gap:10px;margin-bottom:14px;">
+              <div><div style="font-size:26px;font-weight:700;">6</div><div style="font-size:12px;color:var(--text-secondary);">活跃 session</div></div>
+              <div><div style="font-size:26px;font-weight:700;color:var(--amber);">2</div><div style="font-size:12px;color:var(--text-secondary);">running turn</div></div>
+              <div><div style="font-size:26px;font-weight:700;color:var(--red);">1</div><div style="font-size:12px;color:var(--text-secondary);">detached</div></div>
+              <div><div style="font-size:26px;font-weight:700;color:var(--accent);">4</div><div style="font-size:12px;color:var(--text-secondary);">Route</div></div>
+            </div>
+            <div style="font-size:11.5px;color:var(--text-secondary);margin-bottom:5px;">Session 状态分布</div>
+            <div class="progress-bar" style="margin-bottom:6px;">
+              <div class="progress-seg" style="width:50%;background:var(--accent);"></div>
+              <div class="progress-seg" style="width:33%;background:var(--amber);"></div>
+              <div class="progress-seg" style="width:17%;background:var(--red);"></div>
+            </div>
+            <div style="display:flex;gap:14px;font-size:11px;color:var(--text-secondary);margin-bottom:12px;">
+              <span><span class="dot" style="background:var(--accent)"></span>idle</span>
+              <span><span class="dot" style="background:var(--amber)"></span>running</span>
+              <span><span class="dot" style="background:var(--red)"></span>detached</span>
+            </div>
+            <div class="stat-body" style="padding:8px 0;border-top:1px solid var(--border-soft);"><span>SSE 断流后 polling 恢复次数（今日）</span><b>3</b></div>
+            <div class="stat-body" style="padding:8px 0;border-top:1px solid var(--border-soft);"><span>消息去重命中（今日）</span><b>27</b></div>
+          </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-bottom:16px;">
+          <div class="card">
+            <div class="section-title">近期活动</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div style="display:flex;gap:10px;font-size:12.5px;"><span style="color:var(--text-muted);width:52px;flex-shrink:0;">14:31:42</span><span class="dot" style="margin-top:5px;background:var(--accent);"></span><span>焦点切换　/use wks_7b1d（route r-chat）</span></div>
+              <div style="display:flex;gap:10px;font-size:12.5px;"><span style="color:var(--text-muted);width:52px;flex-shrink:0;">14:31:05</span><span class="dot" style="margin-top:5px;background:var(--green);"></span><span>飞书卡片已投递　ProgressCard update</span></div>
+              <div style="display:flex;gap:10px;font-size:12.5px;"><span style="color:var(--text-muted);width:52px;flex-shrink:0;">14:30:22</span><span class="dot" style="margin-top:5px;background:var(--green);"></span><span>SSE 断流，已自动 polling 恢复　wks_3c9f</span></div>
+              <div style="display:flex;gap:10px;font-size:12.5px;"><span style="color:var(--text-muted);width:52px;flex-shrink:0;">14:29:48</span><span class="dot" style="margin-top:5px;background:var(--accent);"></span><span>Hook 自动纳入　session.created → wks_9a4e</span></div>
+              <div style="display:flex;gap:10px;font-size:12.5px;"><span style="color:var(--text-muted);width:52px;flex-shrink:0;">14:29:10</span><span class="dot" style="margin-top:5px;background:var(--green);"></span><span>TUI 心跳续期　lease renewed</span></div>
+            </div>
+            <div style="margin-top:12px;"><span class="link" onclick="goPage('logs')">查看全部活动 ›</span></div>
+          </div>
+          <div class="card">
+            <div class="section-title">Turn 与投递趋势 <span style="font-weight:400;color:var(--text-secondary);font-size:12px;">（最近 60 分钟）</span></div>
+            <svg viewBox="0 0 480 160" style="width:100%;height:150px;">
+              <polyline points="0,90 40,80 80,70 120,75 160,55 200,60 240,45 280,50 320,40 360,45 400,35 440,38 480,30" fill="none" stroke="#16a34a" stroke-width="2"/>
+              <polyline points="0,110 40,105 80,112 120,100 160,108 200,102 240,110 280,104 320,108 360,100 400,106 440,102 480,105" fill="none" stroke="#2563eb" stroke-width="2"/>
+              <polyline points="0,140 40,138 80,142 120,136 160,140 200,134 240,140 280,138 320,142 360,136 400,140 440,138 480,140" fill="none" stroke="#dc2626" stroke-width="2"/>
+            </svg>
+            <div style="display:flex;gap:16px;font-size:11.5px;color:var(--text-secondary);margin-top:4px;">
+              <span><span class="dot" style="background:#16a34a;"></span> 卡片投递</span>
+              <span><span class="dot" style="background:#2563eb;"></span> 活跃 turn</span>
+              <span><span class="dot" style="background:#dc2626;"></span> 超时/取消</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-flat">
+          <div class="toolbar">
+            <div class="section-title" style="margin:0;flex:1;">活跃会话（Walker session）</div>
+            <input class="search-input" placeholder="搜索 session / routeKey / cwd" oninput="filterTable(this,'dash-sessions-table')">
+            <span class="link" onclick="goPage('sessions')">查看全部 ›</span>
+          </div>
+          <table id="dash-sessions-table">
+            <thead><tr><th>Session</th><th>Agent</th><th>状态</th><th>Route（焦点）</th><th>Runtime</th><th>OpenCode</th><th>cwd</th><th>最近事件</th></tr></thead>
+            <tbody id="dash-sessions-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============ 2. 会话与路由 ============ -->
+      <div class="page" id="page-sessions">
+        <div class="tabs">
+          <div class="tab active" data-sub="sess-list">会话（Walker Session）</div>
+          <div class="tab" data-sub="sess-routes">路由（routeKey）</div>
+        </div>
+
+        <div class="subpage active" id="sub-sess-list">
+          <div class="note-box">对应 <span class="mono">/status</span>、<span class="mono">/list</span>、<span class="mono">/cancel</span>、<span class="mono">/stop</span>、<span class="mono">/delete</span>、<span class="mono">/clear</span> 命令的可视化管理；数据来自 <span class="mono">.walker/sessions.json</span>。</div>
+          <div class="card card-flat">
+            <div class="toolbar">
+              <input class="search-input" placeholder="搜索 session / routeKey / cwd" oninput="filterTable(this,'full-sessions-table')">
+              <select class="select"><option>Agent：全部</option><option>opencode</option><option>claude（预留）</option><option>codex（预留）</option></select>
+              <select class="select"><option>状态：全部</option><option>idle</option><option>running</option><option>detached</option></select>
+              <select class="select"><option>Runtime：全部</option><option>windows</option><option>wsl</option></select>
+            </div>
+            <table id="full-sessions-table">
+              <thead><tr><th>Session ID</th><th>Agent</th><th>状态</th><th>Route</th><th>焦点</th><th>Runtime</th><th>OpenCode Session</th><th>cwd</th><th>Turn 运行时长</th><th>最近事件</th><th>操作</th></tr></thead>
+              <tbody id="full-sessions-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="subpage" id="sub-sess-routes">
+          <div class="note-box">1:N Session 路由：一个 routeKey 绑定 <span class="mono">{ focusSessionId, sessions[], cwd, updatedAt }</span>，普通消息发给焦点 session，非焦点 session 的 SSE 事件带 <span class="mono">[session: wks_N]</span> 标识回群。</div>
+          <div class="card card-flat">
+            <div class="toolbar">
+              <div style="flex:1;font-weight:600;font-size:13.5px;">Route 映射表</div>
+              <button class="btn btn-primary" onclick="showToast('新建 Route 需飞书群内发送 /new 触发，此处仅作管理视图')">+ 添加路由说明</button>
+            </div>
+            <table>
+              <thead><tr><th>routeKey</th><th>模式</th><th>焦点 Session</th><th>绑定 Session 数</th><th>cwd</th><th>最近更新</th><th>操作</th></tr></thead>
+              <tbody id="routes-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 3. 活动与日志 ============ -->
+      <div class="page" id="page-logs">
+        <div class="note-box">等价于 <span class="mono">walker logs [N]</span>；日志同时写入终端与 <span class="mono">logs/walker.log</span>（后台模式另写 <span class="mono">.out.log</span> / <span class="mono">.err.log</span>）。</div>
+        <div class="card card-flat">
+          <div class="toolbar">
+            <input class="search-input" id="log-search" placeholder="搜索日志内容 / session ID" oninput="filterLogs()">
+            <select class="select" id="log-level" onchange="filterLogs()">
+              <option value="">级别：全部</option>
+              <option>INFO</option><option>WARN</option><option>ERROR</option><option>DEBUG</option>
+            </select>
+            <select class="select" id="log-source" onchange="filterLogs()">
+              <option value="">来源：全部</option>
+              <option>飞书 WSClient</option><option>OpenCode Hook</option><option>TUI Bridge</option><option>AgentDriver</option><option>ProgressCard</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary);">
+              <input type="checkbox" id="log-autoscroll" checked> 自动滚动
+            </label>
+            <select class="select" id="log-n"><option>最近 80 行</option><option>最近 200 行</option><option>最近 500 行</option></select>
+            <button class="btn" onclick="exportLogs()">⬇ 导出</button>
+          </div>
+          <div class="console-box" id="log-stream"></div>
+        </div>
+      </div>
+
+      <!-- ============ 4. 诊断 ============ -->
+      <div class="page" id="page-diagnostics">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="section-title" style="justify-content:space-between;">
+            <span>系统自检</span>
+            <button class="btn btn-primary" id="run-diag-btn" onclick="runDiagnostics()">▶ 运行全部诊断</button>
+          </div>
+          <div class="section-sub">依次检测飞书连接、OpenCode 健康、Hook 端点与租约状态</div>
+          <div id="diag-list"></div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="section-title">异常会话检测</div>
+            <div class="issue-row">
+              <div class="issue-left">
+                <span style="color:var(--red);font-size:16px;">⚠</span>
+                <div>
+                  <div style="font-weight:600;">wks_8f2a 已判定 detached</div>
+                  <div class="diag-detail">/global/health 连续 2 次失败，退出动作 cancel 已执行，session 保留、route 已移除</div>
+                </div>
+              </div>
+              <button class="btn btn-sm btn-danger-solid" onclick="resolveIssue(this,'已重新探测 wks_8f2a 的 OpenCode 健康状态')">重新探测</button>
+            </div>
+            <div class="issue-row">
+              <div class="issue-left">
+                <span style="color:var(--amber);font-size:16px;">⚠</span>
+                <div>
+                  <div style="font-weight:600;">wks_9a4e turn 疑似卡住</div>
+                  <div class="diag-detail">已超过 stuck 阈值（300000ms），进度卡片已提示，但未自动取消（MAX_TURN_TIME_MINS=0）</div>
+                </div>
+              </div>
+              <button class="btn btn-sm" onclick="goPage('sessions')">前往 /cancel</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="section-title">诊断历史</div>
+            <table>
+              <thead><tr><th>时间</th><th>类型</th><th>结果</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">14:15:02</td><td>全量自检</td><td><span class="badge badge-green">通过 5/5</span></td></tr>
+                <tr><td class="mono">13:40:18</td><td>全量自检</td><td><span class="badge badge-amber">通过 4/5</span></td></tr>
+                <tr><td class="mono">12:58:47</td><td>Hook 端点自检</td><td><span class="badge badge-green">通过 1/1</span></td></tr>
+                <tr><td class="mono">12:02:11</td><td>全量自检</td><td><span class="badge badge-green">通过 5/5</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 5. 连接与集成 ============ -->
+      <div class="page" id="page-connections">
+        <div class="section-title">外部连接</div>
+        <div class="grid grid-2" style="margin-bottom:20px;">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="display:flex;gap:10px;align-items:center;"><div class="stat-icon" style="background:#2563eb;width:30px;height:30px;font-size:13px;">◆</div><b>飞书（Feishu）长连接</b></div>
+              <span class="badge badge-green">已连接</span>
+            </div>
+            <div class="stat-body" style="margin-top:12px;"><span>App ID</span><span class="mono">cli_a1b2c3</span></div>
+            <div class="stat-body"><span>事件订阅</span><span>im.message.receive_v1 · 长连接接收</span></div>
+            <div class="stat-body"><span>Route 模式</span><span class="mono">FEISHU_ROUTE_MODE=thread</span></div>
+            <div class="stat-body"><span>进度样式</span><span class="mono">FEISHU_PROGRESS_STYLE=card</span></div>
+            <div class="stat-body"><span>表情回复</span><span>收到: OnIt　完成: none</span></div>
+            <div style="margin-top:10px;display:flex;gap:8px;"><button class="btn btn-sm" onclick="showToast('已重新测试飞书 WSClient 连通性：正常')">测试连接</button><button class="btn btn-sm btn-danger" onclick="showToast('已断开飞书长连接（需重启 walker 恢复）')">断开连接</button></div>
+          </div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="display:flex;gap:10px;align-items:center;"><div class="stat-icon" style="background:#7c3aed;width:30px;height:30px;font-size:13px;">&lt;/&gt;</div><b>OpenCode Server</b></div>
+              <span class="badge badge-green">正常</span>
+            </div>
+            <div class="stat-body" style="margin-top:12px;"><span>Server URL</span><span class="mono">localhost:4096</span></div>
+            <div class="stat-body"><span>自动启动</span><span class="mono">OPENCODE_SERVER_AUTOSTART=true</span></div>
+            <div class="stat-body"><span>Hook 自动纳入</span><span class="mono">WALKER_OPENCODE_HOOK_ENABLED=true</span></div>
+            <div class="stat-body"><span>健康轮询间隔</span><span class="mono">5000ms</span></div>
+            <div style="margin-top:10px;display:flex;gap:8px;"><button class="btn btn-sm" onclick="showToast('已请求 /global/health：正常')">测试健康检查</button><button class="btn btn-sm" onclick="showToast('已重新安装 TUI plugin 到 ~/.config/opencode/')">重装 Plugin</button></div>
+          </div>
+        </div>
+
+        <div class="section-title">Agent 扩展</div>
+        <div class="card" style="margin-bottom:20px;">
+          <table>
+            <thead><tr><th>Agent</th><th>状态</th><th>说明</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">opencode</td><td><span class="badge badge-green">P0 已实现</span></td><td>通过 opencode serve HTTP API / SSE 控制</td><td><span class="link" onclick="showToast('设为默认 Agent（WALKER_DEFAULT_AGENT）')">设为默认</span></td></tr>
+              <tr><td class="mono">claude</td><td><span class="badge badge-gray">预留扩展点</span></td><td>Claude Code CLI，未来实现</td><td><span class="link" style="color:var(--text-muted);cursor:not-allowed;">尚未实现</span></td></tr>
+              <tr><td class="mono">codex</td><td><span class="badge badge-gray">预留扩展点</span></td><td>Codex CLI，未来实现</td><td><span class="link" style="color:var(--text-muted);cursor:not-allowed;">尚未实现</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section-title">Runtime 执行环境</div>
+        <div class="card">
+          <div class="section-sub" style="margin-top:0;">Runtime 决定 Agent CLI 在何处执行，而非独立的服务器集群</div>
+          <div class="form-grid">
+            <div class="field"><label>默认 Runtime <span class="envkey">WALKER_DEFAULT_RUNTIME</span></label>
+              <select><option selected>windows（本机直接运行）</option><option>wsl（通过 wsl.exe -d 运行）</option></select>
+            </div>
+            <div class="field"><label>WSL 发行版 <span class="envkey">WALKER_WSL_DISTRO</span></label>
+              <input type="text" value="Ubuntu-24.04">
+              <div class="hint">仅当 Runtime 为 wsl 时生效，自动探测 WSL IP 构建 server URL</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 6. 配置 ============ -->
+      <div class="page" id="page-config">
+        <div class="note-box">以下字段与 <span class="mono">.env</span> 中的环境变量一一对应，保存后需重启 Walker 生效。</div>
+        <div class="tabs">
+          <div class="tab active" data-sub="cfg-feishu">飞书凭据</div>
+          <div class="tab" data-sub="cfg-agent">Agent 与 Runtime</div>
+          <div class="tab" data-sub="cfg-opencode">OpenCode 连接</div>
+          <div class="tab" data-sub="cfg-heartbeat">心跳与长任务</div>
+          <div class="tab" data-sub="cfg-security">Hook 与安全</div>
+        </div>
+
+        <div class="subpage active" id="sub-cfg-feishu">
+          <div class="card" style="max-width:720px;">
+            <div class="form-grid">
+              <div class="field"><label>App ID <span class="envkey">FEISHU_APP_ID</span></label><input type="text" value="cli_a1b2c3"></div>
+              <div class="field"><label>App Secret <span class="envkey">FEISHU_APP_SECRET</span></label><input type="password" value="••••••••••••"></div>
+              <div class="field"><label>Route 模式 <span class="envkey">FEISHU_ROUTE_MODE</span></label>
+                <select><option selected>thread（按消息线程）</option><option>user（按用户）</option><option>channel（按群）</option></select>
+              </div>
+              <div class="field"><label>进度样式 <span class="envkey">FEISHU_PROGRESS_STYLE</span></label>
+                <select><option selected>card（结构化卡片）</option><option>legacy（逐条文本）</option></select>
+              </div>
+              <div class="field"><label>收到消息表情 <span class="envkey">FEISHU_REACTION_EMOJI</span></label><input type="text" value="OnIt"></div>
+              <div class="field"><label>完成表情 <span class="envkey">FEISHU_DONE_EMOJI</span></label><input type="text" value="none"></div>
+            </div>
+            <div class="hint" style="margin-bottom:12px;">飞书后台需：自建应用 + 已开启机器人能力 + 长连接接收事件 + 订阅 im.message.receive_v1 + 单聊/群聊消息读取权限，并发布版本后生效。</div>
+            <button class="btn btn-primary" onclick="showToast('飞书凭据已保存，重启后生效')">保存更改</button>
+          </div>
+        </div>
+
+        <div class="subpage" id="sub-cfg-agent">
+          <div class="card" style="max-width:720px;">
+            <div class="form-grid">
+              <div class="field"><label>默认 Agent <span class="envkey">WALKER_DEFAULT_AGENT</span></label><select><option selected>opencode</option></select></div>
+              <div class="field"><label>默认 Runtime <span class="envkey">WALKER_DEFAULT_RUNTIME</span></label><select><option selected>windows</option><option>wsl</option></select></div>
+              <div class="field"><label>默认工作目录 <span class="envkey">WALKER_DEFAULT_CWD</span></label><input type="text" value="H:\walker"></div>
+              <div class="field"><label>数据存储目录 <span class="envkey">WALKER_DATA_DIR</span></label><input type="text" value="~/.walker"></div>
+            </div>
+            <button class="btn btn-primary" onclick="showToast('Agent / Runtime 设置已保存')">保存更改</button>
+          </div>
+        </div>
+
+        <div class="subpage" id="sub-cfg-opencode">
+          <div class="card" style="max-width:720px;">
+            <div class="form-grid">
+              <div class="field"><label>Server URL <span class="envkey">OPENCODE_SERVER_URL</span></label><input type="text" value="http://localhost:4096"></div>
+              <div class="field"><label>CLI 命令名 <span class="envkey">OPENCODE_CMD</span></label><input type="text" value="opencode"></div>
+              <div class="field"><label>指定模型 <span class="envkey">OPENCODE_MODEL</span></label><input type="text" placeholder="留空使用 opencode 默认"></div>
+              <div class="field"><label>指定 Agent <span class="envkey">OPENCODE_AGENT</span></label><input type="text" placeholder="留空使用 opencode 默认"></div>
+              <div class="field"><label>Prompt 提交超时(ms) <span class="envkey">OPENCODE_PROMPT_REQUEST_TIMEOUT_MS</span></label><input type="number" value="30000"></div>
+              <div class="field"><label>SSE 空闲超时(ms) <span class="envkey">OPENCODE_SSE_IDLE_TIMEOUT_MS</span></label><input type="number" value="300000"></div>
+              <div class="field"><label>SSE 建连超时(ms) <span class="envkey">OPENCODE_SSE_OPEN_TIMEOUT_MS</span></label><input type="number" value="1000"></div>
+              <div class="field"><label>Polling 恢复窗口(ms) <span class="envkey">OPENCODE_RECOVERY_WINDOW_MS</span></label><input type="number" value="300000"></div>
+            </div>
+            <div class="switch-row">
+              <div><div class="switch-name">未启动时自动启动 OpenCode</div><div class="switch-desc"><span class="envkey">OPENCODE_SERVER_AUTOSTART</span></div></div>
+              <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+            <div style="margin-top:14px;"><button class="btn btn-primary" onclick="showToast('OpenCode 连接参数已保存')">保存更改</button></div>
+          </div>
+        </div>
+
+        <div class="subpage" id="sub-cfg-heartbeat">
+          <div class="card" style="max-width:720px;">
+            <div class="form-grid">
+              <div class="field"><label>心跳首次触发(ms) <span class="envkey">WALKER_PROMPT_HEARTBEAT_INITIAL_MS</span></label><input type="number" value="30000"></div>
+              <div class="field"><label>心跳重复间隔(ms) <span class="envkey">WALKER_PROMPT_HEARTBEAT_INTERVAL_MS</span></label><input type="number" value="60000"></div>
+              <div class="field"><label>卡住提示阈值(ms) <span class="envkey">WALKER_PROMPT_HEARTBEAT_STUCK_MS</span></label><input type="number" value="300000"></div>
+              <div class="field"><label>单轮硬超时(分钟) <span class="envkey">WALKER_MAX_TURN_TIME_MINS</span></label><input type="number" value="0"><div class="hint">0 关闭；&gt;0 超时自动取消该 turn</div></div>
+              <div class="field"><label>TUI 租约超时(ms) <span class="envkey">OPENCODE_TUI_LEASE_TIMEOUT_MS</span></label><input type="number" value="90000"></div>
+              <div class="field"><label>TUI 心跳上报间隔(ms) <span class="envkey">OPENCODE_TUI_HEARTBEAT_INTERVAL_MS</span></label><input type="number" value="30000"></div>
+              <div class="field"><label>健康轮询间隔(ms) <span class="envkey">WALKER_OPENCODE_HEALTH_POLL_INTERVAL_MS</span></label><input type="number" value="5000"></div>
+              <div class="field"><label>退出动作 <span class="envkey">WALKER_OPENCODE_EXIT_ACTION</span></label>
+                <select><option selected>cancel（取消 turn 并移出 route）</option><option>none（仅记录 detached）</option></select>
+              </div>
+            </div>
+            <div class="switch-row">
+              <div><div class="switch-name">非焦点 session 输出回群</div><div class="switch-desc"><span class="envkey">WALKER_OPENCODE_NON_FOCUS_OUTPUT</span></div></div>
+              <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+            <div style="margin-top:14px;"><button class="btn btn-primary" onclick="showToast('心跳与长任务参数已保存')">保存更改</button></div>
+          </div>
+        </div>
+
+        <div class="subpage" id="sub-cfg-security">
+          <div class="card" style="max-width:720px;">
+            <div class="field"><label>Admin Token <span class="envkey">WALKER_ADMIN_TOKEN</span></label><input type="password" value="••••••••••••••••"><div class="hint">保护本机 hook 端点鉴权；未配置时仍限制仅 loopback 请求</div></div>
+            <div class="switch-row">
+              <div><div class="switch-name">OpenCode Hook 自动纳入</div><div class="switch-desc"><span class="envkey">WALKER_OPENCODE_HOOK_ENABLED</span> · 关闭后退回手动 /attach 模式</div></div>
+              <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+            <div class="hint" style="margin:10px 0;">Hook 端点 <span class="mono">POST /opencode/hook/session-created</span> 仅接受本机 loopback 请求（127.0.0.1 / ::1 / ::ffff:127.0.0.1），非本机请求返回 403。Plugin 文件内置 Admin Token 鉴权，Walker 地址硬编码为 127.0.0.1:&lt;port&gt;。</div>
+            <button class="btn btn-primary" onclick="showToast('安全设置已保存')">保存更改</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 7. 进程管理 ============ -->
+      <div class="page" id="page-process">
+        <div class="grid grid-2-1">
+          <div class="card">
+            <div class="section-title">守护进程状态</div>
+            <table class="kv-table">
+              <tbody>
+                <tr><td>运行模式</td><td class="mono">walker start（后台守护）</td></tr>
+                <tr><td>PID</td><td class="mono">48213</td></tr>
+                <tr><td>运行时长</td><td>6 天 2 小时</td></tr>
+                <tr><td>日志文件</td><td class="mono">logs/walker.log</td></tr>
+                <tr><td>后台标准输出</td><td class="mono">logs/walker.out.log</td></tr>
+                <tr><td>后台错误输出</td><td class="mono">logs/walker.err.log</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="section-title">进程控制</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <button class="btn" onclick="showToast('已执行 walker status')">walker status</button>
+              <button class="btn" onclick="showToast('已执行 walker logs 80')">walker logs 80</button>
+              <button class="btn btn-primary" onclick="showToast('已在前台启动 walker（Ctrl+C 停止）')">walker（前台运行）</button>
+              <button class="btn btn-danger" onclick="confirmStop()">walker stop</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="section-title">子命令参考</div>
+          <table class="cmd-table">
+            <thead><tr><th>命令</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>walker</td><td>前台运行（默认），Ctrl+C / 关闭终端即停止</td></tr>
+              <tr><td>walker start</td><td>后台守护进程启动</td></tr>
+              <tr><td>walker stop</td><td>停止后台进程</td></tr>
+              <tr><td>walker status</td><td>查看后台进程状态和最近日志</td></tr>
+              <tr><td>walker logs [N]</td><td>查看最近 N 行日志（默认 80）</td></tr>
+              <tr><td>walker help</td><td>显示帮助</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============ 8. 存储与维护 ============ -->
+      <div class="page" id="page-storage">
+        <div class="note-box">数据存储在 <span class="mono">.walker/</span> 目录：<span class="mono">sessions.json</span>（Walker session 信息）、<span class="mono">routes.json</span>（routeKey 绑定）、<span class="mono">attachments/</span>（入站附件）。</div>
+        <div class="grid grid-2-1">
+          <div class="card">
+            <div class="section-title">磁盘占用</div>
+            <div style="font-size:26px;font-weight:700;">186 MB <span style="font-size:13px;font-weight:400;color:var(--text-secondary);">.walker/ 目录总计</span></div>
+            <div class="progress-bar" style="margin:12px 0;">
+              <div class="progress-seg" style="width:12%;background:#2563eb;"></div>
+              <div class="progress-seg" style="width:6%;background:#7c3aed;"></div>
+              <div class="progress-seg" style="width:70%;background:#0891b2;"></div>
+              <div class="progress-seg" style="width:12%;background:#d1d5db;"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-soft);"><span style="width:10px;height:10px;border-radius:3px;background:#2563eb;"></span><span style="flex:1;font-size:13px;">sessions.json</span><span class="mono" style="font-size:12.5px;color:var(--text-secondary);">22 MB</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-soft);"><span style="width:10px;height:10px;border-radius:3px;background:#7c3aed;"></span><span style="flex:1;font-size:13px;">routes.json</span><span class="mono" style="font-size:12.5px;color:var(--text-secondary);">11 MB</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-soft);"><span style="width:10px;height:10px;border-radius:3px;background:#0891b2;"></span><span style="flex:1;font-size:13px;">attachments/</span><span class="mono" style="font-size:12.5px;color:var(--text-secondary);">130 MB</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 0;"><span style="width:10px;height:10px;border-radius:3px;background:#d1d5db;"></span><span style="flex:1;font-size:13px;">logs/</span><span class="mono" style="font-size:12.5px;color:var(--text-secondary);">23 MB</span></div>
+          </div>
+          <div class="card">
+            <div class="section-title">维护操作</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <button class="btn" onclick="showToast('已清理 attachments/ 中的过期附件，释放 84 MB')">🧹 清理过期附件</button>
+              <button class="btn" onclick="showToast('已导出 sessions.json + routes.json 到 walker-backup-20260723.zip')">💾 备份 session/route 数据</button>
+              <button class="btn" onclick="showToast('已导出日志：walker-logs-20260723.zip')">⬇ 导出日志</button>
+              <button class="btn" onclick="document.getElementById('restore-file').click()">⬆ 从备份恢复</button>
+              <input type="file" id="restore-file" style="display:none" onchange="showToast('已从所选备份恢复 sessions.json / routes.json')">
+              <button class="btn btn-danger" onclick="confirmReset()">⚠ 清空 .walker/ 数据目录</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="section-title">已删除但未清理的 Session</div>
+          <table>
+            <thead><tr><th>Session</th><th>删除时间</th><th>原因</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">wks_2f10</td><td class="mono">昨天 18:22</td><td>/delete 手动删除</td><td><span class="link link-red" onclick="showToast('已从 sessions.json 彻底清除 wks_2f10')">彻底清除</span></td></tr>
+              <tr><td class="mono">wks_e401</td><td class="mono">2 天前</td><td>detached 超过 24 小时未恢复</td><td><span class="link link-red" onclick="showToast('已从 sessions.json 彻底清除 wks_e401')">彻底清除</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============ 9. 调试工具 ============ -->
+      <div class="page" id="page-debug">
+        <div class="grid grid-2" style="align-items:start;">
+          <div class="card">
+            <div class="section-title">Hook 端点测试器</div>
+            <div class="section-sub">模拟 OpenCode plugin 上报 <span class="mono">session.created</span> 事件</div>
+            <div class="field"><label>Endpoint</label><input type="text" value="POST /opencode/hook/session-created" readonly style="background:#f8f9fa;color:var(--text-muted);"></div>
+            <div class="field"><label>请求体（JSON）</label>
+              <textarea rows="4" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;">{"opencodeBaseUrl":"http://localhost:4096","sessionId":"ses_x82nf","cwd":"H:\\projects\\alpha"}</textarea>
+            </div>
+            <button class="btn btn-primary" onclick="runDebugRequest()">▶ 发送测试请求</button>
+            <div style="margin-top:12px;" class="console-box" id="debug-response">// 响应将显示在此处（仅接受 127.0.0.1 / ::1 请求）</div>
+          </div>
+          <div class="card">
+            <div class="section-title">飞书命令参考</div>
+            <table class="cmd-table">
+              <tbody>
+                <tr><td>/new [agent] [title]</td><td>创建新 session 并绑定当前会话</td></tr>
+                <tr><td>/list</td><td>列出当前 route 下所有 session（含"设为焦点"按钮）</td></tr>
+                <tr><td>/use &lt;id&gt;</td><td>切换当前 route 的焦点</td></tr>
+                <tr><td>/use off</td><td>移除焦点 session（保留其他）</td></tr>
+                <tr><td>/current</td><td>查看当前绑定的 session</td></tr>
+                <tr><td>/status（/ps）</td><td>查看 session、Agent、状态、模型、cwd、运行时长</td></tr>
+                <tr><td>/cancel</td><td>取消正在执行的 turn，session 回到 idle</td></tr>
+                <tr><td>/clear</td><td>新建空上下文并保留旧会话（需先 /cancel）</td></tr>
+                <tr><td>/stop</td><td>停止当前 session</td></tr>
+                <tr><td>/delete &lt;id&gt;</td><td>删除指定 session</td></tr>
+                <tr><td>/agents</td><td>列出可用 Agent 类型</td></tr>
+                <tr><td>/help</td><td>命令帮助</td></tr>
+              </tbody>
+            </table>
+            <div style="margin-top:14px;">
+              <div class="section-title" style="font-size:13.5px;">原始数据查看</div>
+              <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <button class="btn btn-sm" onclick="showRaw('sessions')">sessions.json</button>
+                <button class="btn btn-sm" onclick="showRaw('routes')">routes.json</button>
+              </div>
+              <div class="console-box" id="raw-json" style="height:140px;">// 点击上方按钮查看原始 JSON</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- Mock Data (aligned with real walker data model) ---------------- */
+const sessions = [
+  {id:'wks_7b1d', agent:'opencode', status:'idle', route:'r-chat (thread)', focus:true, runtime:'windows', ocsession:'ses_a10x', dir:'H:\\projects\\alpha', turn:'—', active:'14:32:14'},
+  {id:'wks_3c9f', agent:'opencode', status:'running', route:'r-code (thread)', focus:false, runtime:'windows', ocsession:'ses_b22y', dir:'H:\\projects\\beta', turn:'2 分 04 秒', active:'14:32:09'},
+  {id:'wks_9a4e', agent:'opencode', status:'running', route:'r-ops (channel)', focus:false, runtime:'wsl', ocsession:'ses_c33z', dir:'/ops', turn:'5 分 08 秒', active:'14:31:31'},
+  {id:'wks_8f2a', agent:'opencode', status:'detached', route:'r-chat (thread)', focus:false, runtime:'windows', ocsession:'ses_d44w', dir:'H:\\projects\\alpha', turn:'—', active:'14:27:58'},
+  {id:'wks_1d6e', agent:'opencode', status:'idle', route:'r-design (user)', focus:true, runtime:'windows', ocsession:'ses_e55v', dir:'H:\\projects\\design', turn:'—', active:'14:32:02'},
+  {id:'wks_6f21', agent:'opencode', status:'idle', route:'r-chat (thread)', focus:false, runtime:'windows', ocsession:'ses_f66u', dir:'H:\\projects\\alpha', turn:'—', active:'14:31:55'},
+];
+
+const routes = [
+  {key:'r-chat', mode:'thread', focus:'wks_7b1d', sessions:3, dir:'H:\\projects\\alpha', updated:'14:31:42'},
+  {key:'r-code', mode:'thread', focus:'wks_3c9f', sessions:1, dir:'H:\\projects\\beta', updated:'14:32:09'},
+  {key:'r-ops', mode:'channel', focus:'wks_9a4e', sessions:1, dir:'/ops', updated:'14:31:31'},
+  {key:'r-design', mode:'user', focus:'wks_1d6e', sessions:1, dir:'H:\\projects\\design', updated:'14:32:02'},
+];
+
+const rawData = {
+  sessions: JSON.stringify(sessions.map(s=>({id:s.id, agent:s.agent, status:s.status, agentRef:{opencodeSessionId:s.ocsession, serverUrl:'http://localhost:4096'}, cwd:s.dir, runtime:s.runtime})), null, 2),
+  routes: JSON.stringify(routes.reduce((acc,r)=>{acc[r.key]={focusSessionId:r.focus, sessions:[r.focus], cwd:r.dir, updatedAt:r.updated};return acc;},{}), null, 2)
+};
+
+const logSources = ['飞书 WSClient','OpenCode Hook','TUI Bridge','AgentDriver','ProgressCard'];
+const logTemplates = [
+  ['INFO','session.created 上报，已纳入 wks_{s}'],
+  ['INFO','ProgressCard 已更新（turn 进行中）msg-{m}'],
+  ['WARN','wks_{s} turn 已达 heartbeat stuck 阈值'],
+  ['ERROR','wks_{s} /global/health 连续 2 次失败，判定 detached'],
+  ['INFO','焦点切换 /use wks_{s}'],
+  ['DEBUG','TUI lease heartbeat 续期 wks_{s}'],
+  ['WARN','SSE 空闲超时，触发 polling 恢复 wks_{s}'],
+  ['INFO','消息去重命中，5 分钟窗口内重复事件已丢弃'],
+  ['ERROR','OpenCode prompt 请求超时 (30000ms)'],
+  ['INFO','MessageDedup 命中率 96.4%'],
+];
+
+let logBuffer = [];
+
+function statusBadge(s){
+  const map = {'活跃':'green','idle':'blue','running':'amber','detached':'red','正常':'green','健康':'green','已连接':'green','P0 已实现':'green','预留扩展点':'gray'};
+  return `<span class="badge badge-${map[s]||'gray'}">${s}</span>`;
+}
+
+/* ---------------- Render: sessions/routes ---------------- */
+function renderSessionRow(s, full){
+  const focusTag = s.focus ? ' <span class="badge badge-blue">焦点</span>' : '';
+  let row = `<tr data-search="${s.id} ${s.route} ${s.dir} ${s.agent}">`;
+  row += `<td class="mono">${s.id}</td>`;
+  row += `<td>${s.agent}</td>`;
+  row += `<td>${statusBadge(s.status)}</td>`;
+  row += `<td>${s.route}</td>`;
+  row += `<td>${s.focus?'✓':'—'}</td>`;
+  row += `<td>${s.runtime}</td>`;
+  row += `<td class="mono">${s.ocsession}</td>`;
+  row += `<td class="mono">${s.dir}</td>`;
+  if(full) row += `<td>${s.turn}</td>`;
+  row += `<td class="mono">${s.active}</td>`;
+  if(full) row += `<td><span class="link" onclick="showToast('查看 ${s.id} /status 详情（示例）')">/status</span> &nbsp; <span class="link" onclick="showToast('已对 ${s.id} 执行 /cancel')">/cancel</span> &nbsp; <span class="link link-red" onclick="terminateSession('${s.id}')">/delete</span></td>`;
+  row += `</tr>`;
+  return row;
+}
+
+function renderDashRow(s){
+  const focusTag = s.focus ? ' <span class="badge badge-blue">焦点</span>' : '';
+  return `<tr data-search="${s.id} ${s.route} ${s.dir}">
+    <td class="mono">${s.id}</td>
+    <td>${s.agent}</td>
+    <td>${statusBadge(s.status)}</td>
+    <td>${s.route}${focusTag}</td>
+    <td>${s.runtime}</td>
+    <td class="mono">${s.ocsession}</td>
+    <td class="mono">${s.dir}</td>
+    <td class="mono">${s.active}</td>
+  </tr>`;
+}
+
+function renderTables(){
+  document.getElementById('dash-sessions-body').innerHTML = sessions.map(renderDashRow).join('');
+  document.getElementById('full-sessions-body').innerHTML = sessions.map(s=>renderSessionRow(s,true)).join('');
+
+  document.getElementById('routes-body').innerHTML = routes.map(r=>`
+    <tr>
+      <td class="mono">${r.key}</td>
+      <td>${r.mode}</td>
+      <td class="mono">${r.focus}</td>
+      <td>${r.sessions}</td>
+      <td class="mono">${r.dir}</td>
+      <td class="mono">${r.updated}</td>
+      <td><span class="link" onclick="showToast('查看 ${r.key} 绑定详情（示例）')">查看</span> &nbsp; <span class="link link-red" onclick="showToast('已解绑 route ${r.key}（需群内 /stop 全部 session）')">解绑</span></td>
+    </tr>`).join('');
+}
+
+/* ---------------- Diagnostics ---------------- */
+const diagChecks = [
+  {name:'飞书 WSClient 长连接', detail:'检查长连接状态与 im.message.receive_v1 事件订阅'},
+  {name:'OpenCode /global/health', detail:'检查 OpenCode Server 健康接口响应'},
+  {name:'Hook 端点 loopback 校验', detail:'检查 /opencode/hook/session-created 仅接受本机请求'},
+  {name:'Admin Token 鉴权', detail:'检查 WALKER_ADMIN_TOKEN 配置与 plugin 内置 token 一致性'},
+  {name:'TUI Bridge 租约', detail:'检查各 session 的 lease heartbeat 是否按时续期'},
+];
+function renderDiagList(state){
+  document.getElementById('diag-list').innerHTML = diagChecks.map((c,i)=>{
+    let right = `<span class="badge badge-gray">未检测</span>`;
+    if(state==='running') right = `<div class="spin"></div>`;
+    if(state==='done'){
+      if(i===4) right = `<span class="badge badge-amber">警告 · 1 个租约即将过期</span>`;
+      else right = `<span class="badge badge-green">通过 · ${60+i*23}ms</span>`;
+    }
+    return `<div class="diag-item"><div class="diag-left"><span style="font-size:16px;">${state==='done'&&i===4?'⚠':'●'}</span><div><div class="diag-name">${c.name}</div><div class="diag-detail">${c.detail}</div></div></div>${right}</div>`;
+  }).join('');
+}
+function runDiagnostics(){
+  const btn = document.getElementById('run-diag-btn');
+  btn.disabled = true; btn.textContent = '检测中…';
+  renderDiagList('running');
+  setTimeout(()=>{
+    renderDiagList('done');
+    btn.disabled = false; btn.textContent = '▶ 运行全部诊断';
+    showToast('诊断完成：4 项通过，1 项警告');
+  }, 1400);
+}
+
+/* ---------------- Logs ---------------- */
+function pad(n){return n.toString().padStart(2,'0');}
+function nowStr(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;}
+
+function genLogEntry(){
+  const t = logTemplates[Math.floor(Math.random()*logTemplates.length)];
+  const src = logSources[Math.floor(Math.random()*logSources.length)];
+  const msg = t[1].replace('{s}', sessions[Math.floor(Math.random()*sessions.length)].id.slice(4))
+                  .replace('{m}', Math.random().toString(36).slice(2,8));
+  return {time: nowStr(), level:t[0], source:src, msg};
+}
+
+function seedLogs(){
+  for(let i=0;i<40;i++) logBuffer.push(genLogEntry());
+  renderLogs();
+}
+
+function renderLogs(){
+  const level = document.getElementById('log-level').value;
+  const source = document.getElementById('log-source').value;
+  const q = document.getElementById('log-search').value.toLowerCase();
+  const filtered = logBuffer.filter(l=>
+    (!level || l.level===level) &&
+    (!source || l.source===source) &&
+    (!q || (l.msg+l.source).toLowerCase().includes(q))
+  );
+  const box = document.getElementById('log-stream');
+  box.innerHTML = filtered.map(l=>
+    `<div class="log-line"><span class="log-time">${l.time}</span><span class="log-level lvl-${l.level}">${l.level}</span><span class="log-source">${l.source}</span><span class="log-msg">${l.msg}</span></div>`
+  ).join('');
+  if(document.getElementById('log-autoscroll').checked) box.scrollTop = box.scrollHeight;
+}
+function filterLogs(){ renderLogs(); }
+function exportLogs(){ showToast('已导出 logs/walker.log 副本：walker-logs-' + nowStr().replace(/:/g,'') + '.log'); }
+
+/* ---------------- Debug tools ---------------- */
+function runDebugRequest(){
+  const box = document.getElementById('debug-response');
+  box.textContent = '请求中（仅本机 loopback 会被接受）…';
+  setTimeout(()=>{
+    box.textContent = JSON.stringify({
+      ok:true, routeKey:'r-alpha', walkerSessionId:'wks_x82n',
+      note:'已按 cwd 匹配 routeKey，session 已加入 route.sessions 列表'
+    }, null, 2);
+  }, 500);
+}
+function showRaw(which){
+  document.getElementById('raw-json').textContent = rawData[which];
+}
+
+/* ---------------- Interactions ---------------- */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function resolveIssue(btn, msg){
+  btn.disabled = true; btn.textContent = '检测中…';
+  setTimeout(()=>{ showToast(msg); btn.textContent = '重新检测'; btn.disabled=false; }, 900);
+}
+function terminateSession(id){
+  showToast(`已对 ${id} 执行 /delete`);
+}
+function confirmReset(){
+  if(confirm('清空 .walker/ 数据目录将删除 sessions.json、routes.json 与 attachments/，此操作不可撤销。确认继续？')){
+    showToast('已清空 .walker/ 数据目录');
+  }
+}
+function confirmStop(){
+  if(confirm('walker stop 将终止后台守护进程，所有活跃 session 将失去桥接（OpenCode 本身不受影响）。确认继续？')){
+    showToast('已执行 walker stop，进程已停止');
+  }
+}
+function filterTable(input, tableId){
+  const q = input.value.toLowerCase();
+  document.querySelectorAll('#'+tableId+' tbody tr').forEach(tr=>{
+    const key = (tr.dataset.search||tr.textContent).toLowerCase();
+    tr.style.display = key.includes(q) ? '' : 'none';
+  });
+}
+
+/* ---------------- Navigation ---------------- */
+function goPage(name){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===name));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const titles = {
+    dashboard:['运行控制台','飞书长连接 · OpenCode Agent 会话实时状态'],
+    sessions:['会话与路由','Walker session 与 routeKey 焦点路由管理'],
+    logs:['活动与日志','walker logs 的可视化实时事件流'],
+    diagnostics:['诊断','运行系统自检，定位飞书 / OpenCode / Hook / 租约异常'],
+    connections:['连接与集成','飞书、OpenCode Server、Agent 扩展与 Runtime 环境'],
+    config:['配置','.env 环境变量分组编辑'],
+    process:['进程管理','walker start / stop / status / logs'],
+    storage:['存储与维护','.walker/ 数据目录清理与备份'],
+    debug:['调试工具','Hook 端点测试、命令参考与原始数据']
+  };
+  document.getElementById('page-title').textContent = titles[name][0];
+  document.getElementById('page-sub').textContent = titles[name][1];
+}
+document.querySelectorAll('.nav-item').forEach(item=>{
+  item.addEventListener('click', ()=>goPage(item.dataset.page));
+});
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    const parent = tab.closest('.page');
+    parent.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t===tab));
+    parent.querySelectorAll('.subpage').forEach(sp=>sp.classList.remove('active'));
+    parent.querySelector('#sub-'+tab.dataset.sub).classList.add('active');
+  });
+});
+
+/* ---------------- Clock & refresh ---------------- */
+function tickClock(){ document.getElementById('clock').textContent = nowStr(); }
+setInterval(tickClock, 1000);
+document.getElementById('refresh-btn').addEventListener('click', ()=>{
+  tickClock();
+  showToast('已刷新最新状态');
+});
+
+/* ---------------- Init ---------------- */
+renderTables();
+renderDiagList('idle');
+seedLogs();
+setInterval(()=>{
+  logBuffer.push(genLogEntry());
+  if(logBuffer.length>300) logBuffer.shift();
+  renderLogs();
+}, 3000);
+</script>
+</body>
+</html>
