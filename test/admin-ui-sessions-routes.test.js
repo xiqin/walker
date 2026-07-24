@@ -44,6 +44,7 @@ function createFakeElement(tagName = 'div', ownerDocument = null) {
     removeAttribute(name) { delete this.attributes[name]; },
     addEventListener(type, listener) { (listeners[type] ||= []).push(listener); },
     removeEventListener(type, listener) { listeners[type] = (listeners[type] || []).filter(item => item !== listener); },
+    classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, toggle(c, f) { f === undefined ? (this._s.has(c) ? this._s.delete(c) : this._s.add(c)) : (f ? this._s.add(c) : this._s.delete(c)); return this._s.has(c); }, contains(c) { return this._s.has(c); } },
     dispatch(type, values = {}) {
       const event = { type, target: this, currentTarget: this, preventDefault() { this.defaultPrevented = true; }, ...values };
       return Promise.all((listeners[type] || []).map(listener => listener(event)));

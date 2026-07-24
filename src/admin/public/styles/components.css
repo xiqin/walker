@@ -26,6 +26,23 @@ button:not([class]) {
 button:not([class]):hover { background: #f3f4f6; }
 button:not([class]):disabled { opacity: .5; cursor: not-allowed; }
 
+/* ---------- Dropdown ---------- */
+.dropdown { position: relative; display: inline-block; }
+.dropdown-menu {
+  position: absolute; top: 100%; right: 0; z-index: 100;
+  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 160px;
+  padding: 4px 0; margin-top: 4px;
+}
+.dropdown-menu[hidden] { display: none; }
+.dropdown-item {
+  display: block; width: 100%; padding: 8px 14px; border: none;
+  background: transparent; text-align: left; font-size: 13px;
+  color: var(--text-primary); cursor: pointer; font-family: inherit;
+}
+.dropdown-item:hover { background: #f3f4f6; }
+.dropdown-item.active { background: var(--accent-bg, #eff6ff); color: var(--accent); font-weight: 500; }
+
 /* ---------- Stat card ---------- */
 .stat-card { display: flex; flex-direction: column; gap: 8px; }
 .stat-head { display: flex; align-items: center; gap: 10px; }

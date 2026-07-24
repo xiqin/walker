@@ -171,9 +171,11 @@ function createEmptyBucket(minute) {
  * @param {Object} state - store 实例
  * @returns {Object[]} 桶数组，每个桶含分钟起点时间戳和各指标累计值
  */
-function buildBuckets(state) {
+function buildBuckets(state, options) {
+  const opts = options || {};
   const end = minuteStart(state.now());
-  const start = end - (59 * MINUTE_MS);
+  const durationMs = opts.durationMs > 0 ? opts.durationMs : 59 * MINUTE_MS;
+  const start = end - durationMs;
   const buckets = [];
   const byMinute = new Map();
 
@@ -203,7 +205,7 @@ function buildBuckets(state) {
  * @param {Object} [storeOrNone] - store 实例或空
  * @returns {Object} 指标汇总对象
  */
-function getMetrics(storeOrNone) {
+function getMetrics(storeOrNone, options) {
   const state = isStore(storeOrNone) ? storeOrNone : getDefaultStore();
   const durations = state.metrics.promptDurationsMs.slice();
   const totalDuration = durations.reduce((sum, value) => sum + value, 0);
@@ -214,7 +216,7 @@ function getMetrics(storeOrNone) {
     errors: state.metrics.errors,
     promptDurationsMs: durations,
     averagePromptDurationMs: durations.length ? totalDuration / durations.length : 0,
-    buckets: buildBuckets(state),
+    buckets: buildBuckets(state, options),
   };
 }
 

@@ -39,6 +39,7 @@ function createFakeElement(tagName = 'div', ownerDocument = null) {
     removeAttribute(name) { delete this.attributes[name]; },
     addEventListener(type, listener) { this['on' + type] = listener; },
     removeEventListener(type) { delete this['on' + type]; },
+    classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, toggle(c, f) { f === undefined ? (this._s.has(c) ? this._s.delete(c) : this._s.add(c)) : (f ? this._s.add(c) : this._s.delete(c)); return this._s.has(c); }, contains(c) { return this._s.has(c); } },
     focus() { if (ownerDocument) ownerDocument.activeElement = this; },
   };
 }
@@ -151,7 +152,7 @@ function dashboardApi(overrides = {}) {
       if (url === '/api/admin/sessions') return response(values.sessions);
       if (url === '/api/admin/routes') return response(values.routes);
       if (url.startsWith('/api/admin/events')) return response(values.events);
-      if (url === '/api/admin/metrics') return response(values.metrics);
+      if (url.startsWith('/api/admin/metrics')) return response(values.metrics);
       throw new Error('unexpected URL ' + url);
     },
   };
@@ -166,7 +167,7 @@ test('Dashboard 渲染服务状态、需处理问题、会话概况与活跃 Ses
   await mount(context);
   const text = collectText(context.root);
 
-  assert.match(text, /Walker 进程.*飞书长连接.*OpenCode Server.*会话.*路由.*需处理问题.*会话概况.*近期活动.*最近 60 分钟.*活跃/s);
+  assert.match(text, /Walker 进程.*飞书长连接.*OpenCode Server.*会话.*路由.*需处理问题.*会话概况.*近期活动.*最近 1 小时.*活跃/s);
   assert.match(text, /Session.*2.*Route.*2.*悬空 Route.*1/s);
   assert.match(text, /执行失败/);
   assert.match(text, /wks_.*opencode.*running.*feishu.*rt_1/s);
@@ -203,7 +204,7 @@ test('Dashboard 局部数据失败时保留其他区域并显示原始原因', a
   assert.match(text, /status backend offline/);
   assert.match(text, /会话概况.*Session.*2/s);
   assert.match(text, /近期活动.*执行失败/);
-  assert.match(text, /最近 60 分钟.*消息.*6/s);
+  assert.match(text, /最近 1 小时.*消息.*6/s);
 });
 
 test('Dashboard 按最近 60 个分钟桶汇总趋势并说明分钟粒度', async () => {
@@ -220,7 +221,7 @@ test('Dashboard 按最近 60 个分钟桶汇总趋势并说明分钟粒度', asy
   await mount(context);
 
   const text = collectText(context.root);
-  assert.match(text, /每分钟一个桶/);
+  assert.match(text, /Turn 与投递趋势/);
   assert.match(text, /消息.*1.*Prompt.*2.*错误.*3/s);
   assert.doesNotMatch(text, /999/);
 });

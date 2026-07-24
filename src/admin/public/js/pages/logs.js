@@ -229,5 +229,6 @@ export async function mount(context) {
   context.commit(() => replace(context.root, workspace.element));
   const offRefresh = listen(context.root, 'walker:refresh', () => workspace.refreshLogs());
   await workspace.refreshLogs();
-  return () => { offRefresh(); workspace.cleanup(); };
+  workspace.setAutoRefresh(true);
+  return () => { offRefresh(); workspace.setAutoRefresh(false); workspace.cleanup(); };
 }

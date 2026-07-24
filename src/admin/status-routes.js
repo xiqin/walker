@@ -16,6 +16,18 @@ function createStatusRoutes(ctx) {
       const data = await context.statusAdmin.getStatus();
       send(res, success(data));
     },
+  },
+  {
+    method: 'POST',
+    pattern: '/api/admin/feishu/check',
+    handler: async function feishuCheckHandler(_req, res) {
+      try {
+        const data = await context.statusAdmin.getStatus();
+        send(res, success({ feishu: data.feishu || { status: 'unknown', reason: 'feishu status unavailable' } }));
+      } catch (err) {
+        send(res, success({ feishu: { status: 'failed', reason: err.message || String(err) } }));
+      }
+    },
   }];
 }
 

@@ -37,7 +37,8 @@ export function createDiagnosticsWorkspace(options = {}) {
   const titleRow = element('div', { document: documentRef, className: 'section-title', attributes: { style: 'justify-content:space-between;' } },
     element('span', { document: documentRef, text: '系统自检' }));
   const refreshButton = element('button', { document: documentRef, className: 'btn btn-primary', text: '▶ 运行全部诊断', attributes: { type: 'button', id: 'run-diag-btn' } });
-  titleRow.append(refreshButton);
+  const exportButton = element('button', { document: documentRef, className: 'btn', text: '↓ 导出报告', attributes: { type: 'button', id: 'export-diag-btn' } });
+  titleRow.append(refreshButton, exportButton);
   diagCard.append(titleRow, element('div', { document: documentRef, className: 'section-sub', text: '依次检测飞书连接、OpenCode 健康、Hook 端点与租约状态' }));
   const diagList = element('div', { document: documentRef, attributes: { id: 'diag-list' } });
   const errorBox = element('div', { document: documentRef, className: 'note-box', attributes: { hidden: '' } });
@@ -168,6 +169,7 @@ export function createDiagnosticsWorkspace(options = {}) {
   }
 
   cleanups.push(listen(refreshButton, 'click', () => refresh().catch(() => undefined)));
+  cleanups.push(listen(exportButton, 'click', () => exportReport()));
   function cleanup() { active = false; for (const dispose of cleanups) dispose(); }
   return { element: root, refresh, runAction, exportReport, getReport: () => report, cleanup };
 }

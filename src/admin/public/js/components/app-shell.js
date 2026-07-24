@@ -83,10 +83,33 @@ export function createAppShell(options = {}) {
   const pageSub = element('div', { document: documentRef, className: 'topbar-sub', attributes: { id: 'page-sub' } });
   const clock = element('span', { document: documentRef, attributes: { id: 'clock' } });
   const refreshBtn = element('button', { document: documentRef, className: 'btn', text: '↻ 刷新', attributes: { type: 'button', id: 'refresh-btn' } });
-  const rangeBtn = element('button', { document: documentRef, className: 'btn', text: '🕐 最近 60 分钟 ⌄', attributes: { type: 'button', title: '时间范围筛选暂未接入，默认最近 60 分钟' } });
+  const rangeOptions = [
+    { label: '最近 15 分钟', minutes: 15 },
+    { label: '最近 30 分钟', minutes: 30 },
+    { label: '最近 60 分钟', minutes: 60 },
+    { label: '最近 2 小时', minutes: 120 },
+    { label: '最近 6 小时', minutes: 360 },
+    { label: '最近 24 小时', minutes: 1440 },
+  ];
+  let selectedMinutes = 60;
+  const rangeBtn = element('button', { document: documentRef, className: 'btn', text: '🕐 最近 60 分钟 ⌄', attributes: { type: 'button', id: 'range-btn' } });
+  const rangeDropdown = element('div', { document: documentRef, className: 'dropdown-menu', attributes: { id: 'range-dropdown', hidden: '' } });
+  for (const option of rangeOptions) {
+    const item = element('button', { document: documentRef, className: 'dropdown-item', text: option.label, attributes: { type: 'button', 'data-minutes': String(option.minutes) } });
+    if (option.minutes === selectedMinutes) item.classList.add('active');
+    listen(item, 'click', () => {
+      selectedMinutes = option.minutes;
+      rangeBtn.textContent = `🕐 ${option.label} ⌄`;
+      rangeDropdown.hidden = true;
+      for (const child of rangeDropdown.children) child.classList.toggle('active', Number(child.dataset.minutes) === selectedMinutes);
+      viewport.dispatchEvent(new (documentRef.defaultView || globalThis).CustomEvent('walker:rangechange', { bubbles: true, detail: { minutes: selectedMinutes } }));
+    });
+    rangeDropdown.append(item);
+  }
   const actions = element('div', { document: documentRef, className: 'topbar-actions' },
     element('span', { document: documentRef, className: 'meta-time' }, element('span', { document: documentRef, text: '最近更新 ' }), clock),
-    refreshBtn, rangeBtn);
+    refreshBtn,
+    element('div', { document: documentRef, className: 'dropdown', attributes: { style: 'position:relative;display:inline-block;' } }, rangeBtn, rangeDropdown));
   const topbar = element('header', { document: documentRef, className: 'topbar' },
     element('div', { document: documentRef, className: 'topbar-left' }, menuButton, element('div', { document: documentRef }, pageTitle, pageSub)),
     actions);
@@ -133,12 +156,15 @@ export function createAppShell(options = {}) {
   if (mobile) setNavigationOpen(false);
   const offMenu = listen(menuButton, 'click', () => setNavigationOpen(elementRoot.dataset.navOpen !== 'true', true));
   const offRefresh = listen(refreshBtn, 'click', refresh);
+  const offRange = listen(rangeBtn, 'click', (e) => { e.stopPropagation(); rangeDropdown.hidden = !rangeDropdown.hidden; });
+  const offRangeOutside = listen(documentRef, 'click', (e) => { if (!rangeBtn.contains(e.target) && !rangeDropdown.contains(e.target)) rangeDropdown.hidden = true; });
   const offKeydown = listen(documentRef, 'keydown', event => {
     if (event.key === 'Escape' && elementRoot.dataset.navOpen === 'true') {
       event.preventDefault();
       setNavigationOpen(false, true);
     }
+    if (event.key === 'Escape' && !rangeDropdown.hidden) rangeDropdown.hidden = true;
   });
-  const cleanup = () => { offMenu(); offRefresh(); offKeydown(); };
+  const cleanup = () => { offMenu(); offRefresh(); offRange(); offRangeOutside(); offKeydown(); };
   return { element: elementRoot, nav, main, viewport, menuButton, links, setNavigationOpen, setActiveRoute, setRoute, setStatus, setClock, refresh, cleanup };
 }

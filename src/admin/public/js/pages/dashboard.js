@@ -42,6 +42,12 @@ export async function mount(context) {
   const cleanups = [];
   cleanups.push(listen(context.root, 'walker:refresh', () => load()));
   let active = true;
+  let selectedMinutes = 60;
+
+  cleanups.push(listen(context.root, 'walker:rangechange', (e) => {
+    selectedMinutes = e.detail?.minutes || 60;
+    load();
+  }));
 
   async function load() {
     const requests = {
@@ -50,7 +56,7 @@ export async function mount(context) {
       sessions: context.api.get('/api/admin/sessions', { signal: context.signal }),
       routes: context.api.get('/api/admin/routes', { signal: context.signal }),
       events: context.api.get('/api/admin/events?limit=8', { signal: context.signal }),
-      metrics: context.api.get('/api/admin/metrics', { signal: context.signal }),
+      metrics: context.api.get(`/api/admin/metrics?minutes=${selectedMinutes}`, { signal: context.signal }),
     };
     const entries = await Promise.all(Object.entries(requests).map(async ([name, request]) => {
       try { return [name, { value: unwrap(await request) }]; }
@@ -63,7 +69,7 @@ export async function mount(context) {
       renderIssues(documentRef, context, issuesCard, result.status, result.events);
       renderSummary(documentRef, summaryCard, result.sessions, result.routes, result.metrics);
       renderActivity(documentRef, context, activityCard, result.events);
-      renderTrend(documentRef, trendCard, result.metrics);
+      renderTrend(documentRef, trendCard, result.metrics, selectedMinutes);
       renderActive(documentRef, context, activeCard, result.sessions);
     });
   }
@@ -245,10 +251,11 @@ function renderActivity(documentRef, context, card, state) {
   card.append(element('div', { document: documentRef, attributes: { style: 'margin-top:12px;' } }, link));
 }
 
-function renderTrend(documentRef, card, state) {
+function renderTrend(documentRef, card, state, minutes) {
+  const timeLabel = minutes >= 1440 ? `${minutes / 1440} 天` : minutes >= 60 ? `${minutes / 60} 小时` : `${minutes} 分钟`;
   card.replaceChildren(element('div', { document: documentRef, className: 'section-title' },
     element('span', { document: documentRef, text: 'Turn 与投递趋势 ' }),
-    element('span', { document: documentRef, attributes: { style: 'font-weight:400;color:var(--text-secondary);font-size:12px;' }, text: '（最近 60 分钟）' })));
+    element('span', { document: documentRef, attributes: { style: 'font-weight:400;color:var(--text-secondary);font-size:12px;' }, text: `（最近 ${timeLabel}）` })));
   if (state.error) { card.append(element('p', { document: documentRef, className: 'feedback__error', text: state.error.message })); return; }
   const metrics = state.value || {};
   const buckets = Array.isArray(metrics.buckets) ? metrics.buckets.slice(-60) : [];

@@ -48,6 +48,7 @@ function createFakeElement(tagName = 'div', ownerDocument = null) {
       listeners[type] = (listeners[type] || []).filter(item => item !== listener);
       if (this['on' + type] === listener) delete this['on' + type];
     },
+    classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, toggle(c, f) { f === undefined ? (this._s.has(c) ? this._s.delete(c) : this._s.add(c)) : (f ? this._s.add(c) : this._s.delete(c)); return this._s.has(c); }, contains(c) { return this._s.has(c); } },
     dispatch(type, event = {}) {
       for (const listener of listeners[type] || []) listener({ target: this, currentTarget: this, preventDefault() {}, ...event });
     },

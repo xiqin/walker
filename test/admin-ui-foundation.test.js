@@ -43,6 +43,13 @@ function createFakeElement(tagName = 'div', ownerDocument = null) {
     removeAttribute(name) { delete this.attributes[name]; },
     addEventListener(type, listener) { this['on' + type] = listener; },
     removeEventListener(type) { delete this['on' + type]; },
+    classList: {
+      _classes: new Set(),
+      add(c) { this._classes.add(c); },
+      remove(c) { this._classes.delete(c); },
+      toggle(c, force) { if (force === undefined) { this._classes.has(c) ? this._classes.delete(c) : this._classes.add(c); } else { force ? this._classes.add(c) : this._classes.delete(c); } return this._classes.has(c); },
+      contains(c) { return this._classes.has(c); },
+    },
     focus() {
       this.focused = true;
       if (ownerDocument) ownerDocument.activeElement = this;

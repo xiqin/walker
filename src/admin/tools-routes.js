@@ -116,12 +116,16 @@ function createToolsRoutes(appContext, deps) {
   /**
    * GET /api/admin/metrics
    * 返回事件指标汇总（复用 T1 event store）
+   * 支持 ?minutes=N 查询参数指定时间范围（默认 60 分钟）
    */
   routes.push({
     method: 'GET',
     pattern: '/api/admin/metrics',
-    handler: function metricsHandler(_req, res) {
-      const metrics = getMetrics(ctx.eventStore);
+    handler: function metricsHandler(req, res) {
+      const query = parseQueryString(req);
+      const minutes = parseInt(query.minutes, 10);
+      const durationMs = (minutes > 0 && minutes <= 1440) ? (minutes - 1) * 60 * 1000 : undefined;
+      const metrics = getMetrics(ctx.eventStore, durationMs !== undefined ? { durationMs } : undefined);
       send(res, success(metrics));
     },
   });
