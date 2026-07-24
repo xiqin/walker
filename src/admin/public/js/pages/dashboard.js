@@ -305,6 +305,9 @@ function buildTrendSvg(documentRef, buckets) {
 }
 
 function renderActive(documentRef, context, card, state) {
+  const ACTIVE_PAGE_SIZE = 20;
+  let page = 1;
+
   card.replaceChildren();
   const toolbar = element('div', { document: documentRef, className: 'toolbar' },
     element('div', { document: documentRef, className: 'section-title', attributes: { style: 'margin:0;flex:1;' }, text: '活跃会话（Walker session）' }));
@@ -317,36 +320,76 @@ function renderActive(documentRef, context, card, state) {
   const tableWrap = element('div', { document: documentRef, className: 'wide-table' });
   card.append(tableWrap);
   if (state.error) { tableWrap.append(element('p', { document: documentRef, className: 'feedback__error', text: state.error.message })); return; }
-  const sessions = normalizeList(state.value).filter(isActiveSession).sort((a, b) => Number(b.lastActiveAt || 0) - Number(a.lastActiveAt || 0));
-  if (sessions.length === 0) { tableWrap.append(element('p', { document: documentRef, className: 'muted', attributes: { style: 'padding:16px;' }, text: '暂无活跃 Session' })); return; }
-  const table = createDataTable({
-    document: documentRef,
-    caption: '活跃会话',
-    columns: [
-      { key: 'id', label: 'Session', render: row => shortId(row.id) },
-      { key: 'agent', label: 'Agent', render: row => row.agent || '—' },
-      { key: 'status', label: '状态', render: row => badge(documentRef, row.status) },
-      { key: 'route', label: 'Route（焦点）', render: row => {
-        const routeKeys = row.routeKeys || [];
-        const isFocus = row.focusRouteKeys && row.focusRouteKeys.length > 0;
-        const text = routeKeys.join(' ') || '—';
-        const cell = element('span', { document: documentRef, text });
-        if (isFocus) cell.append(element('span', { document: documentRef, className: 'badge badge-blue', text: '焦点', attributes: { style: 'margin-left:4px;' } }));
-        return cell;
-      }},
-      { key: 'runtime', label: 'Runtime', render: row => row.runtimeId || row.runtime || '—' },
-      { key: 'opencode', label: 'OpenCode', render: row => shortId(row.opencodeSessionId || '—') },
-      { key: 'cwd', label: 'cwd', render: row => compactPath(row.cwd) },
-      { key: 'lastActiveAt', label: '最近事件', render: row => formatDateTime(row.lastActiveAt) },
-    ],
-    rows: sessions,
-  });
-  listen(search, 'input', () => {
-    if (typeof table.querySelectorAll !== 'function') return;
-    const q = search.value.toLowerCase();
-    table.querySelectorAll('tbody tr').forEach(tr => { tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-  });
-  tableWrap.append(table);
-}
 
+  const allSessions = normalizeList(state.value).filter(isActiveSession).sort((a, b) => Number(b.lastActiveAt || 0) - Number(a.lastActiveAt || 0));
+
+  const pager = element('div', { document: documentRef, className: 'pagination' });
+  const pagerInfo = element('span', { document: documentRef, className: 'pagination-info' });
+  const prevBtn = element('button', { document: documentRef, className: 'btn btn-sm', text: '上一页', attributes: { type: 'button' } });
+  const nextBtn = element('button', { document: documentRef, className: 'btn btn-sm', text: '下一页', attributes: { type: 'button' } });
+  pager.append(prevBtn, pagerInfo, nextBtn);
+  card.append(pager);
+
+  function getFilteredSessions() {
+    const q = String(search.value || '').toLowerCase();
+    if (!q) return allSessions;
+    return allSessions.filter(s => {
+      const routeKeys = Array.isArray(s.routeKeys) ? s.routeKeys : [];
+      const searchable = [s.id, s.title, s.cwd, s.opencodeSessionId, s.runtimeId, ...routeKeys].filter(v => v != null).join(' ').toLowerCase();
+      return searchable.includes(q);
+    });
+  }
+
+  function renderPage() {
+    const filtered = getFilteredSessions();
+    const totalPages = Math.max(1, Math.ceil(filtered.length / ACTIVE_PAGE_SIZE));
+    if (page > totalPages) page = totalPages;
+    const start = (page - 1) * ACTIVE_PAGE_SIZE;
+    const pageItems = filtered.slice(start, start + ACTIVE_PAGE_SIZE);
+
+    tableWrap.replaceChildren();
+    if (filtered.length === 0) {
+      tableWrap.append(element('p', { document: documentRef, className: 'muted', attributes: { style: 'padding:16px;' }, text: '暂无活跃 Session' }));
+      pager.hidden = true;
+      return;
+    }
+
+    const table = createDataTable({
+      document: documentRef,
+      caption: '活跃会话',
+      columns: [
+        { key: 'id', label: 'Session', render: row => shortId(row.id) },
+        { key: 'agent', label: 'Agent', render: row => row.agent || '—' },
+        { key: 'status', label: '状态', render: row => badge(documentRef, row.status) },
+        { key: 'route', label: 'Route（焦点）', render: row => {
+          const routeKeys = row.routeKeys || [];
+          const isFocus = row.focusRouteKeys && row.focusRouteKeys.length > 0;
+          const text = routeKeys.join(' ') || '—';
+          const cell = element('span', { document: documentRef, text });
+          if (isFocus) cell.append(element('span', { document: documentRef, className: 'badge badge-blue', text: '焦点', attributes: { style: 'margin-left:4px;' } }));
+          return cell;
+        }},
+        { key: 'runtime', label: 'Runtime', render: row => row.runtimeId || row.runtime || '—' },
+        { key: 'opencode', label: 'OpenCode', render: row => shortId(row.opencodeSessionId || '—') },
+        { key: 'cwd', label: 'cwd', render: row => compactPath(row.cwd) },
+        { key: 'lastActiveAt', label: '最近事件', render: row => formatDateTime(row.lastActiveAt) },
+      ],
+      rows: pageItems,
+    });
+    tableWrap.append(table);
+
+    pagerInfo.textContent = '第 ' + page + ' / ' + totalPages + ' 页（共 ' + filtered.length + ' 条）';
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= totalPages;
+    pager.hidden = false;
+  }
+
+  listen(search, 'input', () => { page = 1; renderPage(); });
+  listen(prevBtn, 'click', () => { if (page > 1) { page--; renderPage(); } });
+  listen(nextBtn, 'click', () => {
+    const total = Math.max(1, Math.ceil(getFilteredSessions().length / ACTIVE_PAGE_SIZE));
+    if (page < total) { page++; renderPage(); }
+  });
+  renderPage();
+}
 
