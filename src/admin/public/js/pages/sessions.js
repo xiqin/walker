@@ -4,8 +4,10 @@ import { createDrawer } from '../components/drawer.js';
 import { createTabs } from '../components/tabs.js';
 import { createConfirm } from '../components/feedback.js';
 
+const PAGE_SIZE = 20;
+
 const DEFAULT_FILTERS = {
-  query: '', agent: '', status: '', runtime: '', tab: 'sessions', scrollTop: 0,
+  query: '', agent: '', status: '', runtime: '', tab: 'sessions', scrollTop: 0, page: 1,
 };
 
 /** 按关键词、Agent、状态、Runtime 执行本地 AND 过滤。 */
@@ -136,22 +138,46 @@ export async function mount(context) {
     table.append(body);
     wrap.append(table);
     card.append(wrap);
-    sessionPanel.append(controls, card);
+
+    const pager = element('div', { document: documentRef, className: 'pagination' });
+    const pagerInfo = element('span', { document: documentRef, className: 'pagination-info' });
+    const prevBtn = element('button', { document: documentRef, className: 'btn btn-sm', text: '上一页', attributes: { type: 'button' } });
+    const nextBtn = element('button', { document: documentRef, className: 'btn btn-sm', text: '下一页', attributes: { type: 'button' } });
+    pager.append(prevBtn, pagerInfo, nextBtn);
+
+    sessionPanel.append(controls, card, pager);
+
+    function resetPage() { filters.page = 1; }
 
     function refreshLocalList() {
       clearCleanups(sessionRowCleanups);
       const visible = filterSessions(sessions, filters);
+      const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+      if (filters.page > totalPages) filters.page = totalPages;
+      const start = (filters.page - 1) * PAGE_SIZE;
+      const pageItems = visible.slice(start, start + PAGE_SIZE);
+
       body.replaceChildren();
       if (visible.length === 0) {
         body.append(element('tr', { document: documentRef }, element('td', { document: documentRef, attributes: { colspan: '11' }, text: '没有匹配的 Session。' })));
-        return;
+      } else {
+        for (const session of pageItems) body.append(renderSessionRow(session));
       }
-      for (const session of visible) body.append(renderSessionRow(session));
+
+      pagerInfo.textContent = '第 ' + filters.page + ' / ' + totalPages + ' 页（共 ' + visible.length + ' 条）';
+      prevBtn.disabled = filters.page <= 1;
+      nextBtn.disabled = filters.page >= totalPages;
+      pager.hidden = visible.length === 0;
     }
-    on(query, 'input', () => { filters.query = query.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
-    on(agent, 'change', () => { filters.agent = agent.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
-    on(status, 'change', () => { filters.status = status.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
-    on(runtime, 'change', () => { filters.runtime = runtime.value; persistFilters(); refreshLocalList(); }, sessionControlCleanups);
+
+    function onPageChange(newPage) { filters.page = newPage; persistFilters(); refreshLocalList(); }
+    on(prevBtn, 'click', () => { if (filters.page > 1) onPageChange(filters.page - 1); }, sessionControlCleanups);
+    on(nextBtn, 'click', () => { const vis = filterSessions(sessions, filters); if (filters.page < Math.ceil(vis.length / PAGE_SIZE)) onPageChange(filters.page + 1); }, sessionControlCleanups);
+
+    on(query, 'input', () => { filters.query = query.value; resetPage(); persistFilters(); refreshLocalList(); }, sessionControlCleanups);
+    on(agent, 'change', () => { filters.agent = agent.value; resetPage(); persistFilters(); refreshLocalList(); }, sessionControlCleanups);
+    on(status, 'change', () => { filters.status = status.value; resetPage(); persistFilters(); refreshLocalList(); }, sessionControlCleanups);
+    on(runtime, 'change', () => { filters.runtime = runtime.value; resetPage(); persistFilters(); refreshLocalList(); }, sessionControlCleanups);
     refreshLocalList();
   }
 
