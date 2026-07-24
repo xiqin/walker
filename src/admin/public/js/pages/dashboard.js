@@ -111,7 +111,7 @@ function renderStats(documentRef, grid, statusState, overviewState) {
   const opencode = agents.find(item => item && item.name === 'opencode') || {};
   const pid = process.pid || '未知';
   const byStatus = (overview.sessions && overview.sessions.byStatus) || {};
-  const activeCount = ['running', 'active', 'busy', 'waiting'].reduce((sum, key) => sum + Number(byStatus[key] || 0), 0);
+  const activeCount = ['running', 'active', 'busy', 'waiting', 'idle', 'created', 'error'].reduce((sum, key) => sum + Number(byStatus[key] || 0), 0);
   const routeTotal = (overview.routes && overview.routes.total) || 0;
   const routeDangling = (overview.routes && overview.routes.dangling) || 0;
   grid.append(
@@ -142,7 +142,8 @@ function summaryStatus(status) {
 }
 
 function isActiveSession(session) {
-  return ['active', 'running', 'busy', 'waiting'].includes(String(session?.status || '').toLowerCase());
+  const s = String(session?.status || '').toLowerCase();
+  return s && !['stopped', 'deleted'].includes(s);
 }
 
 function renderIssues(documentRef, context, card, statusState, eventsState) {
