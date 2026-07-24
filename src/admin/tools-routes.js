@@ -122,7 +122,7 @@ function createToolsRoutes(appContext, deps) {
     method: 'GET',
     pattern: '/api/admin/metrics',
     handler: function metricsHandler(req, res) {
-      const query = parseQueryString(req);
+      const query = parseQueryString(req.queryString || '');
       const minutes = parseInt(query.minutes, 10);
       const durationMs = (minutes > 0 && minutes <= 1440) ? (minutes - 1) * 60 * 1000 : undefined;
       const metrics = getMetrics(ctx.eventStore, durationMs !== undefined ? { durationMs } : undefined);
