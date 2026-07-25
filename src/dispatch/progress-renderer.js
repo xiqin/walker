@@ -77,9 +77,13 @@ class ProgressRenderer {
       if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
       this.dispatcher._touchTurnState(this.dispatcher.turnStates.get(session.id));
       const rendered = await this.dispatcher._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null);
+      if (rendered !== null) this.dispatcher._recordAdminMetric('cardDeliveries');
       if (rendered && rendered.strategy === 'new_message') {
         const newCardId = await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id, agentEvent], null);
-        if (newCardId) cardId = newCardId;
+        if (newCardId) {
+          cardId = newCardId;
+          this.dispatcher._recordAdminMetric('cardDeliveries');
+        }
       }
     }
 

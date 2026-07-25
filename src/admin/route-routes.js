@@ -84,6 +84,52 @@ function createRouteRoutes(appContext) {
         sendResult(res, routeAdmin.deleteRoute(ctx, params.encodedRouteKey));
       },
     },
+    {
+      method: 'GET',
+      pattern: '/api/admin/routes/:encodedRouteKey',
+      handler: function getRouteHandler(_req, res, params) {
+        const route = routeAdmin.getRoute(ctx, params.encodedRouteKey);
+        if (!route) {
+          send(res, error('NOT_FOUND', 'route not found'), 404);
+          return;
+        }
+        send(res, success(route));
+      },
+    },
+    {
+      method: 'POST',
+      pattern: '/api/admin/routes/:encodedRouteKey/sessions/batch',
+      handler: async function batchAddSessionsHandler(req, res, params) {
+        const body = await readObjectBody(req, res);
+        if (!body) return;
+        if (!Array.isArray(body.sessionIds) || body.sessionIds.length === 0) {
+          send(res, error('BAD_REQUEST', '请求体需包含 sessionIds 数组'), 400);
+          return;
+        }
+        sendResult(res, routeAdmin.batchAddSessions(ctx, params.encodedRouteKey, body.sessionIds));
+      },
+    },
+    {
+      method: 'DELETE',
+      pattern: '/api/admin/routes/:encodedRouteKey/sessions/batch',
+      handler: async function batchRemoveSessionsHandler(req, res, params) {
+        const body = await readObjectBody(req, res);
+        if (!body) return;
+        if (!Array.isArray(body.sessionIds) || body.sessionIds.length === 0) {
+          send(res, error('BAD_REQUEST', '请求体需包含 sessionIds 数组'), 400);
+          return;
+        }
+        sendResult(res, routeAdmin.batchRemoveSessions(ctx, params.encodedRouteKey, body.sessionIds));
+      },
+    },
+    {
+      method: 'POST',
+      pattern: '/api/admin/routes/detect-dangling',
+      handler: function detectDanglingHandler(_req, res) {
+        const dangling = routeAdmin.detectDangling(ctx);
+        send(res, success({ list: dangling, total: dangling.length }));
+      },
+    },
   ];
 }
 

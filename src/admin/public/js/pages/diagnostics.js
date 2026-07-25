@@ -34,11 +34,12 @@ export function createDiagnosticsWorkspace(options = {}) {
   root.append(element('h1', { document: documentRef, className: 'visually-hidden', text: '诊断', attributes: { id: 'diagnostics-title' } }));
 
   const diagCard = element('div', { document: documentRef, className: 'card', attributes: { style: 'margin-bottom:16px;' } });
-  const titleRow = element('div', { document: documentRef, className: 'section-title', attributes: { style: 'justify-content:space-between;' } },
+  const titleRow = element('div', { document: documentRef, className: 'section-title', attributes: { style: 'display:flex;justify-content:space-between;align-items:center;width:100%;' } },
     element('span', { document: documentRef, text: '系统自检' }));
   const refreshButton = element('button', { document: documentRef, className: 'btn btn-primary', text: '▶ 运行全部诊断', attributes: { type: 'button', id: 'run-diag-btn' } });
   const exportButton = element('button', { document: documentRef, className: 'btn', text: '↓ 导出报告', attributes: { type: 'button', id: 'export-diag-btn' } });
-  titleRow.append(refreshButton, exportButton);
+  const btnGroup = element('div', { document: documentRef, attributes: { style: 'display:flex;gap:8px;' } }, refreshButton, exportButton);
+  titleRow.append(btnGroup);
   diagCard.append(titleRow, element('div', { document: documentRef, className: 'section-sub', text: '依次检测飞书连接、OpenCode 健康、Hook 端点与租约状态' }));
   const diagList = element('div', { document: documentRef, attributes: { id: 'diag-list' } });
   const errorBox = element('div', { document: documentRef, className: 'note-box', attributes: { hidden: '' } });

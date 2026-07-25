@@ -305,6 +305,48 @@ function cleanupDangling(ctx, confirm) {
   return { ok: true, cleaned };
 }
 
+/**
+ * 批量将 Session 添加到 Route
+ * @param {Object} ctx - 上下文对象
+ * @param {string} routeKey - Route 键
+ * @param {string[]} sessionIds - Session ID 数组
+ * @returns {Object} 操作结果
+ */
+function batchAddSessions(ctx, routeKey, sessionIds) {
+  if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+    return { ok: false, error: { code: 'BAD_REQUEST', message: 'sessionIds 数组不能为空' } };
+  }
+
+  const results = [];
+  for (const sessionId of sessionIds) {
+    const result = addSession(ctx, routeKey, sessionId);
+    results.push({ sessionId, ...result });
+  }
+
+  return { ok: true, results, route: getRoute(ctx, routeKey) };
+}
+
+/**
+ * 批量从 Route 移除 Session
+ * @param {Object} ctx - 上下文对象
+ * @param {string} routeKey - Route 键
+ * @param {string[]} sessionIds - Session ID 数组
+ * @returns {Object} 操作结果
+ */
+function batchRemoveSessions(ctx, routeKey, sessionIds) {
+  if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+    return { ok: false, error: { code: 'BAD_REQUEST', message: 'sessionIds 数组不能为空' } };
+  }
+
+  const results = [];
+  for (const sessionId of sessionIds) {
+    const result = removeSession(ctx, routeKey, sessionId);
+    results.push({ sessionId, ...result });
+  }
+
+  return { ok: true, results, route: getRoute(ctx, routeKey) };
+}
+
 module.exports = {
   listRoutes,
   getRoute,
@@ -317,4 +359,6 @@ module.exports = {
   deleteRoute,
   detectDangling,
   cleanupDangling,
+  batchAddSessions,
+  batchRemoveSessions,
 };

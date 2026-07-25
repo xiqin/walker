@@ -177,6 +177,9 @@ test('event store 记录指标计数、平均耗时和最近 60 个 UTC 分钟�
   recordMetric(store, 'errors', 1, Date.UTC(2026, 6, 10, 9, 31, 0));
   recordMetric(store, 'errors', 5, Date.UTC(2026, 6, 10, 9, 30, 59));
   recordMetric(store, 'prompts', 1, Date.UTC(2026, 6, 10, 10, 15, 0));
+  recordMetric(store, 'cardDeliveries', 4, Date.UTC(2026, 6, 10, 10, 20, 0));
+  recordMetric(store, 'activeTurns', 2, Date.UTC(2026, 6, 10, 10, 21, 0));
+  recordMetric(store, 'timeoutsOrCancels', 1, Date.UTC(2026, 6, 10, 10, 22, 0));
   recordMetric(store, 'promptDurationMs', 120, Date.UTC(2026, 6, 10, 10, 15, 30));
   recordMetric(store, 'promptDurationMs', 80, Date.UTC(2026, 6, 10, 10, 15, 59));
 
@@ -185,6 +188,9 @@ test('event store 记录指标计数、平均耗时和最近 60 个 UTC 分钟�
   assert.equal(metrics.commands, 2);
   assert.equal(metrics.errors, 6);
   assert.equal(metrics.prompts, 1);
+  assert.equal(metrics.cardDeliveries, 4);
+  assert.equal(metrics.activeTurns, 2);
+  assert.equal(metrics.timeoutsOrCancels, 1);
   assert.deepEqual(metrics.promptDurationsMs, [120, 80]);
   assert.equal(metrics.averagePromptDurationMs, 100);
   assert.equal(metrics.buckets.length, 60);
@@ -202,6 +208,9 @@ test('event store 记录指标计数、平均耗时和最近 60 个 UTC 分钟�
   const durationMinute = metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 15, 0));
   assert.equal(durationMinute.prompts, 1);
   assert.equal(durationMinute.promptDurationMs, 200);
+  assert.equal(metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 20, 0)).cardDeliveries, 4);
+  assert.equal(metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 21, 0)).activeTurns, 2);
+  assert.equal(metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 22, 0)).timeoutsOrCancels, 1);
   const emptyMinute = metrics.buckets.find((bucket) => bucket.minute === Date.UTC(2026, 6, 10, 10, 14, 0));
   assert.deepEqual(emptyMinute, {
     minute: Date.UTC(2026, 6, 10, 10, 14, 0),
@@ -209,6 +218,9 @@ test('event store 记录指标计数、平均耗时和最近 60 个 UTC 分钟�
     commands: 0,
     prompts: 0,
     errors: 0,
+    cardDeliveries: 0,
+    activeTurns: 0,
+    timeoutsOrCancels: 0,
     promptDurationMs: 0,
   });
   assert.equal(metrics.buckets.reduce((sum, bucket) => sum + bucket.errors, 0), 1,

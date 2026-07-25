@@ -121,6 +121,96 @@ function createCoreRoutes(appContext) {
   });
 
   /**
+   * GET /api/admin/sessions/search
+   * 按关键词/agent/状态/标签搜索 session，支持分页
+   * 必须在 :id 参数路由之前注册，避免被 /sessions/:id 截获
+   */
+  routes.push({
+    method: 'GET',
+    pattern: '/api/admin/sessions/search',
+    handler: function sessionSearchHandler(req, res) {
+      const parsed = require('url').parse(req.url, true);
+      const q = parsed.query || {};
+      const result = sessionAdmin.searchSessions(ctx, {
+        query: q.query || '',
+        agent: q.agent || '',
+        status: q.status || '',
+        tag: q.tag || '',
+        limit: q.limit ? parseInt(q.limit, 10) : undefined,
+        offset: q.offset ? parseInt(q.offset, 10) : undefined,
+      });
+      send(res, success(redactValue(result, secrets)));
+    },
+  });
+
+  /**
+   * PATCH /api/admin/sessions/:id/tags
+   * 更新 session 标签
+   */
+  routes.push({
+    method: 'PATCH',
+    pattern: '/api/admin/sessions/:id/tags',
+    handler: async function sessionTagsHandler(req, res, params) {
+      const body = await parseBody(req);
+      if (!body || !Array.isArray(body.tags)) {
+        send(res, error('BAD_REQUEST', '请求体需包含 tags 数组'), 400);
+        return;
+      }
+      const result = sessionAdmin.updateSessionTags(ctx, params.id, body.tags);
+      if (!result.ok) {
+        const status = result.error.code === 'NOT_FOUND' ? 404 : 400;
+        send(res, error(result.error.code, result.error.message), status);
+        return;
+      }
+      send(res, success(redactValue(result.session, secrets)));
+    },
+  });
+
+  /**
+   * POST /api/admin/sessions/batch-stop
+   * 批量停止 session
+   */
+  routes.push({
+    method: 'POST',
+    pattern: '/api/admin/sessions/batch-stop',
+    handler: async function sessionBatchStopHandler(req, res) {
+      const body = await parseBody(req);
+      if (!body || !Array.isArray(body.sessionIds) || body.sessionIds.length === 0) {
+        send(res, error('BAD_REQUEST', '请求体需包含 sessionIds 数组'), 400);
+        return;
+      }
+      const result = await sessionAdmin.batchStopSessions(ctx, body.sessionIds);
+      if (!result.ok) {
+        send(res, error(result.error.code, result.error.message), 400);
+        return;
+      }
+      send(res, success(redactValue(result, secrets)));
+    },
+  });
+
+  /**
+   * POST /api/admin/sessions/batch-delete
+   * 批量删除 session
+   */
+  routes.push({
+    method: 'POST',
+    pattern: '/api/admin/sessions/batch-delete',
+    handler: async function sessionBatchDeleteHandler(req, res) {
+      const body = await parseBody(req);
+      if (!body || !Array.isArray(body.sessionIds) || body.sessionIds.length === 0) {
+        send(res, error('BAD_REQUEST', '请求体需包含 sessionIds 数组'), 400);
+        return;
+      }
+      const result = await sessionAdmin.batchDeleteSessions(ctx, body.sessionIds);
+      if (!result.ok) {
+        send(res, error(result.error.code, result.error.message), 400);
+        return;
+      }
+      send(res, success(redactValue(result, secrets)));
+    },
+  });
+
+  /**
    * GET /api/admin/sessions/:id
    * session 详情
    */

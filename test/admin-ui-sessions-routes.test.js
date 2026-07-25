@@ -109,8 +109,8 @@ function createHarness(overrides = {}) {
   const rootNode = document.createElement('main');
   const calls = [];
   const sessions = overrides.sessions || [
-    { id: 'wks_focus_123456', title: 'Alpha', status: 'running', transport: 'tui', routeKeys: ['feishu:chat-a'], focusRouteKeys: ['feishu:chat-a'], runtime: 'windows', runtimeId: 'rt-1', opencodeSessionId: 'ses-1', cwd: 'H:\\walker\\projects\\alpha', health: { status: 'healthy' }, watch: { active: true, mode: 'tui' }, lastHeartbeatAt: 1000, currentTurn: { state: 'working' }, lastActiveAt: 2000 },
-    { id: 'wks_idle_234567', title: 'Beta', status: 'idle', transport: 'sse', routeKeys: ['feishu:chat-b'], focusRouteKeys: [], runtime: 'wsl', runtimeId: null, opencodeSessionId: null, cwd: 'H:\\walker\\projects\\beta', health: { status: 'warning', reason: 'late' }, watch: { active: true, mode: 'sse' }, lastActiveAt: 1500 },
+    { id: 'wks_focus_123456', title: 'Alpha', status: 'running', transport: 'tui', routeKeys: ['feishu:chat-a'], focusRouteKeys: ['feishu:chat-a'], runtime: 'windows', runtimeId: 'rt-1', opencodeSessionId: 'ses-1', cwd: 'H:\\walker\\projects\\alpha', health: { status: 'healthy' }, watch: { active: true, mode: 'tui' }, createdAt: 500, opencodeSessionCreatedAt: 700, lastBusinessEventAt: 2000, lastHeartbeatAt: 1000, currentTurn: { state: 'working' }, lastActiveAt: 2000 },
+    { id: 'wks_idle_234567', title: 'Beta', status: 'idle', transport: 'sse', routeKeys: ['feishu:chat-b'], focusRouteKeys: [], runtime: 'wsl', runtimeId: null, opencodeSessionId: null, cwd: 'H:\\walker\\projects\\beta', health: { status: 'warning', reason: 'late' }, watch: { active: true, mode: 'sse' }, createdAt: 600, lastBusinessEventAt: 1500, lastHeartbeatAt: 1800, lastActiveAt: 1800 },
     { id: 'wks_orphan_345678', title: 'Gamma', status: 'error', transport: 'unknown', routeKeys: [], focusRouteKeys: [], runtime: null, runtimeId: null, opencodeSessionId: null, cwd: 'H:\\' + 'very-long\\'.repeat(12) + 'gamma', health: null, watch: null, lastActiveAt: null },
   ];
   let routes = overrides.routes || [
@@ -183,6 +183,20 @@ test('Session 搜索使用本地过滤且缺失运行字段显示 unknown', asyn
   assert.equal(harness.calls.filter(call => call[0] === 'get' && call[1] === '/api/admin/sessions').length, 1);
   assert.match(collectText(mounted.tabs.panels.get('sessions')), /wks_orphan_345678/);
   assert.doesNotMatch(collectText(mounted.tabs.panels.get('sessions')), /wks_idle_234567/);
+  mounted.cleanup();
+});
+
+test('Session 列表展示创建时间、业务事件和心跳三列', async () => {
+  const page = await importPage();
+  const harness = createHarness();
+  const mounted = await page.mount(harness.context);
+  const text = collectText(mounted.tabs.panels.get('sessions'));
+  assert.match(text, /会话创建时间/);
+  assert.match(text, /最近事件/);
+  assert.match(text, /最近心跳/);
+  assert.match(text, /1970\/01\/01 08:00:00/);
+  assert.match(text, /1970\/01\/01 08:00:01/);
+  assert.match(text, /1970\/01\/01 08:00:02/);
   mounted.cleanup();
 });
 

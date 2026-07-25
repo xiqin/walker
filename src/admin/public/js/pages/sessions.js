@@ -130,7 +130,7 @@ export async function mount(context) {
     const wrap = element('div', { document: documentRef, className: 'wide-table' });
     const table = element('table', { document: documentRef });
     const headRow = element('tr', { document: documentRef });
-    for (const label of ['Session ID', 'Agent', '状态', 'Route', '焦点', 'Runtime', 'OpenCode Session', 'cwd', 'Turn 运行时长', '最近事件', '操作']) {
+    for (const label of ['Session ID', 'Agent', '状态', 'Route', '焦点', 'Runtime', 'OpenCode Session', 'cwd', 'Turn 运行时长', '会话创建时间', '最近事件', '最近心跳', '操作']) {
       headRow.append(element('th', { document: documentRef, text: label }));
     }
     table.append(element('thead', { document: documentRef }, headRow));
@@ -159,7 +159,7 @@ export async function mount(context) {
 
       body.replaceChildren();
       if (visible.length === 0) {
-        body.append(element('tr', { document: documentRef }, element('td', { document: documentRef, attributes: { colspan: '11' }, text: '没有匹配的 Session。' })));
+        body.append(element('tr', { document: documentRef }, element('td', { document: documentRef, attributes: { colspan: '13' }, text: '没有匹配的 Session。' })));
       } else {
         for (const session of pageItems) body.append(renderSessionRow(session));
       }
@@ -206,7 +206,9 @@ export async function mount(context) {
       element('td', { document: documentRef, className: 'mono', text: session.opencodeSessionId || '—' }),
       element('td', { document: documentRef, className: 'mono', text: compactPath(session.cwd, 48) }),
       element('td', { document: documentRef, text: turnDuration(session) }),
-      element('td', { document: documentRef, className: 'mono', text: formatDateTime(session.lastActiveAt) }),
+      element('td', { document: documentRef, className: 'mono', text: formatDateTime(session.opencodeSessionCreatedAt || session.createdAt) }),
+      element('td', { document: documentRef, className: 'mono', text: formatDateTime(session.lastBusinessEventAt) }),
+      element('td', { document: documentRef, className: 'mono', text: formatDateTime(session.lastHeartbeatAt) }),
       opsCell,
     );
     return row;

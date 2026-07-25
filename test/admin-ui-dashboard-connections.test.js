@@ -24,6 +24,7 @@ function importModule(relativePath) {
 function createFakeElement(tagName = 'div', ownerDocument = null) {
   return {
     tagName: tagName.toUpperCase(),
+    namespaceURI: 'http://www.w3.org/1999/xhtml',
     children: [],
     attributes: {},
     dataset: {},
@@ -48,6 +49,11 @@ function createFakeDocument() {
   const document = {
     activeElement: null,
     createElement(tagName) { return createFakeElement(tagName, document); },
+    createElementNS(namespaceURI, tagName) {
+      const node = createFakeElement(tagName, document);
+      node.namespaceURI = namespaceURI;
+      return node;
+    },
     createTextNode(value) { return { nodeType: 3, textContent: String(value) }; },
   };
   document.body = createFakeElement('body', document);
@@ -133,7 +139,8 @@ const dashboardFixture = {
   },
   sessions: {
     list: [
-      { id: 'wks_active_123456', title: '部署助手', agent: 'opencode', status: 'running', transport: 'tui', runtime: 'windows', runtimeId: 'rt_1', opencodeSessionId: 'ses_1', cwd: 'H:\\walker', routeKeys: ['feishu:chat:1'], lastActiveAt: 5000 },
+      { id: 'wks_active_123456', title: '部署助手', agent: 'opencode', status: 'running', transport: 'tui', runtime: 'windows', runtimeId: 'rt_1', opencodeSessionId: 'ses_1', cwd: 'H:\\walker', routeKeys: ['feishu:chat:1'], lastActiveAt: 5000, createdAt: 500, opencodeSessionCreatedAt: 700, lastBusinessEventAt: 2000, lastHeartbeatAt: 1000 },
+      { id: 'wks_newer_created', title: '新建会话', agent: 'opencode', status: 'running', transport: 'tui', runtime: 'windows', runtimeId: 'rt_2', opencodeSessionId: 'ses_2', cwd: 'H:\\walker', routeKeys: ['feishu:chat:2'], lastActiveAt: 2500, createdAt: 600, opencodeSessionCreatedAt: 900, lastBusinessEventAt: 1500, lastHeartbeatAt: 1200 },
       { id: 'wks_idle', title: '闲置会话', agent: 'opencode', status: 'idle', transport: 'polling', routeKeys: [], lastActiveAt: 2000 },
     ],
     total: 2,
@@ -168,9 +175,11 @@ test('Dashboard 渲染服务状态、需处理问题、会话概况与活跃 Ses
   const text = collectText(context.root);
 
   assert.match(text, /Walker 进程.*飞书长连接.*OpenCode Server.*会话.*路由.*需处理问题.*会话概况.*近期活动.*最近 1 小时.*活跃/s);
-  assert.match(text, /Session.*2.*Route.*2.*悬空 Route.*1/s);
+  assert.match(text, /Session.*3.*Route.*2.*悬空 Route.*1/s);
   assert.match(text, /执行失败/);
-  assert.match(text, /wks_.*opencode.*running.*feishu.*rt_1/s);
+  assert.match(text, /wks_.*opencode.*running.*feishu.*rt_2.*wks_.*opencode.*running.*feishu.*rt_1/s);
+  assert.match(text, /会话创建时间.*最近事件.*最近心跳/s);
+  assert.match(text, /1970\/01\/01 08:00:00.*1970\/01\/01 08:00:02.*1970\/01\/01 08:00:01/s);
   assert.match(text, /飞书 WebSocket 断开/);
 });
 
@@ -204,15 +213,18 @@ test('Dashboard 局部数据失败时保留其他区域并显示原始原因', a
   assert.match(text, /status backend offline/);
   assert.match(text, /会话概况.*Session.*2/s);
   assert.match(text, /近期活动.*执行失败/);
-  assert.match(text, /最近 1 小时.*消息.*6/s);
+  assert.match(text, /最近 1 小时.*卡片投递.*6/s);
 });
 
-test('Dashboard 按最近 60 个分钟桶汇总趋势并说明分钟粒度', async () => {
+test('Dashboard 按原型展示 Turn 与投递趋势并说明分钟粒度', async () => {
   const buckets = Array.from({ length: 60 }, (_, index) => ({
     minute: Date.UTC(2026, 6, 10, 9, 31 + index, 0),
-    messages: index === 0 ? 1 : 0,
-    prompts: index === 58 ? 2 : 0,
-    errors: index === 59 ? 3 : 0,
+    messages: 999,
+    prompts: 999,
+    errors: 999,
+    cardDeliveries: index === 0 ? 1 : 0,
+    activeTurns: index === 58 ? 2 : 0,
+    timeoutsOrCancels: index === 59 ? 3 : 0,
   }));
   const { mount } = await importModule('pages/dashboard.js');
   const context = createContext(dashboardApi({
@@ -222,8 +234,20 @@ test('Dashboard 按最近 60 个分钟桶汇总趋势并说明分钟粒度', asy
 
   const text = collectText(context.root);
   assert.match(text, /Turn 与投递趋势/);
-  assert.match(text, /消息.*1.*Prompt.*2.*错误.*3/s);
+  assert.match(text, /卡片投递.*活跃 turn.*超时\/取消/s);
   assert.doesNotMatch(text, /999/);
+
+  const svg = findAll(context.root, node => node.tagName === 'SVG')[0];
+  const lines = findAll(svg, node => node.tagName === 'POLYLINE');
+  assert.equal(svg.namespaceURI, 'http://www.w3.org/2000/svg');
+  assert.equal(lines.length, 3);
+  assert.deepEqual(lines.map(line => line.namespaceURI), [
+    'http://www.w3.org/2000/svg',
+    'http://www.w3.org/2000/svg',
+    'http://www.w3.org/2000/svg',
+  ]);
+  assert.deepEqual(lines.map(line => line.attributes.stroke), ['#16a34a', '#2563eb', '#dc2626']);
+  assert.ok(lines.every(line => String(line.attributes.points || '').includes(',')));
 });
 
 function connectionsApi(options = {}) {

@@ -127,6 +127,7 @@ function createApp(config, deps) {
     promptHeartbeatStuckMs: config.walkerPromptHeartbeatStuckMs,
     maxTurnTimeMins: config.walkerMaxTurnTimeMins,
     nonFocusOutput: config.walkerOpencodeNonFocusOutput !== false,
+    eventStore,
   });
   if (tuiBridge && typeof tuiBridge.setOnSessionEnrolled === 'function') {
     tuiBridge.setOnSessionEnrolled(({ sessionId }) => {

@@ -259,20 +259,20 @@ function renderTrend(documentRef, card, state, minutes) {
     element('span', { document: documentRef, attributes: { style: 'font-weight:400;color:var(--text-secondary);font-size:12px;' }, text: `（最近 ${timeLabel}）` })));
   if (state.error) { card.append(element('p', { document: documentRef, className: 'feedback__error', text: state.error.message })); return; }
   const metrics = state.value || {};
-  const buckets = Array.isArray(metrics.buckets) ? metrics.buckets.slice(-60) : [];
-  const totals = buckets.reduce((sum, bucket) => ({
-    messages: sum.messages + Number(bucket.messages || 0),
-    prompts: sum.prompts + Number(bucket.prompts || 0),
-    errors: sum.errors + Number(bucket.errors || 0),
-  }), { messages: 0, prompts: 0, errors: 0 });
+  const buckets = Array.isArray(metrics.buckets) ? metrics.buckets.slice(-60).map(normalizeTrendBucket) : [];
   card.append(buildTrendSvg(documentRef, buckets));
   card.append(element('div', { document: documentRef, attributes: { style: 'display:flex;gap:16px;font-size:11.5px;color:var(--text-secondary);margin-top:4px;' } },
-    legendDot(documentRef, 'green', '消息'), legendDot(documentRef, 'accent', 'Prompt'), legendDot(documentRef, 'red', '错误')));
-  card.append(element('p', { document: documentRef, className: 'muted', attributes: { style: 'margin-top:8px;' }, text: '每分钟一个桶，包含当前分钟。' }));
-  card.append(element('p', { document: documentRef },
-    element('strong', { document: documentRef, text: '消息 ' }), element('span', { document: documentRef, text: String(totals.messages) + '　' }),
-    element('strong', { document: documentRef, text: 'Prompt ' }), element('span', { document: documentRef, text: String(totals.prompts) + '　' }),
-    element('strong', { document: documentRef, text: '错误 ' }), element('span', { document: documentRef, text: String(totals.errors) })));
+    legendDot(documentRef, 'green', '卡片投递'), legendDot(documentRef, 'accent', '活跃 turn'), legendDot(documentRef, 'red', '超时/取消')));
+}
+
+function normalizeTrendBucket(bucket) {
+  const hasPrototypeMetrics = bucket.cardDeliveries != null || bucket.activeTurns != null || bucket.timeoutsOrCancels != null;
+  return {
+    ...bucket,
+    cardDeliveries: hasPrototypeMetrics ? Number(bucket.cardDeliveries || 0) : Number(bucket.messages || 0),
+    activeTurns: hasPrototypeMetrics ? Number(bucket.activeTurns || 0) : Number(bucket.prompts || 0),
+    timeoutsOrCancels: hasPrototypeMetrics ? Number(bucket.timeoutsOrCancels || 0) : Number(bucket.errors || 0),
+  };
 }
 
 function legendDot(documentRef, color, label) {
@@ -282,11 +282,11 @@ function legendDot(documentRef, color, label) {
 }
 
 function buildTrendSvg(documentRef, buckets) {
-  const svg = element('svg', { document: documentRef, attributes: { viewBox: '0 0 480 160', style: 'width:100%;height:150px;', 'aria-label': 'Turn 与投递趋势' } });
+  const svg = svgElement(documentRef, 'svg', { viewBox: '0 0 480 160', style: 'width:100%;height:150px;', 'aria-label': 'Turn 与投递趋势' });
   const series = [
-    { key: 'messages', color: 'var(--green)' },
-    { key: 'prompts', color: 'var(--accent)' },
-    { key: 'errors', color: 'var(--red)' },
+    { key: 'cardDeliveries', color: '#16a34a' },
+    { key: 'activeTurns', color: '#2563eb' },
+    { key: 'timeoutsOrCancels', color: '#dc2626' },
   ];
   const width = 480, height = 160, pad = 8;
   const n = Math.max(buckets.length, 1);
@@ -298,10 +298,18 @@ function buildTrendSvg(documentRef, buckets) {
       const y = height - pad - (v / max) * (height - pad * 2);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ') || `${pad},${height - pad}`;
-    const poly = element('polyline', { document: documentRef, attributes: { points: pts, fill: 'none', stroke: color, 'stroke-width': '2' } });
+    const poly = svgElement(documentRef, 'polyline', { points: pts, fill: 'none', stroke: color, 'stroke-width': '2' });
     svg.append(poly);
   }
   return svg;
+}
+
+function svgElement(documentRef, tagName, attributes) {
+  const node = documentRef.createElementNS('http://www.w3.org/2000/svg', tagName);
+  for (const [name, value] of Object.entries(attributes || {})) {
+    if (value != null) node.setAttribute(name, value);
+  }
+  return node;
 }
 
 function renderActive(documentRef, context, card, state) {
@@ -321,7 +329,7 @@ function renderActive(documentRef, context, card, state) {
   card.append(tableWrap);
   if (state.error) { tableWrap.append(element('p', { document: documentRef, className: 'feedback__error', text: state.error.message })); return; }
 
-  const allSessions = normalizeList(state.value).filter(isActiveSession).sort((a, b) => Number(b.lastActiveAt || 0) - Number(a.lastActiveAt || 0));
+  const allSessions = normalizeList(state.value).filter(isActiveSession).sort((a, b) => Number(b.opencodeSessionCreatedAt || b.createdAt || 0) - Number(a.opencodeSessionCreatedAt || a.createdAt || 0));
 
   const pager = element('div', { document: documentRef, className: 'pagination' });
   const pagerInfo = element('span', { document: documentRef, className: 'pagination-info' });
@@ -372,7 +380,9 @@ function renderActive(documentRef, context, card, state) {
         { key: 'runtime', label: 'Runtime', render: row => row.runtimeId || row.runtime || '—' },
         { key: 'opencode', label: 'OpenCode', render: row => shortId(row.opencodeSessionId || '—') },
         { key: 'cwd', label: 'cwd', render: row => compactPath(row.cwd) },
-        { key: 'lastActiveAt', label: '最近事件', render: row => formatDateTime(row.lastActiveAt) },
+        { key: 'createdAt', label: '会话创建时间', render: row => formatDateTime(row.opencodeSessionCreatedAt || row.createdAt) },
+        { key: 'lastBusinessEventAt', label: '最近事件', render: row => formatDateTime(row.lastBusinessEventAt) },
+        { key: 'lastHeartbeatAt', label: '最近心跳', render: row => formatDateTime(row.lastHeartbeatAt) },
       ],
       rows: pageItems,
     });
@@ -392,4 +402,3 @@ function renderActive(documentRef, context, card, state) {
   });
   renderPage();
 }
-

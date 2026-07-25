@@ -75,33 +75,46 @@ class OpencodeDriver extends AgentDriver {
 
   async createSession(options) {
     const cwd = options.cwd || process.cwd();
-    const url = this._buildUrl('/session', { directory: cwd });
-    const body = {
-      title: options.title || 'walker session',
+    const v2Url = this._buildUrl('/api/session', {});
+    const v2Body = {
+      location: { directory: cwd },
     };
-    if (options.model) body.model = options.model;
-    if (options.agent) body.agent = options.agent;
+    if (options.model) v2Body.model = options.model;
+    if (options.agent) v2Body.agent = options.agent;
 
     try {
-      const resp = await this.httpClient.request('POST', url, body);
-      const status = resp && resp.status;
+      let resp = await this.httpClient.request('POST', v2Url, v2Body);
+      let status = resp && resp.status;
+      if (status === 404 || status === 405) {
+        const legacyUrl = this._buildUrl('/session', { directory: cwd });
+        const legacyBody = {
+          title: options.title || 'walker session',
+        };
+        if (options.model) legacyBody.model = options.model;
+        if (options.agent) legacyBody.agent = options.agent;
+        resp = await this.httpClient.request('POST', legacyUrl, legacyBody);
+        status = resp && resp.status;
+      }
       const responseSummary = this._summarizeResponse(resp);
       if (typeof status === 'number' && (status < 200 || status >= 300)) {
         throw new Error('HTTP ' + status + ' from ' + this.serverUrl + ': ' + responseSummary);
       }
 
-      const sessionId = resp && (resp.id || resp.sessionID || resp.sessionId || (resp.data && (resp.data.id || resp.data.sessionID || resp.data.sessionId)));
+      const data = resp && resp.data;
+      const sessionData = data && data.data ? data.data : data;
+      const sessionId = resp && (resp.id || resp.sessionID || resp.sessionId || (sessionData && (sessionData.id || sessionData.sessionID || sessionData.sessionId)));
       if (!sessionId) {
         throw new Error('missing session id from ' + this.serverUrl + ': ' + responseSummary);
       }
       logger.info('opencode session created', { opencodeSessionId: sessionId });
 
-      await this._openTerminalForSession(sessionId, cwd);
+      const sessionCwd = (sessionData && sessionData.location && sessionData.location.directory) || resp.directory || cwd;
+      await this._openTerminalForSession(sessionId, sessionCwd);
 
       return {
         opencodeSessionId: sessionId,
         serverUrl: this.serverUrl,
-        cwd,
+        cwd: sessionCwd,
       };
     } catch (err) {
       throw new Error('Failed to create opencode session at ' + this.serverUrl + ': ' + err.message);

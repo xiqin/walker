@@ -8,6 +8,7 @@ const { PromptHeartbeat } = require('./heartbeat');
 const { ProgressRenderer } = require('./progress-renderer');
 const { PermissionHandler } = require('./permission-handler');
 const { QuestionHandler } = require('./question-handler');
+const { recordEvent, recordMetric } = require('../admin/event-store');
 
 const logger = createLogger('message-dispatcher');
 const DEFAULT_HEARTBEAT_INITIAL_MS = 30000;
@@ -37,6 +38,7 @@ class MessageDispatcher {
     this.driverRegistry = options.driverRegistry;
     this.feishuApi = options.feishuApi;
     this.dedup = options.dedup;
+    this.eventStore = options.eventStore;
     this.routeMode = options.routeMode || 'thread';
     this.reactionEmoji = options.reactionEmoji || '';
     this.doneEmoji = options.doneEmoji || '';
@@ -120,6 +122,18 @@ class MessageDispatcher {
 
     let routeKey = event.routeKey || buildRouteKey(event, this.routeMode);
     logger.info('message accepted by dedup', { messageId: event.messageId, routeKey });
+    this._recordAdminMetric('messages');
+    this._recordAdminEvent({
+      type: 'message.received',
+      routeKey,
+      message: 'incoming message received',
+      data: {
+        messageId: event.messageId || '',
+        chatId: event.chatId || '',
+        rootId: event.rootId || '',
+        textLength: event.text ? event.text.length : 0,
+      },
+    });
 
     let current = this.sessionService.getCurrent(routeKey);
     if (!current && this.routeMode === 'thread' && event.rootId && event.chatId) {
@@ -176,7 +190,8 @@ class MessageDispatcher {
       opencodeSessionId: agentRef.opencodeSessionId,
     });
 
-    return this._enqueueRouteLock(routeKey, () => this._enqueuePrompt(current, event, driver, agentRef));
+    const promptEvent = event.routeKey === routeKey ? event : { ...event, routeKey };
+    return this._enqueueRouteLock(routeKey, () => this._enqueuePrompt(current, promptEvent, driver, agentRef));
   }
 
   /**
@@ -198,7 +213,12 @@ class MessageDispatcher {
         const stopHeartbeat = this._startPromptHeartbeat(session, progressCardId);
         const turnState = this._startTurnState(session, event, driver, agentRef, token, progressCardId, stopHeartbeat);
         const model = this._resolveSessionModel(session);
+        const promptStartedAt = Date.now();
+        this._recordAdminMetric('prompts');
+        this._recordAdminMetric('activeTurns');
+        if (progressCardId) this._recordAdminMetric('cardDeliveries');
         const events = await driver.prompt(agentRef, event.text, { model, signal: turnState.abortController.signal });
+        this._recordAdminMetric('promptDurationMs', Date.now() - promptStartedAt);
         if (this._isTurnCancelled(sessionId, token)) {
           this._clearTurnState(sessionId, token);
           return 'cancelled';
@@ -216,6 +236,15 @@ class MessageDispatcher {
             sessionId,
             error: errorEvent.data.message,
           });
+          this._recordAdminMetric('errors');
+          this._recordAdminEvent({
+            type: 'prompt.error',
+            level: 'error',
+            sessionId,
+            routeKey: event.routeKey || buildRouteKey(event, this.routeMode),
+            message: errorEvent.data.message,
+            data: { messageId: event.messageId || '' },
+          });
           this._markErrorIfActive(sessionId, errorEvent.data.message);
           await this._callFeishu('sendErrorCard', [this._replyCtx(event), errorEvent.data.message]);
           return 'error';
@@ -223,6 +252,13 @@ class MessageDispatcher {
         this._touchTurnState(turnState);
         await this._renderEvents(session, event, events, progressCardId);
         this._markIdleIfActive(sessionId);
+        this._recordAdminEvent({
+          type: 'prompt.completed',
+          sessionId,
+          routeKey: event.routeKey || buildRouteKey(event, this.routeMode),
+          message: 'prompt completed',
+          data: { messageId: event.messageId || '', eventCount: events.length },
+        });
         return 'prompted';
       } catch (err) {
         if (this._isTurnCancelled(sessionId, token)) {
@@ -263,6 +299,15 @@ class MessageDispatcher {
           error: err.message,
           code: err.code || 'unknown',
         });
+        this._recordAdminMetric('errors');
+        this._recordAdminEvent({
+          type: 'prompt.failed',
+          level: 'error',
+          sessionId,
+          routeKey: event.routeKey || buildRouteKey(event, this.routeMode),
+          message: err.message,
+          data: { messageId: event.messageId || '', code: err.code || 'unknown' },
+        });
         this._markErrorIfActive(sessionId, err.message);
         await this._callFeishu('sendErrorCard', [this._replyCtx(event), err.message]);
         return 'error';
@@ -298,6 +343,17 @@ class MessageDispatcher {
       logger.info('skipping duplicate command', { command: cmd.name, messageId: cmd.messageId });
       return { duplicate: true };
     }
+    this._recordAdminMetric('commands');
+    this._recordAdminEvent({
+      type: 'command.received',
+      routeKey: cmd.routeKey || '',
+      message: '/' + (cmd.name || ''),
+      data: {
+        command: cmd.name || '',
+        messageId: cmd.messageId || '',
+        chatId: cmd.chatId || '',
+      },
+    });
 
     try {
       const handlers = {
@@ -511,6 +567,16 @@ class MessageDispatcher {
     const extraCwds = this._collectKnownSessionCwds();
     const remoteSessions = await driver.listSessions({ extraCwds });
     const managedIds = this._managedOpencodeSessionIds();
+    // 主动清理孤儿 session：Walker 管理中但 OpenCode 端已不存在的 session
+    const remoteIds = new Set(remoteSessions.map((s) => s.id));
+    for (const session of this.sessionService.listSessions()) {
+      const ocId = session && session.agentRef && session.agentRef.opencodeSessionId;
+      if (ocId && managedIds.has(ocId) && !remoteIds.has(ocId) && !this._isSessionRefActive(session)) {
+        logger.info('proactive orphan cleanup in /attach', { sessionId: session.id, opencodeSessionId: ocId });
+        this.sessionService.deleteSession(session.id);
+        managedIds.delete(ocId);
+      }
+    }
     const routeCwd = typeof this.sessionService.getRouteCwd === 'function'
       ? this.sessionService.getRouteCwd(routeKey)
       : '';
@@ -537,6 +603,27 @@ class MessageDispatcher {
 
     const target = remoteSessions.find((session) => session.id === targetOpencodeSessionId);
     if (!target) {
+      // OpenCode 端找不到此 session，检查是否已在 Walker 管理中（孤儿检测）
+      if (managedIds.has(targetOpencodeSessionId)) {
+        const existing = this._findSessionByOpencodeId(targetOpencodeSessionId);
+        if (existing) {
+          if (this._isSessionRefActive(existing)) {
+            this.sessionService.bindRoute(routeKey, existing.id);
+            await this._callFeishu('replyText', [this._replyCtx(cmd), 'Bound to existing Walker session: ' + existing.id]);
+            return { bound: existing.id };
+          }
+          // OpenCode 端已丢失，清理 Walker 中的孤儿引用
+          logger.info('orphaned opencode session detected, cleaning up', {
+            sessionId: existing.id,
+            opencodeSessionId: targetOpencodeSessionId,
+          });
+          this.sessionService.deleteSession(existing.id);
+          await this._callFeishu('sendErrorCard', [this._replyCtx(cmd),
+            'OpenCode session not found (orphan cleaned): ' + targetOpencodeSessionId
+            + '\n已自动清理失效引用，请发送 /attach 重新绑定新会话。']);
+          return { orphanCleaned: true };
+        }
+      }
       await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), 'OpenCode session not found: ' + targetOpencodeSessionId]);
       return { notFound: true };
     }
@@ -1134,6 +1221,7 @@ class MessageDispatcher {
   }
 
   async _cancelTurn(session, driver, turnState, options) {
+    this._recordAdminMetric('timeoutsOrCancels');
     return this.turnStateManager._cancelTurn(session, driver, turnState, options);
   }
 
@@ -1386,6 +1474,24 @@ class MessageDispatcher {
 
   _sendFeishu(methodName, args, context) {
     this._callFeishu(methodName, args, undefined, context);
+  }
+
+  _recordAdminEvent(event) {
+    if (!this.eventStore) return;
+    try {
+      recordEvent(this.eventStore, event);
+    } catch (err) {
+      logger.warn('admin event record failed', { error: err && err.message ? err.message : String(err) });
+    }
+  }
+
+  _recordAdminMetric(name, value) {
+    if (!this.eventStore) return;
+    try {
+      recordMetric(this.eventStore, name, value);
+    } catch (err) {
+      logger.warn('admin metric record failed', { metric: name, error: err && err.message ? err.message : String(err) });
+    }
   }
 
   async _callFeishu(methodName, args, fallback, context) {

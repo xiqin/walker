@@ -1,5 +1,6 @@
 import { element, listen, replace, setBusy } from '../dom.js';
 import { createTabs } from '../components/tabs.js';
+import { createToast } from '../components/feedback.js';
 
 const CONFIG_TABS = [
   { id: 'cfg-feishu', label: '飞书凭据', groups: ['feishu'], hint: '飞书后台需：自建应用 + 已开启机器人能力 + 长连接接收事件 + 订阅 im.message.receive_v1 + 单聊/群聊消息读取权限，并发布版本后生效。' },
@@ -43,31 +44,59 @@ export function createConfigWorkspace(options = {}) {
   const root = element('section', { document: documentRef, className: 'workspace workspace--config', attributes: { 'aria-labelledby': 'config-title' } });
   const heading = element('h1', { document: documentRef, className: 'visually-hidden', text: '配置', attributes: { id: 'config-title' } });
   const note = element('div', { document: documentRef, className: 'note-box', text: '以下字段与 .env 中的环境变量一一对应，保存后需重启 Walker 生效。' });
+
+  const toast = createToast({ document: documentRef });
+
+  const searchBox = element('div', { document: documentRef, className: 'config-search', attributes: { style: 'margin-bottom:16px;' } });
+  const searchInput = element('input', {
+    document: documentRef,
+    className: 'search-input',
+    attributes: {
+      type: 'text',
+      placeholder: '搜索配置项（标签、环境变量名）...',
+      'aria-label': '搜索配置项',
+      style: 'width:100%;',
+    },
+  });
+  searchBox.append(searchInput);
+
   const form = element('form', { document: documentRef, attributes: { 'aria-label': 'Walker 配置' } });
-  const errorBox = element('div', { document: documentRef, className: 'note-box', attributes: { hidden: '' } });
-  root.append(heading, note, form, errorBox);
+  const errorBox = element('div', { document: documentRef, className: 'note-box error-box', attributes: { hidden: '', style: 'background:#fde8e8;color:#dc2626;border-color:#f3c6c6;' } });
+  root.append(heading, note, searchBox, form, errorBox, toast.element);
+
   let summary = options.summary || null;
   let values = {};
   let originalValues = {};
   let inputs = new Map();
+  let errorElements = new Map();
   let active = true;
   const cleanups = [];
   let tabs = null;
+  let searchQuery = '';
 
   function fieldRow(item) {
     if (item.display === 'switch') {
       return switchRow(item);
     }
-    const row = element('div', { document: documentRef, className: 'field' });
+    const row = element('div', { document: documentRef, className: 'field config-field', dataset: { env: item.env, label: (item.label || '').toLowerCase(), envLower: (item.env || '').toLowerCase() } });
     const labelText = `${item.label} `;
     const labelEl = element('label', { document: documentRef },
       element('span', { document: documentRef, text: labelText }), element('span', { document: documentRef, className: 'envkey', text: item.env }));
+
+    const errorEl = element('div', { document: documentRef, className: 'field-error', attributes: { style: 'color:#dc2626;font-size:12px;margin-top:4px;display:none;' } });
+
     if (item.secret) {
-      row.append(labelEl, element('span', { document: documentRef, text: item.configured ? '已配置' : '未配置' }));
+      const statusEl = element('span', {
+        document: documentRef,
+        className: item.configured ? 'badge badge-green' : 'badge badge-gray',
+        text: item.configured ? '已配置' : '未配置',
+        attributes: { style: 'margin-left:8px;' },
+      });
+      row.append(labelEl, statusEl);
     } else if (item.editable) {
       const input = item.input?.type === 'enum'
         ? element('select', { document: documentRef, className: 'select', attributes: { name: item.env, 'aria-label': item.label } })
-        : element('input', { document: documentRef, attributes: { name: item.env, 'aria-label': item.label, type: item.input?.type === 'number' ? 'number' : 'text', placeholder: item.input?.placeholder || '' } });
+        : element('input', { document: documentRef, className: 'config-input', attributes: { name: item.env, 'aria-label': item.label, type: item.input?.type === 'number' ? 'number' : 'text', placeholder: item.input?.placeholder || '' } });
       if (item.input?.values) for (const choice of item.input.values) {
         const displayText = item.input.labels?.[choice] || choice;
         const option = element('option', { document: documentRef, text: displayText, attributes: { value: choice } });
@@ -75,9 +104,16 @@ export function createConfigWorkspace(options = {}) {
       }
       input.value = values[item.env] ?? item.value ?? '';
       inputs.set(item.env, input);
-      cleanups.push(listen(input, 'input', () => { values[item.env] = input.value; }));
-      cleanups.push(listen(input, 'change', () => { values[item.env] = input.value; }));
-      row.append(labelEl, input);
+      cleanups.push(listen(input, 'input', () => {
+        values[item.env] = input.value;
+        clearFieldError(item.env);
+      }));
+      cleanups.push(listen(input, 'change', () => {
+        values[item.env] = input.value;
+        clearFieldError(item.env);
+      }));
+      row.append(labelEl, input, errorEl);
+      errorElements.set(item.env, errorEl);
     } else {
       row.append(labelEl, element('span', { document: documentRef, text: item.value ?? '' }));
     }
@@ -88,7 +124,7 @@ export function createConfigWorkspace(options = {}) {
   }
 
   function switchRow(item) {
-    const row = element('div', { document: documentRef, className: 'switch-row' });
+    const row = element('div', { document: documentRef, className: 'switch-row config-field', dataset: { env: item.env, label: (item.label || '').toLowerCase(), envLower: (item.env || '').toLowerCase() } });
     const left = element('div', { document: documentRef },
       element('div', { document: documentRef, className: 'switch-name', text: item.label }),
       element('div', { document: documentRef, className: 'switch-desc' },
@@ -107,13 +143,29 @@ export function createConfigWorkspace(options = {}) {
     return row;
   }
 
+  function filterFields() {
+    const query = searchQuery.toLowerCase().trim();
+    const fields = form.querySelectorAll('.config-field');
+    for (const field of fields) {
+      if (!query) {
+        field.style.display = '';
+        continue;
+      }
+      const label = field.dataset.label || '';
+      const env = field.dataset.envLower || '';
+      const match = label.includes(query) || env.includes(query);
+      field.style.display = match ? '' : 'none';
+    }
+  }
+
   function render() {
     inputs = new Map();
+    errorElements = new Map();
     if (tabs) tabs.cleanup();
     const panels = [];
     for (const tab of CONFIG_TABS) {
       const panel = element('section', { document: documentRef, className: 'subpage' });
-      const card = element('div', { document: documentRef, className: 'card', attributes: { style: 'max-width:720px;' } });
+      const card = element('div', { document: documentRef, className: 'card' });
       const grid = element('div', { document: documentRef, className: 'form-grid' });
       let count = 0;
       for (const group of summary?.groups || []) {
@@ -123,13 +175,45 @@ export function createConfigWorkspace(options = {}) {
       if (count === 0) card.append(element('p', { document: documentRef, className: 'muted', text: '该分组未通过 API 暴露可编辑项，请在 .env 中配置。' }));
       card.append(grid);
       if (tab.hint) card.append(element('div', { document: documentRef, className: 'hint', attributes: { style: 'margin-bottom:12px;' }, text: tab.hint }));
+
+      const buttonGroup = element('div', { document: documentRef, attributes: { style: 'display:flex;gap:8px;margin-top:14px;' } });
+      const resetButton = element('button', { document: documentRef, className: 'btn', text: '重置为默认值', attributes: { type: 'button' } });
       const saveButton = element('button', { document: documentRef, className: 'btn btn-primary', text: '保存更改', attributes: { type: 'submit' } });
-      card.append(element('div', { document: documentRef, attributes: { style: 'margin-top:14px;' } }, saveButton));
+      buttonGroup.append(resetButton, saveButton);
+
+      cleanups.push(listen(resetButton, 'click', () => {
+        if (!confirm('确定要重置当前分组的所有配置为默认值吗？')) return;
+        resetTabDefaults(tab.groups);
+        toast.show('已重置为默认值（未保存）', 'neutral', 3000);
+      }));
+
+      card.append(buttonGroup);
       panel.append(card);
       panels.push({ id: tab.id, label: tab.label, panel });
     }
     tabs = createTabs({ document: documentRef, label: '配置分组', tabs: panels });
     form.replaceChildren(tabs.element, ...panels.map(p => p.panel));
+    filterFields();
+  }
+
+  function resetTabDefaults(groupIds) {
+    for (const group of summary?.groups || []) {
+      if (!groupIds.includes(group.id)) continue;
+      for (const item of group.items || []) {
+        if (!item.editable || item.secret) continue;
+        const defaultValue = item.defaultValue ?? '';
+        values[item.env] = defaultValue;
+        const input = inputs.get(item.env);
+        if (input) {
+          if (input.element) {
+            input.value = defaultValue === 'true';
+            input.element.checked = defaultValue === 'true';
+          } else {
+            input.value = defaultValue;
+          }
+        }
+      }
+    }
   }
 
   function applySummary(nextSummary) {
@@ -164,12 +248,46 @@ export function createConfigWorkspace(options = {}) {
     }
   }
 
+  function showFieldError(env, message) {
+    const errorEl = errorElements.get(env);
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    }
+    const field = form.querySelector(`[data-env="${env}"]`);
+    if (field) {
+      const input = field.querySelector('input, select');
+      if (input) input.style.borderColor = '#dc2626';
+    }
+  }
+
+  function clearFieldError(env) {
+    const errorEl = errorElements.get(env);
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.style.display = 'none';
+    }
+    const field = form.querySelector(`[data-env="${env}"]`);
+    if (field) {
+      const input = field.querySelector('input, select');
+      if (input) input.style.borderColor = '';
+    }
+  }
+
+  function clearAllErrors() {
+    for (const [env] of errorElements) clearFieldError(env);
+  }
+
   function validate() {
     const errors = {};
+    clearAllErrors();
     for (const group of summary?.groups || []) for (const item of group.items || []) {
       if (!item.editable || item.secret || !item.input) continue;
       const message = validationMessage(values[item.env], item.input);
-      if (message) errors[item.env] = message;
+      if (message) {
+        errors[item.env] = message;
+        showFieldError(item.env, message);
+      }
     }
     return errors;
   }
@@ -181,12 +299,16 @@ export function createConfigWorkspace(options = {}) {
   function hideError() {
     errorBox.setAttribute('hidden', '');
     errorBox.textContent = '';
+    clearAllErrors();
   }
 
   async function save() {
     const errors = validate();
     if (Object.keys(errors).length) {
-      showError('请修正配置校验错误');
+      const firstErrorEnv = Object.keys(errors)[0];
+      const firstErrorField = form.querySelector(`[data-env="${firstErrorEnv}"]`);
+      if (firstErrorField) firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showError(`请修正 ${Object.keys(errors).length} 个配置错误`);
       throw new Error('请修正配置校验错误');
     }
     const allowed = new Set(summary?.editableKeys || []);
@@ -197,6 +319,7 @@ export function createConfigWorkspace(options = {}) {
       const result = responseData(await options.api.patch('/api/admin/config', body, { signal: options.signal }));
       originalValues = { ...values };
       hideError();
+      toast.show('配置已保存，重启 Walker 后生效', 'success', 4000);
       return result;
     } catch (error) {
       values = { ...originalValues };
@@ -209,6 +332,8 @@ export function createConfigWorkspace(options = {}) {
   }
 
   cleanups.push(listen(form, 'submit', event => { event.preventDefault(); save().catch(() => undefined); }));
+  cleanups.push(listen(searchInput, 'input', () => { searchQuery = searchInput.value; filterFields(); }));
+
   if (summary) applySummary(summary);
   function cleanup() { active = false; if (tabs) tabs.cleanup(); for (const dispose of cleanups) dispose(); }
   return { element: root, load, save, validate, setValue, getValue: key => values[key], getGroups: () => summary?.groups || [], cleanup, get active() { return active; } };

@@ -5,6 +5,8 @@ const { parseBody } = require('./auth');
 const { buildConfigSummary } = require('./config');
 const { updateDotEnv } = require('./config-editor');
 const { recordEvent } = require('./event-store');
+const fs = require('fs');
+const path = require('path');
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 
@@ -89,6 +91,68 @@ function createConfigRoutes(appContext) {
         }));
       } catch (err) {
         send(res, error('BAD_REQUEST', err.message), 400);
+      }
+    },
+  });
+
+  /**
+   * POST /api/admin/config/reload
+   * 热更新配置：重新加载 .env 文件并更新 process.env
+   */
+  routes.push({
+    method: 'POST',
+    pattern: '/api/admin/config/reload',
+    handler: async function configReloadHandler(_req, res) {
+      const envPath = ctx.envPath || path.join(process.cwd(), '.env');
+
+      try {
+        if (!fs.existsSync(envPath)) {
+          send(res, error('NOT_FOUND', '.env 文件不存在'), 404);
+          return;
+        }
+
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        const envVars = {};
+        const lines = envContent.split('\n');
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+
+          const eqIndex = trimmed.indexOf('=');
+          if (eqIndex === -1) continue;
+
+          const key = trimmed.slice(0, eqIndex).trim();
+          let value = trimmed.slice(eqIndex + 1).trim();
+
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+
+          envVars[key] = value;
+        }
+
+        const updatedKeys = [];
+        for (const [key, value] of Object.entries(envVars)) {
+          if (process.env[key] !== value) {
+            process.env[key] = value;
+            updatedKeys.push(key);
+          }
+        }
+
+        recordEvent(ctx.eventStore, {
+          type: 'config.reload',
+          message: '配置已热更新',
+          data: { updatedKeys, envPath },
+        });
+
+        send(res, success({
+          reloaded: true,
+          updatedKeys,
+          envPath,
+        }));
+      } catch (err) {
+        send(res, error('INTERNAL_ERROR', `配置热更新失败：${err.message}`), 500);
       }
     },
   });

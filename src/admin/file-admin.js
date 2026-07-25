@@ -5,6 +5,10 @@ const path = require('path');
 
 const MAX_LOG_LINES = 500;
 const MAX_LOG_LINES_CAP = 5000;
+const LOG_FILE_OUT = 'walker-out.log';
+const LOG_FILE_ERR = 'walker-err.log';
+
+const crypto = require('crypto');
 
 /**
  * 安全解析路径并验证其在指定根目录内，防止路径穿越
@@ -54,8 +58,11 @@ function readLogs(options) {
   const stream = opts.stream || 'out';
   const maxLines = Math.min(Math.max(opts.lines || MAX_LOG_LINES, 1), MAX_LOG_LINES_CAP);
 
-  const logFileName = stream === 'err' ? 'walker-err.log' : 'walker-out.log';
-  const logPath = path.join(dataDir, 'logs', logFileName);
+  const logFileName = stream === 'err' ? LOG_FILE_ERR : LOG_FILE_OUT;
+  const dataDirLogPath = path.join(dataDir, 'logs', logFileName);
+  const cwdLogPath = path.join(process.cwd(), 'logs', logFileName);
+
+  const logPath = fs.existsSync(dataDirLogPath) ? dataDirLogPath : cwdLogPath;
 
   if (!fs.existsSync(logPath)) {
     return { lines: [], total: 0, filtered: 0 };
@@ -111,19 +118,28 @@ function readLogs(options) {
 /**
  * 列出附件目录下的所有附件文件，按 session 分组
  * @param {string} dataDir - 数据目录绝对路径
- * @returns {{ groups: Object[], totalFiles: number }}
+ * @param {Object} [options] - 分页选项
+ * @param {number} [options.limit] - 每页数量，默认 50
+ * @param {number} [options.offset] - 偏移量，默认 0
+ * @returns {{ groups: Object[], totalFiles: number, totalGroups: number, hasMore: boolean }}
  */
-function listAttachments(dataDir) {
+function listAttachments(dataDir, options) {
+  const opts = options || {};
+  const limit = Math.min(Math.max(opts.limit || 50, 1), 500);
+  const offset = Math.max(opts.offset || 0, 0);
   const attachDir = path.join(dataDir, 'attachments');
   if (!fs.existsSync(attachDir)) {
-    return { groups: [], totalFiles: 0 };
+    return { groups: [], totalFiles: 0, totalGroups: 0, hasMore: false };
   }
 
   const groups = [];
   let totalFiles = 0;
+  let totalGroups = 0;
 
   try {
     const sessionDirs = fs.readdirSync(attachDir);
+    totalGroups = sessionDirs.length;
+
     for (const sessionId of sessionDirs) {
       const sessionPath = path.join(attachDir, sessionId);
       if (!fs.statSync(sessionPath).isDirectory()) continue;
@@ -155,10 +171,13 @@ function listAttachments(dataDir) {
       }
     }
   } catch (_e) {
-    return { groups: [], totalFiles: 0 };
+    return { groups: [], totalFiles: 0, totalGroups: 0, hasMore: false };
   }
 
-  return { groups, totalFiles };
+  const paginatedGroups = groups.slice(offset, offset + limit);
+  const hasMore = offset + limit < groups.length;
+
+  return { groups: paginatedGroups, totalFiles, totalGroups, hasMore };
 }
 
 /**
@@ -285,6 +304,128 @@ function cleanupOrphanAttachments(dataDir, sessionsData, confirm) {
   return { ok: true, cleaned };
 }
 
+/**
+ * 验证文件完整性：计算文件的 SHA256 校验和
+ * @param {string} filePath - 文件绝对路径
+ * @returns {{ ok: boolean, sha256?: string, size?: number, error?: string }}
+ */
+function verifyFileIntegrity(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return { ok: false, error: '文件不存在' };
+  }
+
+  try {
+    const stat = fs.statSync(filePath);
+    const buffer = fs.readFileSync(filePath);
+    const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+    return { ok: true, sha256, size: stat.size };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * 日志轮转：当日志文件超过指定大小时，将其重命名为带时间戳的备份文件
+ * @param {string} dataDir - 数据目录绝对路径
+ * @param {Object} [options] - 轮转选项
+ * @param {number} [options.maxSizeMB] - 最大大小（MB），默认 10
+ * @param {number} [options.maxBackups] - 最大备份数，默认 5
+ * @returns {{ ok: boolean, rotated?: string[], error?: string }}
+ */
+function rotateLogs(dataDir, options) {
+  const opts = options || {};
+  const maxSizeBytes = (opts.maxSizeMB || 10) * 1024 * 1024;
+  const maxBackups = opts.maxBackups || 5;
+  const logsDir = path.join(dataDir, 'logs');
+
+  if (!fs.existsSync(logsDir)) {
+    return { ok: true, rotated: [] };
+  }
+
+  const rotated = [];
+  const logFiles = [LOG_FILE_OUT, LOG_FILE_ERR];
+
+  for (const logFile of logFiles) {
+    const logPath = path.join(logsDir, logFile);
+    if (!fs.existsSync(logPath)) continue;
+
+    try {
+      const stat = fs.statSync(logPath);
+      if (stat.size > maxSizeBytes) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupName = `${logFile}.${timestamp}`;
+        const backupPath = path.join(logsDir, backupName);
+        fs.renameSync(logPath, backupPath);
+        rotated.push(backupName);
+
+        const backups = fs.readdirSync(logsDir)
+          .filter((f) => f.startsWith(logFile + '.'))
+          .sort()
+          .reverse();
+
+        while (backups.length > maxBackups) {
+          const oldBackup = backups.pop();
+          try {
+            fs.unlinkSync(path.join(logsDir, oldBackup));
+          } catch (_e) {
+            continue;
+          }
+        }
+      }
+    } catch (_e) {
+      continue;
+    }
+  }
+
+  return { ok: true, rotated };
+}
+
+/**
+ * 清理指定 session 的附件
+ * @param {string} dataDir - 数据目录绝对路径
+ * @param {string} sessionId - 要清理的 session ID
+ * @param {boolean} confirm - 是否确认清理
+ * @returns {{ ok: boolean, cleaned?: string[], error?: string }}
+ */
+function cleanupSessionAttachments(dataDir, sessionId, confirm) {
+  if (!confirm) {
+    return { ok: false, error: '清理需要 confirm=true 确认' };
+  }
+
+  const attachDir = path.join(dataDir, 'attachments');
+  const sessionPath = path.join(attachDir, sessionId);
+
+  if (!fs.existsSync(sessionPath)) {
+    return { ok: true, cleaned: [] };
+  }
+
+  const cleaned = [];
+  try {
+    const files = fs.readdirSync(sessionPath);
+    for (const name of files) {
+      const filePath = path.join(sessionPath, name);
+      try {
+        fs.unlinkSync(filePath);
+        cleaned.push(name);
+      } catch (_e) {
+        continue;
+      }
+    }
+
+    if (cleaned.length === files.length) {
+      try {
+        fs.rmdirSync(sessionPath);
+      } catch (_e) {
+        // 忽略删除目录失败
+      }
+    }
+  } catch (_e) {
+    return { ok: false, error: _e.message };
+  }
+
+  return { ok: true, cleaned };
+}
+
 module.exports = {
   safeResolve,
   readLogs,
@@ -293,4 +434,7 @@ module.exports = {
   deleteAttachment,
   findOrphanAttachments,
   cleanupOrphanAttachments,
+  verifyFileIntegrity,
+  rotateLogs,
+  cleanupSessionAttachments,
 };

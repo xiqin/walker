@@ -122,13 +122,67 @@ describe('OpencodeDriver ensureReady', () => {
 });
 
 describe('OpencodeDriver createSession', () => {
-  it('调用 POST /session 创建 opencode session 并调用 runtime.openTerminal', async () => {
+  it('优先调用 v2 /api/session 创建 opencode session', async () => {
     const http = new FakeHttpClient({
+      'POST http://localhost:4096/api/session': {
+        status: 200,
+        data: {
+          data: {
+            id: 'ses_v2abc123',
+            location: { directory: 'H:\\walker' },
+          },
+        },
+      },
+    });
+    const openTerminalCalls = [];
+    const runtime = {
+      openTerminal: async (cmd, args, opts) => {
+        openTerminalCalls.push({ cmd, args, opts });
+      },
+    };
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', runtime });
+
+    const result = await driver.createSession({ title: 'walker session', cwd: 'H:\\walker' });
+
+    assert.equal(result.opencodeSessionId, 'ses_v2abc123');
+    assert.equal(result.cwd, 'H:\\walker');
+    assert.equal(http.calls.length, 1);
+    assert.equal(http.calls[0].url, 'http://localhost:4096/api/session');
+    assert.deepEqual(http.calls[0].body, { location: { directory: 'H:\\walker' } });
+    assert.deepEqual(openTerminalCalls[0].args, [
+      'attach',
+      'http://localhost:4096',
+      '-s',
+      'ses_v2abc123',
+      '--dir',
+      'H:\\walker',
+    ]);
+  });
+
+  it('v2 /api/session 不存在时回退旧 /session 接口', async () => {
+    const http = new FakeHttpClient({
+      'POST http://localhost:4096/api/session': { status: 404, data: { error: 'not found' } },
       'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
         status: 201,
-        id: 'ses_abc123', title: 'walker session',
-        // eslint-disable-next-line no-dupe-keys
-        status: 'pending',
+        id: 'ses_legacy123',
+        title: 'walker session',
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    const result = await driver.createSession({ title: 'walker session', cwd: '/home/user/project' });
+
+    assert.equal(result.opencodeSessionId, 'ses_legacy123');
+    assert.equal(http.calls.length, 2);
+    assert.equal(http.calls[0].url, 'http://localhost:4096/api/session');
+    assert.equal(http.calls[1].url, 'http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject');
+  });
+
+  it('创建 opencode session 后调用 runtime.openTerminal', async () => {
+    const http = new FakeHttpClient({
+      'POST http://localhost:4096/api/session': {
+        status: 200,
+        data: { id: 'ses_abc123', location: { directory: '/home/user/project' } },
       },
     });
     const openTerminalCalls = [];
@@ -159,11 +213,9 @@ describe('OpencodeDriver createSession', () => {
 
   it('runtime 不支持 openTerminal 时跳过，不报错', async () => {
     const http = new FakeHttpClient({
-      'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
-        status: 201,
-        id: 'ses_abc123', title: 'walker session',
-        // eslint-disable-next-line no-dupe-keys
-        status: 'pending',
+      'POST http://localhost:4096/api/session': {
+        status: 200,
+        data: { id: 'ses_abc123', location: { directory: '/home/user/project' } },
       },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', runtime: { spawn: () => ({}) } });
@@ -173,11 +225,9 @@ describe('OpencodeDriver createSession', () => {
 
   it('没有 runtime 时跳过 openTerminal，不报错', async () => {
     const http = new FakeHttpClient({
-      'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
-        status: 201,
-        id: 'ses_abc123', title: 'walker session',
-        // eslint-disable-next-line no-dupe-keys
-        status: 'pending',
+      'POST http://localhost:4096/api/session': {
+        status: 200,
+        data: { id: 'ses_abc123', location: { directory: '/home/user/project' } },
       },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
@@ -187,11 +237,9 @@ describe('OpencodeDriver createSession', () => {
 
   it('openTerminal 失败时不影响 createSession 结果', async () => {
     const http = new FakeHttpClient({
-      'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
-        status: 201,
-        id: 'ses_abc123', title: 'walker session',
-        // eslint-disable-next-line no-dupe-keys
-        status: 'pending',
+      'POST http://localhost:4096/api/session': {
+        status: 200,
+        data: { id: 'ses_abc123', location: { directory: '/home/user/project' } },
       },
     });
     const runtime = {
@@ -205,7 +253,7 @@ describe('OpencodeDriver createSession', () => {
 
   it('创建失败时抛错含 serverUrl', async () => {
     const http = new FakeHttpClient({
-      ['POST http://localhost:4096/session?directory=' + encodeURIComponent(process.cwd())]: { error: new Error('Internal Server Error') },
+      'POST http://localhost:4096/api/session': { error: new Error('Internal Server Error') },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
     await assert.rejects(() => driver.createSession({}), { message: /serverUrl|opencode/i });
@@ -213,7 +261,7 @@ describe('OpencodeDriver createSession', () => {
 
   it('非 2xx 响应时抛出诊断错误且不打开终端', async () => {
     const http = new FakeHttpClient({
-      'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
+      'POST http://localhost:4096/api/session': {
         status: 500,
         data: { error: 'database unavailable' },
       },
@@ -233,8 +281,8 @@ describe('OpencodeDriver createSession', () => {
 
   it('2xx 响应缺少 session id 时抛出诊断错误且不打开终端', async () => {
     const http = new FakeHttpClient({
-      'POST http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
-        status: 201,
+      'POST http://localhost:4096/api/session': {
+        status: 200,
         data: { title: 'walker session' },
       },
     });

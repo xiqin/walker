@@ -541,7 +541,7 @@ test('REQ-018: runHealthCheck 返回完整检查项', async () => {
   });
 
   const checks = await diagnostics.runHealthCheck(ctx);
-  assert.equal(checks.length, 7);
+  assert.equal(checks.length, 11);
 
   const names = checks.map((c) => c.name);
   assert.ok(names.includes('feishu_credentials'));
@@ -551,6 +551,10 @@ test('REQ-018: runHealthCheck 返回完整检查项', async () => {
   assert.ok(names.includes('runtime'));
   assert.ok(names.includes('log_files'));
   assert.ok(names.includes('dangling_routes'));
+  assert.ok(names.includes('node_version'));
+  assert.ok(names.includes('memory_usage'));
+  assert.ok(names.includes('disk_space'));
+  assert.ok(names.includes('port_status'));
   assert.equal(checks.every((item) => typeof item.group === 'string'), true);
   assert.equal(checks.every((item) => typeof item.checkedAt === 'string'), true);
 });
@@ -665,9 +669,15 @@ test('REQ-018: 日志文件存在时 pass', async () => {
 test('REQ-018: 日志目录不存在时 warn', async () => {
   const dataDir = setupDataDir('t4-logs-none');
   const ctx = buildAppContext({ dataDir });
-  const checks = await diagnostics.runHealthCheck(ctx);
-  const logCheck = checks.find((c) => c.name === 'log_files');
-  assert.equal(logCheck.status, 'warn');
+  const origCwd = process.cwd;
+  process.cwd = () => dataDir;
+  try {
+    const checks = await diagnostics.runHealthCheck(ctx);
+    const logCheck = checks.find((c) => c.name === 'log_files');
+    assert.equal(logCheck.status, 'warn');
+  } finally {
+    process.cwd = origCwd;
+  }
 });
 
 test('REQ-018: 孤立 route 存在时 warn', async () => {
@@ -698,7 +708,7 @@ test('REQ-018: 单项检查失败不导致整体抛错', async () => {
   });
 
   const checks = await diagnostics.runHealthCheck(ctx);
-  assert.equal(checks.length, 7);
+  assert.equal(checks.length, 11);
   const failItems = checks.filter((c) => c.status === 'fail');
   assert.ok(failItems.length > 0);
   const passItems = checks.filter((c) => c.status === 'pass');
@@ -900,7 +910,7 @@ test('GET health 路由返回检查结果', async () => {
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.ok, true);
-  assert.ok(result.body.data.checks.length === 7);
+  assert.ok(result.body.data.checks.length === 11);
   assert.ok(result.body.data.overall);
 });
 

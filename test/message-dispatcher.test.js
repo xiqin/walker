@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
 const { MessageDedup } = require('../src/core/message-dedup');
 const { AgentEvent } = require('../src/drivers/agent-driver');
+const { createEventStore } = require('../src/admin/event-store');
 
 function makeMocks() {
   const sessionService = {
@@ -289,6 +290,36 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(reply.text, 'Hello\n\n---\n模型：未指定');
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'addReaction' && c.emoji === 'OnIt'));
     assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_root1']);
+  });
+
+  it('绑定 session 的消息写入 admin eventStore 供首页活动和趋势使用', async () => {
+    const mocks = makeMocks();
+    const eventStore = createEventStore({ now: () => Date.UTC(2026, 6, 24, 10, 30, 0) });
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+      eventStore,
+    });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_admin_obs1', openId: 'ou_user1', text: '请分析代码',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.equal(eventStore.metrics.messages, 1);
+    assert.equal(eventStore.metrics.prompts, 1);
+    assert.equal(eventStore.metrics.promptDurationsMs.length, 1);
+    assert.equal(eventStore.metrics.entries.some((entry) => entry.name === 'messages'), true);
+    assert.equal(eventStore.metrics.entries.some((entry) => entry.name === 'prompts'), true);
+    assert.equal(eventStore.metrics.entries.some((entry) => entry.name === 'promptDurationMs'), true);
+    assert.ok(eventStore.events.some((entry) => entry.type === 'message.received' && entry.routeKey === 'feishu:oc_chat1:root:om_root1'));
+    assert.ok(eventStore.events.some((entry) => entry.type === 'prompt.completed' && entry.sessionId === 'wks_bound1'));
   });
 
   it('处理中表情发送失败不会产生未捕获 rejection', async () => {

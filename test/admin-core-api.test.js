@@ -383,6 +383,36 @@ test('REQ-004: listSessions 返回 route 归属和 OpenCode 诊断字段', () =>
   assert.equal(free.isUnbound, true);
 });
 
+test('REQ-004: listSessions 按会话创建时间倒序并分离业务事件和心跳时间', () => {
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      { id: 'wks_older_event', agent: 'opencode', title: 'older', runtime: 'windows', cwd: '', status: 'running', agentRef: { opencodeSessionId: 'ses_old', createdAt: 1100 }, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+      { id: 'wks_newer_event', agent: 'opencode', title: 'newer', runtime: 'windows', cwd: '', status: 'running', agentRef: { opencodeSessionId: 'ses_new', opencodeSessionCreatedAt: 2100 }, errorMessage: null, createdAt: 2000, updatedAt: 2000 },
+      { id: 'wks_heartbeat_only', agent: 'opencode', title: 'heartbeat', runtime: 'windows', cwd: '', status: 'running', agentRef: { opencodeSessionId: 'ses_hb' }, errorMessage: null, createdAt: 3000, updatedAt: 3000 },
+    ]),
+    tuiBridge: {
+      getRuntimeSnapshot(runtimeId) {
+        if (runtimeId === 'rt_hb') return { lastHeartbeatAt: 9000, health: { status: 'healthy' } };
+        return null;
+      },
+    },
+  });
+  ctx.sessionService.updateSessionField('wks_heartbeat_only', 'agentRef', { opencodeSessionId: 'ses_hb', runtimeId: 'rt_hb', transport: 'tui-bridge' });
+  recordEvent(ctx.eventStore, { type: 'prompt.completed', sessionId: 'wks_older_event', createdAt: 5000 });
+  recordEvent(ctx.eventStore, { type: 'runtime.heartbeat', sessionId: 'wks_newer_event', createdAt: 8000 });
+  recordEvent(ctx.eventStore, { type: 'message.received', sessionId: 'wks_newer_event', createdAt: 7000 });
+  recordEvent(ctx.eventStore, { type: 'tui.heartbeat', sessionId: 'wks_heartbeat_only', createdAt: 9500 });
+
+  const result = sessionAdmin.listSessions(ctx);
+  assert.deepEqual(result.map((item) => item.id), ['wks_heartbeat_only', 'wks_newer_event', 'wks_older_event']);
+  assert.equal(result[0].lastBusinessEventAt, null);
+  assert.equal(result[0].lastHeartbeatAt, 9000);
+  assert.equal(result[1].lastBusinessEventAt, 7000);
+  assert.equal(result[1].opencodeSessionCreatedAt, 2100);
+  assert.equal(result[2].lastBusinessEventAt, 5000);
+  assert.equal(result[2].opencodeSessionCreatedAt, 1100);
+});
+
 test('REQ-004: getSession 详情包含 routeKeys 和 timeline', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService(

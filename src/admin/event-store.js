@@ -1,7 +1,7 @@
 const MAX_EVENTS = 1000;
 const MAX_METRIC_ENTRIES = 1000;
 const MINUTE_MS = 60 * 1000;
-const METRIC_KEYS = ['messages', 'commands', 'prompts', 'errors'];
+const METRIC_KEYS = ['messages', 'commands', 'prompts', 'errors', 'cardDeliveries', 'activeTurns', 'timeoutsOrCancels'];
 
 /**
  * 创建独立事件指标存储实例
@@ -18,6 +18,9 @@ function createEventStore(options) {
       commands: 0,
       prompts: 0,
       errors: 0,
+      cardDeliveries: 0,
+      activeTurns: 0,
+      timeoutsOrCancels: 0,
       promptDurationsMs: [],
       entries: [],
     },
@@ -162,6 +165,9 @@ function createEmptyBucket(minute) {
     commands: 0,
     prompts: 0,
     errors: 0,
+    cardDeliveries: 0,
+    activeTurns: 0,
+    timeoutsOrCancels: 0,
     promptDurationMs: 0,
   };
 }
@@ -214,6 +220,9 @@ function getMetrics(storeOrNone, options) {
     commands: state.metrics.commands,
     prompts: state.metrics.prompts,
     errors: state.metrics.errors,
+    cardDeliveries: state.metrics.cardDeliveries || 0,
+    activeTurns: state.metrics.activeTurns || 0,
+    timeoutsOrCancels: state.metrics.timeoutsOrCancels || 0,
     promptDurationsMs: durations,
     averagePromptDurationMs: durations.length ? totalDuration / durations.length : 0,
     buckets: buildBuckets(state, options),

@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const net = require('net');
 
 const CHECK_GROUPS = Object.freeze({
   feishu_credentials: 'connections',
@@ -11,7 +12,17 @@ const CHECK_GROUPS = Object.freeze({
   runtime: 'runtime',
   log_files: 'observability',
   dangling_routes: 'sessions-routes',
+  node_version: 'environment',
+  memory_usage: 'resources',
+  disk_space: 'resources',
+  port_status: 'network',
 });
+
+const LOG_FILE_OUT = 'walker-out.log';
+const LOG_FILE_ERR = 'walker-err.log';
+
+const MAX_HEALTH_HISTORY = 100;
+const healthHistory = [];
 
 /**
  * 收集上下文中的敏感值，用于诊断错误脱敏。
@@ -113,11 +124,46 @@ async function runHealthCheck(ctx) {
     { name: 'runtime', group: CHECK_GROUPS.runtime, run: checkRuntime },
     { name: 'log_files', group: CHECK_GROUPS.log_files, run: checkLogFiles },
     { name: 'dangling_routes', group: CHECK_GROUPS.dangling_routes, run: checkDanglingRoutes },
+    { name: 'node_version', group: CHECK_GROUPS.node_version, run: checkNodeVersion },
+    { name: 'memory_usage', group: CHECK_GROUPS.memory_usage, run: checkMemoryUsage },
+    { name: 'disk_space', group: CHECK_GROUPS.disk_space, run: checkDiskSpace },
+    { name: 'port_status', group: CHECK_GROUPS.port_status, run: checkPortStatus },
   ];
   const secrets = collectSecrets(context);
-  const checks = [];
-  for (const definition of definitions) checks.push(await executeCheck(definition, context, secrets));
+  const checks = await Promise.all(definitions.map((definition) => executeCheck(definition, context, secrets)));
+
+  const allPass = checks.every((c) => c.status === 'pass');
+  const historyEntry = {
+    id: `health_${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    overall: allPass ? 'pass' : 'degraded',
+    checks: checks.map((c) => ({ name: c.name, status: c.status })),
+  };
+
+  healthHistory.push(historyEntry);
+  if (healthHistory.length > MAX_HEALTH_HISTORY) {
+    healthHistory.splice(0, healthHistory.length - MAX_HEALTH_HISTORY);
+  }
+
   return checks;
+}
+
+/**
+ * 获取健康检查历史记录
+ * @param {number} [limit] - 返回历史记录数量，默认 20
+ * @returns {Object[]} 历史记录列表
+ */
+function getHealthHistory(limit) {
+  const maxItems = Math.min(Math.max(limit || 20, 1), MAX_HEALTH_HISTORY);
+  return healthHistory.slice(-maxItems).reverse();
+}
+
+/**
+ * 清空健康检查历史记录
+ */
+function clearHealthHistory() {
+  healthHistory.length = 0;
+  return { ok: true };
 }
 
 /**
@@ -354,9 +400,12 @@ function checkRuntime(ctx) {
  */
 function checkLogFiles(ctx) {
   const dataDir = ctx.dataDir || '';
-  const logsDir = path.join(dataDir, 'logs');
+  const dataDirLogsDir = path.join(dataDir, 'logs');
+  const cwdLogsDir = path.join(process.cwd(), 'logs');
 
   try {
+    const logsDir = fs.existsSync(dataDirLogsDir) ? dataDirLogsDir : cwdLogsDir;
+
     if (!fs.existsSync(logsDir)) {
       return {
         name: 'log_files',
@@ -365,22 +414,22 @@ function checkLogFiles(ctx) {
       };
     }
 
-    const outLog = path.join(logsDir, 'walker-out.log');
-    const errLog = path.join(logsDir, 'walker-err.log');
-    const outExists = fs.existsSync(outLog);
+    const mainLog = path.join(logsDir, LOG_FILE_OUT);
+    const errLog = path.join(logsDir, LOG_FILE_ERR);
+    const mainExists = fs.existsSync(mainLog);
     const errExists = fs.existsSync(errLog);
 
-    if (outExists && errExists) {
+    if (mainExists && errExists) {
       return {
         name: 'log_files',
         status: 'pass',
-        detail: 'stdout 和 stderr 日志文件均存在',
+        detail: '主日志和错误日志文件均存在',
       };
     }
 
     const missing = [];
-    if (!outExists) missing.push('walker-out.log');
-    if (!errExists) missing.push('walker-err.log');
+    if (!mainExists) missing.push(LOG_FILE_OUT);
+    if (!errExists) missing.push(LOG_FILE_ERR);
 
     return {
       name: 'log_files',
@@ -436,8 +485,178 @@ function checkDanglingRoutes(ctx) {
   }
 }
 
+/**
+ * 检查 Node.js 版本是否符合要求
+ * @param {Object} ctx - 应用上下文
+ * @returns {Object} 检查结果
+ */
+function checkNodeVersion(_ctx) {
+  try {
+    const version = process.version;
+    const major = parseInt(version.slice(1).split('.')[0], 10);
+    const minVersion = 16;
+
+    if (major >= minVersion) {
+      return {
+        name: 'node_version',
+        status: 'pass',
+        detail: `Node.js ${version}（要求 >= ${minVersion}）`,
+      };
+    }
+
+    return {
+      name: 'node_version',
+      status: 'warn',
+      detail: `Node.js ${version} 版本较低，建议升级到 ${minVersion}+`,
+    };
+  } catch (err) {
+    return {
+      name: 'node_version',
+      status: 'fail',
+      detail: `Node.js 版本检查异常：${err.message}`,
+    };
+  }
+}
+
+/**
+ * 检查进程内存使用情况
+ * @param {Object} ctx - 应用上下文
+ * @returns {Object} 检查结果
+ */
+function checkMemoryUsage(_ctx) {
+  try {
+    const memUsage = process.memoryUsage();
+    const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+    const rssMB = Math.round(memUsage.rss / 1024 / 1024);
+    const usagePercent = Math.round((heapUsedMB / heapTotalMB) * 100);
+
+    if (usagePercent < 70) {
+      return {
+        name: 'memory_usage',
+        status: 'pass',
+        detail: `堆内存 ${heapUsedMB}/${heapTotalMB} MB（${usagePercent}%），RSS ${rssMB} MB`,
+      };
+    }
+
+    if (usagePercent < 85) {
+      return {
+        name: 'memory_usage',
+        status: 'warn',
+        detail: `堆内存使用率较高：${heapUsedMB}/${heapTotalMB} MB（${usagePercent}%）`,
+      };
+    }
+
+    return {
+      name: 'memory_usage',
+      status: 'fail',
+      detail: `堆内存使用率过高：${heapUsedMB}/${heapTotalMB} MB（${usagePercent}%），可能导致性能问题`,
+    };
+  } catch (err) {
+    return {
+      name: 'memory_usage',
+      status: 'fail',
+      detail: `内存检查异常：${err.message}`,
+    };
+  }
+}
+
+/**
+ * 检查数据目录所在磁盘的剩余空间
+ * @param {Object} ctx - 应用上下文
+ * @returns {Object} 检查结果
+ */
+function checkDiskSpace(ctx) {
+  try {
+    const dataDir = ctx.dataDir || process.cwd();
+    const stats = fs.statfsSync(dataDir);
+    const freeGB = Math.round((stats.bsize * stats.bavail) / 1024 / 1024 / 1024);
+    const totalGB = Math.round((stats.bsize * stats.blocks) / 1024 / 1024 / 1024);
+    const usagePercent = Math.round(((totalGB - freeGB) / totalGB) * 100);
+
+    if (freeGB > 10) {
+      return {
+        name: 'disk_space',
+        status: 'pass',
+        detail: `磁盘剩余 ${freeGB} GB（共 ${totalGB} GB，使用 ${usagePercent}%）`,
+      };
+    }
+
+    if (freeGB > 2) {
+      return {
+        name: 'disk_space',
+        status: 'warn',
+        detail: `磁盘空间不足：剩余 ${freeGB} GB（共 ${totalGB} GB）`,
+      };
+    }
+
+    return {
+      name: 'disk_space',
+      status: 'fail',
+      detail: `磁盘空间严重不足：仅剩 ${freeGB} GB，可能影响日志写入和数据存储`,
+    };
+  } catch (err) {
+    return {
+      name: 'disk_space',
+      status: 'warn',
+      detail: `磁盘空间检查失败：${err.message}`,
+    };
+  }
+}
+
+/**
+ * 检查 admin 服务端口是否被占用
+ * @param {Object} ctx - 应用上下文
+ * @returns {Object} 检查结果
+ */
+function checkPortStatus(ctx) {
+  try {
+    const envConfig = ctx.envConfig || {};
+    const port = envConfig.adminPort || envConfig.port || 3000;
+
+    const server = net.createServer();
+
+    return new Promise((resolve) => {
+      server.once('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          resolve({
+            name: 'port_status',
+            status: 'pass',
+            detail: `端口 ${port} 正在使用中（服务已启动）`,
+          });
+        } else {
+          resolve({
+            name: 'port_status',
+            status: 'warn',
+            detail: `端口检查异常：${err.message}`,
+          });
+        }
+      });
+
+      server.once('listening', () => {
+        server.close();
+        resolve({
+          name: 'port_status',
+          status: 'warn',
+          detail: `端口 ${port} 未被占用（服务可能未启动）`,
+        });
+      });
+
+      server.listen(port, '127.0.0.1');
+    });
+  } catch (err) {
+    return {
+      name: 'port_status',
+      status: 'warn',
+      detail: `端口检查异常：${err.message}`,
+    };
+  }
+}
+
 module.exports = {
   runHealthCheck,
+  getHealthHistory,
+  clearHealthHistory,
   checkFeishuCredentials,
   checkDataDirectory,
   checkJsonFiles,
@@ -445,4 +664,8 @@ module.exports = {
   checkRuntime,
   checkLogFiles,
   checkDanglingRoutes,
+  checkNodeVersion,
+  checkMemoryUsage,
+  checkDiskSpace,
+  checkPortStatus,
 };

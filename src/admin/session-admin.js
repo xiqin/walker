@@ -6,7 +6,14 @@
  * 所有状态变更操作会写入 eventStore
  */
 
-const { recordEvent, recordMetric, timelineForSession } = require('./event-store');
+const { recordEvent, recordMetric, listEvents, timelineForSession } = require('./event-store');
+
+const NON_BUSINESS_EVENT_TYPES = new Set([
+  'heartbeat',
+  'runtime.heartbeat',
+  'tui.heartbeat',
+  'health.heartbeat',
+]);
 
 /**
  * 列出所有未删除的会话
@@ -19,7 +26,9 @@ function listSessions(ctx) {
   const state = ctx.sessionService._readNormalized ? ctx.sessionService._readNormalized() : ctx.sessionService.stateStore.read();
   const routes = state.routes || {};
 
-  return sessions.map((session) => withRuntimeDiagnostics(ctx, withRouteDiagnostics(session, routes), routes));
+  return sessions
+    .map((session) => withRuntimeDiagnostics(ctx, withRouteDiagnostics(session, routes), routes))
+    .sort((left, right) => (right.opencodeSessionCreatedAt || right.createdAt || 0) - (left.opencodeSessionCreatedAt || left.createdAt || 0));
 }
 
 /**
@@ -65,6 +74,7 @@ function withRuntimeDiagnostics(ctx, session, routes) {
     return Math.max(latest, route && route.lastActiveAt || 0);
   }, 0);
   const lastHeartbeatAt = runtime && runtime.lastHeartbeatAt || null;
+  const lastBusinessEventAt = getLastBusinessEventAt(ctx, session.id);
   return {
     ...session,
     transport,
@@ -74,9 +84,34 @@ function withRuntimeDiagnostics(ctx, session, routes) {
       : runtime && runtime.health ? { ...runtime.health }
         : { status: 'unknown', reason: null },
     lastHeartbeatAt,
+    opencodeSessionCreatedAt: getOpencodeSessionCreatedAt(session),
+    lastBusinessEventAt,
     currentTurn: currentTurn ? { ...currentTurn } : null,
     lastActiveAt: Math.max(session.updatedAt || 0, routeActivity, lastHeartbeatAt || 0) || null,
   };
+}
+
+function getOpencodeSessionCreatedAt(session) {
+  const agentRef = session.agentRef || {};
+  return agentRef.opencodeSessionCreatedAt
+    || agentRef.sessionCreatedAt
+    || agentRef.createdAt
+    || session.opencodeSessionCreatedAt
+    || session.createdAt
+    || null;
+}
+
+function getLastBusinessEventAt(ctx, sessionId) {
+  const events = listEvents(ctx.eventStore, { sessionId, limit: 100 });
+  const event = events.find((item) => isBusinessEvent(item));
+  return event ? event.createdAt : null;
+}
+
+function isBusinessEvent(event) {
+  const type = String(event && event.type || '').toLowerCase();
+  if (!type) return false;
+  if (NON_BUSINESS_EVENT_TYPES.has(type)) return false;
+  return !type.includes('heartbeat');
 }
 
 /**
@@ -322,6 +357,123 @@ function getTimeline(ctx, sessionId, opts) {
   return timelineForSession(ctx.eventStore, sessionId, opts);
 }
 
+/**
+ * 搜索会话，支持按标题、agent、状态、标签过滤
+ * @param {Object} ctx - 上下文对象
+ * @param {Object} opts - 搜索选项
+ * @param {string} [opts.query] - 搜索关键词（匹配标题）
+ * @param {string} [opts.agent] - Agent 类型过滤
+ * @param {string} [opts.status] - 状态过滤
+ * @param {string} [opts.tag] - 标签过滤
+ * @param {number} [opts.limit] - 结果数量限制，默认 50
+ * @param {number} [opts.offset] - 偏移量，默认 0
+ * @returns {{ sessions: Object[], total: number, hasMore: boolean }}
+ */
+function searchSessions(ctx, opts) {
+  const options = opts || {};
+  const query = options.query || '';
+  const agent = options.agent || '';
+  const status = options.status || '';
+  const tag = options.tag || '';
+  const limit = Math.min(Math.max(options.limit || 50, 1), 200);
+  const offset = Math.max(options.offset || 0, 0);
+
+  let sessions = listSessions(ctx);
+
+  if (query) {
+    const lowerQuery = query.toLowerCase();
+    sessions = sessions.filter((s) => (s.title || '').toLowerCase().includes(lowerQuery));
+  }
+
+  if (agent) {
+    sessions = sessions.filter((s) => s.agent === agent);
+  }
+
+  if (status) {
+    sessions = sessions.filter((s) => s.status === status);
+  }
+
+  if (tag) {
+    sessions = sessions.filter((s) => {
+      const tags = s.tags || [];
+      return Array.isArray(tags) && tags.includes(tag);
+    });
+  }
+
+  const total = sessions.length;
+  const paginatedSessions = sessions.slice(offset, offset + limit);
+  const hasMore = offset + limit < sessions.length;
+
+  return { sessions: paginatedSessions, total, hasMore };
+}
+
+/**
+ * 更新会话标签
+ * @param {Object} ctx - 上下文对象
+ * @param {string} sessionId - 会话 ID
+ * @param {string[]} tags - 标签数组
+ * @returns {Object} 操作结果
+ */
+function updateSessionTags(ctx, sessionId, tags) {
+  const session = ctx.sessionService.getSession(sessionId);
+  if (!session) {
+    return { ok: false, error: { code: 'NOT_FOUND', message: 'session not found' } };
+  }
+
+  try {
+    ctx.sessionService.updateSessionField(sessionId, 'tags', tags);
+    recordEvent(ctx.eventStore, {
+      type: 'session.state',
+      sessionId,
+      message: 'session tags updated',
+      data: { tags },
+    });
+    return { ok: true, session: ctx.sessionService.getSession(sessionId) };
+  } catch (err) {
+    return { ok: false, error: { code: 'BAD_REQUEST', message: err.message } };
+  }
+}
+
+/**
+ * 批量停止会话
+ * @param {Object} ctx - 上下文对象
+ * @param {string[]} sessionIds - 会话 ID 数组
+ * @returns {Promise<{ results: Object[] }>} 操作结果
+ */
+async function batchStopSessions(ctx, sessionIds) {
+  if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+    return { ok: false, error: { code: 'BAD_REQUEST', message: 'sessionIds 数组不能为空' } };
+  }
+
+  const results = [];
+  for (const sessionId of sessionIds) {
+    const result = await stopSession(ctx, sessionId);
+    results.push({ sessionId, ...result });
+  }
+
+  return { ok: true, results };
+}
+
+/**
+ * 批量删除会话
+ * @param {Object} ctx - 上下文对象
+ * @param {string[]} sessionIds - 会话 ID 数组
+ * @returns {Promise<{ results: Object[] }>} 操作结果
+ */
+async function batchDeleteSessions(ctx, sessionIds) {
+  if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+    return { ok: false, error: { code: 'BAD_REQUEST', message: 'sessionIds 数组不能为空' } };
+  }
+
+  const results = [];
+  for (const sessionId of sessionIds) {
+    const result = await deleteSession(ctx, sessionId);
+    results.push({ sessionId, ...result });
+  }
+
+  return { ok: true, results };
+}
+
 module.exports = {
   listSessions,
   getSession,
@@ -330,4 +482,8 @@ module.exports = {
   deleteSession,
   sendPrompt,
   getTimeline,
+  searchSessions,
+  updateSessionTags,
+  batchStopSessions,
+  batchDeleteSessions,
 };
