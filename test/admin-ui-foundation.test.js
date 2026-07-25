@@ -391,6 +391,11 @@ test('格式 helper 对缺失值、状态、ID、路径和时间提供稳定输�
   const { formatDateTime, formatStatus, shortId, compactPath } = await importModule('format.js');
   assert.equal(formatDateTime(null), '未知');
   assert.deepEqual(formatStatus('failed'), { label: '异常', icon: '!', tone: 'danger' });
+  assert.equal(formatStatus('created').label, '已创建');
+  assert.equal(formatStatus('running').label, '运行中');
+  assert.equal(formatStatus('idle').label, '空闲');
+  assert.equal(formatStatus('stopped').label, '已停止');
+  assert.equal(formatStatus('deleted').label, '已删除');
   assert.equal(shortId('session-1234567890', 10), 'sess…7890');
   assert.equal(compactPath('C:\\Users\\walker\\projects\\alpha', 18), 'C:\\…\\projects\\alpha');
 });
