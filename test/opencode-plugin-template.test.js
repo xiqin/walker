@@ -58,6 +58,26 @@ describe('plugin-template v5 protocol', () => {
     assert.ok(src.includes('if (deliveryState) body.deliveryState = deliveryState'));
   });
 
+  it('extractSessionId 支持 OpenCode create 返回的嵌套 data.data.id', () => {
+    const src = getPluginSource(8787, 'token123', 30000);
+    assert.ok(src.includes('result.data.data.id'));
+  });
+
+  it('clear 使用 OpenCode 最新 SDK 的 session.create body 参数', () => {
+    const src = getPluginSource(8787, 'token123', 30000);
+    assert.ok(src.includes('function createClearSession(title, oldSessionId)'));
+    assert.ok(src.includes('api.workspace.current()'));
+    assert.ok(src.includes('path: { id: sessionId }'));
+    assert.ok(src.includes('const workspaceID = await currentSessionWorkspaceId(oldSessionId)'));
+    assert.ok(src.includes('if (workspaceID) body.workspaceID = workspaceID'));
+    assert.ok(src.includes("modernInput.headers = { 'x-opencode-workspace': workspaceID }"));
+    assert.ok(src.includes('const modernInput = { body }'));
+    assert.ok(src.includes('api.client.session.create(modernInput)'));
+    assert.ok(src.includes('api.client.session.create({ title })'));
+    assert.ok(src.includes('if (!isShapeCompatibilityError(result.error)) throw result.error'));
+    assert.ok(src.includes('if (!result || !result.error) return result'));
+  });
+
   it('executeDelivery 中 accepted 上报在 promptAsync 之前', () => {
     const src = getPluginSource(8787, 'token123', 30000);
     const acceptedIdx = src.indexOf("'accepted'");

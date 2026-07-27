@@ -516,9 +516,11 @@ test('生成的 TUI plugin 处理 clear delivery 并创建顶层 session', async
       },
       client: {
         session: {
+          get: async (input) => ({ id: input.path.id, workspaceID: 'wks_main' }),
           create: async (input) => { createCalls.push(input); return { data: { id: 'ses_new1' } }; },
         },
       },
+      workspace: { current: () => 'wks_main' },
       event: { on: (type, handler) => handlers.set(type, handler) },
       state: {
         path: { directory: 'H:\\walker' },
@@ -528,7 +530,11 @@ test('生成的 TUI plugin 处理 clear delivery 并创建顶层 session', async
     });
 
     await waitFor(() => createCalls.length === 1);
-    assert.deepEqual(createCalls[0], { title: undefined }, 'create 不传 parent，不执行 fork/summarize/delete');
+    assert.deepEqual(createCalls[0], {
+      body: { workspaceID: 'wks_main' },
+      query: { directory: 'H:\\walker', workspace: 'wks_main' },
+      headers: { 'x-opencode-workspace': 'wks_main' },
+    }, 'create 不传 parent，不执行 fork/summarize/delete，并继承 TUI 当前 workspace');
 
     await waitFor(() => navigateCalls.some((n) => n.name === 'session' && n.params.sessionID === 'ses_new1'));
 
@@ -775,6 +781,227 @@ test('clear 处理 session.created 早于 create 返回时不提前改变 active
 
     await waitFor(() => navigateCalls.some((n) => n.name === 'session' && n.params.sessionID === 'ses_early_new'));
     await waitFor(() => requests.some((r) => r.url.endsWith('/register') && r.body.controlDeliveryId === 'del_clr_early'));
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('clear 在 session.create 返回缺 id 时可从 session.created 事件补齐新 session id', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const handlers = new Map();
+  const navigateCalls = [];
+  let dispose;
+  let clearReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    let data = {};
+    if (String(url).endsWith('/poll') && !clearReturned) {
+      clearReturned = true;
+      data = { delivery: { deliveryId: 'del_clr_event_id', type: 'clear', sessionId: 'ses_event_old' } };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: {
+        current: { name: 'session', params: { sessionID: 'ses_event_old' } },
+        navigate: (name, params) => { navigateCalls.push({ name, params }); },
+      },
+      client: {
+        session: {
+          create: async () => {
+            if (handlers.get('session.created')) {
+              await handlers.get('session.created')({ properties: { sessionID: 'ses_event_new', info: { id: 'ses_event_new' } } });
+            }
+            return { data: {} };
+          },
+        },
+      },
+      event: { on: (type, handler) => handlers.set(type, handler) },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'idle' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => navigateCalls.some((n) => n.name === 'session' && n.params.sessionID === 'ses_event_new'));
+    await waitFor(() => requests.some((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_event_id' && r.body.control));
+    const controlReq = requests.find((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_event_id' && r.body.control);
+    assert.equal(controlReq.body.control.newSessionId, 'ses_event_new');
+    assert.equal(requests.some((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_event_id' && r.body.error), false);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('clear 在最新 SDK create 返回 error 对象时回退旧参数形态', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const handlers = new Map();
+  const createCalls = [];
+  const navigateCalls = [];
+  let dispose;
+  let clearReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    let data = {};
+    if (String(url).endsWith('/poll') && !clearReturned) {
+      clearReturned = true;
+      data = { delivery: { deliveryId: 'del_clr_error_retry', type: 'clear', sessionId: 'ses_retry_old', title: 'retry title' } };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: {
+        current: { name: 'session', params: { sessionID: 'ses_retry_old' } },
+        navigate: (name, params) => { navigateCalls.push({ name, params }); },
+      },
+      client: {
+        session: {
+          create: async (input) => {
+            createCalls.push(input);
+            if (createCalls.length === 1) {
+              return { error: { message: 'unknown option body' }, request: {}, response: {} };
+            }
+            return { data: { id: 'ses_retry_new' } };
+          },
+        },
+      },
+      event: { on: (type, handler) => handlers.set(type, handler) },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'idle' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => createCalls.length === 2);
+    assert.deepEqual(createCalls[0], { body: { title: 'retry title' }, query: { directory: 'H:\\walker' } });
+    assert.deepEqual(createCalls[1], { title: 'retry title' });
+    await waitFor(() => navigateCalls.some((n) => n.name === 'session' && n.params.sessionID === 'ses_retry_new'));
+    await waitFor(() => requests.some((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_error_retry' && r.body.control));
+    const controlReq = requests.find((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_error_retry' && r.body.control);
+    assert.equal(controlReq.body.control.newSessionId, 'ses_retry_new');
+    assert.equal(requests.some((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_error_retry' && r.body.error), false);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('clear 在 session.create 返回服务端错误时不回退旧参数重复创建', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const handlers = new Map();
+  const createCalls = [];
+  let dispose;
+  let clearReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    let data = {};
+    if (String(url).endsWith('/poll') && !clearReturned) {
+      clearReturned = true;
+      data = { delivery: { deliveryId: 'del_clr_server_error', type: 'clear', sessionId: 'ses_server_old', title: 'server error title' } };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: {
+        current: { name: 'session', params: { sessionID: 'ses_server_old' } },
+        navigate: () => { throw new Error('不应导航'); },
+      },
+      client: {
+        session: {
+          get: async () => ({ id: 'ses_server_old', workspaceID: 'wks_server' }),
+          create: async (input) => {
+            createCalls.push(input);
+            return { error: { message: 'Unexpected server error. Check server logs for details.', ref: 'err_ff6339d6' }, request: {}, response: {} };
+          },
+        },
+      },
+      event: { on: (type, handler) => handlers.set(type, handler) },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'idle' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => requests.some((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_server_error' && r.body.error));
+    assert.equal(createCalls.length, 1);
+    assert.deepEqual(createCalls[0], {
+      body: { title: 'server error title', workspaceID: 'wks_server' },
+      query: { directory: 'H:\\walker', workspace: 'wks_server' },
+      headers: { 'x-opencode-workspace': 'wks_server' },
+    });
+    const errorReq = requests.find((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_server_error' && r.body.error);
+    assert.match(errorReq.body.error.message, /Unexpected server error/);
+    assert.equal(requests.some((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_server_error' && r.body.control), false);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('clear 在 session.create 返回业务 Bad Request 时不回退旧参数重复创建', async () => {
+  const source = getPluginSource(8787);
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const plugin = await import(moduleUrl);
+  const requests = [];
+  const createCalls = [];
+  let dispose;
+  let clearReturned = false;
+  const originalFetch = global.fetch;
+
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url: String(url), body });
+    let data = {};
+    if (String(url).endsWith('/poll') && !clearReturned) {
+      clearReturned = true;
+      data = { delivery: { deliveryId: 'del_clr_bad_request', type: 'clear', sessionId: 'ses_bad_request_old' } };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data }) };
+  };
+
+  try {
+    await plugin.default.tui({
+      route: {
+        current: { name: 'session', params: { sessionID: 'ses_bad_request_old' } },
+        navigate: () => { throw new Error('不应导航'); },
+      },
+      client: {
+        session: {
+          create: async (input) => {
+            createCalls.push(input);
+            return { error: { message: 'Bad Request: invalid workspace' }, request: {}, response: {} };
+          },
+        },
+      },
+      event: { on: () => {} },
+      state: { path: { directory: 'H:\\walker' }, session: { status: () => ({ type: 'idle' }) } },
+      lifecycle: { onDispose: (handler) => { dispose = handler; } },
+    });
+
+    await waitFor(() => requests.some((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_bad_request' && r.body.error));
+    assert.equal(createCalls.length, 1);
+    const errorReq = requests.find((r) => r.url.endsWith('/events') && r.body.deliveryId === 'del_clr_bad_request' && r.body.error);
+    assert.match(errorReq.body.error.message, /invalid workspace/);
   } finally {
     if (dispose) await dispose();
     global.fetch = originalFetch;

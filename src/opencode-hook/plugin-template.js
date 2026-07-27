@@ -136,11 +136,45 @@ function finalEvents(api, sessionId) {
 
 function extractSessionId(result) {
   if (!result || typeof result !== 'object') return '';
+  if (result.data && result.data.data && typeof result.data.data.id === 'string' && result.data.data.id) return result.data.data.id;
   if (result.data && typeof result.data.id === 'string' && result.data.id) return result.data.id;
   if (typeof result.id === 'string' && result.id) return result.id;
   if (typeof result.sessionID === 'string' && result.sessionID) return result.sessionID;
   if (typeof result.sessionId === 'string' && result.sessionId) return result.sessionId;
   return '';
+}
+
+function describeCreateResult(result) {
+  if (!result || typeof result !== 'object') return String(result || '');
+  const keys = Object.keys(result).slice(0, 8).join(',');
+  const data = result.data && typeof result.data === 'object' ? Object.keys(result.data).slice(0, 8).join(',') : '';
+  return 'keys=' + keys + (data ? ' dataKeys=' + data : '');
+}
+
+function extractSessionObject(result) {
+  if (!result || typeof result !== 'object') return null;
+  if (result.data && result.data.data && typeof result.data.data === 'object') return result.data.data;
+  if (result.data && typeof result.data === 'object') return result.data;
+  return result;
+}
+
+function extractWorkspaceId(result) {
+  const session = extractSessionObject(result);
+  if (!session || typeof session !== 'object') return '';
+  if (typeof session.workspaceID === 'string' && session.workspaceID) return session.workspaceID;
+  if (typeof session.workspaceId === 'string' && session.workspaceId) return session.workspaceId;
+  return '';
+}
+
+function isShapeCompatibilityError(value) {
+  const message = errorMessage(value).toLowerCase();
+  if (!message.includes('body')) return false;
+  return message.includes('unknown option')
+    || message.includes('unexpected option')
+    || message.includes('not allowed')
+    || message.includes('unrecognized key')
+    || message.includes('unknown key')
+    || message.includes('unexpected key');
 }
 
 async function tui(api) {
@@ -156,6 +190,7 @@ async function tui(api) {
 
   let activeClear = null;
   const clearEventBuffer = [];
+  let pendingClearCreatedSessionId = '';
 
   async function register(sessionId, force, extra) {
     if (!force && sessionId === lastRegisteredSessionId && lastRegisteredAt) return;
@@ -440,9 +475,11 @@ async function tui(api) {
 
     let newSessionId = '';
     try {
-      const createResult = await api.client.session.create({ title: delivery.title });
+      pendingClearCreatedSessionId = '';
+      const createResult = await createClearSession(delivery.title, oldSessionId);
       newSessionId = extractSessionId(createResult);
-      if (!newSessionId) throw new Error('OpenCode session create returned no session id');
+      if (!newSessionId) newSessionId = await waitForCreatedSessionId();
+      if (!newSessionId) throw new Error('OpenCode session create returned no session id (' + describeCreateResult(createResult) + ')');
       if (!activeClear || activeClear.deliveryId !== delivery.deliveryId) return;
       activeClear.suppressSessionId = newSessionId;
     } catch (error) {
@@ -450,6 +487,7 @@ async function tui(api) {
         activeClear.failed = true;
         await report(oldSessionId, delivery.deliveryId, [], { message: error.message || String(error) }).catch(() => {});
         activeClear = null;
+        pendingClearCreatedSessionId = '';
         flushClearEventBuffer();
       }
       return;
@@ -463,6 +501,7 @@ async function tui(api) {
         activeClear.failed = true;
         await report(oldSessionId, delivery.deliveryId, [], { message: error.message || String(error) }).catch(() => {});
         activeClear = null;
+        pendingClearCreatedSessionId = '';
         flushClearEventBuffer();
       }
       return;
@@ -503,6 +542,7 @@ async function tui(api) {
       lastRegisteredSessionId = newSessionId;
       lastRegisteredAt = Date.now();
       activeClear = null;
+      pendingClearCreatedSessionId = '';
       flushClearEventBuffer();
       return;
     }
@@ -522,8 +562,72 @@ async function tui(api) {
         }
       }
       activeClear = null;
+      pendingClearCreatedSessionId = '';
       flushClearEventBuffer();
     }
+  }
+
+  function currentWorkspaceId() {
+    try {
+      if (api.workspace && typeof api.workspace.current === 'function') {
+        return api.workspace.current() || '';
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  function sessionQuery(workspaceID) {
+    const query = {};
+    const directory = currentDirectory(api);
+    if (directory) query.directory = directory;
+    if (workspaceID) query.workspace = workspaceID;
+    return Object.keys(query).length ? query : undefined;
+  }
+
+  async function currentSessionWorkspaceId(sessionId) {
+    const activeWorkspaceID = currentWorkspaceId();
+    if (activeWorkspaceID) return activeWorkspaceID;
+    const sessionClient = api.client && api.client.session;
+    if (!sessionClient || typeof sessionClient.get !== 'function' || !sessionId) return '';
+    try {
+      const input = { path: { id: sessionId } };
+      const query = sessionQuery();
+      if (query) input.query = query;
+      const result = await sessionClient.get(input);
+      if (result && result.error) return '';
+      return extractWorkspaceId(result);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  async function createClearSession(title, oldSessionId) {
+    const body = {};
+    if (typeof title === 'string' && title) body.title = title;
+    const workspaceID = await currentSessionWorkspaceId(oldSessionId);
+    if (workspaceID) body.workspaceID = workspaceID;
+    const modernInput = { body };
+    const query = sessionQuery(workspaceID);
+    if (query) modernInput.query = query;
+    if (workspaceID) modernInput.headers = { 'x-opencode-workspace': workspaceID };
+    try {
+      const result = await api.client.session.create(modernInput);
+      if (!result || !result.error) return result;
+      if (!isShapeCompatibilityError(result.error)) throw result.error;
+      const legacyResult = await api.client.session.create({ title });
+      if (legacyResult && legacyResult.error) throw legacyResult.error;
+      return legacyResult;
+    } catch (error) {
+      throw new Error('OpenCode session create failed: ' + (errorMessage(error) || describeCreateResult(error)));
+    }
+  }
+
+  async function waitForCreatedSessionId() {
+    for (let i = 0; i < 10; i++) {
+      if (pendingClearCreatedSessionId) return pendingClearCreatedSessionId;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return pendingClearCreatedSessionId;
   }
 
   function flushClearEventBuffer() {
@@ -589,6 +693,7 @@ async function tui(api) {
     const sessionId = properties.sessionID || properties.sessionId || info.id;
     if (!sessionId) return;
     if (activeClear) {
+      if (!activeClear.suppressSessionId && sessionId !== activeClear.oldSessionId) pendingClearCreatedSessionId = sessionId;
       if (activeClear.suppressSessionId === sessionId) return;
       if (!fromBuffer) clearEventBuffer.push({ type: 'session.created', event });
       return;
