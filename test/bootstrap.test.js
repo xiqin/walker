@@ -126,6 +126,29 @@ function makeModelPaginationIntegrationApp(apiCalls) {
 }
 
 describe('createApp', () => {
+  it('基础飞书 adapter 向文本、Markdown 和卡片 API 转发 runtime metadata', async () => {
+    const calls = [];
+    const runtime = { model: { providerID: 'cpa', modelID: 'gpt-5.5' }, tokenUsage: { totalTokens: 321 } };
+    const app = makeModelCardApp(calls, {
+      replyText: async (_ctx, _text, value) => { calls.push({ type: 'replyText', runtime: value }); },
+      replyMarkdown: async (_ctx, _text, value) => { calls.push({ type: 'replyMarkdown', runtime: value }); },
+      sendText: async (_chatId, _text, value) => { calls.push({ type: 'sendText', runtime: value }); },
+      sendMarkdown: async (_chatId, _text, value) => { calls.push({ type: 'sendMarkdown', runtime: value }); },
+      replyCard: async (_ctx, _card, value) => { calls.push({ type: 'replyCard', runtime: value }); return 'om_card'; },
+      patchCard: async (_cardId, _card, value) => { calls.push({ type: 'patchCard', runtime: value }); },
+    });
+
+    await app.dispatcher.feishuApi.replyText({ messageId: 'om_parent' }, 'text', runtime);
+    await app.dispatcher.feishuApi.replyMarkdown({ messageId: 'om_parent' }, 'markdown', runtime);
+    await app.dispatcher.feishuApi.sendText('oc_chat', 'text', runtime);
+    await app.dispatcher.feishuApi.sendMarkdown('oc_chat', 'markdown', runtime);
+    await app.dispatcher.feishuApi.replyCard({ messageId: 'om_parent' }, {}, runtime);
+    await app.dispatcher.feishuApi.patchCard('om_card', {}, runtime);
+
+    assert.equal(calls.length, 6);
+    for (const call of calls) assert.equal(call.runtime, runtime, call.type + ' 应转发 runtime');
+  });
+
   it('卡片分页 action 经 onCardAction 和 dispatcher 原地渲染目标页', async () => {
     const calls = [];
     const app = makeModelPaginationIntegrationApp(calls);

@@ -56,17 +56,22 @@ class PermissionHandler {
    * @param {string} chatId - 飞书聊天 ID
    * @param {AgentEvent} agentEvent - 权限已回复事件
    */
-  handleReplied(session, chatId, agentEvent) {
+  async handleReplied(session, chatId, agentEvent) {
     const permissionId = agentEvent.data && agentEvent.data.permissionId;
     const response = agentEvent.data && agentEvent.data.response;
-    this.patchReplied(permissionId, response);
+    await this.patchReplied(permissionId, response, session);
   }
 
-  patchReplied(permissionId, response) {
+  async patchReplied(permissionId, response, session) {
     if (!this.dispatcher.permissionCardIds || !permissionId) return false;
     const existingCardId = this.dispatcher.permissionCardIds.get(permissionId);
     if (!existingCardId) return false;
-    this.dispatcher._sendFeishu('patchCard', [existingCardId, buildPermissionRepliedCard(permissionId, response)], { permissionId });
+    await this.dispatcher._callFeishu(
+      'patchCard',
+      [existingCardId, buildPermissionRepliedCard(permissionId, response)],
+      undefined,
+      { sessionId: session && session.id, session, permissionId },
+    );
     return true;
   }
 }

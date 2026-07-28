@@ -1025,10 +1025,11 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
   it('isRuntimeAvailable 反映 runtime 注册与过期状态', () => {
     const h = setupV3Harness({ runtimeStaleMs: 100 });
     try {
+      const runtime = h.bridge.runtimes.get('runtime-v3');
+      runtime.lastSeenAt = Date.now();
       assert.equal(h.bridge.isRuntimeAvailable('runtime-v3'), true, '已注册 runtime 应可用');
       assert.equal(h.bridge.isRuntimeAvailable('unknown'), false, '未注册 runtime 应不可用');
       assert.equal(h.bridge.isRuntimeAvailable(''), false, '空 runtimeId 应不可用');
-      const runtime = h.bridge.runtimes.get('runtime-v3');
       runtime.lastSeenAt = Date.now() - 200;
       assert.equal(h.bridge.isRuntimeAvailable('runtime-v3'), false, '过期 runtime 应不可用');
     } finally {

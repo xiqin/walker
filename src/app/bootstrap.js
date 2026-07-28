@@ -89,6 +89,8 @@ function createApp(config, deps) {
     sseIdleTimeoutMs: config.opencodeSseIdleTimeoutMs ?? 300000,
     recoveryWindowMs: config.opencodeRecoveryWindowMs ?? 300000,
     messagePollIntervalMs: config.opencodeMessagePollIntervalMs ?? 3000,
+    sqliteCmd: config.sqliteCmd || config.opencodeSqliteCmd,
+    opencodeDbPath: config.opencodeDbPath,
     tuiBridge,
   });
 
@@ -183,12 +185,12 @@ function createApp(config, deps) {
     },
   });
 
-  feishuApiTarget.replyText = (replyCtx, text) => platform.api.replyText(normalizeReplyCtx(replyCtx), text);
-  feishuApiTarget.replyMarkdown = (replyCtx, text) => platform.api.replyMarkdown(normalizeReplyCtx(replyCtx), text);
-  feishuApiTarget.sendText = (chatId, text) => platform.api.sendText(chatId, text);
-  feishuApiTarget.sendMarkdown = (chatId, text) => platform.api.sendMarkdown(chatId, text);
-  feishuApiTarget.replyCard = (replyCtx, card) => platform.api.replyCard(normalizeReplyCtx(replyCtx), card);
-  feishuApiTarget.patchCard = (cardId, card) => platform.api.patchCard(cardId, card);
+  feishuApiTarget.replyText = (replyCtx, text, runtime) => platform.api.replyText(normalizeReplyCtx(replyCtx), text, runtime);
+  feishuApiTarget.replyMarkdown = (replyCtx, text, runtime) => platform.api.replyMarkdown(normalizeReplyCtx(replyCtx), text, runtime);
+  feishuApiTarget.sendText = (chatId, text, runtime) => platform.api.sendText(chatId, text, runtime);
+  feishuApiTarget.sendMarkdown = (chatId, text, runtime) => platform.api.sendMarkdown(chatId, text, runtime);
+  feishuApiTarget.replyCard = (replyCtx, card, runtime) => platform.api.replyCard(normalizeReplyCtx(replyCtx), card, runtime);
+  feishuApiTarget.patchCard = (cardId, card, runtime) => platform.api.patchCard(cardId, card, runtime);
   feishuApiTarget.addReaction = (msgId, emoji) => platform.api.addReaction(msgId, emoji);
 
   /** 发送未绑定引导卡片到飞书 */
@@ -227,21 +229,21 @@ function createApp(config, deps) {
   /** 更新权限卡片为已处理状态 */
   feishuApiTarget.patchPermissionCard = (cardId, permissionId, response) => platform.api.patchCard(cardId, buildPermissionRepliedCard(permissionId, response));
   /** 发送进度卡片并返回卡片消息 ID */
-  feishuApiTarget.sendProgressCard = async (replyCtx, sessionId, initialEvent) => {
+  feishuApiTarget.sendProgressCard = async (replyCtx, sessionId, initialEvent, runtime) => {
     const card = new ProgressCard({ sessionId });
     if (initialEvent) card.append(initialEvent);
-    const cardId = await platform.api.replyCard(normalizeReplyCtx(replyCtx), card.render());
+    const cardId = await platform.api.replyCard(normalizeReplyCtx(replyCtx), card.render(), runtime);
     progressCards.set(cardId, card);
     return cardId;
   };
   /** 更新进度卡片内容，返回 patch 失败时的策略 */
-  feishuApiTarget.updateProgressCard = async (cardId, sessionId, agentEvent) => {
+  feishuApiTarget.updateProgressCard = async (cardId, sessionId, agentEvent, runtime) => {
     const card = progressCards.get(cardId) || new ProgressCard({ sessionId, cardMessageId: cardId });
     if (!progressCards.has(cardId)) progressCards.set(cardId, card);
     card.append(agentEvent);
     const rendered = card.render();
     try {
-      await platform.api.patchCard(cardId, rendered);
+      await platform.api.patchCard(cardId, rendered, runtime);
       if (card.done) progressCards.delete(cardId);
       return null;
     } catch (patchErr) {

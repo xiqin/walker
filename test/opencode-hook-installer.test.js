@@ -213,6 +213,7 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
   const requests = [];
   const handlers = new Map();
   const promptCalls = [];
+  let assistantPartReads = 0;
   let dispose;
   let deliveryReturned = false;
   const originalFetch = global.fetch;
@@ -241,10 +242,45 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
       state: {
         path: { directory: 'H:\\walker' },
         session: {
-          messages: () => [{ id: 'msg_assistant', role: 'assistant' }],
+          messages: () => [{
+            id: 'msg_assistant',
+            role: 'assistant',
+            providerID: 'cpa',
+            modelID: 'gpt-5.6-sol',
+            time: { completed: 1722086400000 },
+          }, {
+            id: 'msg_assistant_pending',
+            role: 'assistant',
+            providerID: 'cpa',
+            modelID: 'gpt-5.6-sol',
+            tokens: {
+              total: 0,
+              input: 0,
+              output: 0,
+              reasoning: 0,
+              cache: { read: 0, write: 0 },
+            },
+          }],
           status: () => ({ type: 'idle' }),
         },
-        part: () => [{ type: 'text', text: '本地 TUI 回复' }],
+        part: (messageId) => {
+          if (messageId !== 'msg_assistant') return [];
+          assistantPartReads += 1;
+          const parts = [{ type: 'text', text: '本地 TUI 回复' }];
+          if (assistantPartReads > 1) {
+            parts.push({
+              type: 'step-finish',
+              tokens: {
+                total: 92079,
+                input: 349,
+                output: 82,
+                reasoning: 0,
+                cache: { read: 91648, write: 0 },
+              },
+            });
+          }
+          return parts;
+        },
       },
       lifecycle: { onDispose: (handler) => { dispose = handler; } },
     });
@@ -262,6 +298,15 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
     assert.equal(eventRequest.body.deliveryId, 'del_test');
     assert.equal(eventRequest.body.events[0].data.text, '本地 TUI 回复');
     assert.equal(eventRequest.body.events.at(-1).type, 'done');
+    assert.deepEqual(eventRequest.body.events.at(-1).data.model, { providerID: 'cpa', modelID: 'gpt-5.6-sol' });
+    assert.deepEqual(eventRequest.body.events.at(-1).data.usage, {
+      inputTokens: 349,
+      outputTokens: 82,
+      reasoningTokens: 0,
+      cacheReadTokens: 91648,
+      cacheWriteTokens: 0,
+      totalTokens: 92079,
+    });
     assert.equal(eventRequest.body.deliveryState, 'final');
 
     requests.length = 0;

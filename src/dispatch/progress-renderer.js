@@ -44,7 +44,7 @@ class ProgressRenderer {
       await this._renderCardProgress(session, event, displayEvents, progressCardId);
       const fullText = this._textFromDisplayEvents(displayEvents);
       if (fullText) {
-        const replyResult = await this.dispatcher._callFeishu('replyMarkdown', [this.dispatcher._replyCtx(event), this._appendModelFooter(fullText, session)], null);
+        const replyResult = await this.dispatcher._callFeishu('replyMarkdown', [this.dispatcher._replyCtx(event), fullText], null, { sessionId: session.id, session });
         if (replyResult) {
           this.dispatcher._rememberDeliveredText(session.id, fullText);
         }
@@ -64,7 +64,7 @@ class ProgressRenderer {
    * @returns {Promise<void>}
    */
   async _renderCardProgress(session, event, displayEvents, progressCardId) {
-    let cardId = progressCardId || await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id], null);
+    let cardId = progressCardId || await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id], null, { sessionId: session.id });
 
     if (!cardId) {
       return;
@@ -76,10 +76,10 @@ class ProgressRenderer {
       if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
       if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
       this.dispatcher._touchTurnState(this.dispatcher.turnStates.get(session.id));
-      const rendered = await this.dispatcher._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null);
+      const rendered = await this.dispatcher._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null, { sessionId: session.id });
       if (rendered !== null) this.dispatcher._recordAdminMetric('cardDeliveries');
       if (rendered && rendered.strategy === 'new_message') {
-        const newCardId = await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id, agentEvent], null);
+        const newCardId = await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id, agentEvent], null, { sessionId: session.id });
         if (newCardId) {
           cardId = newCardId;
           this.dispatcher._recordAdminMetric('cardDeliveries');
@@ -218,7 +218,7 @@ class ProgressRenderer {
    */
   async _renderLegacyProgress(session, event, displayEvents) {
     const fullText = this._textFromDisplayEvents(displayEvents);
-    await this.dispatcher._callFeishu('replyMarkdown', [this.dispatcher._replyCtx(event), this._appendModelFooter(fullText.trim(), session)]);
+    await this.dispatcher._callFeishu('replyMarkdown', [this.dispatcher._replyCtx(event), fullText.trim()], null, { sessionId: session.id, session });
   }
 
   /**

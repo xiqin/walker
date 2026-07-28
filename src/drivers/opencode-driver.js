@@ -1,8 +1,11 @@
 'use strict';
 
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const childProcess = require('node:child_process');
+const { promisify } = require('node:util');
 const { AgentDriver, AgentEvent } = require('./agent-driver');
 const { createLogger } = require('../core/logger');
 const { mapSSEEvent, isTerminalSSEEvent } = require('./opencode-sse-adapter');
@@ -14,6 +17,22 @@ const {
 } = require('./opencode-http-client');
 
 const logger = createLogger('opencode-driver');
+
+function defaultSqliteCmd() {
+  if (process.env.WALKER_SQLITE_CMD) return process.env.WALKER_SQLITE_CMD;
+  if (process.env.SQLITE3_PATH) return process.env.SQLITE3_PATH;
+  const candidates = [
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'SQLite', 'sqlite3.exe'),
+    'I:\\phpStudy\\Apache\\bin\\sqlite3.exe',
+    'C:\\Android\\platform-tools\\sqlite3.exe',
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fsSync.existsSync(candidate)) return candidate;
+    } catch (_) {}
+  }
+  return 'sqlite3';
+}
 
 class OpencodeDriver extends AgentDriver {
   constructor(options) {
@@ -35,6 +54,9 @@ class OpencodeDriver extends AgentDriver {
     this.sseIdleTimeoutMs = options.sseIdleTimeoutMs ?? 300000;
     this.recoveryWindowMs = options.recoveryWindowMs ?? 300000;
     this.tuiBridge = options.tuiBridge || null;
+    this.sqliteCmd = options.sqliteCmd || defaultSqliteCmd();
+    this.execFile = options.execFile || promisify(childProcess.execFile);
+    this.opencodeDbPath = options.opencodeDbPath || path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
     this._hasModelStateOverride = Object.prototype.hasOwnProperty.call(options, 'modelState');
     this.modelState = options.modelState;
     const stateRoot = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
@@ -143,6 +165,141 @@ class OpencodeDriver extends AgentDriver {
     }
   }
 
+  async getCurrentModel() {
+    const modelState = await this._loadModelState();
+    return this._extractCurrentModel(modelState);
+  }
+
+  async getLatestSessionRuntime(sessionRef) {
+    if (!sessionRef || !sessionRef.opencodeSessionId) return null;
+    if (sessionRef.transport === 'tui-bridge') {
+      return this._getLatestSessionRuntimeFromLocalDb(sessionRef.opencodeSessionId);
+    }
+
+    try {
+      const messages = await this._getSessionMessagesHttp(sessionRef);
+      const runtime = this._latestRuntimeFromMessages(messages);
+      if (runtime) return runtime;
+    } catch (err) {
+      logger.debug('failed to read latest session runtime from opencode http', {
+        sessionId: sessionRef.opencodeSessionId,
+        error: err && err.message,
+      });
+    }
+
+    if (sessionRef.transport !== 'tui-bridge') {
+      return this._getLatestSessionRuntimeFromLocalDb(sessionRef.opencodeSessionId);
+    }
+
+    return null;
+  }
+
+  async _getLatestSessionRuntimeFromLocalDb(sessionId) {
+    try {
+      const messages = await this._getSessionMessagesFromLocalDb(sessionId);
+      const runtime = this._latestRuntimeFromMessages(messages);
+      if (runtime) {
+        logger.info('latest session runtime loaded from opencode db', {
+          sessionId,
+          contextSize: runtime.contextSize,
+          model: runtime.model,
+        });
+      } else {
+        logger.info('latest session runtime not found in opencode db', {
+          sessionId,
+          messageCount: Array.isArray(messages) ? messages.length : 0,
+        });
+      }
+      return runtime;
+    } catch (err) {
+      logger.warn('failed to read latest session runtime from opencode db', {
+        sessionId,
+        sqliteCmd: this.sqliteCmd,
+        dbPath: this.opencodeDbPath,
+        error: err && err.message,
+      });
+      return null;
+    }
+  }
+
+  async _getSessionMessagesHttp(sessionRef) {
+    const sessionId = sessionRef.opencodeSessionId;
+    const url = this._buildUrl('/session/' + sessionId + '/message', {}, sessionRef);
+    const resp = await this.httpClient.request('GET', url);
+    return this._extractMessageList(resp);
+  }
+
+  async _getSessionMessagesFromLocalDb(sessionId) {
+    const escaped = String(sessionId).replace(/'/g, "''");
+    const sql = "select data from message where session_id='" + escaped + "' order by time_created desc limit 20;";
+    const result = await this.execFile(this.sqliteCmd, ['-batch', '-noheader', this.opencodeDbPath, sql], { encoding: 'utf8' });
+    const stdout = typeof result === 'string' ? result : (result && result.stdout) || '';
+    return stdout.split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try { return JSON.parse(line); } catch (_) { return null; }
+      })
+      .filter(Boolean);
+  }
+
+  _latestRuntimeFromMessages(messages) {
+    let latest = null;
+    for (const entry of messages || []) {
+      const runtime = this._runtimeFromMessage(entry);
+      if (!runtime) continue;
+      if (!latest || runtime.completedAt >= latest.completedAt) latest = runtime;
+    }
+    if (!latest) return null;
+    return {
+      model: latest.model,
+      contextSize: latest.contextSize,
+      tokenUsage: latest.tokenUsage,
+    };
+  }
+
+  _runtimeFromMessage(entry) {
+    const message = entry && (entry.info || entry.data || entry);
+    if (!message || message.role !== 'assistant') return null;
+    const completedAt = this._messageCompletedAt(message);
+    if (completedAt === null) return null;
+    const tokenUsage = this._tokenUsageFromTokens(message.tokens);
+    if (!tokenUsage) return null;
+    return {
+      completedAt,
+      model: this._normalizeModelRef({ providerID: message.providerID || message.provider, modelID: message.modelID || message.modelId || message.model }),
+      contextSize: tokenUsage.totalTokens,
+      tokenUsage,
+    };
+  }
+
+  _messageCompletedAt(message) {
+    const time = message && message.time;
+    const completed = time && (time.completed || time.completedAt || time.completed_at);
+    const value = completed || message.completedAt || message.completed_at || message.timeCompleted;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
+  _tokenUsageFromTokens(tokens) {
+    if (!tokens || typeof tokens !== 'object') return null;
+    const inputTokens = this._nonNegativeNumber(tokens.input ?? tokens.inputTokens ?? tokens.input_tokens) || 0;
+    const outputTokens = this._nonNegativeNumber(tokens.output ?? tokens.outputTokens ?? tokens.output_tokens) || 0;
+    const reasoningTokens = this._nonNegativeNumber(tokens.reasoning ?? tokens.reasoningTokens ?? tokens.reasoning_tokens) || 0;
+    const cache = tokens.cache || {};
+    const cacheReadTokens = this._nonNegativeNumber(cache.read ?? tokens.cacheReadTokens ?? tokens.cache_read_tokens) || 0;
+    const cacheWriteTokens = this._nonNegativeNumber(cache.write ?? tokens.cacheWriteTokens ?? tokens.cache_write_tokens) || 0;
+    const total = this._nonNegativeNumber(tokens.total ?? tokens.totalTokens ?? tokens.total_tokens);
+    const totalTokens = total !== null ? total : inputTokens + outputTokens + reasoningTokens + cacheReadTokens + cacheWriteTokens;
+    if (totalTokens <= 0) return null;
+    return { inputTokens, outputTokens, reasoningTokens, cacheReadTokens, cacheWriteTokens, totalTokens };
+  }
+
+  _nonNegativeNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
   async _loadModelState() {
     if (this._hasModelStateOverride) return this.modelState;
     try {
@@ -151,6 +308,33 @@ class OpencodeDriver extends AgentDriver {
     } catch (_) {
       return null;
     }
+  }
+
+  _extractCurrentModel(modelState) {
+    if (!modelState || typeof modelState !== 'object') return null;
+    const direct = modelState.currentModel || modelState.current || modelState.model || modelState.selected;
+    const model = this._normalizeModelRef(direct);
+    if (model) return model;
+    const recent = Array.isArray(modelState.recent) ? modelState.recent : [];
+    return this._normalizeModelRef(recent[0]);
+  }
+
+  _normalizeModelRef(model) {
+    if (!model) return null;
+    if (typeof model === 'string') {
+      const trimmed = model.trim();
+      if (!trimmed) return null;
+      if (trimmed.includes('/')) {
+        const parts = trimmed.split('/');
+        return { providerID: parts[0], modelID: parts.slice(1).join('/') };
+      }
+      return { providerID: '', modelID: trimmed };
+    }
+    if (typeof model !== 'object') return null;
+    const providerID = model.providerID || model.provider || '';
+    const modelID = model.modelID || model.id || '';
+    if (!providerID && !modelID) return null;
+    return { providerID, modelID };
   }
 
   _extractRecentModels(modelState) {
@@ -482,10 +666,7 @@ class OpencodeDriver extends AgentDriver {
       throw new Error('getSessionMessages requires sessionRef with opencodeSessionId');
     }
     if (this._isTuiBridge(sessionRef)) return [];
-    const sessionId = sessionRef.opencodeSessionId;
-    const url = this._buildUrl('/session/' + sessionId + '/message', {}, sessionRef);
-    const resp = await this.httpClient.request('GET', url);
-    return this._extractMessageList(resp);
+    return this._getSessionMessagesHttp(sessionRef);
   }
 
   async stop(sessionRef) {

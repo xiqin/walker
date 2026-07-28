@@ -95,15 +95,29 @@ function stateParts(api, messageId) {
   return source && source[messageId] || [];
 }
 
-function finalEvents(api, sessionId) {
+async function finalEvents(api, sessionId) {
   const messages = stateMessages(api, sessionId);
-  const assistant = [...messages].reverse().find((message) => message && message.role === 'assistant');
+  const assistants = messages.filter((message) => message && message.role === 'assistant');
+  const assistant = [...assistants].reverse().find((message) => {
+    const info = message.info || message;
+    return info.time && info.time.completed != null;
+  }) || assistants[assistants.length - 1];
   if (!assistant || !assistant.id) {
     console.warn('[walker-bridge] finalEvents: no assistant message found', { sessionId, messagesCount: messages.length, lastMessageRole: messages.length ? messages[messages.length - 1] && messages[messages.length - 1].role : 'none' });
     return { messageId: '', events: [] };
   }
+  let parts = stateParts(api, assistant.id);
+  const info = assistant.info || assistant;
+  let finishPart = [...parts].reverse().find((part) => part && part.type === 'step-finish' && part.tokens);
+  let tokens = info.tokens || finishPart && finishPart.tokens;
+  for (let attempt = 0; !tokens && attempt < 5; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    parts = stateParts(api, assistant.id);
+    finishPart = [...parts].reverse().find((part) => part && part.type === 'step-finish' && part.tokens);
+    tokens = info.tokens || finishPart && finishPart.tokens;
+  }
   const events = [];
-  for (const part of stateParts(api, assistant.id)) {
+  for (const part of parts) {
     const text = part && (part.text || part.content || part.value || '');
     if (part && part.type === 'text' && text) events.push({ type: 'text', data: { text } });
     if (part && part.type === 'reasoning' && text) events.push({ type: 'reasoning', data: { text } });
@@ -130,7 +144,25 @@ function finalEvents(api, sessionId) {
       });
     }
   }
-  events.push({ type: 'done', data: { reason: 'idle' } });
+  const tokenData = tokens || {};
+  const cache = tokenData.cache || {};
+  const usage = {
+    inputTokens: Number(tokenData.input) || 0,
+    outputTokens: Number(tokenData.output) || 0,
+    reasoningTokens: Number(tokenData.reasoning) || 0,
+    cacheReadTokens: Number(cache.read) || 0,
+    cacheWriteTokens: Number(cache.write) || 0,
+  };
+  const reportedTotal = Number(tokenData.total);
+  usage.totalTokens = Number.isFinite(reportedTotal) && reportedTotal >= 0
+    ? reportedTotal
+    : usage.inputTokens + usage.outputTokens + usage.reasoningTokens + usage.cacheReadTokens + usage.cacheWriteTokens;
+  const done = { reason: 'idle' };
+  if (info.providerID || info.modelID) {
+    done.model = { providerID: info.providerID || '', modelID: info.modelID || '' };
+  }
+  if (tokens) done.usage = usage;
+  events.push({ type: 'done', data: done });
   return { messageId: assistant.id, events };
 }
 
@@ -728,7 +760,7 @@ async function tui(api) {
       console.warn('[walker-bridge] session.idle ignored: no sessionId');
       return;
     }
-    const result = finalEvents(api, sessionId);
+    const result = await finalEvents(api, sessionId);
     if (!result.messageId) {
       console.warn('[walker-bridge] session.idle finalEvents empty, skipping report', { sessionId });
       return;

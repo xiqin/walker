@@ -1254,6 +1254,23 @@ describe('OpencodeDriver listModels', () => {
     ]);
   });
 
+  it('从本地模型状态读取当前模型，缺失 current 时回退 recent 第一项', async () => {
+    const http = new FakeHttpClient({});
+    const currentDriver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:4096',
+      modelState: { current: { providerID: 'cpa', modelID: 'gpt-5.5' } },
+    });
+    const recentDriver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:4096',
+      modelState: { recent: [{ providerID: 'anthropic', modelID: 'claude-sonnet-4' }] },
+    });
+
+    assert.deepEqual(await currentDriver.getCurrentModel(), { providerID: 'cpa', modelID: 'gpt-5.5' });
+    assert.deepEqual(await recentDriver.getCurrentModel(), { providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+  });
+
   it('本地模型状态不可用时仅返回 /api/model', async () => {
     const http = new FakeHttpClient({
       'GET http://localhost:4096/api/model': {
@@ -1386,6 +1403,64 @@ describe('OpencodeDriver clearSession', () => {
       /tuiBridge|tui-bridge|not configured|未配置/i,
     );
     assert.equal(http.calls.length, 0);
+  });
+});
+
+describe('OpencodeDriver latest session runtime', () => {
+  it('默认优先使用本机可用 sqlite3.exe 路径读取 opencode.db', async () => {
+    const http = new FakeHttpClient({});
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:4096',
+      tuiBridge: {},
+      opencodeDbPath: 'C:\\Users\\test\\opencode.db',
+      execFile: async (cmd) => {
+        assert.match(cmd, /sqlite3(?:\.exe)?$/i);
+        return { stdout: '' };
+      },
+    });
+
+    await driver.getLatestSessionRuntime({ transport: 'tui-bridge', opencodeSessionId: 'ses_runtime' });
+  });
+
+  it('从本机 opencode.db 读取 TUI 会话最新已完成 assistant 的 tokens.total', async () => {
+    const http = new FakeHttpClient({});
+    const calls = [];
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:4096',
+      tuiBridge: {},
+      sqliteCmd: 'sqlite3-test',
+      opencodeDbPath: 'C:\\Users\\test\\opencode.db',
+      execFile: async (cmd, args, options) => {
+        calls.push({ cmd, args, options });
+        assert.equal(cmd, 'sqlite3-test');
+        assert.equal(args[2], 'C:\\Users\\test\\opencode.db');
+        assert.match(args[3], /session_id='ses_runtime'/);
+        return {
+          stdout: [
+            JSON.stringify({ role: 'assistant', providerID: 'cpa', modelID: 'gpt-5.5', time: {}, tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } }),
+            JSON.stringify({ role: 'assistant', providerID: 'cpa', modelID: 'gpt-5.5', time: { completed: 1785145653705 }, tokens: { total: 79520, input: 740, output: 296, reasoning: 148, cache: { read: 78336, write: 0 } } }),
+          ].join('\n'),
+        };
+      },
+    });
+
+    const runtime = await driver.getLatestSessionRuntime({ transport: 'tui-bridge', opencodeSessionId: 'ses_runtime' });
+
+    assert.deepEqual(runtime, {
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+      contextSize: 79520,
+      tokenUsage: {
+        inputTokens: 740,
+        outputTokens: 296,
+        reasoningTokens: 148,
+        cacheReadTokens: 78336,
+        cacheWriteTokens: 0,
+        totalTokens: 79520,
+      },
+    });
+    assert.equal(calls.length, 1);
   });
 });
 

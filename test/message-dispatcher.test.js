@@ -42,19 +42,19 @@ function makeMocks() {
   };
   const driverRegistry = { get: () => driver };
   const feishuApi = {
-    replyText: (msgId, text) => { feishuApi.calls.push({ type: 'replyText', msgId, text }); return [{ message_id: 'om_reply1' }]; },
-    replyMarkdown: (msgId, text) => { feishuApi.calls.push({ type: 'replyMarkdown', msgId, text }); return [{ message_id: 'om_reply1' }]; },
-    sendText: (chatId, text) => { feishuApi.calls.push({ type: 'sendText', chatId, text }); },
-    sendMarkdown: (chatId, text) => { feishuApi.calls.push({ type: 'sendMarkdown', chatId, text }); },
-    replyCard: (msgId, card) => { feishuApi.calls.push({ type: 'replyCard', msgId, card }); return 'om_card1'; },
-    patchCard: (cardId, card) => { feishuApi.calls.push({ type: 'patchCard', cardId, card }); },
+    replyText: (msgId, text, runtime) => { feishuApi.calls.push({ type: 'replyText', msgId, text, runtime }); return [{ message_id: 'om_reply1' }]; },
+    replyMarkdown: (msgId, text, runtime) => { feishuApi.calls.push({ type: 'replyMarkdown', msgId, text, runtime }); return [{ message_id: 'om_reply1' }]; },
+    sendText: (chatId, text, runtime) => { feishuApi.calls.push({ type: 'sendText', chatId, text, runtime }); },
+    sendMarkdown: (chatId, text, runtime) => { feishuApi.calls.push({ type: 'sendMarkdown', chatId, text, runtime }); },
+    replyCard: (msgId, card, runtime) => { feishuApi.calls.push({ type: 'replyCard', msgId, card, runtime }); return 'om_card1'; },
+    patchCard: (cardId, card, runtime) => { feishuApi.calls.push({ type: 'patchCard', cardId, card, runtime }); },
     addReaction: (msgId, emoji) => { feishuApi.calls.push({ type: 'addReaction', msgId, emoji }); },
     sendUnboundGuide: (msgId, routeKey) => { feishuApi.calls.push({ type: 'sendUnboundGuide', msgId, routeKey }); },
     sendSessionList: (msgId, sessions, currentId, options) => { feishuApi.calls.push({ type: 'sendSessionList', msgId, sessions, currentId, options }); },
     sendAttachableSessionList: (msgId, sessions, options) => { feishuApi.calls.push({ type: 'sendAttachableSessionList', msgId, sessions, options }); },
     sendErrorCard: (msgId, message) => { feishuApi.calls.push({ type: 'sendErrorCard', msgId, message }); },
-    sendProgressCard: (msgId, sessionId, _initialEvent) => { feishuApi.calls.push({ type: 'sendProgressCard', msgId, sessionId }); return 'om_prog1'; },
-    updateProgressCard: (cardId, sessionId, agentEvent) => { feishuApi.calls.push({ type: 'updateProgressCard', cardId, sessionId, agentEvent }); return null; },
+    sendProgressCard: (msgId, sessionId, initialEvent, runtime) => { feishuApi.calls.push({ type: 'sendProgressCard', msgId, sessionId, initialEvent, runtime }); return 'om_prog1'; },
+    updateProgressCard: (cardId, sessionId, agentEvent, runtime) => { feishuApi.calls.push({ type: 'updateProgressCard', cardId, sessionId, agentEvent, runtime }); return null; },
     sendModelList: (msgId, models, options) => { feishuApi.calls.push({ type: 'sendModelList', msgId, models, options }); return 'om_model_card1'; },
     sendHelpCard: (msgId, commands, options) => { feishuApi.calls.push({ type: 'sendHelpCard', msgId, commands, options }); return 'om_help_card1'; },
     calls: [],
@@ -139,6 +139,97 @@ describe('MessageDispatcher unbound route', () => {
 });
 
 describe('MessageDispatcher bound route prompt', () => {
+  it('_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata', async () => {
+    const mocks = makeMocks();
+    const sessions = [
+      { id: 'wks_runtime1', agent: 'opencode', model: { providerID: 'anthropic', modelID: 'claude-haiku' }, contextTokens: 101 },
+      { id: 'wks_runtime1', agent: 'opencode', model: 'openai/gpt-4.1', tokenUsage: { totalTokens: 202 } },
+    ];
+    let index = 0;
+    mocks.sessionService.getSession = () => sessions[index++];
+    let listModelsCalls = 0;
+    mocks.driver.listModels = async () => { listModelsCalls += 1; return []; };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultModel: 'qwen/default',
+    });
+
+    await dispatcher._callFeishu('replyText', [{ messageId: 'om_parent' }, '第一条'], null, { sessionId: 'wks_runtime1' });
+    await dispatcher._callFeishu('sendMarkdown', ['oc_chat1', '第二条'], null, { sessionId: 'wks_runtime1' });
+    await dispatcher._callFeishu('addReaction', ['om_parent', 'OnIt'], null, { sessionId: 'wks_runtime1' });
+
+    assert.deepEqual(mocks.feishuApi.calls[0].runtime, {
+      model: { providerID: 'anthropic', modelID: 'claude-haiku' },
+      defaultModel: 'qwen/default',
+      contextSize: 101,
+      tokenUsage: undefined,
+    });
+    assert.deepEqual(mocks.feishuApi.calls[1].runtime, {
+      model: 'openai/gpt-4.1',
+      defaultModel: 'qwen/default',
+      contextSize: undefined,
+      tokenUsage: { totalTokens: 202 },
+    });
+    assert.equal(Object.hasOwn(mocks.feishuApi.calls[2], 'runtime'), false);
+    assert.equal(listModelsCalls, 0);
+  });
+
+  it('_callFeishu 在 session 无模型时直接用 driver 当前模型填充 runtime', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_runtime_model', agent: 'opencode', status: 'idle' };
+    const updatedFields = [];
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.updateSessionField = (sid, field, value) => {
+      updatedFields.push({ sid, field, value });
+      session[field] = value;
+    };
+    mocks.driver.getCurrentModel = async () => ({ providerID: 'cpa', modelID: 'gpt-5.5' });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher._callFeishu('replyText', [{ messageId: 'om_parent' }, '正文'], null, { sessionId: 'wks_runtime_model' });
+
+    assert.deepEqual(mocks.feishuApi.calls[0].runtime, {
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+      defaultModel: '',
+      contextSize: undefined,
+      tokenUsage: undefined,
+    });
+    assert.deepEqual(updatedFields, [
+      { sid: 'wks_runtime_model', field: 'model', value: { providerID: 'cpa', modelID: 'gpt-5.5' } },
+    ]);
+  });
+
+  it('_callFeishu 保持可重试方法的重试次数和 fallback 行为不变', async () => {
+    const mocks = makeMocks();
+    let attempts = 0;
+    mocks.feishuApi.replyMarkdown = async () => {
+      attempts += 1;
+      throw new Error('temporary feishu failure');
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher._callFeishu('replyMarkdown', [{ messageId: 'om_parent' }, '正文'], 'fallback-result', { sessionId: 'missing' });
+
+    assert.equal(attempts, 3);
+    assert.equal(result, 'fallback-result');
+  });
+
   it('线程消息未命中时回退到群聊根 route 的焦点 session', async () => {
     const mocks = makeMocks();
     const getCurrentCalls = [];
@@ -287,7 +378,12 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.ok(updates.some(c => c.agentEvent.type === AgentEvent.TYPE_DONE), 'TYPE_DONE 仍应触发一次 updateProgressCard');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
     assert.ok(reply, '应通过 replyMarkdown 发送完整文本');
-    assert.equal(reply.text, 'Hello\n\n---\n模型：未指定');
+    assert.equal(reply.text, 'Hello');
+    assert.equal(reply.runtime.defaultModel, '');
+    assert.equal(reply.runtime.contextSize, undefined);
+    const progress = mocks.feishuApi.calls.find(c => c.type === 'sendProgressCard');
+    assert.equal(progress.runtime.model, undefined);
+    assert.equal(progress.runtime.defaultModel, '');
     assert.ok(mocks.feishuApi.calls.some(c => c.type === 'addReaction' && c.emoji === 'OnIt'));
     assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_root1']);
   });
@@ -529,7 +625,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(updates[0].agentEvent.type, AgentEvent.TYPE_DONE);
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
     assert.ok(reply, '应通过 replyMarkdown 发送合并后的完整文本');
-    assert.equal(reply.text, '你好\n\n---\n模型：未指定');
+    assert.equal(reply.text, '你好');
   });
 
   it('展示前移除 opencode 事件里复述的本轮用户消息', async () => {
@@ -589,7 +685,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
     assert.ok(reply, '应通过 replyMarkdown 发送完整文本');
-    assert.equal(reply.text, '你好\n\n---\n模型：未指定');
+    assert.equal(reply.text, '你好');
   });
 
   it('带消息编号的重复最终快照不会再次更新飞书', async () => {
@@ -618,7 +714,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
     assert.ok(reply, '应通过 replyMarkdown 发送完整文本');
-    assert.equal(reply.text, '我是 OpenCode\n\n---\n模型：未指定');
+    assert.equal(reply.text, '我是 OpenCode');
   });
 
   it('单个文本事件中带消息编号的重复快照会折叠为一份回答', async () => {
@@ -679,7 +775,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不应触发 updateProgressCard');
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
     assert.ok(reply, '应通过 replyMarkdown 发送最终回答文本');
-    assert.equal(reply.text, '完成\n\n---\n模型：未指定');
+    assert.equal(reply.text, '完成');
     assert.equal(reply.text.includes('正在分析调用链'), false, 'replyMarkdown 不应包含思考内容');
     assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendMarkdown' && c.text.includes('正在分析调用链')), false);
     assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyMarkdown' && c.text.includes('正在分析调用链')), false);
@@ -741,7 +837,7 @@ describe('MessageDispatcher bound route prompt', () => {
 
     const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyMarkdown');
     assert.equal(replies.length, 1, 'replyMarkdown 恰好调用一次');
-    assert.equal(replies[0].text, 'Hello\n\n---\n模型：未指定');
+    assert.equal(replies[0].text, 'Hello');
     const textUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_TEXT);
     assert.equal(textUpdates.length, 0, 'TYPE_TEXT 不触发 updateProgressCard');
     const doneUpdates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_DONE);
@@ -801,7 +897,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.equal(updates.length, 0, 'sendProgressCard 返回 null 时不应调用 updateProgressCard');
     const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyMarkdown');
     assert.equal(replies.length, 1, '最终文本仍应由 _renderEvents 通过 replyMarkdown 发送一次');
-    assert.equal(replies[0].text, 'Hello\n\n---\n模型：未指定');
+    assert.equal(replies[0].text, 'Hello');
   });
 
   it('replyText undefined 不标记已送达', async () => {
@@ -1401,6 +1497,60 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     assert.equal(sends.length, 1);
   });
 
+  it('watch DONE 缺少 usage 时从 driver 最新 runtime 补齐上下文', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_watch_runtime1',
+      agent: 'opencode',
+      status: 'idle',
+      route: 'feishu:oc_chat1:root:om_root1',
+      agentRef: { transport: 'tui-bridge', runtimeId: 'rt_watch1', opencodeSessionId: 'ses_watch_runtime1' },
+    };
+    const tokenUsage = {
+      inputTokens: 500,
+      outputTokens: 20,
+      reasoningTokens: 0,
+      cacheReadTokens: 58000,
+      cacheWriteTokens: 0,
+      totalTokens: 58520,
+    };
+    let onEvent;
+    let runtimeReads = 0;
+    mocks.driver.watchSession = (agentRef, handlers) => {
+      assert.deepEqual(agentRef, session.agentRef);
+      onEvent = handlers.onEvent;
+      return () => {};
+    };
+    mocks.driver.getLatestSessionRuntime = async (agentRef) => {
+      runtimeReads++;
+      assert.deepEqual(agentRef, session.agentRef);
+      return {
+        model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+        contextSize: 58520,
+        tokenUsage,
+      };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    dispatcher._watchSessionEvents(session, { chatId: 'oc_chat1' }, mocks.driver);
+    await onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'watch runtime answer' }));
+    await onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle', model: { providerID: 'cpa', modelID: 'gpt-5.5' } }));
+    let send;
+    const deadline = Date.now() + 500;
+    while (Date.now() < deadline) {
+      send = mocks.feishuApi.calls.find(c => c.type === 'sendMarkdown' && c.text === 'watch runtime answer');
+      if (send) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
+    assert.ok(send);
+    assert.equal(runtimeReads, 1);
+    assert.equal(session.contextTokens, 58520);
+    assert.deepEqual(session.tokenUsage, tokenUsage);
+    assert.equal(send.runtime.contextSize, 58520);
+    assert.deepEqual(send.runtime.tokenUsage, tokenUsage);
+  });
+
   it('watch 进度事件实时渲染进度卡片并在 done 时完成', async () => {
     const mocks = makeMocks();
     const session = { id: 'wks_watch_prog1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_watch_prog1' } };
@@ -1910,7 +2060,9 @@ describe('MessageDispatcher /delete command', () => {
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
     assert.equal(result.deleted, 'wks_delete1');
     assert.equal(deletedSessionId, 'wks_delete1');
-    assert.deepEqual(reply.msgId, { messageId: '', chatId: 'oc_chat1' });
+    assert.equal(reply.msgId.messageId, '');
+    assert.equal(reply.msgId.chatId, 'oc_chat1');
+    assert.equal(reply.msgId.routeKey, 'feishu:oc_chat1:om_root1');
     assert.equal(reply.text, 'Session deleted: wks_delete1');
   });
 });
@@ -2385,11 +2537,14 @@ describe('MessageDispatcher /help command', () => {
 describe('MessageDispatcher model footer', () => {
   it('普通 Agent 最终文本底部追加当前 session 模型 footer', async () => {
     const mocks = makeMocks();
-    mocks.sessionService.getCurrent = () => ({
+    const session = {
       id: 'wks_footer1', agent: 'opencode', status: 'idle',
       model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' },
+      contextTokens: 4096,
       agentRef: { opencodeSessionId: 'ses_footer1' },
-    });
+    };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
 
     await dispatcher.handleIncomingMessage({
@@ -2398,13 +2553,21 @@ describe('MessageDispatcher model footer', () => {
     });
 
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
-    assert.equal(reply.text, 'Hello\n\n---\n模型：anthropic/claude-sonnet-4');
+    assert.equal(reply.text, 'Hello');
+    assert.deepEqual(reply.runtime, {
+      model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' },
+      defaultModel: '',
+      contextSize: 4096,
+      tokenUsage: undefined,
+    });
   });
 
-  it('普通 Agent 最终文本无模型时 footer 显示未指定', async () => {
+  it('普通 Agent 最终文本无模型时 runtime metadata 回退为默认值', async () => {
     const mocks = makeMocks();
-    mocks.sessionService.getCurrent = () => ({ id: 'wks_footer2', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_footer2' } });
-    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+    const session = { id: 'wks_footer2', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_footer2' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card', defaultModel: 'qwen/default' });
 
     await dispatcher.handleIncomingMessage({
       chatId: 'oc_chat1', messageId: 'om_footer2', openId: 'ou_user1', text: 'test',
@@ -2412,7 +2575,285 @@ describe('MessageDispatcher model footer', () => {
     });
 
     const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
-    assert.equal(reply.text, 'Hello\n\n---\n模型：未指定');
+    assert.equal(reply.text, 'Hello');
+    assert.deepEqual(reply.runtime, {
+      model: { providerID: 'qwen', modelID: 'default' },
+      defaultModel: 'qwen/default',
+      contextSize: undefined,
+      tokenUsage: undefined,
+    });
+  });
+
+  it('普通 Agent 最终文本使用 driver 当前模型和本次 token usage 作为真实 runtime metadata', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_footer3', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_footer3' } };
+    const updatedFields = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.updateSessionField = (sid, field, value) => {
+      updatedFields.push({ sid, field, value });
+      session[field] = value;
+    };
+    mocks.driver.getCurrentModel = async () => ({ providerID: 'cpa', modelID: 'gpt-5.5' });
+    mocks.driver.prompt = async (agentRef, text, options) => {
+      mocks.driver.promptCalls.push({ agentRef, text, model: options && options.model, signal: options && options.signal });
+      return [
+        new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }),
+        new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle', usage: { totalTokens: 321 } }),
+      ];
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_footer3', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.equal(reply.text, 'Hello');
+    assert.deepEqual(reply.runtime, {
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+      defaultModel: '',
+      contextSize: 321,
+      tokenUsage: { totalTokens: 321 },
+    });
+    assert.deepEqual(updatedFields, [
+      { sid: 'wks_footer3', field: 'model', value: { providerID: 'cpa', modelID: 'gpt-5.5' } },
+      { sid: 'wks_footer3', field: 'contextTokens', value: 321 },
+      { sid: 'wks_footer3', field: 'tokenUsage', value: { totalTokens: 321 } },
+    ]);
+  });
+
+  it('本次 Agent 事件模型优先于 session 旧模型', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_footer_event_model', agent: 'opencode', status: 'idle',
+      model: { providerID: 'cpa', modelID: 'gpt-5.4' },
+      agentRef: { opencodeSessionId: 'ses_footer_event_model' },
+    };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.updateSessionField = (_sid, field, value) => { session[field] = value; };
+    mocks.driver.prompt = async () => [
+      new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }),
+      new AgentEvent(AgentEvent.TYPE_DONE, {
+        reason: 'idle',
+        model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+        usage: { totalTokens: 456 },
+      }),
+    ];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_footer_event_model', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.deepEqual(reply.runtime.model, { providerID: 'cpa', modelID: 'gpt-5.5' });
+    assert.equal(reply.runtime.contextSize, 456);
+  });
+
+  it('prompt DONE 缺少 usage 时从 driver 最新完成消息补齐上下文', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_footer_runtime_fallback', agent: 'opencode', status: 'idle',
+      agentRef: { transport: 'tui-bridge', runtimeId: 'rt_1', opencodeSessionId: 'ses_runtime_fallback' },
+    };
+    const updatedFields = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.updateSessionField = (_sid, field, value) => {
+      updatedFields.push({ field, value });
+      session[field] = value;
+    };
+    mocks.driver.prompt = async () => [
+      new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }),
+      new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle', model: { providerID: 'cpa', modelID: 'gpt-5.5' } }),
+    ];
+    mocks.driver.getLatestSessionRuntime = async (agentRef) => {
+      assert.deepEqual(agentRef, session.agentRef);
+      return {
+        model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+        contextSize: 79520,
+        tokenUsage: {
+          inputTokens: 740,
+          outputTokens: 296,
+          reasoningTokens: 148,
+          cacheReadTokens: 78336,
+          cacheWriteTokens: 0,
+          totalTokens: 79520,
+        },
+      };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_footer_runtime_fallback', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.deepEqual(reply.runtime, {
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+      defaultModel: '',
+      contextSize: 79520,
+      tokenUsage: {
+        inputTokens: 740,
+        outputTokens: 296,
+        reasoningTokens: 148,
+        cacheReadTokens: 78336,
+        cacheWriteTokens: 0,
+        totalTokens: 79520,
+      },
+    });
+    assert.deepEqual(updatedFields, [
+      { field: 'model', value: { providerID: 'cpa', modelID: 'gpt-5.5' } },
+      { field: 'contextTokens', value: 79520 },
+      { field: 'tokenUsage', value: {
+        inputTokens: 740,
+        outputTokens: 296,
+        reasoningTokens: 148,
+        cacheReadTokens: 78336,
+        cacheWriteTokens: 0,
+        totalTokens: 79520,
+      } },
+    ]);
+  });
+
+  it('prompt DONE 只有空 usage 时仍从 driver 最新完成消息补齐上下文', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_footer_empty_usage_fallback', agent: 'opencode', status: 'idle',
+      agentRef: { transport: 'tui-bridge', runtimeId: 'rt_1', opencodeSessionId: 'ses_empty_usage_fallback' },
+    };
+    let runtimeReads = 0;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.updateSessionField = (_sid, field, value) => { session[field] = value; };
+    mocks.driver.prompt = async () => [
+      new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }),
+      new AgentEvent(AgentEvent.TYPE_DONE, {
+        reason: 'idle',
+        model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+        usage: {},
+      }),
+    ];
+    mocks.driver.getLatestSessionRuntime = async (agentRef) => {
+      runtimeReads += 1;
+      assert.deepEqual(agentRef, session.agentRef);
+      return {
+        model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+        contextSize: 68664,
+        tokenUsage: {
+          inputTokens: 5390,
+          outputTokens: 203,
+          reasoningTokens: 95,
+          cacheReadTokens: 62976,
+          cacheWriteTokens: 0,
+          totalTokens: 68664,
+        },
+      };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_footer_empty_usage_fallback', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.equal(runtimeReads, 1);
+    assert.equal(reply.runtime.contextSize, 68664);
+    assert.equal(reply.runtime.tokenUsage.totalTokens, 68664);
+  });
+
+  it('prompt final 回复使用当前 session 上刚补齐的上下文而不是旧快照', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_footer_current_session_runtime', agent: 'opencode', status: 'idle',
+      agentRef: { transport: 'tui-bridge', runtimeId: 'rt_1', opencodeSessionId: 'ses_current_session_runtime' },
+    };
+    const staleSession = {
+      id: session.id, agent: 'opencode', status: 'idle',
+      model: { providerID: 'cpa', modelID: 'gpt-5.6-sol' },
+      agentRef: session.agentRef,
+    };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => staleSession;
+    mocks.sessionService.updateSessionField = (_sid, field, value) => { session[field] = value; };
+    mocks.driver.prompt = async () => [
+      new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }),
+      new AgentEvent(AgentEvent.TYPE_DONE, {
+        reason: 'idle',
+        model: { providerID: 'cpa', modelID: 'gpt-5.6-sol' },
+        usage: {},
+      }),
+    ];
+    mocks.driver.getLatestSessionRuntime = async (agentRef) => {
+      assert.deepEqual(agentRef, session.agentRef);
+      return {
+        model: { providerID: 'cpa', modelID: 'gpt-5.6-sol' },
+        contextSize: 114294,
+        tokenUsage: { inputTokens: 5390, outputTokens: 203, reasoningTokens: 95, cacheReadTokens: 108606, cacheWriteTokens: 0, totalTokens: 114294 },
+      };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_footer_current_session_runtime', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.equal(session.contextTokens, 114294);
+    assert.equal(staleSession.contextTokens, undefined);
+    assert.equal(reply.runtime.contextSize, 114294);
+    assert.equal(reply.runtime.tokenUsage.totalTokens, 114294);
+  });
+
+  it('driver runtime 兜底首次未就绪时短暂重试后补齐上下文', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_footer_runtime_retry', agent: 'opencode', status: 'idle',
+      agentRef: { transport: 'tui-bridge', runtimeId: 'rt_1', opencodeSessionId: 'ses_runtime_retry' },
+    };
+    let runtimeReads = 0;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.updateSessionField = (_sid, field, value) => { session[field] = value; };
+    mocks.driver.prompt = async () => [
+      new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }),
+      new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle', model: { providerID: 'cpa', modelID: 'gpt-5.6-sol' } }),
+    ];
+    mocks.driver.getLatestSessionRuntime = async (agentRef) => {
+      assert.deepEqual(agentRef, session.agentRef);
+      runtimeReads += 1;
+      if (runtimeReads === 1) return null;
+      return {
+        model: { providerID: 'cpa', modelID: 'gpt-5.6-sol' },
+        contextSize: 33058,
+        tokenUsage: { inputTokens: 772, outputTokens: 30, reasoningTokens: 0, cacheReadTokens: 32256, cacheWriteTokens: 0, totalTokens: 33058 },
+      };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_footer_runtime_retry', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyMarkdown');
+    assert.equal(runtimeReads, 2);
+    assert.equal(reply.runtime.contextSize, 33058);
+    assert.deepEqual(reply.runtime.tokenUsage, {
+      inputTokens: 772,
+      outputTokens: 30,
+      reasoningTokens: 0,
+      cacheReadTokens: 32256,
+      cacheWriteTokens: 0,
+      totalTokens: 33058,
+    });
   });
 });
 
@@ -3494,7 +3935,7 @@ describe('MessageDispatcher permission handling', () => {
     const session = { id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } };
     dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_PERMISSION, { id: 'perm_abc', title: 'test' }));
     await new Promise((resolve) => setImmediate(resolve));
-    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_PERMISSION_REPLIED, { permissionId: 'perm_abc', response: 'allow' }));
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_PERMISSION_REPLIED, { permissionId: 'perm_abc', response: 'allow' }));
     const patchCall = mocks.feishuApi.calls.find((c) => c.type === 'patchCard');
     assert.ok(patchCall, '应调用 patchCard 更新权限卡片');
     assert.equal(patchCall.card.header.title.content, '权限已处理');

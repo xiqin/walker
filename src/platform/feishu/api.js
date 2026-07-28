@@ -3,6 +3,8 @@ const { createLogger } = require('../../core/logger');
 
 const logger = createLogger('feishu-api');
 const MAX_TEXT_CHARS = 3500;
+const RUNTIME_FOOTER_RE = /\n*---\n模型：[^\n]*(?:\n上下文：[^\n]*)?\s*$/;
+const RUNTIME_FOOTER_FIELD_RE = /(?:^|\n)---\n模型：[^\n]*(?:\n上下文：[^\n]*)?(?:\n|$)/;
 
 function splitTextChunks(text, maxChars) {
   const value = text == null ? '' : String(text);
@@ -20,6 +22,91 @@ function splitTextChunks(text, maxChars) {
   }
   chunks.push(remaining);
   return chunks;
+}
+
+function safeRead(obj, key) {
+  try {
+    return obj && obj[key];
+  } catch (_) {
+    return undefined;
+  }
+}
+
+function formatModelRef(model, defaultModel) {
+  try {
+    const value = model || defaultModel;
+    if (!value) return 'unknown';
+    if (typeof value === 'string') return value.trim() || 'unknown';
+    if (typeof value === 'object') {
+      const provider = safeRead(value, 'providerID') || safeRead(value, 'provider') || '';
+      const modelID = safeRead(value, 'modelID') || safeRead(value, 'id') || '';
+      if (provider && modelID) return provider + '/' + modelID;
+      return modelID || provider || 'unknown';
+    }
+    return String(value) || 'unknown';
+  } catch (_) {
+    return 'unknown';
+  }
+}
+
+function formatContextSize(runtime) {
+  try {
+    const candidates = [
+      safeRead(runtime, 'contextSize'),
+      safeRead(runtime, 'contextTokens'),
+      safeRead(runtime, 'tokens'),
+      safeRead(runtime, 'tokenUsage'),
+      safeRead(runtime, 'usage'),
+    ];
+    for (const candidate of candidates) {
+      const formatted = formatContextCandidate(candidate);
+      if (formatted) return formatted;
+    }
+  } catch (_) {}
+  return 'unknown';
+}
+
+function formatContextCandidate(value) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.round(value)) + ' tokens';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    return /[a-zA-Z\u4e00-\u9fa5]/.test(trimmed) ? trimmed : trimmed + ' tokens';
+  }
+  if (typeof value === 'object') {
+    const keys = ['contextTokens', 'contextSize', 'totalTokens', 'total_tokens', 'inputTokens', 'input_tokens', 'tokens'];
+    for (const key of keys) {
+      const formatted = formatContextCandidate(safeRead(value, key));
+      if (formatted) return formatted;
+    }
+  }
+  return '';
+}
+
+function buildRuntimeFooter(runtime) {
+  return '---\n模型：' + formatModelRef(safeRead(runtime, 'model'), safeRead(runtime, 'defaultModel')) + '\n上下文：' + formatContextSize(runtime);
+}
+
+function appendRuntimeFooter(text, runtime) {
+  const value = text == null ? '' : String(text);
+  const body = value.replace(RUNTIME_FOOTER_RE, '').trimEnd();
+  const footer = buildRuntimeFooter(runtime || {});
+  return (body ? body + '\n\n' : '') + footer;
+}
+
+function cardHasRuntimeFooter(card) {
+  const elements = card && card.body && Array.isArray(card.body.elements) ? card.body.elements : [];
+  return elements.some((element) => element && element.tag === 'markdown' && typeof element.content === 'string' && RUNTIME_FOOTER_FIELD_RE.test(element.content));
+}
+
+function withRuntimeFooterCard(card, runtime) {
+  const cloned = card && typeof card === 'object' ? JSON.parse(JSON.stringify(card)) : {};
+  if (cardHasRuntimeFooter(cloned)) return cloned;
+  if (!cloned.body || typeof cloned.body !== 'object') cloned.body = {};
+  if (!Array.isArray(cloned.body.elements)) cloned.body.elements = [];
+  cloned.body.elements.push({ tag: 'markdown', content: buildRuntimeFooter(runtime || {}) });
+  return cloned;
 }
 
 /**
@@ -81,10 +168,10 @@ class FeishuApi {
    * @param {string} text - 回复文本内容
    * @returns {Promise<Object>} 飞书 API 返回结果
    */
-  async replyText(replyCtx, text) {
+  async replyText(replyCtx, text, runtime) {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
-    const chunks = splitTextChunks(text);
+    const chunks = splitTextChunks(appendRuntimeFooter(text, runtime));
     const results = [];
     if (replyCtx && replyCtx.messageId) {
       results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages/' + replyCtx.messageId + '/reply', JSON.stringify({
@@ -115,10 +202,10 @@ class FeishuApi {
     throw new Error('replyText: no messageId or chatId in replyCtx');
   }
 
-  async sendText(chatId, text) {
+  async sendText(chatId, text, runtime) {
     const token = await this.getTenantToken();
     const results = [];
-    for (const chunk of splitTextChunks(text)) {
+    for (const chunk of splitTextChunks(appendRuntimeFooter(text, runtime))) {
       results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
         receive_id: chatId,
         msg_type: 'text',
@@ -135,10 +222,10 @@ class FeishuApi {
    * @param {string} text - markdown 文本内容
    * @returns {Promise<Object|Object[]>} 飞书 API 返回结果
    */
-  async replyMarkdown(replyCtx, text) {
+  async replyMarkdown(replyCtx, text, runtime) {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
-    const chunks = splitTextChunks(text);
+    const chunks = splitTextChunks(appendRuntimeFooter(text, runtime));
     const buildCard = (content) => ({ schema: '2.0', body: { elements: [{ tag: 'markdown', content }] } });
     const results = [];
     if (replyCtx && replyCtx.messageId) {
@@ -176,11 +263,11 @@ class FeishuApi {
    * @param {string} text - markdown 文本内容
    * @returns {Promise<Object[]>} 飞书 API 返回结果列表
    */
-  async sendMarkdown(chatId, text) {
+  async sendMarkdown(chatId, text, runtime) {
     const token = await this.getTenantToken();
     const results = [];
     const buildCard = (content) => ({ schema: '2.0', body: { elements: [{ tag: 'markdown', content }] } });
-    for (const chunk of splitTextChunks(text)) {
+    for (const chunk of splitTextChunks(appendRuntimeFooter(text, runtime))) {
       results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
         receive_id: chatId,
         msg_type: 'interactive',
@@ -190,10 +277,10 @@ class FeishuApi {
     return results;
   }
 
-  async replyCard(replyCtx, card) {
+  async replyCard(replyCtx, card, runtime) {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
-    const cardContent = JSON.stringify(card);
+    const cardContent = JSON.stringify(withRuntimeFooterCard(card, runtime));
     const sendByChat = () => this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
       receive_id: replyCtx.chatId,
       msg_type: 'interactive',
@@ -237,9 +324,9 @@ class FeishuApi {
    * @param {Object} card - 新的飞书卡片 JSON 结构
    * @returns {Promise<Object>} 飞书 API 返回结果
    */
-  async patchCard(messageId, card) {
+  async patchCard(messageId, card, runtime) {
     const token = await this.getTenantToken();
-    const cardContent = JSON.stringify(card);
+    const cardContent = JSON.stringify(withRuntimeFooterCard(card, runtime));
     return this._request('PATCH', 'open.feishu.cn', '/open-apis/im/v1/messages/' + messageId, JSON.stringify({
       content: cardContent,
     }), token);
@@ -326,5 +413,7 @@ class FeishuApi {
 
 FeishuApi.MAX_TEXT_CHARS = MAX_TEXT_CHARS;
 FeishuApi.splitTextChunks = splitTextChunks;
+FeishuApi.buildRuntimeFooter = buildRuntimeFooter;
+FeishuApi.appendRuntimeFooter = appendRuntimeFooter;
 
 module.exports = { FeishuApi, splitTextChunks, MAX_TEXT_CHARS };

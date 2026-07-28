@@ -83,6 +83,16 @@ async function pollDelivery(bridge, runtimeId, sessionId, timeoutMs) {
   throw new Error('timed out waiting for TUI bridge delivery');
 }
 
+async function waitForCall(feishuApi, predicate, timeoutMs) {
+  const deadline = Date.now() + (timeoutMs || 1000);
+  while (Date.now() < deadline) {
+    const call = feishuApi.calls.find(predicate);
+    if (call) return call;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error('timed out waiting for Feishu API call');
+}
+
 describe('飞书-TUI 双向链路集成测试', () => {
   let ctx;
   let feishuApi;
@@ -279,11 +289,10 @@ describe('飞书-TUI 双向链路集成测试', () => {
           { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
         ],
       });
-      await new Promise((resolve) => setImmediate(resolve));
 
-      const manualReply = feishuApi.calls.find((call) => {
+      const manualReply = await waitForCall(feishuApi, (call) => {
         return call.type === 'sendMarkdown' && call.chatId === chatId && call.text.includes('manual TUI turn reply');
-      });
+      }, 2000);
       assert.ok(manualReply, 'TUI 手工发起的回答应通过 watch 回传飞书');
 
       bridge.reportEvents({
@@ -365,9 +374,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
           { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
         ],
       });
-      await new Promise((resolve) => setImmediate(resolve));
-
-      const manualReply = feishuApi.calls.find((call) => {
+      const manualReply = await waitForCall(feishuApi, (call) => {
         return call.type === 'sendMarkdown' && call.chatId === chatId && call.text.includes('manual reply after TUI restart');
       });
       assert.ok(manualReply, 'TUI 重启后的手工回复应继续推送到原飞书 route');

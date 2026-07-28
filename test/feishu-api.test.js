@@ -28,6 +28,22 @@ function withMockHttps(responses, fn) {
     .finally(() => { https.request = originalRequest; });
 }
 
+function parseBody(request) {
+  return JSON.parse(request.body);
+}
+
+function parseTextContent(request) {
+  return JSON.parse(parseBody(request).content).text;
+}
+
+function parseCardContent(request) {
+  return JSON.parse(parseBody(request).content);
+}
+
+function runtimeFooterCount(text) {
+  return (text.match(/---\n模型：/g) || []).length;
+}
+
 test('FeishuApi _request 遇到 HTTP 错误时带上下文失败', async () => {
   await withMockHttps([
     { statusCode: 500, body: { code: 0, msg: 'server failed' } },
@@ -147,11 +163,11 @@ test('FeishuApi sendText 将超长文本拆成多条消息完整发送', async (
 
   assert.equal(requests.length, 2);
   const sentText = requests
-    .map((req) => JSON.parse(JSON.parse(req.body).content).text)
+    .map(parseTextContent)
     .join('');
-  assert.equal(sentText, text);
-  assert.ok(JSON.parse(JSON.parse(requests[0].body).content).text.length <= FeishuApi.MAX_TEXT_CHARS);
-  assert.ok(JSON.parse(JSON.parse(requests[1].body).content).text.length <= FeishuApi.MAX_TEXT_CHARS);
+  assert.equal(sentText, FeishuApi.appendRuntimeFooter(text));
+  assert.ok(parseTextContent(requests[0]).length <= FeishuApi.MAX_TEXT_CHARS);
+  assert.ok(parseTextContent(requests[1]).length <= FeishuApi.MAX_TEXT_CHARS);
 });
 
 test('FeishuApi replyText 将超长回复拆成首条回复和后续群消息', async () => {
@@ -171,7 +187,74 @@ test('FeishuApi replyText 将超长回复拆成首条回复和后续群消息', 
   assert.equal(requests[0].path, '/open-apis/im/v1/messages/om_parent/reply');
   assert.equal(requests[1].path, '/open-apis/im/v1/messages?receive_id_type=chat_id');
   const sentText = requests
-    .map((req) => JSON.parse(JSON.parse(req.body).content).text)
+    .map(parseTextContent)
     .join('');
-  assert.equal(sentText, text);
+  assert.equal(sentText, FeishuApi.appendRuntimeFooter(text));
+});
+
+test('FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚', async () => {
+  const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+  api.token = 'tenant-token';
+  api.tokenExpiresAt = Date.now() + 60000;
+  const requests = [];
+  api._request = async (method, host, path, body, token) => {
+    requests.push({ method, host, path, body, token });
+    return { code: 0, data: { message_id: 'om_' + requests.length } };
+  };
+
+  const runtime = { model: { providerID: 'anthropic', modelID: 'claude-sonnet' }, contextTokens: 1234 };
+  await api.replyText({ messageId: 'om_parent', chatId: 'oc_chat1' }, '正文', runtime);
+  await api.sendText('oc_chat1', '广播', { model: 'openai/gpt-4.1', contextSize: '8 KB' });
+  await api.replyMarkdown({ messageId: 'om_parent' }, '**回答**', runtime);
+  await api.sendMarkdown('oc_chat1', '**通知**', runtime);
+
+  assert.equal(parseTextContent(requests[0]), '正文\n\n---\n模型：anthropic/claude-sonnet\n上下文：1234 tokens');
+  assert.equal(parseTextContent(requests[1]), '广播\n\n---\n模型：openai/gpt-4.1\n上下文：8 KB');
+  assert.equal(parseCardContent(requests[2]).body.elements[0].content, '**回答**\n\n---\n模型：anthropic/claude-sonnet\n上下文：1234 tokens');
+  assert.equal(parseCardContent(requests[3]).body.elements[0].content, '**通知**\n\n---\n模型：anthropic/claude-sonnet\n上下文：1234 tokens');
+});
+
+test('FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown', async () => {
+  const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+  api.token = 'tenant-token';
+  api.tokenExpiresAt = Date.now() + 60000;
+  const requests = [];
+  api._request = async (method, host, path, body, token) => {
+    requests.push({ method, host, path, body, token });
+    return { code: 0, data: { message_id: 'om_' + requests.length } };
+  };
+  const badRuntime = {};
+  Object.defineProperty(badRuntime, 'model', { get() { throw new Error('bad model'); } });
+  Object.defineProperty(badRuntime, 'contextSize', { get() { throw new Error('bad context'); } });
+  const existing = '正文\n\n---\n模型：old\n上下文：10 tokens';
+
+  await api.sendText('oc_chat1', existing, badRuntime);
+
+  const text = parseTextContent(requests[0]);
+  assert.equal(runtimeFooterCount(text), 1);
+  assert.equal(text, '正文\n\n---\n模型：unknown\n上下文：unknown');
+  assert.equal(text.includes('undefined'), false);
+  assert.equal(text.includes('[object Object]'), false);
+});
+
+test('FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息', async () => {
+  const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+  api.token = 'tenant-token';
+  api.tokenExpiresAt = Date.now() + 60000;
+  const requests = [];
+  api._request = async (method, host, path, body, token) => {
+    requests.push({ method, host, path, body, token });
+    return { code: 0, data: { message_id: 'om_' + requests.length } };
+  };
+
+  const card = { schema: '2.0', header: { title: { tag: 'plain_text', content: '标题' } }, body: { elements: [{ tag: 'markdown', content: '原卡片' }] } };
+  await api.replyCard({ messageId: 'om_parent' }, card, { defaultModel: 'qwen/default', tokenUsage: { totalTokens: 77 } });
+  await api.patchCard('om_card', parseCardContent(requests[0]), { model: 'ignored', contextTokens: 88 });
+
+  const replyCard = parseCardContent(requests[0]);
+  const patchCard = JSON.parse(parseBody(requests[1]).content);
+  assert.equal(replyCard.header.title.content, '标题');
+  assert.equal(replyCard.body.elements[0].content, '原卡片');
+  assert.equal(replyCard.body.elements.at(-1).content, '---\n模型：qwen/default\n上下文：77 tokens');
+  assert.equal(patchCard.body.elements.filter((element) => element.tag === 'markdown' && element.content.includes('模型：')).length, 1);
 });
