@@ -23,9 +23,22 @@ const { createHealthPoller } = require('../opencode-hook/health-poller');
 const { OpencodeTuiBridge } = require('../opencode-tui-bridge/bridge');
 const { createTuiBridgeRoutes } = require('../opencode-tui-bridge/routes');
 const path = require('path');
+const os = require('os');
 const { execFileSync } = require('child_process');
 
 const logger = createLogger('bootstrap');
+
+function resolveDataDir(configuredDataDir, options) {
+  options = options || {};
+  const env = options.env || process.env;
+  const homeDir = options.homeDir || os.homedir() || env.USERPROFILE || env.HOME || '.';
+  const value = configuredDataDir || path.join(homeDir, '.walker');
+  if (value === '~') return homeDir;
+  if (value.startsWith('~/') || value.startsWith('~\\')) {
+    return path.join(homeDir, value.slice(2));
+  }
+  return value;
+}
 
 /**
  * 创建 Walker 应用实例，组装所有服务组件并返回启动/停止接口
@@ -50,7 +63,7 @@ function createApp(config, deps) {
   const createEventStoreFn = deps.createEventStore || createEventStore;
   const createAdminServerFn = deps.createAdminServer || createAdminServerFromContext;
 
-  const dataDir = config.walkerDataDir || path.join(process.env.USERPROFILE || process.env.HOME || '.', '.walker');
+  const dataDir = resolveDataDir(config.walkerDataDir);
 
   const eventStore = createEventStoreFn();
 
@@ -479,4 +492,4 @@ function normalizeReplyCtx(replyCtx) {
   return { messageId: replyCtx };
 }
 
-module.exports = { createApp };
+module.exports = { createApp, resolveDataDir };

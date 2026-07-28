@@ -1,6 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { createApp } = require('../src/app/bootstrap');
+const path = require('path');
+const { createApp, resolveDataDir } = require('../src/app/bootstrap');
 const { createStatusAdmin } = require('../src/admin/status-admin');
 const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
 const { AgentEvent } = require('../src/drivers/agent-driver');
@@ -126,6 +127,18 @@ function makeModelPaginationIntegrationApp(apiCalls) {
 }
 
 describe('createApp', () => {
+  it('启动时把 ~/.walker 数据目录展开到真实用户目录', () => {
+    const actual = resolveDataDir('~/.walker', { homeDir: 'C:\\Users\\tester' });
+
+    assert.equal(actual, path.join('C:\\Users\\tester', '.walker'));
+  });
+
+  it('未配置数据目录时使用检测到的用户目录', () => {
+    const actual = resolveDataDir('', { homeDir: 'C:\\Users\\tester', env: { USERPROFILE: '~', HOME: '~' } });
+
+    assert.equal(actual, path.join('C:\\Users\\tester', '.walker'));
+  });
+
   it('基础飞书 adapter 向文本、Markdown 和卡片 API 转发 runtime metadata', async () => {
     const calls = [];
     const runtime = { model: { providerID: 'cpa', modelID: 'gpt-5.5' }, tokenUsage: { totalTokens: 321 } };
