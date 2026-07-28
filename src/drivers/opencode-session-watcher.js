@@ -145,6 +145,14 @@ class OpencodeSessionWatcher {
     if (messageId) this._lastPolledMessageId.set(sessionId, messageId);
   }
 
+  _messageCompletedAt(message) {
+    const time = message && (message.info ? message.info.time : message.time);
+    const completed = time && (time.completed || time.completedAt || time.completed_at);
+    const value = completed || message.completedAt || message.completed_at || message.timeCompleted;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
   hasLastPolledMessageId(sessionId) {
     return this._lastPolledMessageId && this._lastPolledMessageId.has(sessionId);
   }
@@ -180,7 +188,7 @@ class OpencodeSessionWatcher {
           if (messages.length > 0) {
             const completed = messages.filter((m) => {
               const role = m.info ? m.info.role : m.role;
-              const comp = m.info && m.info.time && m.info.time.completed;
+              const comp = self._messageCompletedAt(m);
               return role === 'assistant' && comp;
             });
             if (completed.length > 0) {
@@ -201,7 +209,7 @@ class OpencodeSessionWatcher {
         const completedMessages = [];
         const pendingMessages = [];
         for (const msg of assistantMessages) {
-          const completed = msg.info && msg.info.time && msg.info.time.completed;
+          const completed = self._messageCompletedAt(msg);
           if (completed) completedMessages.push(msg);
           else pendingMessages.push(msg);
         }

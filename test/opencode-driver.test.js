@@ -360,6 +360,27 @@ describe('OpencodeDriver prompt with SSE', () => {
     assert.equal(events[2].type, 'done');
   });
 
+  it('prompt 完成后会用顶层 time.completed 的 assistant 消息推进 watcher 游标', async () => {
+    const sseEvents = [
+      { type: 'message.part.updated', properties: { sessionID: 'ses_abc', messageID: 'msg1', message: { role: 'assistant' }, part: { type: 'text', text: 'Hello world' } } },
+      { type: 'session.status', properties: { sessionID: 'ses_abc', status: { type: 'idle' } } },
+    ];
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/session/ses_abc/message': {
+        status: 200,
+        data: [
+          { id: 'msg1', role: 'assistant', time: { completed: Date.now() }, parts: [{ type: 'text', text: 'Hello world' }] },
+        ],
+      },
+    });
+    const sse = new FakeSSEClient(sseEvents);
+    const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096' });
+
+    await driver.prompt(sessionRef, 'hello');
+
+    assert.equal(driver._sessionWatcher.getLastPolledMessageId('ses_abc'), 'msg1');
+  });
+
   it('prompt 和 SSE 使用 sessionRef 指定的 OpenCode 服务', async () => {
     const remoteRef = { ...sessionRef, serverUrl: 'http://127.0.0.1:54321' };
     const sseEvents = [

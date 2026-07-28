@@ -575,7 +575,7 @@ class OpencodeDriver extends AgentDriver {
             const messages = await this.getSessionMessages(sessionRef);
             const completed = messages.filter((m) => {
               const role = m.info ? m.info.role : m.role;
-              const completed = m.info && m.info.time && m.info.time.completed;
+              const completed = this._messageCompletedAt(m);
               return role === 'assistant' && completed;
             });
             if (completed.length > 0) {
