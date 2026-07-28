@@ -95,17 +95,20 @@ function appendRuntimeFooter(text, runtime) {
   return (body ? body + '\n\n' : '') + footer;
 }
 
-function cardHasRuntimeFooter(card) {
-  const elements = card && card.body && Array.isArray(card.body.elements) ? card.body.elements : [];
-  return elements.some((element) => element && element.tag === 'markdown' && typeof element.content === 'string' && RUNTIME_FOOTER_FIELD_RE.test(element.content));
-}
-
 function withRuntimeFooterCard(card, runtime) {
   const cloned = card && typeof card === 'object' ? JSON.parse(JSON.stringify(card)) : {};
-  if (cardHasRuntimeFooter(cloned)) return cloned;
   if (!cloned.body || typeof cloned.body !== 'object') cloned.body = {};
   if (!Array.isArray(cloned.body.elements)) cloned.body.elements = [];
-  cloned.body.elements.push({ tag: 'markdown', content: buildRuntimeFooter(runtime || {}) });
+  const footer = buildRuntimeFooter(runtime || {});
+  let replaced = false;
+  cloned.body.elements = cloned.body.elements.map((element) => {
+    if (!replaced && element && element.tag === 'markdown' && typeof element.content === 'string' && RUNTIME_FOOTER_FIELD_RE.test(element.content)) {
+      replaced = true;
+      return Object.assign({}, element, { content: footer });
+    }
+    return element;
+  });
+  if (!replaced) cloned.body.elements.push({ tag: 'markdown', content: footer });
   return cloned;
 }
 

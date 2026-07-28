@@ -388,6 +388,44 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_root1']);
   });
 
+  it('进度卡片更新使用当前 session 上的上下文而不是旧快照', async () => {
+    const mocks = makeMocks();
+    const tokenUsage = { totalTokens: 58520 };
+    const session = {
+      id: 'wks_card_runtime1', agent: 'opencode', status: 'idle',
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+      contextTokens: 58520,
+      tokenUsage,
+      agentRef: { opencodeSessionId: 'ses_card_runtime1', serverUrl: 'http://localhost:4096' },
+    };
+    const staleSession = {
+      id: session.id, agent: 'opencode', status: 'idle',
+      model: session.model,
+      agentRef: session.agentRef,
+    };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => staleSession;
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_card_runtime1', openId: 'ou_user1', text: '请分析代码',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    const doneUpdate = mocks.feishuApi.calls.find(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_DONE);
+    assert.ok(doneUpdate, 'DONE 应更新一次进度卡片');
+    assert.equal(doneUpdate.runtime.contextSize, 58520);
+    assert.equal(doneUpdate.runtime.tokenUsage, tokenUsage);
+  });
+
   it('绑定 session 的消息写入 admin eventStore 供首页活动和趋势使用', async () => {
     const mocks = makeMocks();
     const eventStore = createEventStore({ now: () => Date.UTC(2026, 6, 24, 10, 30, 0) });

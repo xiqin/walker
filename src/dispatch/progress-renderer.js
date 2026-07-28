@@ -64,7 +64,7 @@ class ProgressRenderer {
    * @returns {Promise<void>}
    */
   async _renderCardProgress(session, event, displayEvents, progressCardId) {
-    let cardId = progressCardId || await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id], null, { sessionId: session.id });
+    let cardId = progressCardId || await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id], null, { sessionId: session.id, session });
 
     if (!cardId) {
       return;
@@ -76,10 +76,10 @@ class ProgressRenderer {
       if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
       if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
       this.dispatcher._touchTurnState(this.dispatcher.turnStates.get(session.id));
-      const rendered = await this.dispatcher._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null, { sessionId: session.id });
+      const rendered = await this.dispatcher._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null, { sessionId: session.id, session });
       if (rendered !== null) this.dispatcher._recordAdminMetric('cardDeliveries');
       if (rendered && rendered.strategy === 'new_message') {
-        const newCardId = await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id, agentEvent], null, { sessionId: session.id });
+        const newCardId = await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id, agentEvent], null, { sessionId: session.id, session });
         if (newCardId) {
           cardId = newCardId;
           this.dispatcher._recordAdminMetric('cardDeliveries');

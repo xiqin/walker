@@ -257,4 +257,5 @@ test('FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运�
   assert.equal(replyCard.body.elements[0].content, '原卡片');
   assert.equal(replyCard.body.elements.at(-1).content, '---\n模型：qwen/default\n上下文：77 tokens');
   assert.equal(patchCard.body.elements.filter((element) => element.tag === 'markdown' && element.content.includes('模型：')).length, 1);
+  assert.equal(patchCard.body.elements.at(-1).content, '---\n模型：ignored\n上下文：88 tokens');
 });
