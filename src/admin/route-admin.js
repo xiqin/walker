@@ -41,6 +41,7 @@ function listRoutes(ctx) {
       || !sessionIds.includes(sessionId)
       || missingSessionIds.length > 0
       || deletedSessionIds.length > 0;
+    const cwd = route && route.cwd ? route.cwd : findSessionCwd(session, sessionIds, sessions);
 
     return {
       routeKey,
@@ -52,7 +53,7 @@ function listRoutes(ctx) {
       activeSessions,
       missingSessionIds,
       deletedSessionIds,
-      cwd: route && route.cwd ? route.cwd : '',
+      cwd,
       lastActiveAt: route && route.lastActiveAt ? route.lastActiveAt : null,
       updatedAt: route && route.updatedAt ? route.updatedAt : null,
       health: dangling ? 'dangling' : (session ? session.status : 'unknown'),
@@ -60,6 +61,15 @@ function listRoutes(ctx) {
       session: dangling ? null : session,
     };
   });
+}
+
+function findSessionCwd(focusSession, sessionIds, sessions) {
+  if (focusSession && focusSession.cwd) return focusSession.cwd;
+  for (const id of sessionIds) {
+    const session = sessions[id];
+    if (session && session.status !== 'deleted' && session.cwd) return session.cwd;
+  }
+  return '';
 }
 
 function summarizeSession(session, isFocus) {

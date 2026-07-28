@@ -1,0 +1,45 @@
+{
+  "graph": {
+    "backend": "codegraph",
+    "config": ".loom/graph.config.json not found; default backend used",
+    "sync_command": "loom index",
+    "sync_result": "Already up to date",
+    "check_command": "loom index --check",
+    "check_result": "Index is up to date",
+    "stats": {
+      "files": 142,
+      "nodes": 1755,
+      "edges": 10665,
+      "db_size": "11.64 MB"
+    }
+  },
+  "memory": [
+    "Loom stale approval reapproval caveat recorded",
+    "Loom verification-artifacts receipt/evidence path caveat recorded"
+  ],
+  "entry_files": "not updated; no new project entry command or workflow convention",
+  "excluded_unrelated_changes": [
+    ".loom/compliance/history.json",
+    "src/admin/route-admin.js",
+    "test/admin-core-api.test.js",
+    "~/"
+  ],
+  "status": "done",
+  "summary": "图索引与记忆同步完成：loom index 显示 CodeGraph already up to date，loom index --check 显示索引 up to date；已记录本次 Loom stale approval 与 verification-artifacts receipt/traceability evidence 路径两个踩坑；未更新入口文件。同步报告限定本次飞书页脚相关文件，明确排除当前工作树中的 admin、.loom/compliance/history.json 与 ~/ 无关改动。",
+  "artifacts": [
+    "sync-report.md",
+    "verify-report.md",
+    "review-response.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c"
+  },
+  "artifact_fingerprints": {
+    "review-response.md": "f1177c50b1664339f00ddf9e29b07f2f52fae6d8d687a6fb29be584434d0c3c1",
+    "verify-report.md": "c8b2c426bf9edbd9d14575c6e9e866ee99d2bd03c75dde227651c8299ba6f0bb"
+  },
+  "written_at": "2026-07-27T06:54:34.586Z"
+}

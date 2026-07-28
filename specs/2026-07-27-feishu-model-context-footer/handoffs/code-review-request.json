@@ -1,0 +1,38 @@
+{
+  "pre_review": {
+    "fixed_point": "HEAD to current worktree diff for Feishu footer related files",
+    "standards_findings": "0 blocker",
+    "spec_findings": "0 blocker",
+    "excluded_unrelated_changes": [
+      ".loom/compliance/history.json",
+      "src/admin/route-admin.js",
+      "test/admin-core-api.test.js",
+      "~/"
+    ]
+  },
+  "validation": {
+    "scoped_tests": "PASS: node --test \"test/feishu-api.test.js\" \"test/message-dispatcher.test.js\" \"test/progress-card.test.js\" => tests 207, pass 207, fail 0",
+    "lint": "PASS: npm run lint",
+    "full_test": "FAIL_UNRELATED: npm test => tests 1182, pass 1180, fail 2 in admin UI config page tests"
+  },
+  "status": "done",
+  "summary": "已完成代码审查请求准备：基于 HEAD 到当前工作树中本需求相关文件的 diff 完成 Standards + Spec 双轴预审查，未发现 blocker；review-request.md 记录主要变更、相关验证证据、审查重点、全量 npm test 中 2 个 admin UI 无关失败，以及当前工作树中 admin/.loom/~/ 未归属改动不属于本次审查范围。",
+  "artifacts": [
+    "review-request.md",
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "c4ff1f0db117569371ce50978d00f2502e3924eca5a9af9c713b15de624afff0",
+    "test-report.md": "e71454146ccb50d131d7ab2b2807a4576c2106f672ed431f9a1a290638d88f8b",
+    "verify-report.md": "c8b2c426bf9edbd9d14575c6e9e866ee99d2bd03c75dde227651c8299ba6f0bb"
+  },
+  "written_at": "2026-07-27T06:46:20.115Z"
+}

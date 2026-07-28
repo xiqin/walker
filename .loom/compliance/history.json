@@ -719,5 +719,48 @@
       "fail / 0 cancelled。",
       "fail / 0 cancelled。 |"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-27-feishu-model-context-footer",
+    "timestamp": "2026-07-27T06:22:45.484Z",
+    "stage": "executing",
+    "skill": "loom-subagent-driven-development",
+    "passed": false,
+    "violations": [
+      "stale approval after executing plan/tasks update; user re-approved updated scope"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-27-feishu-model-context-footer",
+    "timestamp": "2026-07-27T06:43:17.612Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0`。 |",
+      "FAIL_UNRELATED | `npm test` 结果 `tests 1182`、`pass 1180`、`fail 2`；失败在 admin UI 配置页 DOM 测试，非本需求触达路径。 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-27-feishu-model-context-footer",
+    "timestamp": "2026-07-27T06:47:14.659Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0`。 |",
+      "FAIL_UNRELATED | `npm test` 结果 `tests 1182`、`pass 1180`、`fail 2`；失败在 admin UI 配置页 DOM 测试，非本需求触达路径。 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-27-feishu-model-context-footer",
+    "timestamp": "2026-07-27T06:52:35.888Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0`。 |",
+      "FAIL_UNRELATED | `npm test` 结果 `tests 1182`、`pass 1180`、`fail 2`；失败在 admin UI 配置页 DOM 测试，非本需求触达路径。 |"
+    ]
   }
 ]

@@ -1,0 +1,44 @@
+{
+  "requirements": [
+    "REQ-002",
+    "REQ-003",
+    "REQ-004"
+  ],
+  "behavior_ids": [
+    "REQ-002-B01",
+    "REQ-002-B02",
+    "REQ-002-B03",
+    "REQ-002-B04",
+    "REQ-003-B01",
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-004-B02",
+    "REQ-004-B03"
+  ],
+  "breaking_changes": [],
+  "status": "done",
+  "summary": "MessageDispatcher 已在 _callFeishu 中为支持页脚的方法追加 runtime metadata；ProgressRenderer/watch progress 调用补充 sessionId context；bootstrap 进度卡片 wrapper 透传 runtime 到 replyCard/patchCard；重试与 fallback 语义保持不变。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "src/dispatch/progress-renderer.js",
+    "src/app/bootstrap.js",
+    "test/message-dispatcher.test.js",
+    "test/progress-card.test.js",
+    "specs/2026-07-27-feishu-model-context-footer/evidence/test-run-feishu-footer.log"
+  ],
+  "task_id": "T2",
+  "basis_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c",
+    "tasks/T2.md": "3c8e64d1c9b6f4fbdacb790f1b7694812d675a430183e3356266d2f1d1a7ae81"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-27-feishu-model-context-footer/evidence/test-run-feishu-footer.log": "6cd879943163bdf505b3ba9a325b89ac550211fd1559f9e9b6d2e87cc52b60b4",
+    "src/app/bootstrap.js": "70c9b00b6ed8d01d1c8ac6c3bedcfd57bb7943a8e1f0561818f7fe786ff62d47",
+    "src/dispatch/message-dispatcher.js": "a11077e6a5083cb34c3bdafa6ae17628e85d2421b9724c110d663830f14e3e87",
+    "src/dispatch/progress-renderer.js": "41598a3a21febd636f280e9863c6de180d23ca883b041c130a7c0dd5846cc37f",
+    "test/message-dispatcher.test.js": "f02e43f419398213c8db85e7f83b0afbe3f329bd574ba0148c710af34ff6b0d3",
+    "test/progress-card.test.js": "d14f760822ae135d771ae30e0f1326e651d2dcd8cfc7ce9e5b3d146ecbe8cd9b"
+  },
+  "written_at": "2026-07-27T06:08:10.577Z"
+}

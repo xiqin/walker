@@ -1,0 +1,55 @@
+{
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004"
+  ],
+  "behavior_ids": [
+    "REQ-001-B01",
+    "REQ-001-B02",
+    "REQ-001-B03",
+    "REQ-001-B04",
+    "REQ-002-B01",
+    "REQ-002-B02",
+    "REQ-002-B03",
+    "REQ-003-B01",
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-003-B04",
+    "REQ-004-B01",
+    "REQ-004-B03"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "FeishuApi.buildRuntimeFooter",
+      "path": "src/platform/feishu/api.js",
+      "signature": "(runtime?: object) => string"
+    },
+    {
+      "name": "FeishuApi.appendRuntimeFooter",
+      "path": "src/platform/feishu/api.js",
+      "signature": "(text: unknown, runtime?: object) => string"
+    }
+  ],
+  "breaking_changes": [],
+  "status": "done",
+  "summary": "FeishuApi 已实现统一 runtime footer 构建、模型/上下文格式化、文本/Markdown 分片前注入、replyCard/patchCard body.elements 页脚注入与幂等处理。",
+  "artifacts": [
+    "src/platform/feishu/api.js",
+    "test/feishu-api.test.js",
+    "specs/2026-07-27-feishu-model-context-footer/evidence/test-run-feishu-footer.log"
+  ],
+  "task_id": "T1",
+  "basis_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c",
+    "tasks/T1.md": "dd3f4817cada33c9034a8cc3bd397f5f52db5c49810c395fb3b2106d8d7bd7ef"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-27-feishu-model-context-footer/evidence/test-run-feishu-footer.log": "6cd879943163bdf505b3ba9a325b89ac550211fd1559f9e9b6d2e87cc52b60b4",
+    "src/platform/feishu/api.js": "1a84b9ede477a19c34484923a64a6fe676e6c64b60d565cf975c8fc8583bf0a3",
+    "test/feishu-api.test.js": "5c29694eb351f5e8f513fa241320d05c6c0029a71a0c6d7393009cd777834e12"
+  },
+  "written_at": "2026-07-27T06:08:10.551Z"
+}

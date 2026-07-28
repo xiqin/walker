@@ -1,0 +1,276 @@
+{
+  "spec_dir": "H:\\walker\\specs\\2026-07-27-feishu-model-context-footer",
+  "pipeline_type": "feature",
+  "current_stage": "synced",
+  "loom_version": "0.1.0",
+  "started_at": "2026-07-27T05:35:30.423Z",
+  "updated_at": "2026-07-27T06:55:23.367Z",
+  "stage_history": [
+    {
+      "stage": "brainstorming",
+      "entered_at": "2026-07-27T05:35:30.423Z",
+      "exited_at": "2026-07-27T05:38:54.418Z",
+      "status": "passed"
+    },
+    {
+      "stage": "planning",
+      "entered_at": "2026-07-27T05:38:54.418Z",
+      "exited_at": "2026-07-27T05:48:55.829Z",
+      "status": "passed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-07-27T05:48:55.829Z",
+      "exited_at": "2026-07-27T05:49:59.583Z",
+      "status": "passed",
+      "approval": "superseded_by_reapproval",
+      "approved_at": "2026-07-27T05:49:59.582Z"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-07-27T05:49:59.583Z",
+      "exited_at": "2026-07-27T06:22:45.449Z",
+      "status": "failed",
+      "reason": "stale approval after executing plan/tasks update; user re-approved updated scope"
+    },
+    {
+      "stage": "failed",
+      "entered_at": "2026-07-27T06:22:45.449Z",
+      "exited_at": "2026-07-27T06:22:45.721Z",
+      "status": "passed",
+      "recovery_from": "failed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-07-27T06:22:45.721Z",
+      "exited_at": "2026-07-27T06:24:00.881Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "f65c45abba19895576cf90b7d143ff6011dbeacc85f0c9c165c43967077ac773",
+        "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+        "requirements.json": "21259e8be5d14a8a8942734cd223ac7bd048d1f7ee54df6ec9abf2370c6b4d78",
+        "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c",
+        "tasks/": "7c09e1db85e786866f4efa6e992634ea70349f5d45c8d780f7e22d17e6e1dbcd"
+      },
+      "approved_at": "2026-07-27T06:24:00.881Z"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-07-27T06:24:00.881Z",
+      "exited_at": "2026-07-27T06:29:01.446Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-07-27T06:29:01.446Z",
+      "exited_at": "2026-07-27T06:43:17.565Z",
+      "status": "passed"
+    },
+    {
+      "stage": "code-review-request",
+      "entered_at": "2026-07-27T06:43:17.565Z",
+      "exited_at": "2026-07-27T06:47:14.638Z",
+      "status": "passed"
+    },
+    {
+      "stage": "review-gate",
+      "entered_at": "2026-07-27T06:47:14.638Z",
+      "exited_at": "2026-07-27T06:50:52.022Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "f65c45abba19895576cf90b7d143ff6011dbeacc85f0c9c165c43967077ac773",
+        "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+        "requirements.json": "21259e8be5d14a8a8942734cd223ac7bd048d1f7ee54df6ec9abf2370c6b4d78",
+        "review-request.md": "c4ff1f0db117569371ce50978d00f2502e3924eca5a9af9c713b15de624afff0",
+        "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c"
+      },
+      "approved_at": "2026-07-27T06:50:52.022Z"
+    },
+    {
+      "stage": "code-review-response",
+      "entered_at": "2026-07-27T06:50:52.022Z",
+      "exited_at": "2026-07-27T06:52:35.865Z",
+      "status": "passed"
+    },
+    {
+      "stage": "synced",
+      "entered_at": "2026-07-27T06:52:35.865Z",
+      "exited_at": "2026-07-27T06:55:23.367Z",
+      "status": "passed",
+      "terminal": true
+    }
+  ],
+  "metadata": {
+    "completed": true,
+    "completed_stage": "synced",
+    "completed_at": "2026-07-27T06:55:23.367Z"
+  },
+  "dynamic_steps": [
+    {
+      "id": "brainstorming",
+      "skill": "loom-brainstorming",
+      "requires": [],
+      "outputs": [
+        "spec.md",
+        "requirements.json",
+        "handoffs/brainstorming.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "需求头脑风暴，探索 2-3 种实现方案"
+    },
+    {
+      "id": "planning",
+      "skill": "loom-writing-plans",
+      "requires": [
+        "spec.md",
+        "requirements.json"
+      ],
+      "outputs": [
+        "plan.md",
+        "tasks/",
+        "traceability.json",
+        "handoffs/planning.json"
+      ],
+      "validators": [
+        "planning-artifacts"
+      ],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "分层拆解实现计划"
+    },
+    {
+      "id": "approved",
+      "skill": null,
+      "requires": [],
+      "outputs": [],
+      "validators": [],
+      "gate": "human-approval",
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": ""
+    },
+    {
+      "id": "executing",
+      "skill": "loom-subagent-driven-development",
+      "requires": [
+        "plan.md",
+        "tasks/",
+        "traceability.json"
+      ],
+      "outputs": [
+        "test-report.md",
+        "traceability.json",
+        "handoffs/executing.json"
+      ],
+      "validators": [
+        "task-state-closure",
+        "requirement-task-closure"
+      ],
+      "gate_verdict": "test-report.md",
+      "evidence_required": true,
+      "approval_requires": [],
+      "mandatory": true,
+      "optional": false,
+      "description": "subagent 并行编码执行"
+    },
+    {
+      "id": "verification",
+      "skill": "loom-verification-before-completion",
+      "requires": [
+        "test-report.md",
+        "traceability.json"
+      ],
+      "outputs": [
+        "verify-report.md",
+        "handoffs/verification.json"
+      ],
+      "validators": [
+        "verification-artifacts"
+      ],
+      "gate_verdict": "verify-report.md",
+      "evidence_required": true,
+      "approval_requires": [],
+      "mandatory": true,
+      "optional": false,
+      "description": "spec 覆盖 / 类型一致性 / 编译测试"
+    },
+    {
+      "id": "code-review-request",
+      "skill": "loom-requesting-code-review",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [
+        "review-request.md",
+        "handoffs/code-review-request.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "双轴预审查（Standards + Spec）后生成代码审查请求"
+    },
+    {
+      "id": "review-gate",
+      "skill": null,
+      "requires": [
+        "review-request.md"
+      ],
+      "outputs": [],
+      "validators": [],
+      "gate": "human-approval",
+      "evidence_required": false,
+      "approval_requires": [
+        "review-feedback.md"
+      ],
+      "mandatory": false,
+      "optional": false,
+      "description": "等待审查者反馈到达后继续（审查请求已发出，人工或外部审查者回看）"
+    },
+    {
+      "id": "code-review-response",
+      "skill": "loom-receiving-code-review",
+      "requires": [
+        "review-request.md",
+        "review-feedback.md"
+      ],
+      "outputs": [
+        "review-response.md",
+        "handoffs/code-review-response.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "处理审查反馈：BLOCKER 修复 / SUGGESTION 采纳或拒绝 / 讨论项沟通，修复后重跑测试"
+    },
+    {
+      "id": "synced",
+      "skill": "loom-index-update",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "图后端同步与结构化记忆更新"
+    }
+  ],
+  "current_stage_started_at": "2026-07-27T06:52:35.865Z",
+  "failure_reason": "stale approval after executing plan/tasks update; user re-approved updated scope"
+}

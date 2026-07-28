@@ -610,6 +610,22 @@ test('REQ-007: listRoutes 返回 1:N route 诊断字段', () => {
   assert.deepEqual(result[0].missingSessionIds, ['wks_missing']);
 });
 
+test('REQ-007: listRoutes 在 route cwd 为空时回退到绑定 session cwd', () => {
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      { id: 'wks_focus', agent: 'opencode', title: 'focus', runtime: 'windows', cwd: 'H:\\walker', status: 'running', agentRef: null, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+      { id: 'wks_other', agent: 'opencode', title: 'other', runtime: 'windows', cwd: 'H:\\fallback', status: 'idle', agentRef: null, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+    ], {
+      'feishu:abc:chat1': { focusSessionId: 'wks_focus', sessions: ['wks_focus', 'wks_other'], cwd: '', lastActiveAt: 1500, updatedAt: 2000 },
+    }),
+  });
+
+  const result = routeAdmin.listRoutes(ctx);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].cwd, 'H:\\walker');
+  assert.equal(result[0].activeSessions[0].cwd, 'H:\\walker');
+});
+
 test('REQ-007: bindRoute 绑定路由到 session', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService([

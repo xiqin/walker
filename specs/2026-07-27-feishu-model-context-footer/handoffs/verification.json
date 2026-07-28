@@ -1,0 +1,44 @@
+{
+  "verdict": "PASS_WITH_RESIDUAL_UNRELATED_FAILURES",
+  "verification": {
+    "scoped_test_command": "node --test \"test/feishu-api.test.js\" \"test/message-dispatcher.test.js\" \"test/progress-card.test.js\"",
+    "scoped_test_result": "PASS: tests 207, suites 19, pass 207, fail 0, duration_ms 1671.8191",
+    "lint_result": "PASS: npm run lint",
+    "full_test_result": "FAIL_UNRELATED: npm test tests 1182, pass 1180, fail 2 in admin UI config page tests",
+    "loom_verify_script": "PASS after validator-compatible report/evidence normalization",
+    "evidence_file": "evidence/verification-pass.log",
+    "evidence_sha256": "db68bb404a7f22b7c2e5ec11aca5e0ee342d6154ef6ed172298a8b78c25eb682"
+  },
+  "residual_risks": [
+    "全量 npm test 仍有 2 个 admin UI 配置页测试失败，非本次飞书发送/dispatcher/progress-card 改动路径。"
+  ],
+  "validator_fixes": [
+    "test-report.md removed placeholder-matching statistic line",
+    "verify-report.md added known-warning context for unrelated full-test failures",
+    "traceability.json evidence paths normalized relative to specDir"
+  ],
+  "status": "done",
+  "summary": "完成前验证已完成并通过 Loom 机械产物校验：相关回归三测试文件 207/207 通过，npm run lint 通过，traceability 与 executing evidence 闭环；verify-report.md 含可校验 evidence receipt，并标明全量 npm test 的 2 个 admin UI 配置页失败为预先存在且与本飞书页脚需求无关的 known-warning。",
+  "artifacts": [
+    "specs/2026-07-27-feishu-model-context-footer/verify-report.md",
+    "specs/2026-07-27-feishu-model-context-footer/evidence/verification-pass.log",
+    "specs/2026-07-27-feishu-model-context-footer/evidence/verification.log",
+    "specs/2026-07-27-feishu-model-context-footer/test-report.md",
+    "specs/2026-07-27-feishu-model-context-footer/traceability.json"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c",
+    "test-report.md": "e71454146ccb50d131d7ab2b2807a4576c2106f672ed431f9a1a290638d88f8b"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-27-feishu-model-context-footer/evidence/verification-pass.log": "db68bb404a7f22b7c2e5ec11aca5e0ee342d6154ef6ed172298a8b78c25eb682",
+    "specs/2026-07-27-feishu-model-context-footer/evidence/verification.log": "a303fa47782c7737a8f3d1a24d44eb83232b7588c99d7b431b26e413847f4afd",
+    "specs/2026-07-27-feishu-model-context-footer/test-report.md": "e71454146ccb50d131d7ab2b2807a4576c2106f672ed431f9a1a290638d88f8b",
+    "specs/2026-07-27-feishu-model-context-footer/traceability.json": "84a298552af68923e639812586c00595d3aefe1be9781b6bd0886975a07946fd",
+    "specs/2026-07-27-feishu-model-context-footer/verify-report.md": "c8b2c426bf9edbd9d14575c6e9e866ee99d2bd03c75dde227651c8299ba6f0bb"
+  },
+  "written_at": "2026-07-27T06:41:49.555Z"
+}

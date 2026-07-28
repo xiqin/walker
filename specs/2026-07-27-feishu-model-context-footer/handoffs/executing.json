@@ -1,0 +1,56 @@
+{
+  "tasks_done": [
+    "T1",
+    "T2",
+    "T3"
+  ],
+  "validation": {
+    "loom_tasks_validate": "pass",
+    "traceability_evidence_closure": "pass",
+    "verify_artifacts_after_report_fix": "pass",
+    "test_command": "node --test \"test/feishu-api.test.js\" \"test/message-dispatcher.test.js\" \"test/progress-card.test.js\"",
+    "test_result": "PASS: tests 207, suites 19, pass 207, fail 0, duration_ms 1710.1452",
+    "evidence_sha256": "6cd879943163bdf505b3ba9a325b89ac550211fd1559f9e9b6d2e87cc52b60b4"
+  },
+  "key_changes": [
+    "FeishuApi footer/idempotency",
+    "Dispatcher runtime metadata",
+    "Progress card wrappers runtime passthrough",
+    "Plan/task ownership updated",
+    "Validator-compatible evidence paths"
+  ],
+  "status": "done",
+  "summary": "执行阶段实现保持完成状态：FeishuApi 统一追加 runtime footer，MessageDispatcher/ProgressRenderer/bootstrap 透传 session runtime metadata，相关回归 207/207 通过。后续验证阶段按 validator 要求规范化 test-report.md 与 traceability evidence 路径，执行阶段证据闭环仍有效。",
+  "artifacts": [
+    "src/platform/feishu/api.js",
+    "src/dispatch/message-dispatcher.js",
+    "src/dispatch/progress-renderer.js",
+    "src/app/bootstrap.js",
+    "test/feishu-api.test.js",
+    "test/message-dispatcher.test.js",
+    "test/progress-card.test.js",
+    "specs/2026-07-27-feishu-model-context-footer/traceability.json",
+    "specs/2026-07-27-feishu-model-context-footer/test-report.md",
+    "specs/2026-07-27-feishu-model-context-footer/evidence/test-run-feishu-footer.log"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c",
+    "tasks/": "7c09e1db85e786866f4efa6e992634ea70349f5d45c8d780f7e22d17e6e1dbcd"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-27-feishu-model-context-footer/evidence/test-run-feishu-footer.log": "6cd879943163bdf505b3ba9a325b89ac550211fd1559f9e9b6d2e87cc52b60b4",
+    "specs/2026-07-27-feishu-model-context-footer/test-report.md": "e71454146ccb50d131d7ab2b2807a4576c2106f672ed431f9a1a290638d88f8b",
+    "specs/2026-07-27-feishu-model-context-footer/traceability.json": "84a298552af68923e639812586c00595d3aefe1be9781b6bd0886975a07946fd",
+    "src/app/bootstrap.js": "70c9b00b6ed8d01d1c8ac6c3bedcfd57bb7943a8e1f0561818f7fe786ff62d47",
+    "src/dispatch/message-dispatcher.js": "a11077e6a5083cb34c3bdafa6ae17628e85d2421b9724c110d663830f14e3e87",
+    "src/dispatch/progress-renderer.js": "41598a3a21febd636f280e9863c6de180d23ca883b041c130a7c0dd5846cc37f",
+    "src/platform/feishu/api.js": "1a84b9ede477a19c34484923a64a6fe676e6c64b60d565cf975c8fc8583bf0a3",
+    "test/feishu-api.test.js": "5c29694eb351f5e8f513fa241320d05c6c0029a71a0c6d7393009cd777834e12",
+    "test/message-dispatcher.test.js": "f02e43f419398213c8db85e7f83b0afbe3f329bd574ba0148c710af34ff6b0d3",
+    "test/progress-card.test.js": "d14f760822ae135d771ae30e0f1326e651d2dcd8cfc7ce9e5b3d146ecbe8cd9b"
+  },
+  "written_at": "2026-07-27T06:41:23.656Z"
+}

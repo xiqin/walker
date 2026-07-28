@@ -1,6 +1,38 @@
 {
   "entries": [
     {
+      "id": "93d1f8a0",
+      "type": "踩坑",
+      "content": "Loom 0.1.0 当前会检查 stage_history 中所有 approved 记录的 approval_fingerprints；若审批后 plan/tasks 变更并重新审批，旧 approved 记录可能继续触发 stale approval。处理本次 specs/2026-07-27-feishu-model-context-footer 时，在用户明确授权后仅将旧 approved 历史项标记为 superseded_by_reapproval，保留新审批指纹。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-27T06:53:56.709Z"
+    },
+    {
+      "id": "d2be219c",
+      "type": "踩坑",
+      "content": "Loom verification-artifacts validator 要求 test-report.md/verify-report.md 中 PASS evidence receipt 使用行级字段 evidence-command、evidence-exit-code、evidence-file、evidence-sha256；traceability.json 的 evidence 路径必须相对 specDir。报告中出现 todo 0 会被 placeholder scanner 误判，应避免在验证报告统计中保留该行。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-27T06:53:40.228Z"
+    },
+    {
       "id": "90d09f93",
       "type": "状态",
       "content": "Admin v2 rewrite 已完成验证与人工审查：分支 feature/2026-07-23-admin-v2-rewrite 在 worktree H:\\walker\\.worktree\\2026-07-23-admin-v2-rewrite 中将 admin 前端重写为 walker-console-v2.html 的 9 页 v2 控制台；验证 npm test 与 npm run check 均 1183/1183 通过；残余风险为未做真实浏览器手动验证、connections/storage 部分按钮依赖后端能力。",

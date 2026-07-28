@@ -1,0 +1,47 @@
+{
+  "reapproval_reason": "执行阶段发现进度卡片 wrapper 链路需透传 runtime，已同步更新 plan.md 与 tasks/T2.md，用户已回复 ok 重新确认。",
+  "key_boundaries": {
+    "T1": [
+      "src/platform/feishu/api.js"
+    ],
+    "T2": [
+      "src/dispatch/message-dispatcher.js",
+      "src/dispatch/progress-renderer.js",
+      "src/app/bootstrap.js"
+    ],
+    "T3": [
+      "test/feishu-api.test.js",
+      "test/message-dispatcher.test.js",
+      "test/progress-card.test.js"
+    ]
+  },
+  "validation": {
+    "loom_tasks_validate": "pass",
+    "traceability_evidence_closure": "pass",
+    "latest_test_result": "PASS: tests 207, suites 19, pass 207, fail 0, duration_ms 1710.1452"
+  },
+  "status": "done",
+  "summary": "已完成并重新确认实现计划拆解：T1 修改 FeishuApi 统一 runtime footer 构建与文本/Markdown/卡片 payload 注入；T2 修改 MessageDispatcher、ProgressRenderer 与 bootstrap 进度卡片 wrapper，传递会话模型和上下文 metadata 并透传 runtime 到 replyCard/patchCard，同时保持重试/fallback 不变；T3 补齐 feishu-api、message-dispatcher 与 progress-card 测试覆盖。traceability 覆盖 REQ-001 至 REQ-004 及全部 behaviors；artifact analysis pass；task ownership 无冲突。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "traceability.json",
+    "artifact-analysis.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c",
+    "tasks/": "7c09e1db85e786866f4efa6e992634ea70349f5d45c8d780f7e22d17e6e1dbcd"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "tasks/T1.md": "dd3f4817cada33c9034a8cc3bd397f5f52db5c49810c395fb3b2106d8d7bd7ef",
+    "tasks/T2.md": "3c8e64d1c9b6f4fbdacb790f1b7694812d675a430183e3356266d2f1d1a7ae81",
+    "tasks/T3.md": "5e39cc40250e4ccb7556cc528ac974bb51b1f149237b9f62ac9feb0afd1b1986"
+  },
+  "written_at": "2026-07-27T06:23:20.874Z"
+}

@@ -29,6 +29,7 @@ function createFakeElement(tagName = 'div', ownerDocument = null) {
     children: [],
     attributes: {},
     dataset: {},
+    style: {},
     className: '',
     textContent: '',
     value: '',
@@ -52,13 +53,24 @@ function createFakeElement(tagName = 'div', ownerDocument = null) {
     dispatch(type, event = {}) {
       for (const listener of listeners[type] || []) listener({ target: this, currentTarget: this, preventDefault() {}, ...event });
     },
+    scrollIntoView() {},
     focus() { if (ownerDocument) ownerDocument.activeElement = this; },
-    querySelectorAll() {
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; },
+    querySelectorAll(selector) {
       const matches = [];
       const focusable = new Set(['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA']);
+      const matchesSelector = child => {
+        if (!selector) return focusable.has(child.tagName);
+        if (selector === '.config-field') return String(child.className || '').split(/\s+/).includes('config-field');
+        if (selector === 'input, select') return child.tagName === 'INPUT' || child.tagName === 'SELECT';
+        if (selector === 'button[type=submit]') return child.tagName === 'BUTTON' && child.attributes?.type === 'submit';
+        const dataEnv = /^\[data-env="([^"]+)"\]$/.exec(selector);
+        if (dataEnv) return child.dataset?.env === dataEnv[1];
+        return focusable.has(child.tagName);
+      };
       const visit = child => {
         if (!child || typeof child !== 'object') return;
-        if (focusable.has(child.tagName)) matches.push(child);
+        if (matchesSelector(child)) matches.push(child);
         for (const nested of child.children || []) visit(nested);
       };
       for (const child of this.children) visit(child);

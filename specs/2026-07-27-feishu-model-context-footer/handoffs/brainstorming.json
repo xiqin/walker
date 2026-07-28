@@ -1,0 +1,28 @@
+{
+  "decisions": [
+    "采用统一发送封装层追加页脚",
+    "无会话或数据缺失时用 unknown 且不阻塞发送",
+    "进度卡片 wrapper 属于卡片消息路径，需透传 runtime 到底层卡片发送/更新"
+  ],
+  "open_questions": [],
+  "reapproval_note": "用户已对更新后的 plan/tasks 范围回复 ok。",
+  "status": "done",
+  "summary": "已确认推荐方案：在飞书发送封装层统一追加运行信息页脚，覆盖文本、Markdown 和卡片消息；模型优先 session.model，其次 defaultModel，缺失为 unknown；上下文大小优先可取得的 token/context 字段，缺失或解析失败为 unknown；不新增网络请求，不改变飞书发送重试和分片行为。planning/executing 阶段确认进度卡片 wrapper 也属于卡片消息链路，需透传 runtime 到底层 replyCard/patchCard；这不改变需求边界，只补齐覆盖路径。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json",
+    "plan.md"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "8879bc4c8c41140c6eba106c20f58a29b106b819c8449215ffc99734ed639107",
+    "requirements.json": "21259e8be5d14a8a8942734cd223ac7bd048d1f7ee54df6ec9abf2370c6b4d78",
+    "spec.md": "6902ed2653484341035225b38e7eab20069fe2813f262edb8e051ae9e900bb9c"
+  },
+  "written_at": "2026-07-27T06:23:52.948Z"
+}

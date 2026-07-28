@@ -1,0 +1,161 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1", "T3"],
+      "tests": [
+        "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+        "test/feishu-api.test.js#FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown",
+        "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息",
+        "test/message-dispatcher.test.js#MessageDispatcher model footer"
+      ],
+      "evidence": ["evidence/test-run-feishu-footer.log"],
+      "behaviors": {
+        "REQ-001-B01": {
+          "tasks": ["T1", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+            "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-001-B02": {
+          "tasks": ["T1", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown",
+            "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-001-B03": {
+          "tasks": ["T1", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+            "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-001-B04": {
+          "tasks": ["T1", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+            "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T1", "T2", "T3"],
+      "tests": [
+        "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+        "test/feishu-api.test.js#FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown",
+        "test/message-dispatcher.test.js#_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata",
+        "test/message-dispatcher.test.js#MessageDispatcher model footer"
+      ],
+      "evidence": ["evidence/test-run-feishu-footer.log"],
+      "behaviors": {
+        "REQ-002-B01": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+            "test/message-dispatcher.test.js#_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata",
+            "test/message-dispatcher.test.js#MessageDispatcher model footer"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-002-B02": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息",
+            "test/message-dispatcher.test.js#普通 Agent 最终文本无模型时 runtime metadata 回退为默认值"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-002-B03": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": ["test/feishu-api.test.js#FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown"],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-002-B04": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata"],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T1", "T2", "T3"],
+      "tests": [
+        "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+        "test/feishu-api.test.js#FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown",
+        "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息",
+        "test/message-dispatcher.test.js#_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata"
+      ],
+      "evidence": ["evidence/test-run-feishu-footer.log"],
+      "behaviors": {
+        "REQ-003-B01": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+            "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息",
+            "test/message-dispatcher.test.js#_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-003-B02": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": ["test/feishu-api.test.js#FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown"],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-003-B03": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": ["test/feishu-api.test.js#FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown"],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-003-B04": {
+          "tasks": ["T1", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚",
+            "test/feishu-api.test.js#FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown",
+            "test/feishu-api.test.js#FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        }
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T1", "T2", "T3"],
+      "tests": [
+        "test/feishu-api.test.js#FeishuApi sendText 将超长文本拆成多条消息完整发送",
+        "test/feishu-api.test.js#FeishuApi replyText 将超长回复拆成首条回复和后续群消息",
+        "test/message-dispatcher.test.js#_callFeishu 保持可重试方法的重试次数和 fallback 行为不变",
+        "test/message-dispatcher.test.js#_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata",
+        "test/progress-card.test.js#progress card wrapper compatibility"
+      ],
+      "evidence": ["evidence/test-run-feishu-footer.log"],
+      "behaviors": {
+        "REQ-004-B01": {
+          "tasks": ["T1", "T3"],
+          "tests": [
+            "test/feishu-api.test.js#FeishuApi sendText 将超长文本拆成多条消息完整发送",
+            "test/feishu-api.test.js#FeishuApi replyText 将超长回复拆成首条回复和后续群消息"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-004-B02": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#_callFeishu 保持可重试方法的重试次数和 fallback 行为不变"],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        },
+        "REQ-004-B03": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": [
+            "test/message-dispatcher.test.js#_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata",
+            "test/progress-card.test.js#progress card wrapper compatibility"
+          ],
+          "evidence": ["evidence/test-run-feishu-footer.log"]
+        }
+      }
+    }
+  }
+}
