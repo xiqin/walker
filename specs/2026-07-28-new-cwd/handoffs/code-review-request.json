@@ -1,0 +1,37 @@
+{
+  "fixed_point": "HEAD",
+  "pre_review": {
+    "standards_findings": 0,
+    "spec_findings": 0,
+    "worst": "none"
+  },
+  "tests": [
+    "node --test test\\message-dispatcher.test.js test\\feishu-commands.test.js => PASS (201/201)",
+    "npm test => PASS (1205/1205)",
+    "node --test test\\opencode-hook-installer.test.js => PASS (49/49)"
+  ],
+  "review_request": "specs/2026-07-28-new-cwd/review-request.md",
+  "open_questions": [
+    "当前变更尚未提交；如审查流程要求 commit 后审查，需要用户确认提交策略。"
+  ],
+  "status": "done",
+  "summary": "已基于 HEAD 作为 fixed point 完成本地 Standards + Spec 双轴预审查并生成 review-request.md。预审查无 blocker：实现集中在现有 dispatcher/commands/docs/tests，满足 REQ-001/REQ-002/REQ-003；审查请求已记录目标测试 201/201、全量 npm test 1205/1205、首次全量瞬时失败的复核结果、artifact verifier 本地安装缺失问题以及未提交状态。",
+  "artifacts": [
+    "review-request.md",
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "a69d22c1e1be279ab563baebfde44dafb081435c15978ab1f5a359b0d79bfef7",
+    "spec.md": "37557fc374d5bd91cebf0ad2904ee40d1b4bace2c9a833a8891b22ec665d475f"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "94e48d2707ccccb676a53b57ae0b49990338175acb3b99def3d4258178603d6a",
+    "test-report.md": "e9a24b465662658ccd94f5748bf34047ab2791daefc38fb84252dfced0cfd0d6",
+    "verify-report.md": "691a5f6ec5b89eb233a258b4ffa6ddd36254ef0abffd1febbc8cc50713284a88"
+  },
+  "written_at": "2026-07-28T10:27:29.022Z"
+}

@@ -1,0 +1,45 @@
+{
+  "tasks": [
+    "T1 done",
+    "T2 done"
+  ],
+  "tests": [
+    "node --test \"test/message-dispatcher.test.js\" => PASS (169/169), evidence/test-run-message-dispatcher.log sha256 3251e66066e0619f4e74e6a9cfd2bb6c35920a07dee5c1abf05a4f0613c40fab",
+    "node --test \"test/feishu-commands.test.js\" => PASS (32/32), evidence/test-run-feishu-commands.log sha256 0874af36a3fd5492cc882d889bb3a1110939728e79fd56c41a65775012d4a69d",
+    "loom tasks --spec-dir \"specs/2026-07-28-new-cwd\" --validate => PASS"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已实现 /new [agent] [title] [--cwd <path>]：MessageDispatcher 仅消费显式 --cwd 并将 cwd 传给 driver.createSession 与 sessionService.createSession；缺少路径时返回错误且不创建或绑定新 session；帮助、README 和调试页已同步。相关单元测试通过，traceability.json 已补齐 behavior 级 tests/evidence。为通过验证门禁，test-report.md 保留结构化 evidence receipt 并将结果摘要改为显式 PASS outcome 文本，避免机械校验将 `fail 0` 误判为失败。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "src/platform/feishu/commands.js",
+    "test/message-dispatcher.test.js",
+    "test/feishu-commands.test.js",
+    "README.md",
+    "walker-console-v2.html",
+    "test-report.md",
+    "traceability.json",
+    "evidence/test-run-message-dispatcher.log",
+    "evidence/test-run-feishu-commands.log"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "a69d22c1e1be279ab563baebfde44dafb081435c15978ab1f5a359b0d79bfef7",
+    "spec.md": "37557fc374d5bd91cebf0ad2904ee40d1b4bace2c9a833a8891b22ec665d475f",
+    "tasks/": "afea5cbb5f466206fb815a9742b88721da43f645fbc69a5b1c9a78a292a0294d"
+  },
+  "artifact_fingerprints": {
+    "README.md": "10d8f3ad8dfd8be5d62dc0fa153f61679f8059bf117e47841d62ad79f35101c1",
+    "evidence/test-run-feishu-commands.log": "0874af36a3fd5492cc882d889bb3a1110939728e79fd56c41a65775012d4a69d",
+    "evidence/test-run-message-dispatcher.log": "3251e66066e0619f4e74e6a9cfd2bb6c35920a07dee5c1abf05a4f0613c40fab",
+    "src/dispatch/message-dispatcher.js": "7704424c51d7c5ade66b7370c171ac84530617ba8e416e5c8d90d57e95e7bb08",
+    "src/platform/feishu/commands.js": "2b743eeaccfcb6bded31f6594d09e4e653396b9df14fc7af131f87a0f0be24d0",
+    "test-report.md": "e9a24b465662658ccd94f5748bf34047ab2791daefc38fb84252dfced0cfd0d6",
+    "test/feishu-commands.test.js": "ba23e42faf84668d16a2554757a0806d3981693cf339ea07e8821bd6dc162d8c",
+    "test/message-dispatcher.test.js": "6c7b740b7ac5a985cb9c395ce518f202d1e6c0fb0dcfe03e11d18bac064c6855",
+    "walker-console-v2.html": "c81a5086c076f35c249530d519ad9a2e356230f3d43ca56c3c5f82734d4f2555"
+  },
+  "written_at": "2026-07-28T10:24:35.329Z"
+}

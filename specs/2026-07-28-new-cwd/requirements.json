@@ -1,0 +1,123 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "input", "state", "compatibility"],
+      "required_categories": ["happy-path", "compatibility", "state-transition", "invalid-input"],
+      "acceptance": [
+        "/new --cwd H:\\project 使用默认 agent 并将 cwd 设为 H:\\project",
+        "/new opencode my-session --cwd H:\\project 保留 agent/title 语义并将 cwd 设为 H:\\project",
+        "未提供 --cwd 时继续使用 defaultCwd"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "/new 支持 --cwd <projectPath> 并把路径传给底层 driver.createSession",
+          "status": "failing",
+          "acceptance": "driver.createSession 的 cwd 等于 --cwd 后的路径",
+          "test_plan": "MessageDispatcher /new 单元测试断言 driver.createSession 参数"
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "state-transition",
+          "description": "Walker session 持久化的 cwd 与 --cwd 路径一致",
+          "status": "failing",
+          "acceptance": "sessionService.createSession 收到的 cwd 等于 --cwd 后的路径",
+          "test_plan": "MessageDispatcher /new 单元测试断言 sessionService.createSession 参数或创建结果"
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "compatibility",
+          "description": "未提供 --cwd 的 /new 继续使用 defaultCwd，现有 agent/title 位置参数不变",
+          "status": "failing",
+          "acceptance": "现有 /new 与 /new opencode my-session 测试继续通过",
+          "test_plan": "运行既有 /new 测试并补充默认 cwd 回归断言"
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "invalid-input",
+          "description": "非 --cwd 的额外位置参数不被解释为 cwd，仍只按既有 agent/title 规则消费前两个位置参数",
+          "status": "failing",
+          "acceptance": "/new opencode my-session H:\\project 不把第三个裸参数作为 cwd",
+          "test_plan": "MessageDispatcher /new 单元测试断言第三个裸参数不会覆盖 defaultCwd"
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["input", "state", "external-failure", "observability"],
+      "required_categories": ["invalid-input", "forbidden-behavior", "observability", "state-transition"],
+      "acceptance": [
+        "/new --cwd 返回用户可见错误",
+        "无效输入不调用 driver.createSession",
+        "无效输入不创建或绑定新的 Walker session"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "invalid-input",
+          "description": "--cwd 缺少路径值时拒绝命令",
+          "status": "failing",
+          "acceptance": "返回错误卡片或错误文本，结果包含错误状态",
+          "test_plan": "MessageDispatcher /new --cwd 测试断言错误响应"
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "forbidden-behavior",
+          "description": "--cwd 缺少路径值时不得创建底层 agent session 或 Walker session",
+          "status": "failing",
+          "acceptance": "driver.createSession 和 sessionService.createSession 均未被调用",
+          "test_plan": "MessageDispatcher 无效输入测试使用 spy 断言未调用"
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "observability",
+          "description": "无效 --cwd 的反馈能让用户知道缺少路径参数",
+          "status": "failing",
+          "acceptance": "错误消息包含 --cwd 与 path/cwd 相关说明",
+          "test_plan": "断言错误响应文本或错误卡片内容"
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "state-transition",
+          "description": "无效 --cwd 不改变当前 routeKey 绑定的 Walker session",
+          "status": "failing",
+          "acceptance": "命令执行前后的当前绑定 session 保持一致",
+          "test_plan": "MessageDispatcher 无效输入测试断言 getCurrent 结果未被替换且未调用 createSession"
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["observable", "compatibility"],
+      "required_categories": ["observability", "compatibility"],
+      "acceptance": [
+        "/help 显示 /new 的 --cwd 语法",
+        "README 命令表显示 /new 的 --cwd 语法",
+        "管理端调试页面显示 /new 的 --cwd 语法"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "observability",
+          "description": "用户可通过帮助信息发现 /new --cwd 用法",
+          "status": "failing",
+          "acceptance": "COMMANDS.new.usage 包含 --cwd <path>",
+          "test_plan": "feishu commands 测试或直接断言 COMMANDS.new.usage"
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "compatibility",
+          "description": "文档更新不改变现有命令名称和参数顺序说明",
+          "status": "failing",
+          "acceptance": "README 与调试页仍以 /new [agent] [title] 为基础，并追加 [--cwd <path>]",
+          "test_plan": "人工检查文档 diff"
+        }
+      ]
+    }
+  ]
+}

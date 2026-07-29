@@ -1,0 +1,75 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1"],
+      "tests": ["test/message-dispatcher.test.js"],
+      "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"],
+      "behaviors": {
+        "REQ-001-B01": {
+          "tasks": ["T1"],
+          "tests": ["test/message-dispatcher.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"]
+        },
+        "REQ-001-B02": {
+          "tasks": ["T1"],
+          "tests": ["test/message-dispatcher.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"]
+        },
+        "REQ-001-B03": {
+          "tasks": ["T1"],
+          "tests": ["test/message-dispatcher.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"]
+        },
+        "REQ-001-B04": {
+          "tasks": ["T1"],
+          "tests": ["test/message-dispatcher.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"]
+        }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T1"],
+      "tests": ["test/message-dispatcher.test.js"],
+      "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"],
+      "behaviors": {
+        "REQ-002-B01": {
+          "tasks": ["T1"],
+          "tests": ["test/message-dispatcher.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"]
+        },
+        "REQ-002-B02": {
+          "tasks": ["T1"],
+          "tests": ["test/message-dispatcher.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"]
+        },
+        "REQ-002-B03": {
+          "tasks": ["T1"],
+          "tests": ["test/message-dispatcher.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"]
+        },
+        "REQ-002-B04": {
+          "tasks": ["T1"],
+          "tests": ["test/message-dispatcher.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-message-dispatcher", "verify-report.md#requirement-coverage"]
+        }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T2"],
+      "tests": ["test/feishu-commands.test.js"],
+      "evidence": ["test-report.md#evidence-receipt-feishu-commands", "verify-report.md#requirement-coverage"],
+      "behaviors": {
+        "REQ-003-B01": {
+          "tasks": ["T2"],
+          "tests": ["test/feishu-commands.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-feishu-commands", "verify-report.md#requirement-coverage"]
+        },
+        "REQ-003-B02": {
+          "tasks": ["T2"],
+          "tests": ["test/feishu-commands.test.js"],
+          "evidence": ["test-report.md#evidence-receipt-feishu-commands", "verify-report.md#requirement-coverage"]
+        }
+      }
+    }
+  }
+}

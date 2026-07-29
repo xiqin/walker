@@ -1,0 +1,37 @@
+{
+  "tasks": [
+    "T1: /new --cwd 解析与会话创建，覆盖 REQ-001/REQ-002 及 8 个 behavior",
+    "T2: 帮助与文档更新，覆盖 REQ-003 及 2 个 behavior"
+  ],
+  "validation": [
+    "loom tasks --spec-dir specs/2026-07-28-new-cwd --validate 通过",
+    "loom_analyze_artifacts 通过，blocker_count=0",
+    "validate-plan.mjs 因 skill 安装路径缺少 src/core/requirements.js 无法运行"
+  ],
+  "dependencies": [
+    "T1 -> T2"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已将 /new --cwd 支持拆为 T1 dispatcher 行为实现与 T2 帮助/文档更新；traceability.json 覆盖所有 REQ 与 behavior，任务 ownership 无冲突，artifact analysis 通过。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "traceability.json",
+    "artifact-analysis.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "a69d22c1e1be279ab563baebfde44dafb081435c15978ab1f5a359b0d79bfef7",
+    "spec.md": "37557fc374d5bd91cebf0ad2904ee40d1b4bace2c9a833a8891b22ec665d475f",
+    "tasks/": "afea5cbb5f466206fb815a9742b88721da43f645fbc69a5b1c9a78a292a0294d"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "a69d22c1e1be279ab563baebfde44dafb081435c15978ab1f5a359b0d79bfef7",
+    "tasks/T1.md": "5cebf2c92d0404ca1854b02cee5e77899b035c247a857356a2ff19dc159d8692",
+    "tasks/T2.md": "e74cb0b3263a277ef9dc4a2183cfac7684b8987dd020529d2e01f3dfbdf0a861"
+  },
+  "written_at": "2026-07-28T07:33:47.071Z"
+}

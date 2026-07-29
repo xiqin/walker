@@ -16,6 +16,13 @@ test('parseCommand /new opencode my-session', () => {
   assert.deepEqual(result.args, ['opencode', 'my-session']);
 });
 
+test('parseCommand /new --cwd H:\\project 透传 cwd 参数 token', () => {
+  const result = parseCommand('/new --cwd H:\\project');
+  assert.equal(result.type, 'command');
+  assert.equal(result.name, 'new');
+  assert.deepEqual(result.args, ['--cwd', 'H:\\project']);
+});
+
 test('parseCommand /list', () => {
   const result = parseCommand('/list');
   assert.equal(result.type, 'command');
@@ -147,8 +154,14 @@ test('COMMANDS 包含所有需要的命令', () => {
   assert.ok(names.includes('clear'));
 });
 
+test('COMMANDS.new usage 包含 --cwd <path>', () => {
+  assert.match(COMMANDS.new.usage, /\/new \[agent\] \[title\]/);
+  assert.match(COMMANDS.new.usage, /--cwd <path>/);
+});
+
 test('formatHelp 包含新增命令', () => {
   const help = formatHelp();
+  assert.match(help, /\/new \[agent\] \[title\] \[--cwd <path>\]/);
   assert.match(help, /\/cancel/);
   assert.match(help, /取消当前 turn/);
   assert.match(help, /\/status/);

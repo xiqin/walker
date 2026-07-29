@@ -1,0 +1,27 @@
+{
+  "decisions": [
+    "采用 /new [agent] [title] --cwd <projectPath> 语法",
+    "不支持第三个裸参数作为路径，额外位置参数不解释为 cwd",
+    "不改变 defaultCwd 配置；未提供 --cwd 时继续使用 defaultCwd",
+    "沿用现有空白切分，不新增 shell 引号解析",
+    "--cwd 缺少路径值时返回用户可见错误且不创建或绑定新 session"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确定 /new 通过显式 --cwd <projectPath> 支持项目路径，兼容现有 /new [agent] [title]；规划阶段补齐了额外位置参数不作为 cwd、无效 --cwd 不改变当前绑定等行为义务。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "plan.md": "a69d22c1e1be279ab563baebfde44dafb081435c15978ab1f5a359b0d79bfef7",
+    "spec.md": "37557fc374d5bd91cebf0ad2904ee40d1b4bace2c9a833a8891b22ec665d475f"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "9238f6fb4b8541b4533e5d89a2663f419586a794bef9eb576465f750577c76c0",
+    "spec.md": "37557fc374d5bd91cebf0ad2904ee40d1b4bace2c9a833a8891b22ec665d475f"
+  },
+  "written_at": "2026-07-28T07:35:19.901Z"
+}

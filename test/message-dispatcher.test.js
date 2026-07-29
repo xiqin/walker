@@ -1114,6 +1114,174 @@ describe('MessageDispatcher /new command', () => {
     assert.ok(result.sessionId);
   });
 
+  it('/new --cwd 将项目路径传给 driver 和 Walker session', async () => {
+    const mocks = makeMocks();
+    const created = {};
+    const driverCreateCalls = [];
+    mocks.driver.createSession = async (opts) => {
+      driverCreateCalls.push(opts);
+      return { opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' };
+    };
+    mocks.sessionService.createSession = (opts) => {
+      created.opts = opts;
+      return { id: 'wks_new1', agent: opts.agent, status: 'created', route: opts.route, cwd: opts.cwd };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: ['--cwd', 'H:\\project'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_cwd1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(driverCreateCalls[0].cwd, 'H:\\project');
+    assert.equal(created.opts.cwd, 'H:\\project');
+    assert.equal(created.opts.agent, 'opencode');
+    assert.equal(created.opts.title, 'session ses_new1');
+  });
+
+  it('/new agent title --cwd 保持 agent/title 并使用指定 cwd', async () => {
+    const mocks = makeMocks();
+    const created = {};
+    const driverCreateCalls = [];
+    mocks.driver.createSession = async (opts) => {
+      driverCreateCalls.push(opts);
+      return { opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' };
+    };
+    mocks.sessionService.createSession = (opts) => {
+      created.opts = opts;
+      return { id: 'wks_new1', agent: opts.agent, status: 'created', route: opts.route, title: opts.title, cwd: opts.cwd };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: ['opencode', 'my-session', '--cwd', 'H:\\project'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_cwd2', chatId: 'oc_chat1',
+    });
+
+    assert.equal(driverCreateCalls[0].cwd, 'H:\\project');
+    assert.equal(driverCreateCalls[0].title, 'my-session');
+    assert.equal(created.opts.cwd, 'H:\\project');
+    assert.equal(created.opts.agent, 'opencode');
+    assert.equal(created.opts.title, 'my-session');
+  });
+
+  it('/new 未提供 --cwd 时继续使用 defaultCwd', async () => {
+    const mocks = makeMocks();
+    const created = {};
+    const driverCreateCalls = [];
+    mocks.driver.createSession = async (opts) => {
+      driverCreateCalls.push(opts);
+      return { opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' };
+    };
+    mocks.sessionService.createSession = (opts) => {
+      created.opts = opts;
+      return { id: 'wks_new1', agent: opts.agent, status: 'created', route: opts.route, cwd: opts.cwd };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: ['opencode', 'my-session'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_default_cwd1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(driverCreateCalls[0].cwd, 'H:\\walker');
+    assert.equal(created.opts.cwd, 'H:\\walker');
+  });
+
+  it('/new 第三个裸参数不作为 cwd', async () => {
+    const mocks = makeMocks();
+    const created = {};
+    const driverCreateCalls = [];
+    mocks.driver.createSession = async (opts) => {
+      driverCreateCalls.push(opts);
+      return { opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' };
+    };
+    mocks.sessionService.createSession = (opts) => {
+      created.opts = opts;
+      return { id: 'wks_new1', agent: opts.agent, status: 'created', route: opts.route, cwd: opts.cwd };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: ['opencode', 'my-session', 'H:\\project'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_bare_cwd1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(driverCreateCalls[0].cwd, 'H:\\walker');
+    assert.equal(created.opts.cwd, 'H:\\walker');
+    assert.equal(created.opts.title, 'my-session');
+  });
+
+  it('/new --cwd 缺少路径时拒绝创建且不改变当前绑定', async () => {
+    const mocks = makeMocks();
+    const current = { id: 'wks_current1', agent: 'opencode', status: 'idle' };
+    const driverCreateCalls = [];
+    const sessionCreateCalls = [];
+    mocks.sessionService.getCurrent = () => current;
+    mocks.sessionService.createSession = (opts) => {
+      sessionCreateCalls.push(opts);
+      return { id: 'wks_new1', agent: opts.agent, status: 'created', route: opts.route };
+    };
+    mocks.driver.createSession = async (opts) => {
+      driverCreateCalls.push(opts);
+      return { opencodeSessionId: 'ses_new1', serverUrl: 'http://localhost:4096' };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      defaultCwd: 'H:\\walker',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: ['--cwd'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_missing_cwd1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.error, 'missing_cwd');
+    assert.deepEqual(driverCreateCalls, []);
+    assert.deepEqual(sessionCreateCalls, []);
+    assert.equal(mocks.sessionService.getCurrent('feishu:oc_chat1:om_root1'), current);
+    const error = mocks.feishuApi.calls.find(c => c.type === 'sendErrorCard');
+    assert.ok(error.message.includes('--cwd'));
+    assert.match(error.message, /path|cwd/i);
+  });
+
   it('/new 后监听终端侧会话回复并发送到飞书', async () => {
     const mocks = makeMocks();
     let watched;

@@ -493,8 +493,23 @@ class MessageDispatcher {
       const pendingPrompt = this._promptQueues.get(current.id);
       if (pendingPrompt) await pendingPrompt.catch(() => {});
     }
-    const agentName = cmd.args[0] || this.defaultAgent;
-    const title = cmd.args[1] || '';
+    const args = [];
+    let cwd = this.defaultCwd;
+    for (let i = 0; i < cmd.args.length; i += 1) {
+      if (cmd.args[i] !== '--cwd') {
+        args.push(cmd.args[i]);
+        continue;
+      }
+      const value = cmd.args[i + 1];
+      if (!value) {
+        await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), 'Usage: /new [agent] [title] --cwd <path>']);
+        return { error: 'missing_cwd' };
+      }
+      cwd = value;
+      i += 1;
+    }
+    const agentName = args[0] || this.defaultAgent;
+    const title = args[1] || '';
     const driver = this.driverRegistry.get(agentName);
 
     if (!driver) {
@@ -504,14 +519,14 @@ class MessageDispatcher {
 
     await driver.ensureReady();
     const inheritedModel = this._resolveInheritedModel(current);
-    const agentRef = await driver.createSession({ title, cwd: this.defaultCwd, model: inheritedModel });
+    const agentRef = await driver.createSession({ title, cwd, model: inheritedModel });
 
     const session = this.sessionService.createSession({
       route: routeKey,
       agent: agentName,
       title: title || ('session ' + agentRef.opencodeSessionId.slice(0, 12)),
       runtime: this.runtimeType,
-      cwd: this.defaultCwd,
+      cwd,
       agentRef,
       model: inheritedModel,
     });

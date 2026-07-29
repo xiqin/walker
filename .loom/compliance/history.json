@@ -762,5 +762,53 @@
       "fail 0`。 |",
       "FAIL_UNRELATED | `npm test` 结果 `tests 1182`、`pass 1180`、`fail 2`；失败在 admin UI 配置页 DOM 测试，非本需求触达路径。 |"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-28-new-cwd",
+    "timestamp": "2026-07-28T10:25:02.582Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0",
+      "fail 0",
+      "Failure Check",
+      "failing-opencode-hook-installer.log`",
+      "fail 0",
+      "error: 'missing_cwd' }`, sends a visible error containing `--cwd` and path/cwd guidance, does not call driver/session creation, and preserves the current binding.",
+      "failure in `test/opencode-hook-installer.test.js` (`clear 各失败阶段保持 Walker 旧焦点并回滚 TUI`), outside the touched `/new --cwd` path. A direct rerun of that file passed, and a second full `npm test` run passe"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-28-new-cwd",
+    "timestamp": "2026-07-28T10:28:40.315Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0",
+      "fail 0",
+      "Failure Check",
+      "failing-opencode-hook-installer.log`",
+      "fail 0",
+      "error: 'missing_cwd' }`, sends a visible error containing `--cwd` and path/cwd guidance, does not call driver/session creation, and preserves the current binding.",
+      "failure in `test/opencode-hook-installer.test.js` (`clear 各失败阶段保持 Walker 旧焦点并回滚 TUI`), outside the touched `/new --cwd` path. A direct rerun of that file passed, and a second full `npm test` run passe"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-28-new-cwd",
+    "timestamp": "2026-07-28T10:42:13.093Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 0",
+      "fail 0",
+      "Failure Check",
+      "failing-opencode-hook-installer.log`",
+      "fail 0",
+      "error: 'missing_cwd' }`, sends a visible error containing `--cwd` and path/cwd guidance, does not call driver/session creation, and preserves the current binding.",
+      "failure in `test/opencode-hook-installer.test.js` (`clear 各失败阶段保持 Walker 旧焦点并回滚 TUI`), outside the touched `/new --cwd` path. A direct rerun of that file passed, and a second full `npm test` run passe"
+    ]
   }
 ]
