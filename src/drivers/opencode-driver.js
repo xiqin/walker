@@ -67,7 +67,7 @@ class OpencodeDriver extends AgentDriver {
       buildUrl: (path, query, sessionRef) => this._buildUrl(path, query, sessionRef),
       watchTimeoutMs: options.watchTimeoutMs || 300000,
       pollIntervalMs: options.messagePollIntervalMs || 3000,
-      getSessionMessages: (ref) => this.getSessionMessages(ref),
+      getSessionMessages: (ref, messageOptions) => this.getSessionMessages(ref, messageOptions),
     });
   }
 
@@ -238,9 +238,10 @@ class OpencodeDriver extends AgentDriver {
     return this._extractMessageList(resp);
   }
 
-  async _getSessionMessagesFromLocalDb(sessionId) {
+  async _getSessionMessagesFromLocalDb(sessionId, options) {
+    const limit = this._messageLimit(options && options.limit, 20);
     const escaped = String(sessionId).replace(/'/g, "''");
-    const sql = "select data from message where session_id='" + escaped + "' order by time_created desc limit 20;";
+    const sql = 'select data from message where session_id=\'' + escaped + '\' order by time_created desc limit ' + limit + ';';
     const result = await this.execFile(this.sqliteCmd, ['-batch', '-noheader', this.opencodeDbPath, sql], { encoding: 'utf8' });
     const stdout = typeof result === 'string' ? result : (result && result.stdout) || '';
     return stdout.split(/\r?\n/)
@@ -249,7 +250,30 @@ class OpencodeDriver extends AgentDriver {
       .map((line) => {
         try { return JSON.parse(line); } catch (_) { return null; }
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .reverse();
+  }
+
+  _messageLimit(value, fallback) {
+    const limit = Number(value);
+    if (!Number.isFinite(limit) || limit <= 0) return fallback;
+    return Math.min(Math.floor(limit), 100);
+  }
+
+  async _getSessionMessagesForWatcher(sessionRef, options) {
+    const sessionId = sessionRef.opencodeSessionId;
+    try {
+      if (this.opencodeDbPath && fsSync.existsSync(this.opencodeDbPath)) {
+        const messages = await this._getSessionMessagesFromLocalDb(sessionId, { limit: options && options.limit });
+        if (messages.length > 0) return messages;
+      }
+    } catch (err) {
+      logger.debug('failed to read watcher messages from opencode db, falling back to http', {
+        sessionId,
+        error: err && err.message,
+      });
+    }
+    return this._getSessionMessagesHttp(sessionRef);
   }
 
   _latestRuntimeFromMessages(messages) {
@@ -581,7 +605,7 @@ class OpencodeDriver extends AgentDriver {
         const lastDone = [...events].reverse().find((e) => e.type === AgentEvent.TYPE_DONE);
         if (lastDone) {
           try {
-            const messages = await this.getSessionMessages(sessionRef);
+            const messages = await this.getSessionMessages(sessionRef, { access: 'watcher', limit: 20 });
             const completed = messages.filter((m) => {
               const role = m.info ? m.info.role : m.role;
               const completed = this._messageCompletedAt(m);
@@ -615,7 +639,7 @@ class OpencodeDriver extends AgentDriver {
     while (Date.now() - startTime < maxRecoveryMs) {
       if (signal && signal.aborted) return null;
       try {
-        const messages = await this.getSessionMessages(sessionRef);
+        const messages = await this.getSessionMessages(sessionRef, { access: 'watcher', limit: 20 });
         if (signal && signal.aborted) return null;
         const newCompleted = [];
         let foundBaseline = !baselineId;
@@ -655,9 +679,9 @@ class OpencodeDriver extends AgentDriver {
     return null;
   }
 
-  watchSession(sessionRef, handlers) {
+  watchSession(sessionRef, handlers, options) {
     if (this._isTuiBridge(sessionRef)) return this.tuiBridge.watchSession(sessionRef, handlers);
-    return this._sessionWatcher.watch(sessionRef, handlers);
+    return this._sessionWatcher.watch(sessionRef, handlers, options);
   }
 
   suspendWatch(sessionRef) {
@@ -670,11 +694,14 @@ class OpencodeDriver extends AgentDriver {
     this._sessionWatcher.resume(sessionRef);
   }
 
-  async getSessionMessages(sessionRef) {
+  async getSessionMessages(sessionRef, options) {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('getSessionMessages requires sessionRef with opencodeSessionId');
     }
     if (this._isTuiBridge(sessionRef)) return [];
+    if (options && options.access === 'watcher') {
+      return this._getSessionMessagesForWatcher(sessionRef, options);
+    }
     return this._getSessionMessagesHttp(sessionRef);
   }
 

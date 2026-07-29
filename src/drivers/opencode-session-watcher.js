@@ -16,12 +16,13 @@ class OpencodeSessionWatcher {
 
     this.watchers = new Map();
     this.suspendedWatches = new Set();
+    this.oversizedWatches = new Set();
     this._pollTimers = null;
     this._lastPolledMessageId = null;
     this._pollInitializedSessions = new Set();
   }
 
-  watch(sessionRef, handlers) {
+  watch(sessionRef, handlers, options) {
     if (!sessionRef || !sessionRef.opencodeSessionId) {
       throw new Error('watchSession requires sessionRef with opencodeSessionId');
     }
@@ -84,7 +85,9 @@ class OpencodeSessionWatcher {
       if (this.watchers.get(sessionId) === watcher) watcher.stop();
     });
 
-    this._startMessagePolling(sessionRef, handlers, controller.signal);
+    if (!(options && options.skipHistoryPolling)) {
+      this._startMessagePolling(sessionRef, handlers, controller.signal);
+    }
 
     return watcher.stop;
   }
@@ -130,6 +133,7 @@ class OpencodeSessionWatcher {
       this.stopWatch(sessionId);
     }
     this.suspendedWatches.clear();
+    this.oversizedWatches.clear();
   }
 
   hasActiveWatch(sessionId) {
@@ -163,6 +167,10 @@ class OpencodeSessionWatcher {
     if (messageId) this._lastPolledMessageId.set(sessionId, messageId);
   }
 
+  _isOversizedMessageError(err) {
+    return !!(err && err.message && /response body exceeded|body exceeded|max.*body/i.test(err.message));
+  }
+
   _startMessagePolling(sessionRef, handlers, signal) {
     const sessionId = sessionRef.opencodeSessionId;
     const pollIntervalMs = this.pollIntervalMs;
@@ -175,7 +183,7 @@ class OpencodeSessionWatcher {
       if (polling) return;
       polling = true;
       try {
-        const messages = await self.getSessionMessages(sessionRef);
+        const messages = await self.getSessionMessages(sessionRef, { access: 'watcher', limit: 20 });
         if (signal.aborted) return;
         const lastKnownId = self._lastPolledMessageId.get(sessionId);
         let newMessages = [];
@@ -239,6 +247,12 @@ class OpencodeSessionWatcher {
         }
       } catch (err) {
         if (!signal.aborted) {
+          if (self._isOversizedMessageError(err)) {
+            self.oversizedWatches.add(sessionId);
+            logger.warn('opencode poll disabled for oversized session messages', { sessionId, error: err.message });
+            self._pausePolling(sessionId);
+            return;
+          }
           logger.warn('opencode poll failed', { sessionId, error: err.message });
         }
       } finally {

@@ -325,6 +325,7 @@ describe('OpencodeDriver createSession', () => {
 
 describe('OpencodeDriver prompt with SSE', () => {
   const sessionRef = { opencodeSessionId: 'ses_abc', serverUrl: 'http://localhost:4096', cwd: '/home/user/project' };
+  const missingOpencodeDbPath = 'H:\\walker\\does-not-exist-opencode.db';
 
   it('tui-bridge session 委托本地 TUI bridge，不访问 HTTP 或 SSE', async () => {
     const calls = [];
@@ -366,7 +367,7 @@ describe('OpencodeDriver prompt with SSE', () => {
     ];
     const http = new FakeHttpClient({});
     const sse = new FakeSSEClient(sseEvents);
-    const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096' });
+    const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096', opencodeDbPath: missingOpencodeDbPath });
 
     const events = await driver.prompt(sessionRef, '请帮我分析代码');
 
@@ -397,7 +398,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       },
     });
     const sse = new FakeSSEClient(sseEvents);
-    const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096' });
+    const driver = new OpencodeDriver({ httpClient: http, sseClient: sse, serverUrl: 'http://localhost:4096', opencodeDbPath: missingOpencodeDbPath });
 
     await driver.prompt(sessionRef, 'hello');
 
@@ -696,6 +697,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       httpClient: http,
       sseClient: sse,
       serverUrl: 'http://localhost:4096',
+      opencodeDbPath: missingOpencodeDbPath,
       messagePollIntervalMs: 1000,
     });
 
@@ -743,6 +745,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       httpClient: http,
       sseClient: sse,
       serverUrl: 'http://localhost:4096',
+      opencodeDbPath: missingOpencodeDbPath,
       messagePollIntervalMs: 1000,
     });
 
@@ -803,6 +806,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       httpClient: http,
       sseClient: sse,
       serverUrl: 'http://localhost:4096',
+      opencodeDbPath: missingOpencodeDbPath,
       messagePollIntervalMs: 200,
     });
     driver._sessionWatcher._lastPolledMessageId = new Map([['ses_abc', 'msg0']]);
@@ -846,6 +850,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       httpClient: http,
       sseClient: sse,
       serverUrl: 'http://localhost:4096',
+      opencodeDbPath: missingOpencodeDbPath,
       messagePollIntervalMs: 200,
     });
     driver._sessionWatcher._lastPolledMessageId = new Map([['ses_abc', 'msg0']]);
@@ -888,6 +893,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       httpClient: http,
       sseClient: sse,
       serverUrl: 'http://localhost:4096',
+      opencodeDbPath: missingOpencodeDbPath,
       messagePollIntervalMs: 60000,
     });
 
@@ -925,6 +931,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       httpClient: http,
       sseClient: sse,
       serverUrl: 'http://localhost:4096',
+      opencodeDbPath: missingOpencodeDbPath,
       messagePollIntervalMs: 20,
     });
     // 模拟重启：不预设 _lastPolledMessageId
@@ -947,6 +954,83 @@ describe('OpencodeDriver prompt with SSE', () => {
     const textEvents = delivered.filter((e) => e.type === 'text');
     assert.equal(textEvents.length, 1, 'completed 后应投递一次');
     assert.equal(textEvents[0].data.text, '执行完成');
+  });
+
+  it('watchSession 后台轮询使用 watcher 专用的有限消息读取', async () => {
+    const driver = new OpencodeDriver({ httpClient: new FakeHttpClient({}), serverUrl: 'http://localhost:4096' });
+    const calls = [];
+    driver.getSessionMessages = async (ref, options) => {
+      calls.push({ ref, options });
+      return [];
+    };
+    driver.sseClient = {
+      async connect() {
+        return new Promise(() => {});
+      },
+    };
+    driver._sessionWatcher.sseClient = driver.sseClient;
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: () => {} });
+    await new Promise((resolve) => setImmediate(resolve));
+    if (typeof stopWatch === 'function') stopWatch();
+
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].options, { access: 'watcher', limit: 20 });
+  });
+
+  it('watchSession 可在启动恢复时跳过历史消息轮询', async () => {
+    const driver = new OpencodeDriver({ httpClient: new FakeHttpClient({}), serverUrl: 'http://localhost:4096' });
+    let calls = 0;
+    driver.getSessionMessages = async () => {
+      calls++;
+      return [];
+    };
+    driver.sseClient = {
+      async connect() {
+        return new Promise(() => {});
+      },
+    };
+    driver._sessionWatcher.sseClient = driver.sseClient;
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: () => {} }, { skipHistoryPolling: true });
+    await new Promise((resolve) => setImmediate(resolve));
+    if (typeof stopWatch === 'function') stopWatch();
+
+    assert.equal(calls, 0);
+  });
+
+  it('watchSession 遇到超大 /message 响应后熔断后台轮询', async () => {
+    let pollCount = 0;
+    const http = {
+      async request(method, url) {
+        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+          pollCount++;
+          throw new Error('GET http://localhost:4096/session/ses_abc/message response body exceeded 10485760 bytes');
+        }
+        return { status: 200, data: {} };
+      },
+    };
+    const sse = {
+      async connect() {
+        return new Promise(() => {});
+      },
+    };
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      messagePollIntervalMs: 20,
+      opencodeDbPath: 'H:\\walker\\does-not-exist-opencode.db',
+    });
+
+    const stopWatch = driver.watchSession(sessionRef, { onEvent: () => {} });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const stillPolling = driver._sessionWatcher._pollTimers.has('ses_abc');
+    if (typeof stopWatch === 'function') stopWatch();
+
+    assert.equal(pollCount, 1, '超大响应后不应继续每轮请求 /message');
+    assert.equal(stillPolling, false, '超大响应后后台轮询定时器应被清理');
+    assert.equal(driver._sessionWatcher.oversizedWatches.has('ses_abc'), true);
   });
 });
 

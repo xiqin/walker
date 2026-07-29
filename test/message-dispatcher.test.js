@@ -3313,6 +3313,32 @@ describe('MessageDispatcher non-focus output', () => {
 });
 
 describe('MessageDispatcher ensureWatchForSession', () => {
+  it('restoreWatches skips history polling on startup restore', () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_restore1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_restore1', serverUrl: 'http://localhost:4096' } };
+    mocks.sessionService.listSessions = () => [session];
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
+    const watchCalls = [];
+    mocks.driver.watchSession = (agentRef, handlers, options) => {
+      watchCalls.push({ agentRef, handlers, options });
+      return () => {};
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    dispatcher.restoreWatches();
+
+    assert.equal(watchCalls.length, 1);
+    assert.deepEqual(watchCalls[0].agentRef, session.agentRef);
+    assert.deepEqual(watchCalls[0].options, { skipHistoryPolling: true });
+    assert.equal(dispatcher.sessionWatchStops.has(session.id), true);
+  });
+
   it('纳入非焦点 session 后启动 watch', () => {
     const mocks = makeMocks();
     const session = { id: 'wks_enroll1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_enroll1', serverUrl: 'http://localhost:4096' } };

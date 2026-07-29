@@ -1146,7 +1146,7 @@ class MessageDispatcher {
     return this.progressRenderer._textFromDisplayEvents(displayEvents);
   }
 
-  _watchSessionEvents(session, cmd, driver) {
+  _watchSessionEvents(session, cmd, driver, options) {
     const chatId = (cmd && cmd.chatId) || this._chatIdFromRouteKey(session.route);
     logger.info('watchSessionEvents called', { sessionId: session.id, chatId, hasDriver: !!driver, agentRef: session.agentRef });
     if (!chatId || !driver || typeof driver.watchSession !== 'function') {
@@ -1157,7 +1157,7 @@ class MessageDispatcher {
     const stop = driver.watchSession(session.agentRef, {
       onEvent: (agentEvent) => this._handleWatchedSessionEvent(session, chatId, agentEvent, driver),
       onError: (err) => logger.warn('session watch failed', { sessionId: session.id, error: err.message }),
-    });
+    }, options);
     if (typeof stop === 'function') this.sessionWatchStops.set(session.id, stop);
   }
 
@@ -1205,7 +1205,7 @@ class MessageDispatcher {
       if (!routeKey) continue;
       const chatId = this._chatIdFromRouteKey(routeKey);
       if (!chatId) continue;
-      this._watchSessionEvents(session, { chatId }, driver);
+      this._watchSessionEvents(session, { chatId }, driver, { skipHistoryPolling: true });
       restored++;
     }
     if (restored > 0) logger.info('restored session watches on startup', { count: restored });
