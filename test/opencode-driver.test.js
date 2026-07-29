@@ -159,6 +159,29 @@ describe('OpencodeDriver createSession', () => {
     ]);
   });
 
+  it('v2 /api/session 创建时将内部模型引用转换为 OpenCode API 载荷', async () => {
+    const http = new FakeHttpClient({
+      'POST http://localhost:4096/api/session': {
+        status: 200,
+        data: {
+          data: {
+            id: 'ses_model_payload1',
+            location: { directory: 'H:\\rsstest' },
+          },
+        },
+      },
+    });
+    const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
+
+    await driver.createSession({
+      title: 'walker session',
+      cwd: 'H:\\rsstest',
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+    });
+
+    assert.deepEqual(http.calls[0].body.model, { id: 'gpt-5.5', providerID: 'cpa' });
+  });
+
   it('v2 /api/session 不存在时回退旧 /session 接口', async () => {
     const http = new FakeHttpClient({
       'POST http://localhost:4096/api/session': { status: 404, data: { error: 'not found' } },

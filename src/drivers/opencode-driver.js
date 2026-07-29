@@ -101,7 +101,8 @@ class OpencodeDriver extends AgentDriver {
     const v2Body = {
       location: { directory: cwd },
     };
-    if (options.model) v2Body.model = options.model;
+    const v2Model = this._modelRefToApiModel(options.model);
+    if (v2Model) v2Body.model = v2Model;
     if (options.agent) v2Body.agent = options.agent;
 
     try {
@@ -141,6 +142,14 @@ class OpencodeDriver extends AgentDriver {
     } catch (err) {
       throw new Error('Failed to create opencode session at ' + this.serverUrl + ': ' + err.message);
     }
+  }
+
+  _modelRefToApiModel(model) {
+    const normalized = this._normalizeModelRef(model);
+    if (!normalized || !normalized.modelID) return null;
+    const apiModel = { id: normalized.modelID };
+    if (normalized.providerID) apiModel.providerID = normalized.providerID;
+    return apiModel;
   }
 
   async resumeSession(sessionRef) {
