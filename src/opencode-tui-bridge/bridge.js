@@ -26,6 +26,8 @@ class OpencodeTuiBridge {
     this.runtimes = new Map();
     this.pending = new Map();
     this._tombstones = new Map();
+    this._assistantMessages = new Map();
+    this._suppressedFinals = new Map();
     this.watchers = new Map();
     this._clearPending = new Map();
     this._activeQuestionDeliveries = new Map();
@@ -62,7 +64,8 @@ class OpencodeTuiBridge {
     runtime.bridgeProtocolVersion = Number(data.bridgeProtocolVersion) || 0;
     runtime.lastSeenAt = now;
 
-    let session = this._findSession(runtimeId, sessionId);
+    let session = this._findSession(runtimeId, sessionId)
+      || this._findUpgradeableSession(sessionId, cwd);
     const agentRef = {
       opencodeSessionId: sessionId,
       transport: 'tui-bridge',
@@ -196,6 +199,7 @@ class OpencodeTuiBridge {
       const pendingEntry = {
         runtimeId: ref.runtimeId,
         sessionId: ref.opencodeSessionId,
+        type: DELIVERY_TYPE_PROMPT,
         state: 'queued',
         resolve,
         reject,
@@ -211,6 +215,7 @@ class OpencodeTuiBridge {
         clearTimeout(existing.timer);
         existing.timer = null;
         this.pending.delete(deliveryId);
+        this._discardSuppressedFinal(ref.opencodeSessionId);
         this._addTombstone(deliveryId, ref.runtimeId, ref.opencodeSessionId, 'cancelled');
         reject(new Error('OpenCode TUI bridge prompt cancelled'));
       };
@@ -423,6 +428,9 @@ class OpencodeTuiBridge {
     if (!runtime) throw new Error('unknown TUI runtime: ' + runtimeId);
     runtime.lastSeenAt = Date.now();
     const events = normalizeEvents(data.events);
+    const assistantMessageId = typeof data.assistantMessageId === 'string'
+      ? data.assistantMessageId.trim()
+      : '';
     logger.info('tui reportEvents received', {
       runtimeId,
       sessionId,
@@ -449,6 +457,19 @@ class OpencodeTuiBridge {
       return this._handleFinal(data.deliveryId, runtimeId, sessionId, data, events);
     }
 
+    if (assistantMessageId) {
+      if (this._hasAssistantMessage(sessionId, assistantMessageId)) {
+        return { delivered: true, duplicate: true };
+      }
+      if (this._hasPendingPrompt(sessionId)) {
+        this._suppressedFinals.set(this._assistantMessageKey(sessionId, assistantMessageId), {
+          runtimeId, sessionId, assistantMessageId, events, error: data.error || null, createdAt: Date.now(),
+        });
+        this._evictSuppressedFinals();
+        return { delivered: true, suppressed: true };
+      }
+    }
+
     let handlers = this.watchers.get(watchKey(runtimeId, sessionId));
     if (!handlers && runtime.walkerSessionId) {
       const routeKey = this.sessionService.getRouteForSession(runtime.walkerSessionId);
@@ -468,6 +489,7 @@ class OpencodeTuiBridge {
       for (const handler of handlers) {
         if (handler && handler.onError) handler.onError(new Error(errorMessage(data.error)));
       }
+      this._rememberAssistantMessage(sessionId, assistantMessageId);
       return { delivered: true };
     }
     for (const event of events) {
@@ -475,6 +497,7 @@ class OpencodeTuiBridge {
         if (handler && handler.onEvent) handler.onEvent(event);
       }
     }
+    this._rememberAssistantMessage(sessionId, assistantMessageId);
     return { delivered: true };
   }
 
@@ -535,11 +558,17 @@ class OpencodeTuiBridge {
         this._releaseQuestionDelivery(deliveryId, pending);
         this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'completed');
         if (data.error) {
+          if (pending.type === DELIVERY_TYPE_PROMPT) this._recoverSuppressedFinal(sessionId);
           pending.reject(isControlReplyDelivery(pending.type)
             ? questionReplyErrorFromPayload(data.error, deliveryPhase)
             : new Error(errorMessage(data.error)));
         }
-        else pending.resolve(events);
+        else {
+          this._rememberAssistantMessage(sessionId, data.assistantMessageId);
+          if (pending.type === DELIVERY_TYPE_PROMPT) this._discardSuppressedFinal(sessionId, data.assistantMessageId);
+          if (pending.type === DELIVERY_TYPE_PROMPT) this._recoverSuppressedFinal(sessionId);
+          pending.resolve(events);
+        }
         return { delivered: true };
       }
     }
@@ -560,6 +589,7 @@ class OpencodeTuiBridge {
               if (handler && handler.onEvent) handler.onEvent(event);
             }
           }
+          this._rememberAssistantMessage(sessionId, data.assistantMessageId);
         }
         tombstone.resolvedAt = Date.now();
         return { delivered: true, recovered: true };
@@ -583,6 +613,7 @@ class OpencodeTuiBridge {
     this.pending.delete(deliveryId);
     this._releaseQuestionDelivery(deliveryId, pending);
     this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'transport_lost');
+    if (pending.type === DELIVERY_TYPE_PROMPT) this._recoverSuppressedFinal(pending.sessionId);
     pending.reject(isControlReplyDelivery(pending.type)
       ? questionReplyError(errorCode || 'TUI_LEASE_LOST', errorCode || 'TUI_LEASE_LOST', 'leased', true, false)
       : new Error(errorCode || 'TUI_LEASE_LOST'));
@@ -626,6 +657,91 @@ class OpencodeTuiBridge {
       resolvedAt: null,
     });
     this._evictTombstones();
+  }
+
+  _hasPendingPrompt(sessionId) {
+    for (const pending of this.pending.values()) {
+      if (pending.type === DELIVERY_TYPE_PROMPT && pending.sessionId === sessionId
+        && (pending.state === 'queued' || pending.state === 'leased')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _assistantMessageKey(sessionId, assistantMessageId) {
+    return sessionId + '\0' + String(assistantMessageId || '').trim();
+  }
+
+  _hasAssistantMessage(sessionId, assistantMessageId) {
+    const messageId = String(assistantMessageId || '').trim();
+    if (!messageId) return false;
+    this._evictAssistantMessages();
+    return this._assistantMessages.has(this._assistantMessageKey(sessionId, messageId));
+  }
+
+  _rememberAssistantMessage(sessionId, assistantMessageId) {
+    const messageId = String(assistantMessageId || '').trim();
+    if (!messageId) return;
+    this._assistantMessages.set(this._assistantMessageKey(sessionId, messageId), Date.now());
+    this._evictAssistantMessages();
+  }
+
+  _discardSuppressedFinal(sessionId, assistantMessageId) {
+    const messageId = String(assistantMessageId || '').trim();
+    if (messageId) {
+      this._suppressedFinals.delete(this._assistantMessageKey(sessionId, messageId));
+      return;
+    }
+    for (const [key, pending] of this._suppressedFinals) {
+      if (pending.sessionId === sessionId) this._suppressedFinals.delete(key);
+    }
+  }
+
+  _recoverSuppressedFinal(sessionId) {
+    this._evictSuppressedFinals();
+    for (const [key, pending] of this._suppressedFinals) {
+      if (pending.sessionId !== sessionId) continue;
+      const handlers = this.watchers.get(watchKey(pending.runtimeId, sessionId));
+      if (!handlers) continue;
+      if (pending.error) {
+        for (const handler of handlers) {
+          if (handler && handler.onError) handler.onError(new Error(errorMessage(pending.error)));
+        }
+      } else {
+        for (const event of pending.events) {
+          for (const handler of handlers) {
+            if (handler && handler.onEvent) handler.onEvent(event);
+          }
+        }
+      }
+      this._rememberAssistantMessage(sessionId, pending.assistantMessageId);
+      this._suppressedFinals.delete(key);
+    }
+  }
+
+  _evictSuppressedFinals() {
+    const now = Date.now();
+    for (const [key, pending] of this._suppressedFinals) {
+      if (now - pending.createdAt > this.tombstoneTtlMs) this._suppressedFinals.delete(key);
+    }
+    while (this._suppressedFinals.size > this.tombstoneCapacity) {
+      const oldest = this._suppressedFinals.keys().next().value;
+      if (oldest === undefined) break;
+      this._suppressedFinals.delete(oldest);
+    }
+  }
+
+  _evictAssistantMessages() {
+    const now = Date.now();
+    for (const [key, createdAt] of this._assistantMessages) {
+      if (now - createdAt > this.tombstoneTtlMs) this._assistantMessages.delete(key);
+    }
+    while (this._assistantMessages.size > this.tombstoneCapacity) {
+      const oldest = this._assistantMessages.keys().next().value;
+      if (oldest === undefined) break;
+      this._assistantMessages.delete(oldest);
+    }
   }
 
   _evictTombstones() {
@@ -871,6 +987,7 @@ class OpencodeTuiBridge {
       this.watchers.set(key, set);
     }
     set.add(handlers || {});
+    if (!this._hasPendingPrompt(ref.opencodeSessionId)) this._recoverSuppressedFinal(ref.opencodeSessionId);
     return () => {
       set.delete(handlers || {});
       if (set.size === 0) this.watchers.delete(key);
@@ -892,6 +1009,7 @@ class OpencodeTuiBridge {
       const deliveryPhase = pending.state;
       this.pending.delete(deliveryId);
       this._releaseQuestionDelivery(deliveryId, pending);
+      if (pending.type === DELIVERY_TYPE_PROMPT) this._discardSuppressedFinal(pending.sessionId);
       this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'cancelled');
       pending.reject(pending.type === DELIVERY_TYPE_QUESTION_REPLY
         ? questionReplyError(
@@ -923,6 +1041,7 @@ class OpencodeTuiBridge {
       this.pending.delete(deliveryId);
       this._releaseQuestionDelivery(deliveryId, pending);
       this._addTombstone(deliveryId, pending.runtimeId, pending.sessionId, 'transport_lost');
+      if (pending.type === DELIVERY_TYPE_PROMPT) this._recoverSuppressedFinal(pending.sessionId);
       pending.reject(pending.type === DELIVERY_TYPE_QUESTION_REPLY
         ? questionReplyError(
           'OpenCode TUI bridge runtime disposed', 'TUI_RUNTIME_DISCONNECTED', deliveryPhase,
@@ -953,6 +1072,8 @@ class OpencodeTuiBridge {
       this._failClear(deliveryId, new Error('OpenCode TUI bridge closed'));
     }
     this._tombstones.clear();
+    this._assistantMessages.clear();
+    this._suppressedFinals.clear();
     this.watchers.clear();
     this._activeQuestionDeliveries.clear();
     this.runtimes.clear();
@@ -965,6 +1086,26 @@ class OpencodeTuiBridge {
         && ref.runtimeId === runtimeId
         && ref.opencodeSessionId === opencodeSessionId;
     }) || null;
+  }
+
+  _findUpgradeableSession(opencodeSessionId, cwd) {
+    const normalizedCwd = String(cwd || '').trim().toLowerCase();
+    const candidates = this.sessionService.listSessions().filter((session) => {
+      const ref = session && session.agentRef;
+      return session && session.agent === 'opencode'
+        && session.status !== 'stopped'
+        && ref && ref.transport !== 'tui-bridge'
+        && ref.opencodeSessionId === opencodeSessionId;
+    });
+    candidates.sort((a, b) => {
+      const score = (session) => {
+        const hasRoute = this.sessionService.getRouteForSession(session.id) ? 2 : 0;
+        const sameCwd = normalizedCwd && String(session.cwd || '').trim().toLowerCase() === normalizedCwd ? 1 : 0;
+        return hasRoute + sameCwd;
+      };
+      return score(b) - score(a) || (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+    return candidates[0] || null;
   }
 
   _notifySessionEnrolled(sessionId, routeKey) {

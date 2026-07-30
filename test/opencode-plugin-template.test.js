@@ -130,9 +130,9 @@ describe('plugin-template v5 protocol', () => {
     }
   });
 
-  it('bridge version 注释保持为 14', () => {
+  it('bridge version 注释保持为 15', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    assert.ok(src.includes('// Walker TUI bridge version: 14'));
+    assert.ok(src.includes('// Walker TUI bridge version: 15'));
   });
 
   it('默认 heartbeat 间隔为 30000ms', () => {

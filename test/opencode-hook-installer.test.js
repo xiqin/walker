@@ -61,7 +61,7 @@ test('已存在旧版 TUI plugin 即使端口匹配也会升级', () => {
 
   assert.equal(result.installed, true);
   const content = fs.readFileSync(targetPath, 'utf8');
-  assert.ok(content.includes('Walker TUI bridge version: 14'));
+  assert.ok(content.includes('Walker TUI bridge version: 15'));
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -123,7 +123,8 @@ test('getPluginSource 返回 embedded TUI bridge plugin 内容', () => {
   assert.ok(source.includes('/opencode/tui-bridge/register'));
   assert.ok(source.includes('/opencode/tui-bridge/poll'));
   assert.ok(source.includes('/opencode/tui-bridge/events'));
-  assert.ok(source.includes('Walker TUI bridge version: 14'));
+  assert.ok(source.includes('Walker TUI bridge version: 15'));
+  assert.ok(source.includes('body.assistantMessageId = assistantMessageId'));
   assert.ok(source.includes('bridgeProtocolVersion: 5'));
   assert.ok(source.includes('api.route.current'));
   assert.ok(source.includes('api.client.session.promptAsync'));

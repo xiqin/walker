@@ -383,6 +383,219 @@ describe('飞书-TUI 双向链路集成测试', () => {
   });
 
   describe('不会重复或跨 route 推送 TUI 回复', () => {
+    it('/new 创建的 HTTP session 在 TUI 注册后应原地升级且只推送一次回复', async () => {
+      const chatId = 'oc_chat_http_upgrade';
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = 'H:\\rsstest';
+      const opencodeSessionId = 'ses_http_upgrade';
+      const runtimeId = 'runtime-http-upgrade';
+      const httpSession = ctx.sessionService.createSession({
+        route: routeKey,
+        agent: 'opencode',
+        cwd,
+        agentRef: { opencodeSessionId, serverUrl: 'http://localhost:4096', cwd },
+      });
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const bridge = new OpencodeTuiBridge({ sessionService: ctx.sessionService, promptTimeoutMs: 1000 });
+      let httpWatchActive = false;
+      const driver = {
+        watchSession: (sessionRef, handlers) => {
+          if (sessionRef.transport === 'tui-bridge') return bridge.watchSession(sessionRef, handlers);
+          httpWatchActive = true;
+          return () => { httpWatchActive = false; };
+        },
+        prompt: (sessionRef, text) => bridge.prompt(sessionRef, text),
+        getSessionMessages: async () => [],
+      };
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+        nonFocusOutput: true,
+      });
+      dispatcher.ensureWatchForSession(httpSession.id);
+      assert.equal(httpWatchActive, true, 'TUI 注册前应存在 HTTP watcher');
+      bridge.setOnSessionEnrolled(({ sessionId }) => dispatcher.ensureWatchForSession(sessionId, { refresh: true }));
+
+      const registered = bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd });
+      assert.equal(registered.sessionId, httpSession.id, 'TUI 注册应复用 /new 创建的 Walker session');
+      assert.equal(httpWatchActive, false, '升级 transport 时应停止旧 HTTP watcher');
+      assert.equal(ctx.sessionService.listSessionsInRoute(routeKey).length, 1, 'route 中应只有一个 Walker session');
+
+      const prompted = dispatcher.handleIncomingMessage({
+        messageId: 'om_http_upgrade',
+        chatId,
+        text: 'hi',
+      });
+      const delivery = await pollDelivery(bridge, runtimeId, opencodeSessionId);
+      bridge.reportEvents({
+        runtimeId,
+        sessionId: opencodeSessionId,
+        deliveryId: delivery.deliveryId,
+        assistantMessageId: 'msg_http_upgrade',
+        events: [
+          { type: AgentEvent.TYPE_TEXT, data: { text: '你好！' } },
+          { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+        ],
+      });
+      assert.equal(await prompted, 'prompted');
+
+      assert.equal(feishuApi.calls.filter((call) => call.type === 'replyMarkdown' && call.text === '你好！').length, 1);
+      assert.equal(feishuApi.calls.filter((call) => call.type === 'sendMarkdown' && call.text && call.text.includes('你好！')).length, 0,
+        '旧 HTTP watcher 不应再群发同一回答');
+      bridge.close();
+    });
+
+    it('同一 OpenCode session 的多个 TUI runtime 不应重复推送同一 assistant message', async () => {
+      const chatId = 'oc_chat_multi_runtime_dedup';
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const opencodeSessionId = 'ses_multi_runtime_dedup';
+      const secondaryRuntimeId = 'runtime-multi-secondary';
+      const primaryRuntimeId = 'runtime-multi-primary';
+
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const bridge = new OpencodeTuiBridge({
+        sessionService: ctx.sessionService,
+        promptTimeoutMs: 1000,
+        runtimeStaleMs: 1000,
+      });
+      const driver = new OpencodeDriver({
+        serverUrl: 'http://localhost:4096',
+        tuiBridge: bridge,
+        httpClient: { request: async () => { throw new Error('TUI bridge test must not use HTTP'); } },
+        sseClient: { connect: async () => { throw new Error('TUI bridge test must not use SSE'); } },
+      });
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry: { get: () => driver },
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+        nonFocusOutput: true,
+      });
+      bridge.setOnSessionEnrolled(({ sessionId }) => dispatcher.ensureWatchForSession(sessionId));
+
+      const secondaryRegistration = bridge.register({ runtimeId: secondaryRuntimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
+      bridge.register({ runtimeId: primaryRuntimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
+
+      const promptResult = dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_multi_runtime_dedup',
+        chatId,
+        text: 'hi',
+      });
+      const delivery = await pollDelivery(bridge, primaryRuntimeId, opencodeSessionId);
+      const events = [
+        { type: AgentEvent.TYPE_TEXT, data: { text: 'hi\n你好！有什么需要我帮忙的吗？' } },
+        { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+      ];
+
+      bridge.reportEvents({
+        runtimeId: primaryRuntimeId,
+        sessionId: opencodeSessionId,
+        deliveryId: delivery.deliveryId,
+        assistantMessageId: 'msg_multi_runtime_reply',
+        events,
+      });
+      assert.equal(await promptResult, 'prompted');
+
+      const duplicate = bridge.reportEvents({
+        runtimeId: secondaryRuntimeId,
+        sessionId: opencodeSessionId,
+        assistantMessageId: 'msg_multi_runtime_reply',
+        events,
+      });
+      assert.equal(duplicate.duplicate, true, '其他 runtime 上报同一 assistant message 时应在 bridge 层去重');
+      assert.equal(dispatcher.sessionDoneInFlight.has(secondaryRegistration.sessionId), false,
+        '重复 final 不应进入旧 Walker session watcher');
+
+      const replies = feishuApi.calls.filter((call) => call.type === 'replyMarkdown'
+        && call.text && call.text.includes('你好！有什么需要我帮忙的吗？'));
+      const watcherSends = feishuApi.calls.filter((call) => call.type === 'sendMarkdown'
+        && call.text && call.text.includes('你好！有什么需要我帮忙的吗？'));
+      assert.equal(replies.length, 1, '飞书 prompt 最终回复应只发送一次');
+      assert.equal(watcherSends.length, 0, '其他 TUI runtime 不应把同一 assistant message 再作为手工 turn 群发');
+      bridge.close();
+    });
+
+    it('其他 TUI runtime 先上报 prompt 回答时也不应抢先群发', async () => {
+      const routeKey = buildRouteKey({ chatId: 'oc_chat_multi_runtime_early', rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const sessionId = 'ses_multi_runtime_early';
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+      const bridge = new OpencodeTuiBridge({ sessionService: ctx.sessionService, promptTimeoutMs: 1000, runtimeStaleMs: 1000 });
+      const secondary = bridge.register({ runtimeId: 'runtime-early-secondary', sessionId, cwd });
+      const primary = bridge.register({ runtimeId: 'runtime-early-primary', sessionId, cwd });
+      const secondarySession = ctx.sessionService.getSession(secondary.sessionId);
+      const primarySession = ctx.sessionService.getSession(primary.sessionId);
+      const received = [];
+      bridge.watchSession(secondarySession.agentRef, { onEvent: (event) => received.push(event) });
+
+      const prompt = bridge.prompt(primarySession.agentRef, 'hi');
+      const delivery = await pollDelivery(bridge, 'runtime-early-primary', sessionId);
+      const events = [
+        { type: AgentEvent.TYPE_TEXT, data: { text: '你好！' } },
+        { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+      ];
+      const suppressed = bridge.reportEvents({
+        runtimeId: 'runtime-early-secondary',
+        sessionId,
+        assistantMessageId: 'msg_multi_runtime_early',
+        events,
+      });
+      assert.equal(suppressed.suppressed, true, '活动 prompt 的旁路 final 应被抑制');
+      assert.equal(received.length, 0, '旁路 final 不应进入 watcher');
+
+      bridge.reportEvents({
+        runtimeId: 'runtime-early-primary',
+        sessionId,
+        deliveryId: delivery.deliveryId,
+        assistantMessageId: 'msg_multi_runtime_early',
+        events,
+      });
+      const result = await prompt;
+      assert.deepEqual(result.map((event) => event.type), [AgentEvent.TYPE_TEXT, AgentEvent.TYPE_DONE]);
+      bridge.close();
+    });
+
+    it('旁路 final 被活动 prompt 抑制后，主 delivery 失败时应自动恢复', async () => {
+      const routeKey = buildRouteKey({ chatId: 'oc_chat_multi_runtime_recover', rootId: '' }, 'thread');
+      const cwd = process.cwd();
+      const sessionId = 'ses_multi_runtime_recover';
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+      const bridge = new OpencodeTuiBridge({ sessionService: ctx.sessionService, promptTimeoutMs: 1000, runtimeStaleMs: 1000 });
+      const secondary = bridge.register({ runtimeId: 'runtime-recover-secondary', sessionId, cwd });
+      const primary = bridge.register({ runtimeId: 'runtime-recover-primary', sessionId, cwd });
+      const secondarySession = ctx.sessionService.getSession(secondary.sessionId);
+      const primarySession = ctx.sessionService.getSession(primary.sessionId);
+      const received = [];
+      bridge.watchSession(secondarySession.agentRef, { onEvent: (event) => received.push(event) });
+
+      const prompt = bridge.prompt(primarySession.agentRef, 'hi');
+      await pollDelivery(bridge, 'runtime-recover-primary', sessionId);
+      const events = [
+        { type: AgentEvent.TYPE_TEXT, data: { text: '可恢复的回答' } },
+        { type: AgentEvent.TYPE_DONE, data: { reason: 'idle' } },
+      ];
+      const suppressed = bridge.reportEvents({
+        runtimeId: 'runtime-recover-secondary',
+        sessionId,
+        assistantMessageId: 'msg_multi_runtime_recover',
+        events,
+      });
+      assert.equal(suppressed.suppressed, true);
+
+      bridge.dispose({ runtimeId: 'runtime-recover-primary' });
+      await assert.rejects(prompt, /runtime disposed/);
+      assert.deepEqual(received.map((event) => event.type), [AgentEvent.TYPE_TEXT, AgentEvent.TYPE_DONE]);
+      bridge.close();
+    });
+
     it('单次双向流程不会重复发送回复', async () => {
       const chatId = 'oc_chat_dedup';
       const rootId = 'om_root_dedup';

@@ -852,6 +852,172 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.ok(reply, '应通过 replyMarkdown 发送 Hello');
   });
 
+  it('prompt 渲染前先到达的 watch DONE 不应抢先重复发送同一轮回答', async () => {
+    const mocks = makeMocks();
+    let watched;
+    const session = { id: 'wks_active_watch_dup', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_active_watch_dup', serverUrl: 'http://localhost:4096' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.driver.watchSession = (_agentRef, handlers) => {
+      watched = handlers;
+      return () => {};
+    };
+    mocks.driver.prompt = async () => {
+      watched.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: '当前目录是：H:\\rsstest' }));
+      watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+      await new Promise((resolve) => setImmediate(resolve));
+      return [
+        new AgentEvent(AgentEvent.TYPE_TEXT, { text: '当前目录是：H:\\rsstest' }),
+        new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }),
+      ];
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_active_watch_dup1', openId: 'ou_user1', text: '当前是哪个目录',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text.includes('当前目录是：H:\\rsstest'));
+    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyMarkdown' && c.text.includes('当前目录是：H:\\rsstest'));
+    assert.equal(sends.length, 0, 'watch DONE 不应在 prompt 渲染前抢先 sendMarkdown 同一轮回答');
+    assert.equal(replies.length, 1, '同一轮回答应只由 prompt replyMarkdown 回复一次');
+  });
+
+  it('prompt 执行期间 watcher 收到不同回答时仍应发送', async () => {
+    const mocks = makeMocks();
+    let watched;
+    const session = { id: 'wks_active_watch_distinct', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_active_watch_distinct', serverUrl: 'http://localhost:4096' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.driver.watchSession = (_agentRef, handlers) => {
+      watched = handlers;
+      return () => {};
+    };
+    mocks.driver.prompt = async () => {
+      watched.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: '本地 TUI 的独立回答' }));
+      watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+      return [
+        new AgentEvent(AgentEvent.TYPE_TEXT, { text: '飞书 prompt 的回答' }),
+        new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }),
+      ];
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_active_watch_distinct1', openId: 'ou_user1', text: '飞书问题',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyMarkdown' && c.text === '飞书 prompt 的回答'), true);
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendMarkdown' && c.text === '本地 TUI 的独立回答'), true,
+      '活动 prompt 只能去重相同正文，不能吞掉不同的 watcher 回答');
+  });
+
+  it('prompt 执行期间 watcher 的不同前缀恰好以 prompt 回答结尾时仍应发送', async () => {
+    const mocks = makeMocks();
+    let watched;
+    const session = { id: 'wks_active_watch_suffix', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_active_watch_suffix', serverUrl: 'http://localhost:4096' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.driver.watchSession = (_agentRef, handlers) => {
+      watched = handlers;
+      return () => {};
+    };
+    mocks.driver.prompt = async () => {
+      watched.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: '本地 TUI 还发现了一个额外问题\n执行完成' }));
+      watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+      return [
+        new AgentEvent(AgentEvent.TYPE_TEXT, { text: '执行完成' }),
+        new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }),
+      ];
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_active_watch_suffix1', openId: 'ou_user1', text: '请执行任务',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'replyMarkdown' && c.text === '执行完成'), true);
+    assert.equal(mocks.feishuApi.calls.some(c => c.type === 'sendMarkdown'
+      && c.text === '本地 TUI 还发现了一个额外问题\n执行完成'), true,
+    '只有当前 prompt 原文作为前缀时才可按回显去重');
+  });
+
+  it('prompt 返回后最终回复投递完成前，watch DONE 不应群发 prompt 回显和回答', async () => {
+    const mocks = makeMocks();
+    let watched;
+    let releaseCardUpdate;
+    let releasePreviousDone;
+    const cardUpdateStarted = new Promise((resolve) => {
+      mocks.feishuApi.updateProgressCard = (cardId, sessionId, agentEvent) => {
+        mocks.feishuApi.calls.push({ type: 'updateProgressCard', cardId, sessionId, agentEvent });
+        if (agentEvent.type !== AgentEvent.TYPE_DONE) return null;
+        resolve();
+        return new Promise((release) => { releaseCardUpdate = release; });
+      };
+    });
+    const session = { id: 'wks_finalizing_dup', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_finalizing_dup', serverUrl: 'http://localhost:4096' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.driver.watchSession = (_agentRef, handlers) => {
+      watched = handlers;
+      return () => {};
+    };
+    mocks.driver.prompt = async () => [
+      new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'hi\nHi！我在 H:\\rsstest，可以直接帮你查文件、改代码或运行命令。' }),
+      new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }),
+    ];
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+    dispatcher.sessionDoneInFlight.set(session.id, new Promise((resolve) => { releasePreviousDone = resolve; }));
+
+    const handling = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_finalizing_dup1', openId: 'ou_user1', text: 'hi',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    await cardUpdateStarted;
+    watched.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'hi\nHi！我在 H:\\rsstest，可以直接帮你查文件、改代码或运行命令。' }));
+    const watchedDone = watched.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    releaseCardUpdate(null);
+    await handling;
+    releasePreviousDone();
+    await watchedDone;
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyMarkdown');
+    assert.equal(sends.length, 0, '最终回复尚未投递完成时 watcher 不应群发同一轮文本');
+    assert.equal(replies.length, 1, '同一轮回答应只由 prompt replyMarkdown 回复一次');
+    assert.equal(replies[0].text.startsWith('hi'), false, '最终回复应剥离 prompt 回显');
+  });
+
   it('card 模式通过普通文本发送合并后的完整回答', async () => {
     const mocks = makeMocks();
     mocks.sessionService.getCurrent = () => ({ id: 'wks_bound1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_bound1', serverUrl: 'http://localhost:4096' } });
@@ -3313,7 +3479,7 @@ describe('MessageDispatcher non-focus output', () => {
 });
 
 describe('MessageDispatcher ensureWatchForSession', () => {
-  it('restoreWatches skips history polling on startup restore', () => {
+  it('restoreWatches 启动恢复时只建立 watch 关联并跳过历史轮询', () => {
     const mocks = makeMocks();
     const session = { id: 'wks_restore1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_restore1', serverUrl: 'http://localhost:4096' } };
     mocks.sessionService.listSessions = () => [session];
@@ -4379,6 +4545,29 @@ describe('MessageDispatcher watch buffer 空时从历史补取完成回答', () 
 
     const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown' && c.text === '历史回答');
     assert.equal(sends.length, 1, '历史补取的 text 也应被 _hasDeliveredText 去重');
+  });
+
+  it('prompt 已投递正文后，历史补取带 footer 的同一回答不应再次发送', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ id: 'wks_prompt_watch_dup', agentRef: { opencodeSessionId: 'ses_prompt_watch_dup' } });
+    mocks.driver.getSessionMessages = async () => ([
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: '当前工作目录是：H:\\rsstest\n\n---\n模型：cpa/gpt-5.5\n上下文：11970 tokens' }] },
+    ]);
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    dispatcher._rememberDeliveredText(session.id, '当前工作目录是：H:\\rsstest');
+
+    await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+
+    const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
+    assert.equal(sends.length, 0, '正文已由 prompt 回复时，watcher 不应因 history footer 差异重复发送');
+  });
+
+  it('正文末尾的模型和上下文文字没有分隔符时不应被当作 footer', () => {
+    const mocks = makeMocks();
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    const text = '诊断结果\n模型：这是正文的一部分\n上下文：仍属于正文';
+
+    assert.equal(dispatcher._normalizeDeliveredText(text), text);
   });
 
   it('getSessionMessages 返回无 completed assistant 时，不发送任何 text', async () => {

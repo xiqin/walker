@@ -63,6 +63,7 @@ class MessageDispatcher {
     this.cancelledTurnSessions = new Set();
     this._turnSeq = 0;
     this._promptQueues = new Map();
+    this._promptQueueTexts = new WeakMap();
     this._routeLocks = new Map();
     this.turnStateManager = new TurnStateManager({
       dispatcher: this,
@@ -318,6 +319,7 @@ class MessageDispatcher {
     const prev = this._promptQueues.get(sessionId) || Promise.resolve();
     const next = prev.then(task, task);
     this._promptQueues.set(sessionId, next);
+    this._promptQueueTexts.set(next, String(event.text || '').trim());
 
     next.finally(() => {
       if (this._promptQueues.get(sessionId) === next) {
@@ -1282,9 +1284,12 @@ class MessageDispatcher {
     const buffer = this.sessionWatchBuffers.get(session.id) || [];
     if (agentEvent.type === AgentEvent.TYPE_DONE) {
       const doneBuffer = buffer.slice();
+      const promptAtArrival = this._promptQueues.get(session.id) || null;
+      const promptTextAtArrival = promptAtArrival ? this._promptQueueTexts.get(promptAtArrival) || '' : '';
       this.sessionWatchBuffers.set(session.id, []);
       const run = async () => {
         if (this._destroyed) return;
+        if (promptAtArrival) await promptAtArrival.catch(() => {});
         await this._capturePromptRuntime(session, null, doneBuffer.concat([agentEvent]), driver, session.agentRef);
         const pendingProgress = this.sessionWatchProgressPromises.get(session.id);
         const displayEvents = this._coalesceDisplayEvents(doneBuffer, '');
@@ -1313,7 +1318,8 @@ class MessageDispatcher {
           this.sessionWatchProgressPromises.delete(session.id);
         });
         if (text) {
-          if (this._hasDeliveredText(session.id, text)) {
+          if (this._hasDeliveredText(session.id, text)
+            || (promptAtArrival && this._hasDeliveredPromptEcho(session.id, text, promptTextAtArrival))) {
             logger.info('skip duplicate watched session text', { sessionId: session.id, chatId, textLen: text.length });
             return;
           }
@@ -1438,7 +1444,7 @@ class MessageDispatcher {
   }
 
   _rememberDeliveredText(sessionId, text) {
-    const normalized = (text || '').trim();
+    const normalized = this._normalizeDeliveredText(text);
     if (!sessionId || !normalized) return;
     const recent = this.sessionDeliveredTexts.get(sessionId) || [];
     const next = recent.filter((item) => item !== normalized);
@@ -1483,9 +1489,34 @@ class MessageDispatcher {
   }
 
   _hasDeliveredText(sessionId, text) {
-    const normalized = (text || '').trim();
+    const normalized = this._normalizeDeliveredText(text);
     if (!sessionId || !normalized) return false;
     return (this.sessionDeliveredTexts.get(sessionId) || []).includes(normalized);
+  }
+
+  _hasDeliveredPromptEcho(sessionId, text, promptText) {
+    const normalized = this._normalizeDeliveredText(text);
+    const prompt = String(promptText || '').trim();
+    if (!sessionId || !normalized || !prompt) return false;
+    return (this.sessionDeliveredTexts.get(sessionId) || []).some((delivered) => (
+      normalized === prompt + '\n' + delivered
+    ));
+  }
+
+  _normalizeDeliveredText(text) {
+    const normalized = (text || '').trim();
+    if (!normalized) return '';
+    const lines = normalized.split(/\r?\n/);
+    for (let i = lines.length - 1; i >= Math.max(0, lines.length - 6); i--) {
+      const line = (lines[i] || '').trim();
+      const next = (lines[i + 1] || '').trim();
+      const afterNext = (lines[i + 2] || '').trim();
+      if (line === '---' && /^模型：/.test(next)
+        && (i + 2 === lines.length || (i + 3 === lines.length && /^上下文：/.test(afterNext)))) {
+        return lines.slice(0, i).join('\n').trim();
+      }
+    }
+    return normalized;
   }
 
   async _capturePromptRuntime(session, model, events, driver, agentRef) {

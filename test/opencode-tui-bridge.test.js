@@ -415,7 +415,7 @@ describe('OpencodeTuiBridge', () => {
     }
   });
 
-  it('register 不清理同 opencodeSessionId 但 runtime 仍在线的 HTTP session', () => {
+  it('register 复用同 opencodeSessionId 的 HTTP session 并升级为 TUI transport', () => {
     const h = createHarness();
     try {
       const routeKey = 'feishu:oc_http_keep:om_root';
@@ -431,12 +431,39 @@ describe('OpencodeTuiBridge', () => {
       // TUI register 同 opencodeSessionId
       const tuiReg = h.bridge.register({ runtimeId: 'runtime-tui', sessionId: 'ses_shared', cwd });
 
-      // HTTP session 不应被删除（它不是 tui-bridge transport）
-      const httpStill = h.sessionService.getSession(httpSession.id);
-      assert.ok(httpStill && httpStill.status !== 'deleted', 'HTTP session 不应被清理');
-      // TUI session 也应存在
-      const tuiSession = h.sessionService.getSession(tuiReg.sessionId);
-      assert.ok(tuiSession && tuiSession.status !== 'deleted', 'TUI session 应存在');
+      assert.equal(tuiReg.sessionId, httpSession.id, 'TUI 注册应复用已有 HTTP session，避免同一 OpenCode session 被双重监听');
+      const upgraded = h.sessionService.getSession(httpSession.id);
+      assert.deepEqual(upgraded.agentRef, {
+        opencodeSessionId: 'ses_shared',
+        transport: 'tui-bridge',
+        runtimeId: 'runtime-tui',
+      });
+      assert.equal(h.sessionService.getCurrent(routeKey).id, httpSession.id, '复用后的 session 应继续保持 route 焦点');
+      assert.equal(h.sessionService.listSessionsInRoute(routeKey).length, 1, 'route 中不应保留同一 OpenCode session 的重复记录');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('register 不复用 stopped 的 HTTP session', () => {
+    const h = createHarness();
+    try {
+      const routeKey = 'feishu:oc_http_stopped:om_root';
+      const cwd = 'H:\\walker';
+      h.sessionService.setRouteCwd(routeKey, cwd);
+      const stoppedSession = h.sessionService.createSession({
+        route: routeKey,
+        agent: 'opencode',
+        cwd,
+        agentRef: { opencodeSessionId: 'ses_stopped', serverUrl: 'http://localhost:4096' },
+      });
+      h.sessionService.stopSession(stoppedSession.id);
+
+      const tuiReg = h.bridge.register({ runtimeId: 'runtime-stopped', sessionId: 'ses_stopped', cwd });
+
+      assert.notEqual(tuiReg.sessionId, stoppedSession.id, 'stopped session 不应升级为 TUI transport');
+      assert.equal(h.sessionService.getSession(stoppedSession.id).status, 'stopped');
+      assert.equal(h.sessionService.getSession(tuiReg.sessionId).status, 'created');
     } finally {
       h.cleanup();
     }
@@ -933,7 +960,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
     });
     const bridge = new OpencodeTuiBridge({
       sessionService,
-      leaseTimeoutMs: opts.leaseTimeoutMs || 90,
+      leaseTimeoutMs: opts.leaseTimeoutMs || 1000,
       heartbeatIntervalMs: opts.heartbeatIntervalMs || 30,
       tombstoneCapacity: opts.tombstoneCapacity || 100,
       tombstoneTtlMs: opts.tombstoneTtlMs || 300000,
@@ -1152,7 +1179,10 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         deliveryId: delivery.deliveryId, deliveryState: 'accepted',
       });
 
-      await assert.rejects(promptPromise, /TUI_RUNTIME_DISCONNECTED/);
+      await Promise.all([
+        assert.rejects(promptPromise, /TUI_RUNTIME_DISCONNECTED/),
+        waitMs(50),
+      ]);
 
       assert.equal(h.bridge.pending.size, 0, 'pending 应已清理');
       const tombstone = h.bridge._tombstones.get(delivery.deliveryId);
@@ -1174,7 +1204,10 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         deliveryId: delivery.deliveryId, deliveryState: 'accepted',
       });
 
-      await assert.rejects(promptPromise, /TUI_RUNTIME_DISCONNECTED/);
+      await Promise.all([
+        assert.rejects(promptPromise, /TUI_RUNTIME_DISCONNECTED/),
+        waitMs(50),
+      ]);
 
       const received = [];
       const stop = h.bridge.watchSession(h.tuiSession.agentRef, {
@@ -1310,6 +1343,32 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
       const tombstone = h.bridge._tombstones.get(delivery.deliveryId);
       assert.ok(tombstone);
       assert.equal(tombstone.reason, 'cancelled');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('cancel 丢弃活动 prompt 期间暂存的旁路 final', async () => {
+    const h = setupV3Harness();
+    try {
+      const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'cancel suppressed final');
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3', assistantMessageId: 'msg_cancel_suppressed',
+        events: [
+          { type: 'text', data: { text: '不应恢复' } },
+          { type: 'done', data: { reason: 'idle' } },
+        ],
+      });
+      assert.deepEqual(result, { delivered: true, suppressed: true });
+      assert.equal(h.bridge._suppressedFinals.size, 1);
+
+      h.bridge.cancel(h.tuiSession.agentRef);
+      await assert.rejects(promptPromise, /cancel/);
+      assert.equal(h.bridge._suppressedFinals.size, 0);
+
+      const received = [];
+      h.bridge.watchSession(h.tuiSession.agentRef, { onEvent: (event) => received.push(event) });
+      assert.deepEqual(received, []);
     } finally {
       h.cleanup();
     }
@@ -1520,7 +1579,10 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
         deliveryId: d.deliveryId, deliveryState: 'accepted',
       });
-      await assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/);
+      await Promise.all([
+        assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/),
+        waitMs(50),
+      ]);
 
       const result = h.bridge.reportEvents({
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
@@ -1536,6 +1598,33 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
     }
   });
 
+  it('无 watcher 的旁路 final 不应被记为已交付，安装 watcher 后可用同 messageId 重报', () => {
+    const h = setupV3Harness();
+    try {
+      const events = [
+        { type: 'text', data: { text: '稍后交付' } },
+        { type: 'done', data: { reason: 'idle' } },
+      ];
+      const first = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        assistantMessageId: 'msg_no_watcher_retry', events,
+      });
+      assert.deepEqual(first, { delivered: false });
+
+      const received = [];
+      h.bridge.watchSession(h.tuiSession.agentRef, { onEvent: (event) => received.push(event) });
+      const retried = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        assistantMessageId: 'msg_no_watcher_retry', events,
+      });
+
+      assert.deepEqual(retried, { delivered: true });
+      assert.deepEqual(received.map((event) => event.type), ['text', 'done']);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('transport_lost tombstone 恢复后再次 report 返回 duplicate', async () => {
     const h = setupV3Harness({ leaseTimeoutMs: 30 });
     try {
@@ -1545,7 +1634,10 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
         deliveryId: d.deliveryId, deliveryState: 'accepted',
       });
-      await assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/);
+      await Promise.all([
+        assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/),
+        waitMs(50),
+      ]);
 
       h.bridge.reportEvents({
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
@@ -1564,6 +1656,47 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
     }
   });
 
+  it('transport_lost tombstone 恢复后，同 assistantMessageId 的旁路 final 应去重', async () => {
+    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    try {
+      const p = h.bridge.prompt(h.tuiSession.agentRef, 'late assistant duplicate');
+      const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId, deliveryState: 'accepted',
+      });
+      await Promise.all([
+        assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/),
+        waitMs(50),
+      ]);
+
+      const received = [];
+      h.bridge.watchSession(h.tuiSession.agentRef, { onEvent: (event) => received.push(event) });
+      const events = [
+        { type: 'text', data: { text: '只应恢复一次的回答' } },
+        { type: 'done', data: { reason: 'idle' } },
+      ];
+      const recovered = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        deliveryId: d.deliveryId,
+        assistantMessageId: 'msg_late_assistant_duplicate',
+        events,
+      });
+      assert.deepEqual(recovered, { delivered: true, recovered: true });
+      assert.deepEqual(received.map((event) => event.type), ['text', 'done']);
+
+      const duplicate = h.bridge.reportEvents({
+        runtimeId: 'runtime-v3', sessionId: 'ses_v3',
+        assistantMessageId: 'msg_late_assistant_duplicate',
+        events,
+      });
+      assert.deepEqual(duplicate, { delivered: true, duplicate: true });
+      assert.deepEqual(received.map((event) => event.type), ['text', 'done']);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('error final 在 transport_lost tombstone 上不投递到 watcher', async () => {
     const h = setupV3Harness({ leaseTimeoutMs: 30 });
     try {
@@ -1573,7 +1706,10 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
         deliveryId: d.deliveryId, deliveryState: 'accepted',
       });
-      await assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/);
+      await Promise.all([
+        assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/),
+        waitMs(50),
+      ]);
 
       const received = [];
       const stop = h.bridge.watchSession(h.tuiSession.agentRef, {
@@ -1798,7 +1934,7 @@ describe('OpencodeTuiBridge replyQuestion', () => {
   });
 
   it('question reply 被取出后在 accepted 窗口超时，并对迟到 accepted 返回 expired', async () => {
-    const h = setupReplyHarness({ runtimeStaleMs: 120 });
+    const h = setupReplyHarness({ runtimeStaleMs: 1000 });
     try {
       const reply = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_expire', [['late']]);
       const delivery = h.bridge.poll({
@@ -1808,8 +1944,7 @@ describe('OpencodeTuiBridge replyQuestion', () => {
         && err.deliveryPhase === 'queued'
         && err.sdkInvoked === false
         && err.safeToRetry === true);
-      await waitMs(150);
-      await rejected;
+      await Promise.all([rejected, waitMs(1050)]);
       assert.equal(h.bridge._tombstones.get(delivery.deliveryId).reason, 'accepted_timeout');
       assert.deepEqual(h.bridge.reportEvents({
         runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: delivery.deliveryId, deliveryState: 'accepted',
