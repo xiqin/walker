@@ -79,7 +79,40 @@ function createMaintenanceRoutes(appContext) {
         lines: params.lines ? parseInt(params.lines, 10) : 500,
         keyword: params.keyword || '',
         level: params.level || '',
+        fallbackToCwd: true,
       });
+      send(res, success(result));
+    },
+  });
+
+  /**
+   * POST /api/admin/logs/clear
+   * 清空允许列表日志文件和数字归档
+   */
+  routes.push({
+    method: 'POST',
+    pattern: '/api/admin/logs/clear',
+    handler: function clearLogsHandler(_req, res) {
+      const dataDir = ctx.dataDir || '';
+      if (!dataDir) {
+        send(res, error('BAD_REQUEST', '数据目录未提供'), 400);
+        return;
+      }
+
+      const result = fileAdmin.clearLogs({ dataDir, fallbackToCwd: true });
+      recordEvent(ctx.eventStore, {
+        type: 'maintenance.clear-logs',
+        message: result.ok ? '日志已清空' : '日志清空部分失败',
+        data: result,
+      });
+
+      if (!result.ok) {
+        const body = error('LOG_CLEAR_FAILED', '日志清空部分失败');
+        body.data = result;
+        send(res, body, 500);
+        return;
+      }
+
       send(res, success(result));
     },
   });

@@ -1,0 +1,57 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "Implemented Admin backend log clearing for allowed current log files and numeric archives, with route integration, failure reporting, authentication-boundary coverage, and readLogs compatibility coverage preserved.",
+  "artifacts": [
+    "src/admin/file-admin.js",
+    "src/admin/maintenance-routes.js",
+    "test/admin-files-diagnostics.test.js",
+    "specs/2026-07-30-log-optimization/traceability.json",
+    "specs/2026-07-30-log-optimization/evidence/T4-test.log"
+  ],
+  "exported_interfaces": [
+    "fileAdmin.clearLogs(options)",
+    "POST /api/admin/logs/clear"
+  ],
+  "requirements_verified": ["REQ-003", "REQ-004", "REQ-005"],
+  "behaviors_verified": [
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-003-B04",
+    "REQ-004-B01",
+    "REQ-004-B02",
+    "REQ-004-B03",
+    "REQ-004-B04",
+    "REQ-004-B05",
+    "REQ-004-B06",
+    "REQ-005-B01",
+    "REQ-005-B02",
+    "REQ-005-B03",
+    "REQ-005-B04"
+  ],
+  "traceability_updated": true,
+  "tests": [
+    {
+      "command": "node --test \"test/admin-files-diagnostics.test.js\"",
+      "status": "passed",
+      "evidence": "specs/2026-07-30-log-optimization/evidence/T4-test.log",
+      "sha256": "BF630AF4B216E31A45CFC9A9A9804FA0974282892A8527BF8E44897226D8C616"
+    }
+  ],
+  "evidence": [
+    "specs/2026-07-30-log-optimization/evidence/T4-test.log"
+  ],
+  "route": {
+    "method": "POST",
+    "path": "/api/admin/logs/clear"
+  },
+  "notes": [
+    "clearLogs defaults to targeting only dataDir/logs for walker.out.log, walker.err.log, walker.log, walker-out.log, walker-err.log and numeric archives such as .1.",
+    "POST /api/admin/logs/clear now matches GET /api/admin/logs fallback behavior: when fallbackToCwd is enabled and dataDir differs from cwd, it also clears project-root cwd/logs.",
+    "Current log files are truncated to 0 bytes; numeric archives are deleted; missing files and missing logs directory are treated as success.",
+    "Non-log files such as logs/keep.txt and files outside logs are not touched.",
+    "Partial filesystem failures produce ok=false with failures entries; the route returns HTTP 500 with the same failure list in response data.",
+    "The route relies on existing Admin route registration authGuard; tests cover that an unauthorized guarded request does not execute clearing.",
+    "readLogs remains limited to current runtime/legacy log files and does not read numeric archives."
+  ]
+}

@@ -5,8 +5,18 @@ const path = require('path');
 
 const MAX_LOG_LINES = 500;
 const MAX_LOG_LINES_CAP = 5000;
-const LOG_FILE_OUT = 'walker-out.log';
-const LOG_FILE_ERR = 'walker-err.log';
+const LOG_FILE_OUT = 'walker.out.log';
+const LOG_FILE_ERR = 'walker.err.log';
+const LOG_FILE_MAIN = 'walker.log';
+const LEGACY_LOG_FILE_OUT = 'walker-out.log';
+const LEGACY_LOG_FILE_ERR = 'walker-err.log';
+const CLEARABLE_LOG_FILES = [
+  LOG_FILE_OUT,
+  LOG_FILE_ERR,
+  LOG_FILE_MAIN,
+  LEGACY_LOG_FILE_OUT,
+  LEGACY_LOG_FILE_ERR,
+];
 
 const crypto = require('crypto');
 
@@ -56,15 +66,20 @@ function readLogs(options) {
   const opts = options || {};
   const dataDir = opts.dataDir || '';
   const stream = opts.stream || 'out';
+  const cwd = opts.cwd || process.cwd();
   const maxLines = Math.min(Math.max(opts.lines || MAX_LOG_LINES, 1), MAX_LOG_LINES_CAP);
 
-  const logFileName = stream === 'err' ? LOG_FILE_ERR : LOG_FILE_OUT;
-  const dataDirLogPath = path.join(dataDir, 'logs', logFileName);
-  const cwdLogPath = path.join(process.cwd(), 'logs', logFileName);
+  const logFileNames = stream === 'err'
+    ? [LOG_FILE_ERR, LEGACY_LOG_FILE_ERR]
+    : [LOG_FILE_OUT, LOG_FILE_MAIN, LEGACY_LOG_FILE_OUT];
+  const logRoots = dataDir
+    ? [dataDir, ...(opts.fallbackToCwd && dataDir !== cwd ? [cwd] : [])]
+    : [cwd];
+  const logPath = logRoots
+    .flatMap((root) => logFileNames.map((name) => path.join(root, 'logs', name)))
+    .find((candidate) => fs.existsSync(candidate));
 
-  const logPath = fs.existsSync(dataDirLogPath) ? dataDirLogPath : cwdLogPath;
-
-  if (!fs.existsSync(logPath)) {
+  if (!logPath) {
     return { lines: [], total: 0, filtered: 0 };
   }
 
@@ -113,6 +128,77 @@ function readLogs(options) {
   } catch (_e) {
     return { lines: [], total: 0, filtered: 0 };
   }
+}
+
+function isClearableLogArchive(name) {
+  const index = name.lastIndexOf('.');
+  if (index < 0 || !/^\d+$/.test(name.slice(index + 1))) return false;
+  return CLEARABLE_LOG_FILES.includes(name.slice(0, index));
+}
+
+/**
+ * 清空允许列表日志文件：当前日志截断，数字归档删除。
+ * @param {Object} options - 清空选项
+ * @param {string} options.dataDir - 数据目录绝对路径
+ * @param {string} [options.cwd] - 工作目录绝对路径，默认 process.cwd()
+ * @param {boolean} [options.fallbackToCwd] - 是否额外清理 cwd/logs
+ * @returns {{ ok: boolean, truncated: string[], deleted: string[], failures: Object[] }}
+ */
+function clearLogs(options) {
+  const opts = options || {};
+  const fsModule = opts.fs || fs;
+  const dataDir = opts.dataDir || '';
+  const cwd = opts.cwd || process.cwd();
+  const logRoots = dataDir
+    ? [dataDir, ...(opts.fallbackToCwd && dataDir !== cwd ? [cwd] : [])]
+    : [];
+  const truncated = [];
+  const deleted = [];
+  const failures = [];
+
+  if (!dataDir) {
+    return {
+      ok: false,
+      truncated,
+      deleted,
+      failures: [{ file: 'logs', action: 'validate', error: '数据目录未提供' }],
+    };
+  }
+
+  for (const root of logRoots) {
+    const logsDir = path.join(root, 'logs');
+    if (!fsModule.existsSync(logsDir)) continue;
+
+    for (const name of CLEARABLE_LOG_FILES) {
+      const filePath = path.join(logsDir, name);
+      if (!fsModule.existsSync(filePath)) continue;
+      try {
+        fsModule.truncateSync(filePath, 0);
+        truncated.push(name);
+      } catch (err) {
+        failures.push({ file: name, action: 'truncate', error: err.message });
+      }
+    }
+
+    let names = [];
+    try {
+      names = fsModule.readdirSync(logsDir);
+    } catch (err) {
+      failures.push({ file: 'logs', action: 'list', error: err.message });
+    }
+
+    for (const name of names) {
+      if (!isClearableLogArchive(name)) continue;
+      try {
+        fsModule.unlinkSync(path.join(logsDir, name));
+        deleted.push(name);
+      } catch (err) {
+        failures.push({ file: name, action: 'delete', error: err.message });
+      }
+    }
+  }
+
+  return { ok: failures.length === 0, truncated, deleted, failures };
 }
 
 /**
@@ -429,6 +515,7 @@ function cleanupSessionAttachments(dataDir, sessionId, confirm) {
 module.exports = {
   safeResolve,
   readLogs,
+  clearLogs,
   listAttachments,
   getAttachment,
   deleteAttachment,

@@ -1,0 +1,26 @@
+{
+  "decisions": [
+    "采用内置日志轮转，不引入第三方日志框架或外部日志服务",
+    "daemon stdout/stderr 日志纳入轮转",
+    "walker.log 默认关闭，避免与 daemon stderr 落盘重复",
+    "清空日志能力限定为 Admin 页面按钮和后端允许列表清理",
+    "本次不实现归档内容读取、压缩归档、全文搜索或远程上传"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确认日志体积优化方案：内置日志轮转；单文件 10MB；每类保留 5 个归档；walker.log 默认关闭且可通过 WALKER_LOG_FILE=true 开启；Admin 活动与日志页面增加清空日志按钮。已产出 spec.md 和 requirements.json，并通过 detail expansion 检查（5 个 REQ，27 个 behavior，0 缺失 test_plan）。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "b6d864f406269529c525251e9a61d141e63c1e6e2f7c3eacde9a432f412f2735"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "814558d43762142740a415276bc4df186e483cb92029d45078d15dbf05ba5bd9",
+    "spec.md": "b6d864f406269529c525251e9a61d141e63c1e6e2f7c3eacde9a432f412f2735"
+  },
+  "written_at": "2026-07-30T03:57:42.940Z"
+}

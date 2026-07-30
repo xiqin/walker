@@ -1,0 +1,37 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "Implemented daemon startup-time rotation for stdout and stderr logs before append-mode open, preserving daemon start behavior when rotation fails.",
+  "artifacts": [
+    "src/cli/daemon.js",
+    "test/daemon.test.js",
+    "specs/2026-07-30-log-optimization/traceability.json",
+    "specs/2026-07-30-log-optimization/evidence/T3-test.log"
+  ],
+  "exported_interfaces": [],
+  "requirements_verified": ["REQ-001"],
+  "behaviors_verified": [
+    "REQ-001-B01",
+    "REQ-001-B02",
+    "REQ-001-B03",
+    "REQ-001-B04",
+    "REQ-001-B06"
+  ],
+  "traceability_updated": true,
+  "tests": [
+    {
+      "command": "node --test \"test/daemon.test.js\" \"test/log-rotation.test.js\"",
+      "status": "passed",
+      "evidence": "specs/2026-07-30-log-optimization/evidence/T3-test.log",
+      "sha256": "DFC3140B52EE6976997AD14CA76D874A079DC021022DBEA5F6DFF4AEFBD54659"
+    }
+  ],
+  "evidence": [
+    "specs/2026-07-30-log-optimization/evidence/T3-test.log"
+  ],
+  "notes": [
+    "daemon.start calls rotateLogFile for OUT_LOG and ERR_LOG before fs.openSync(..., 'a').",
+    "Rotation failure is ignored so daemon startup can continue to open logs and spawn the background process.",
+    "No runtime rotation of already-open stdout/stderr file descriptors was implemented."
+  ]
+}

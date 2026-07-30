@@ -1,0 +1,265 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "write", "state", "recovery", "performance"],
+      "required_categories": ["happy-path", "boundary", "state-transition", "atomicity", "recovery", "performance"],
+      "acceptance": "日志文件达到 10MB 后轮转，每类最多保留 5 个归档，轮转失败不导致主流程崩溃。",
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "目标日志文件达到 10MB 后，下一次写入前执行轮转并继续写入原文件名。",
+          "status": "failing",
+          "acceptance": "写入后当前日志文件存在，旧内容进入归档文件。",
+          "test_plan": { "strategy": "unit", "inputs": ["创建大小达到 10MB 的临时日志文件", "调用轮转写入入口"], "expected": ["生成归档文件", "当前日志文件继续可写"] }
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "boundary",
+          "description": "日志文件未达到 10MB 时不得轮转。",
+          "status": "failing",
+          "acceptance": "低于阈值写入不会生成归档文件。",
+          "test_plan": { "strategy": "unit", "inputs": ["创建小于 10MB 的临时日志文件", "调用轮转检查"], "expected": ["不生成归档", "原文件保留"] }
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "state-transition",
+          "description": "每类日志最多保留 5 个归档，超过数量时删除最旧归档。",
+          "status": "failing",
+          "acceptance": "轮转后归档数量不超过 5 个。",
+          "test_plan": { "strategy": "unit", "inputs": ["预置 5 个归档文件", "再次触发轮转"], "expected": ["归档数量仍为 5", "最旧归档被移除"] }
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "atomicity",
+          "description": "轮转过程不得留下半重命名状态导致当前日志文件不可写。",
+          "status": "failing",
+          "acceptance": "轮转异常时写入流程捕获错误并继续返回，不抛出到业务调用方。",
+          "test_plan": { "strategy": "unit", "inputs": ["模拟 rename 或 unlink 失败", "调用轮转入口"], "expected": ["调用不抛错", "当前日志路径仍可继续尝试写入"] }
+        },
+        {
+          "id": "REQ-001-B05",
+          "category": "performance",
+          "description": "轮转检查不得读取完整日志文件内容。",
+          "status": "failing",
+          "acceptance": "实现通过 stat 检查文件大小，不按内容全量扫描。",
+          "test_plan": { "strategy": "code-inspection", "inputs": ["轮转实现源码"], "expected": ["使用 stat 或 fstat 获取大小", "不使用 readFile 读取完整日志内容"] }
+        },
+        {
+          "id": "REQ-001-B06",
+          "category": "recovery",
+          "description": "轮转失败时不得导致 daemon 启动或 logger 写入崩溃。",
+          "status": "failing",
+          "acceptance": "模拟文件系统错误时调用方仍获得正常返回。",
+          "test_plan": { "strategy": "unit", "inputs": ["注入失败的文件系统操作", "调用 daemon/logger 日志初始化"], "expected": ["返回正常", "错误被吞掉或转换为可报告结果"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "compatibility", "security", "observable"],
+      "required_categories": ["happy-path", "compatibility", "forbidden-behavior", "security", "observability"],
+      "acceptance": "walker.log 默认关闭，WALKER_LOG_FILE=true 时开启，false 时关闭；stderr 输出、级别过滤和脱敏保持不变。",
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "未设置 WALKER_LOG_FILE 时 logger 只输出 stderr，不写 walker.log。",
+          "status": "failing",
+          "acceptance": "调用 logger 后 logs/walker.log 不被创建。",
+          "test_plan": { "strategy": "unit", "inputs": ["清空 WALKER_LOG_FILE", "调用 createLogger().info"], "expected": ["stderr 收到日志", "walker.log 不存在"] }
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "compatibility",
+          "description": "设置 WALKER_LOG_FILE=true 时 logger 写入 walker.log。",
+          "status": "failing",
+          "acceptance": "调用 logger 后 walker.log 包含结构化 JSON 日志。",
+          "test_plan": { "strategy": "unit", "inputs": ["设置 WALKER_LOG_FILE=true", "调用 createLogger().info"], "expected": ["walker.log 存在", "包含 JSON 日志行"] }
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "forbidden-behavior",
+          "description": "设置 WALKER_LOG_FILE=false 时 logger 不写 walker.log。",
+          "status": "failing",
+          "acceptance": "调用 logger 后 walker.log 不被创建或追加。",
+          "test_plan": { "strategy": "unit", "inputs": ["设置 WALKER_LOG_FILE=false", "调用 createLogger().warn"], "expected": ["walker.log 不存在或大小不变"] }
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "security",
+          "description": "调整文件写入策略不得破坏敏感字段脱敏。",
+          "status": "failing",
+          "acceptance": "token、secret、password、authorization、apikey、api_key 仍输出为 ***。",
+          "test_plan": { "strategy": "unit", "inputs": ["包含敏感键的 extra 对象", "调用 logger"], "expected": ["输出中敏感值为 ***", "原始敏感值不出现"] }
+        },
+        {
+          "id": "REQ-002-B05",
+          "category": "observability",
+          "description": "关闭 walker.log 后 stderr 仍保留结构化日志输出。",
+          "status": "failing",
+          "acceptance": "调用 logger 后 stderr 收到 JSON 日志行。",
+          "test_plan": { "strategy": "unit", "inputs": ["默认环境", "替换 process.stderr.write 并调用 logger"], "expected": ["stderr 捕获到 JSON 行", "包含 level/scope/message"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["functional", "input", "write", "state", "observable"],
+      "required_categories": ["happy-path", "invalid-input", "state-transition", "atomicity", "external-failure", "observability"],
+      "acceptance": "Admin 活动与日志页面提供清空日志按钮，成功后刷新，失败时展示错误反馈。",
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "happy-path",
+          "description": "页面展示清空日志按钮并在点击后调用清空接口。",
+          "status": "failing",
+          "acceptance": "UI 测试能观测到 DELETE 或 POST 清空接口调用。",
+          "test_plan": { "strategy": "ui-unit", "inputs": ["挂载日志工作区", "点击清空日志按钮"], "expected": ["调用清空接口"] }
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "state-transition",
+          "description": "清空成功后刷新日志内容。",
+          "status": "failing",
+          "acceptance": "接口成功后页面重新请求 /api/admin/logs。",
+          "test_plan": { "strategy": "ui-unit", "inputs": ["清空接口返回成功", "日志接口返回空数组"], "expected": ["清空后再次请求日志", "控制台区域刷新"] }
+        },
+        {
+          "id": "REQ-003-B03",
+          "category": "external-failure",
+          "description": "清空接口失败时页面展示错误反馈。",
+          "status": "failing",
+          "acceptance": "失败响应不会清空当前 UI 状态，并显示失败消息。",
+          "test_plan": { "strategy": "ui-unit", "inputs": ["清空接口抛出错误", "已有日志内容"], "expected": ["显示失败消息", "现有日志内容不被错误替换为空"] }
+        },
+        {
+          "id": "REQ-003-B04",
+          "category": "invalid-input",
+          "description": "清空操作不依赖搜索词、级别、来源、行数等筛选输入。",
+          "status": "failing",
+          "acceptance": "存在筛选条件时点击清空仍调用同一清空接口。",
+          "test_plan": { "strategy": "ui-unit", "inputs": ["设置搜索词和级别筛选", "点击清空日志"], "expected": ["清空接口被调用", "不把筛选条件作为清空参数"] }
+        },
+        {
+          "id": "REQ-003-B05",
+          "category": "observability",
+          "description": "清空成功或失败必须在页面上有可见反馈。",
+          "status": "failing",
+          "acceptance": "成功显示清空完成信息，失败显示错误信息。",
+          "test_plan": { "strategy": "ui-unit", "inputs": ["分别模拟清空成功和失败"], "expected": ["成功反馈可见", "失败反馈可见"] }
+        },
+        {
+          "id": "REQ-003-B06",
+          "category": "atomicity",
+          "description": "清空操作进行中按钮进入 busy 状态，避免重复提交造成并发清空请求。",
+          "status": "failing",
+          "acceptance": "一次清空未完成前重复点击不会发起第二个清空请求。",
+          "test_plan": { "strategy": "ui-unit", "inputs": ["清空接口挂起", "连续点击清空按钮两次"], "expected": ["只发起一次清空请求", "按钮在请求期间不可重复触发"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "status": "failing",
+      "types": ["functional", "authorization", "write", "security", "idempotency", "atomicity"],
+      "required_categories": ["happy-path", "authorization", "security", "idempotency", "atomicity", "forbidden-behavior"],
+      "acceptance": "清空接口只处理允许列表日志文件，幂等，不删除 logs 外文件，部分失败返回明确错误。",
+      "behaviors": [
+        {
+          "id": "REQ-004-B01",
+          "category": "happy-path",
+          "description": "清空接口截断或删除当前日志与归档日志。",
+          "status": "failing",
+          "acceptance": "调用后允许列表日志文件内容为空或文件不存在。",
+          "test_plan": { "strategy": "unit-route", "inputs": ["创建当前日志和归档日志", "调用清空接口"], "expected": ["当前日志被截断", "归档日志被删除或清空"] }
+        },
+        {
+          "id": "REQ-004-B02",
+          "category": "authorization",
+          "description": "清空接口沿用 Admin 管理端路由认证与 loopback 限制。",
+          "status": "failing",
+          "acceptance": "非授权请求无法执行清空操作。",
+          "test_plan": { "strategy": "route-test", "inputs": ["非 loopback 或无效 token 请求"], "expected": ["返回 401 或 403", "日志文件未被清空"] }
+        },
+        {
+          "id": "REQ-004-B03",
+          "category": "security",
+          "description": "清空接口不得删除 logs 目录外任何文件。",
+          "status": "failing",
+          "acceptance": "构造 logs 外文件后调用接口，该文件仍存在。",
+          "test_plan": { "strategy": "unit", "inputs": ["创建 logs 外哨兵文件", "调用清空函数"], "expected": ["哨兵文件仍存在"] }
+        },
+        {
+          "id": "REQ-004-B04",
+          "category": "idempotency",
+          "description": "日志文件不存在时重复调用清空接口仍成功。",
+          "status": "failing",
+          "acceptance": "连续两次调用均返回成功。",
+          "test_plan": { "strategy": "unit-route", "inputs": ["空 logs 目录", "连续两次调用清空接口"], "expected": ["两次均返回成功"] }
+        },
+        {
+          "id": "REQ-004-B05",
+          "category": "atomicity",
+          "description": "部分文件清理失败时返回明确错误，不宣称全部成功。",
+          "status": "failing",
+          "acceptance": "模拟单文件清理失败时响应包含失败文件信息。",
+          "test_plan": { "strategy": "unit", "inputs": ["注入单文件 unlink 或 truncate 失败", "调用清空函数"], "expected": ["返回失败状态", "包含失败文件路径或名称"] }
+        },
+        {
+          "id": "REQ-004-B06",
+          "category": "forbidden-behavior",
+          "description": "清空接口不得清理非日志文件。",
+          "status": "failing",
+          "acceptance": "logs/keep.txt 在清空后仍存在。",
+          "test_plan": { "strategy": "unit", "inputs": ["logs/keep.txt", "调用清空函数"], "expected": ["keep.txt 仍存在且内容不变"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "status": "failing",
+      "types": ["functional", "compatibility", "performance"],
+      "required_categories": ["happy-path", "compatibility", "performance", "forbidden-behavior"],
+      "acceptance": "现有日志读取能力保持兼容，默认读取当前日志，不要求读取归档内容。",
+      "behaviors": [
+        {
+          "id": "REQ-005-B01",
+          "category": "happy-path",
+          "description": "日志页默认读取当前日志文件最近内容。",
+          "status": "failing",
+          "acceptance": "现有 /api/admin/logs 测试继续通过。",
+          "test_plan": { "strategy": "regression", "inputs": ["现有 admin-files-diagnostics 和 admin-ui-workspaces 测试"], "expected": ["日志读取相关测试通过"] }
+        },
+        {
+          "id": "REQ-005-B02",
+          "category": "compatibility",
+          "description": "继续兼容 walker-out.log 和 walker-err.log 旧文件名。",
+          "status": "failing",
+          "acceptance": "旧文件名存在时 readLogs 能读取。",
+          "test_plan": { "strategy": "unit", "inputs": ["只创建 walker-out.log 或 walker-err.log", "调用 readLogs"], "expected": ["返回对应日志行"] }
+        },
+        {
+          "id": "REQ-005-B03",
+          "category": "performance",
+          "description": "读取大日志时不得全量加载文件内容。",
+          "status": "failing",
+          "acceptance": "readLogs 继续只读取尾部窗口。",
+          "test_plan": { "strategy": "code-inspection", "inputs": ["readLogs 实现源码"], "expected": ["使用尾部窗口读取", "不使用 readFileSync 全量读取日志"] }
+        },
+        {
+          "id": "REQ-005-B04",
+          "category": "forbidden-behavior",
+          "description": "本次不实现归档文件内容读取，避免扩大范围。",
+          "status": "failing",
+          "acceptance": "接口文档和实现不承诺读取 walker.log.1 等归档。",
+          "test_plan": { "strategy": "review", "inputs": ["接口实现和 UI 文案"], "expected": ["没有归档读取参数", "没有承诺读取归档内容"] }
+        }
+      ]
+    }
+  ]
+}

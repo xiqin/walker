@@ -810,5 +810,35 @@
       "error: 'missing_cwd' }`, sends a visible error containing `--cwd` and path/cwd guidance, does not call driver/session creation, and preserves the current binding.",
       "failure in `test/opencode-hook-installer.test.js` (`clear 各失败阶段保持 Walker 旧焦点并回滚 TUI`), outside the touched `/new --cwd` path. A direct rerun of that file passed, and a second full `npm test` run passe"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-log-optimization",
+    "timestamp": "2026-07-30T04:41:20.738Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker_count 为 0。 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-log-optimization",
+    "timestamp": "2026-07-30T04:44:49.596Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker_count 为 0。 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-log-optimization",
+    "timestamp": "2026-07-30T04:47:05.562Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker_count 为 0。 |"
+    ]
   }
 ]

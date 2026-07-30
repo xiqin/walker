@@ -6,6 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { rotateLogFile } = require('./log-rotation');
 
 const LEVEL_PRIORITY = { error: 0, warn: 1, info: 2, debug: 3 };
 let _currentPriority = null;
@@ -16,14 +17,16 @@ let _fileStreamInitFailed = false;
 function getFileStream() {
   if (_fileStreamInitFailed) return null;
   if (_fileStream) return _fileStream;
-  if ((process.env.WALKER_LOG_FILE || '').toLowerCase() === 'false') {
+  if ((process.env.WALKER_LOG_FILE || '').toLowerCase() !== 'true') {
     _fileStreamInitFailed = true;
     return null;
   }
   try {
     const logDir = path.join(process.cwd(), 'logs');
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-    _fileStream = fs.createWriteStream(path.join(logDir, 'walker.log'), { flags: 'a' });
+    const logPath = path.join(logDir, 'walker.log');
+    rotateLogFile(logPath);
+    _fileStream = fs.createWriteStream(logPath, { flags: 'a' });
     _fileStream.on('error', () => { _fileStreamInitFailed = true; _fileStream = null; });
     process.on('beforeExit', () => { if (_fileStream) { _fileStream.end(); _fileStream = null; } });
   } catch (_) {
@@ -31,6 +34,17 @@ function getFileStream() {
     return null;
   }
   return _fileStream;
+}
+
+function _resetForTests() {
+  _currentPriority = null;
+  _fileStreamInitFailed = false;
+  if (!_fileStream) return Promise.resolve();
+  const stream = _fileStream;
+  _fileStream = null;
+  return new Promise((resolve) => {
+    stream.end(resolve);
+  });
 }
 
 function getCurrentPriority() {
@@ -109,4 +123,4 @@ function createLogger(scope) {
   };
 }
 
-module.exports = { createLogger, setLogLevel };
+module.exports = { _resetForTests, createLogger, setLogLevel };

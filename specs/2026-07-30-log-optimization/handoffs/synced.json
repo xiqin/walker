@@ -1,0 +1,44 @@
+{
+  "graph_backend": "codegraph",
+  "index_commands": [
+    {
+      "command": "loom index",
+      "result": "Already up to date"
+    },
+    {
+      "command": "loom index --check",
+      "result": "[OK] Index is up to date",
+      "stats": {
+        "files": 146,
+        "nodes": 1837,
+        "edges": 11280,
+        "db_size": "12.41 MB"
+      }
+    }
+  ],
+  "memory": {
+    "added": "1eba775d",
+    "type": "决策",
+    "exported": true
+  },
+  "entry_files_updated": false,
+  "business_code_changed_in_stage": false,
+  "status": "done",
+  "summary": "日志体积优化同步阶段完成：已执行 loom index 与 loom index --check，CodeGraph 状态为 up to date；已新增结构化决策记忆并执行 loom memory export；已生成 index-update-report.md；本阶段未修改业务代码或测试代码。",
+  "artifacts": [
+    "index-update-report.md",
+    ".loom/memory/MEMORY.md",
+    ".loom/memory/store.json"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "6de09c93e3bb3ab07a3af42e779d14fed7cab0ccf58c392ee261da756fe54fc8",
+    "spec.md": "b6d864f406269529c525251e9a61d141e63c1e6e2f7c3eacde9a432f412f2735"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/MEMORY.md": "26c88ecc26416c7d5e79acd9194bbf18a471c4584831a8a997f67ad45d23c6a2",
+    ".loom/memory/store.json": "9ebbbf219bdeb92628ebdf1f8877b2f2099f18fd64c92990b4ca293ffb50d27b"
+  },
+  "written_at": "2026-07-30T04:48:35.716Z"
+}

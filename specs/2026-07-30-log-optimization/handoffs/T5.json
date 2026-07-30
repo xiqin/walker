@@ -1,0 +1,41 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "Implemented Admin logs page clear button with no-filter POST /api/admin/logs/clear, busy single-flight behavior, success refresh feedback, failure feedback preserving current log content, and updated current-log-only copy.",
+  "artifacts": [
+    "src/admin/public/js/pages/logs.js",
+    "test/admin-ui-workspaces.test.js",
+    "specs/2026-07-30-log-optimization/traceability.json",
+    "specs/2026-07-30-log-optimization/evidence/T5-test.log"
+  ],
+  "requirements_verified": ["REQ-003", "REQ-005"],
+  "behaviors_verified": [
+    "REQ-003-B01",
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-003-B04",
+    "REQ-003-B05",
+    "REQ-003-B06",
+    "REQ-005-B01",
+    "REQ-005-B04"
+  ],
+  "traceability_updated": true,
+  "tests": [
+    {
+      "command": "node --test \"test/admin-ui-workspaces.test.js\" \"test/admin-files-diagnostics.test.js\"",
+      "status": "passed",
+      "evidence": "specs/2026-07-30-log-optimization/evidence/T5-test.log",
+      "sha256": "A64304661FD5582A915F5856BFEB234FC620ABE6AF6E481212FACC2111AFDAF9"
+    }
+  ],
+  "evidence": [
+    "specs/2026-07-30-log-optimization/evidence/T5-test.log"
+  ],
+  "notes": [
+    "The clear button calls POST /api/admin/logs/clear without query, level, source, row-count, or search parameters.",
+    "While clearing is in flight, the button is disabled and aria-busy=true; duplicate clicks reuse the same request instead of posting again.",
+    "Successful clear refreshes /api/admin/logs and shows a visible success status.",
+    "Failed clear shows a visible failure status and does not replace the existing rendered log lines with an empty state.",
+    "Existing filter, export, auto-refresh, and cleanup behavior is preserved. The page copy now states the default view is the current log file, background mode writes logs/walker.out.log and logs/walker.err.log, and logs/walker.log is only enabled explicitly with WALKER_LOG_FILE=true; it does not promise archive reads or imply default terminal plus walker.log writes."
+  ]
+}

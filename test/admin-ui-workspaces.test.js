@@ -257,6 +257,116 @@ test('导出按钮触发下载', async () => {
   assert.match(downloads[0].text, /test log/);
 });
 
+test('日志工作区渲染清空日志按钮并说明默认查看当前日志', async () => {
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
+  const workspace = createLogsWorkspace({
+    document: createFakeDocument(),
+    api: { get: async () => ({ data: { lines: [] } }) },
+  });
+  const clearButton = findElements(workspace.element, node => node.tagName === 'BUTTON' && node.textContent === '清空日志')[0];
+  assert.ok(clearButton);
+  const pageText = collectText(workspace.element);
+  assert.match(pageText, /默认查看当前日志文件/);
+  assert.match(pageText, /WALKER_LOG_FILE=true/);
+  assert.doesNotMatch(pageText, /同时写入终端与/);
+  assert.doesNotMatch(pageText, /归档/);
+});
+
+test('清空日志点击 POST 清空接口且不携带筛选参数', async () => {
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
+  const posts = [];
+  const workspace = createLogsWorkspace({
+    document: createFakeDocument(),
+    api: {
+      get: async () => ({ data: { lines: [] } }),
+      post: async (url, body, options) => { posts.push({ url, body, options }); return { data: { ok: true } }; },
+    },
+  });
+  const searchInput = findElements(workspace.element, node => node.attributes?.['aria-label'] === '搜索日志')[0];
+  searchInput.value = 'timeout';
+  searchInput.dispatch('input');
+  const levelSelect = findElements(workspace.element, node => node.attributes?.['aria-label'] === '级别筛选')[0];
+  levelSelect.value = 'ERROR';
+  levelSelect.dispatch('change');
+  const sourceSelect = findElements(workspace.element, node => node.attributes?.['aria-label'] === '来源筛选')[0];
+  sourceSelect.value = 'OpenCode Hook';
+  sourceSelect.dispatch('change');
+  const rowCountSelect = findElements(workspace.element, node => node.attributes?.['aria-label'] === '行数')[0];
+  rowCountSelect.value = '500';
+  rowCountSelect.dispatch('change');
+
+  const clearButton = findElements(workspace.element, node => node.tagName === 'BUTTON' && node.textContent === '清空日志')[0];
+  clearButton.onclick();
+  await flushPromises();
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].url, '/api/admin/logs/clear');
+  assert.equal(posts[0].body, undefined);
+  assert.ok(posts[0].options && 'signal' in posts[0].options);
+});
+
+test('清空日志成功后刷新日志并显示成功反馈', async () => {
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
+  const getLines = [
+    [{ createdAt: 1000, level: 'INFO', source: 'AgentDriver', message: 'before clear' }],
+    [],
+  ];
+  let getCalls = 0;
+  const workspace = createLogsWorkspace({
+    document: createFakeDocument(),
+    api: {
+      get: async url => { assert.equal(url, '/api/admin/logs'); return { data: { lines: getLines[getCalls++] || [] } }; },
+      post: async url => { assert.equal(url, '/api/admin/logs/clear'); return { data: { ok: true } }; },
+    },
+  });
+  await workspace.refreshLogs();
+  assert.match(collectText(workspace.element), /before clear/);
+  const clearButton = findElements(workspace.element, node => node.tagName === 'BUTTON' && node.textContent === '清空日志')[0];
+  clearButton.onclick();
+  await flushPromises();
+  assert.equal(getCalls, 2);
+  assert.match(collectText(workspace.element), /日志已清空/);
+  assert.doesNotMatch(collectText(workspace.element), /before clear/);
+});
+
+test('清空日志失败显示错误且保留当前日志内容', async () => {
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
+  const workspace = createLogsWorkspace({
+    document: createFakeDocument(),
+    api: {
+      get: async () => ({ data: { lines: [{ createdAt: 1000, level: 'INFO', source: 'AgentDriver', message: 'keep me' }] } }),
+      post: async () => { throw new Error('clear failed'); },
+    },
+  });
+  await workspace.refreshLogs();
+  const clearButton = findElements(workspace.element, node => node.tagName === 'BUTTON' && node.textContent === '清空日志')[0];
+  clearButton.onclick();
+  await flushPromises();
+  assert.match(collectText(workspace.element), /keep me/);
+  assert.match(collectText(workspace.element), /清空失败：clear failed/);
+});
+
+test('清空日志挂起时重复点击只发一次请求并保持 busy', async () => {
+  const { createLogsWorkspace } = await importModule('pages/logs.js');
+  const pending = deferred();
+  let postCalls = 0;
+  const workspace = createLogsWorkspace({
+    document: createFakeDocument(),
+    api: {
+      get: async () => ({ data: { lines: [] } }),
+      post: async () => { postCalls++; return pending.promise; },
+    },
+  });
+  const clearButton = findElements(workspace.element, node => node.tagName === 'BUTTON' && node.textContent === '清空日志')[0];
+  clearButton.onclick();
+  clearButton.onclick();
+  assert.equal(postCalls, 1);
+  assert.equal(clearButton.disabled, true);
+  assert.equal(clearButton.attributes['aria-busy'], 'true');
+  pending.resolve({ data: { ok: true } });
+  await flushPromises();
+  assert.equal(clearButton.disabled, false);
+});
+
 test('诊断页渲染结构化检查、action 后复检并导出当前报告', async () => {
   const { createDiagnosticsWorkspace } = await importModule('pages/diagnostics.js');
   const downloads = [];

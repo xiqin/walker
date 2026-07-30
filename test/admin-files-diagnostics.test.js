@@ -16,6 +16,8 @@ const { EventEmitter } = require('events');
 const { buildConfigSummary } = require('../src/admin/config');
 const { createEventStore } = require('../src/admin/event-store');
 const { createRouter } = require('../src/admin/router');
+const { createAuthGuard } = require('../src/admin/auth');
+const response = require('../src/admin/response');
 
 const fileAdmin = require('../src/admin/file-admin');
 const diagnostics = require('../src/admin/diagnostics');
@@ -371,6 +373,45 @@ test('REQ-013: readLogs 读取 stderr 日志', async () => {
   assert.equal(result.lines[0].level, 'error');
 });
 
+test('REQ-013: readLogs 读取实际运行时日志文件名', async () => {
+  const dataDir = setupDataDir('t4-logs-runtime-names');
+  const logsDir = path.join(dataDir, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+
+  fs.writeFileSync(path.join(logsDir, 'walker.out.log'),
+    JSON.stringify({ level: 'info', message: 'daemon stdout log' }) + '\n', 'utf8');
+  fs.writeFileSync(path.join(logsDir, 'walker.log'),
+    JSON.stringify({ level: 'info', message: 'structured fallback log' }) + '\n', 'utf8');
+  fs.writeFileSync(path.join(logsDir, 'walker.err.log'),
+    JSON.stringify({ level: 'error', message: 'daemon stderr log' }) + '\n', 'utf8');
+
+  const out = fileAdmin.readLogs({ dataDir, stream: 'out' });
+  assert.equal(out.lines.length, 1);
+  assert.equal(out.lines[0].message, 'daemon stdout log');
+
+  fs.unlinkSync(path.join(logsDir, 'walker.out.log'));
+  const fallback = fileAdmin.readLogs({ dataDir, stream: 'out' });
+  assert.equal(fallback.lines.length, 1);
+  assert.equal(fallback.lines[0].message, 'structured fallback log');
+
+  const err = fileAdmin.readLogs({ dataDir, stream: 'err' });
+  assert.equal(err.lines.length, 1);
+  assert.equal(err.lines[0].message, 'daemon stderr log');
+});
+
+test('REQ-013: readLogs dataDir 无日志时回退读取工作目录日志', async () => {
+  const dataDir = setupDataDir('t4-logs-data-dir-empty');
+  const cwd = setupDataDir('t4-logs-cwd-fallback');
+  const logsDir = path.join(cwd, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+  fs.writeFileSync(path.join(logsDir, 'walker.out.log'),
+    JSON.stringify({ level: 'info', message: 'cwd stdout log' }) + '\n', 'utf8');
+
+  const result = fileAdmin.readLogs({ dataDir, cwd, stream: 'out', fallbackToCwd: true });
+  assert.equal(result.lines.length, 1);
+  assert.equal(result.lines[0].message, 'cwd stdout log');
+});
+
 test('REQ-013: readLogs 关键词过滤', async () => {
   const dataDir = setupDataDir('t4-logs-kw');
   const logsDir = path.join(dataDir, 'logs');
@@ -443,6 +484,180 @@ test('REQ-013: readLogs 非结构化行原样保留', async () => {
   assert.equal(result.lines[0].raw, 'plain text line');
   assert.equal(result.lines[0].level, 'unknown');
   assert.equal(result.lines[1].level, 'info');
+});
+
+// ── REQ-004/REQ-005: Admin 日志清空接口与读取边界 ──
+
+test('REQ-004: clearLogs 清空当前日志并删除数字归档', async () => {
+  const dataDir = setupDataDir('t4-clear-current-archives');
+  const logsDir = path.join(dataDir, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+
+  const currentFiles = ['walker.out.log', 'walker.err.log', 'walker.log', 'walker-out.log', 'walker-err.log'];
+  for (const name of currentFiles) fs.writeFileSync(path.join(logsDir, name), 'active log', 'utf8');
+  for (const name of ['walker.out.log.1', 'walker.err.log.2', 'walker.log.3', 'walker-out.log.4', 'walker-err.log.5']) {
+    fs.writeFileSync(path.join(logsDir, name), 'archive log', 'utf8');
+  }
+
+  const result = fileAdmin.clearLogs({ dataDir });
+  assert.equal(result.ok, true);
+  assert.equal(result.failures.length, 0);
+  for (const name of currentFiles) {
+    assert.equal(fs.existsSync(path.join(logsDir, name)), true);
+    assert.equal(fs.statSync(path.join(logsDir, name)).size, 0);
+  }
+  for (const name of ['walker.out.log.1', 'walker.err.log.2', 'walker.log.3', 'walker-out.log.4', 'walker-err.log.5']) {
+    assert.equal(fs.existsSync(path.join(logsDir, name)), false);
+  }
+});
+
+test('REQ-004: clearLogs 空日志目录连续清空两次成功', async () => {
+  const dataDir = setupDataDir('t4-clear-empty-twice');
+  fs.mkdirSync(path.join(dataDir, 'logs'), { recursive: true });
+
+  const first = fileAdmin.clearLogs({ dataDir });
+  const second = fileAdmin.clearLogs({ dataDir });
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.deepEqual(first.failures, []);
+  assert.deepEqual(second.failures, []);
+});
+
+test('REQ-004: clearLogs 不删除 logs 外文件和非日志文件', async () => {
+  const dataDir = setupDataDir('t4-clear-allowlist-only');
+  const logsDir = path.join(dataDir, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+  const outside = path.join(dataDir, 'outside-sentinel.txt');
+  fs.writeFileSync(outside, 'outside', 'utf8');
+  fs.writeFileSync(path.join(logsDir, 'keep.txt'), 'keep', 'utf8');
+  fs.writeFileSync(path.join(logsDir, 'walker.out.log.1'), 'archive', 'utf8');
+
+  const result = fileAdmin.clearLogs({ dataDir });
+  assert.equal(result.ok, true);
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'outside');
+  assert.equal(fs.readFileSync(path.join(logsDir, 'keep.txt'), 'utf8'), 'keep');
+  assert.equal(fs.existsSync(path.join(logsDir, 'walker.out.log.1')), false);
+});
+
+test('REQ-004: clearLogs fallbackToCwd 清理工作目录日志且保留非日志文件', async () => {
+  const dataDir = setupDataDir('t4-clear-fallback-data-dir-empty');
+  fs.mkdirSync(path.join(dataDir, 'logs'), { recursive: true });
+  const cwd = setupDataDir('t4-clear-fallback-cwd');
+  const cwdLogsDir = path.join(cwd, 'logs');
+  fs.mkdirSync(cwdLogsDir, { recursive: true });
+  fs.writeFileSync(path.join(cwdLogsDir, 'walker.out.log'), 'active cwd log', 'utf8');
+  fs.writeFileSync(path.join(cwdLogsDir, 'walker.out.log.1'), 'archive cwd log', 'utf8');
+  fs.writeFileSync(path.join(cwdLogsDir, 'keep.txt'), 'keep', 'utf8');
+
+  const result = fileAdmin.clearLogs({ dataDir, cwd, fallbackToCwd: true });
+
+  assert.equal(result.ok, true);
+  assert.equal(fs.statSync(path.join(cwdLogsDir, 'walker.out.log')).size, 0);
+  assert.equal(fs.existsSync(path.join(cwdLogsDir, 'walker.out.log.1')), false);
+  assert.equal(fs.readFileSync(path.join(cwdLogsDir, 'keep.txt'), 'utf8'), 'keep');
+});
+
+test('REQ-004: clearLogs 部分文件系统失败时返回失败列表', async () => {
+  const dataDir = setupDataDir('t4-clear-partial-failure');
+  const logsDir = path.join(dataDir, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+  fs.writeFileSync(path.join(logsDir, 'walker.out.log'), 'active', 'utf8');
+  fs.writeFileSync(path.join(logsDir, 'walker.out.log.1'), 'archive', 'utf8');
+
+  const fsMock = {
+    existsSync: fs.existsSync,
+    readdirSync: fs.readdirSync,
+    truncateSync(filePath) {
+      if (filePath.endsWith('walker.out.log')) throw new Error('truncate denied');
+      return fs.truncateSync(filePath, 0);
+    },
+    unlinkSync(filePath) {
+      if (filePath.endsWith('walker.out.log.1')) throw new Error('unlink denied');
+      return fs.unlinkSync(filePath);
+    },
+  };
+
+  const result = fileAdmin.clearLogs({ dataDir, fs: fsMock });
+  assert.equal(result.ok, false);
+  assert.equal(result.failures.length, 2);
+  assert.ok(result.failures.some((failure) => failure.file === 'walker.out.log' && failure.action === 'truncate'));
+  assert.ok(result.failures.some((failure) => failure.file === 'walker.out.log.1' && failure.action === 'delete'));
+});
+
+test('REQ-005: readLogs 兼容旧文件名、尾部读取且不读取归档', async () => {
+  const dataDir = setupDataDir('t4-readlogs-legacy-tail-no-archive');
+  const logsDir = path.join(dataDir, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+  fs.writeFileSync(path.join(logsDir, 'walker-out.log'), [
+    JSON.stringify({ level: 'info', message: 'old current 1' }),
+    JSON.stringify({ level: 'info', message: 'old current 2' }),
+  ].join('\n'), 'utf8');
+  fs.writeFileSync(path.join(logsDir, 'walker-out.log.1'),
+    JSON.stringify({ level: 'info', message: 'archive should not be read' }) + '\n', 'utf8');
+
+  const result = fileAdmin.readLogs({ dataDir, stream: 'out', lines: 1 });
+  assert.equal(result.lines.length, 1);
+  assert.equal(result.lines[0].message, 'old current 2');
+  assert.notEqual(result.lines[0].message, 'archive should not be read');
+});
+
+test('REQ-003/REQ-004: POST clear logs 路由返回清空结果', async () => {
+  const dataDir = setupDataDir('t4-clear-route-success');
+  const logsDir = path.join(dataDir, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+  fs.writeFileSync(path.join(logsDir, 'walker.out.log'), 'active', 'utf8');
+  fs.writeFileSync(path.join(logsDir, 'walker.out.log.1'), 'archive', 'utf8');
+
+  const store = createEventStore();
+  const routes = createMaintenanceRoutes(buildAppContext({ dataDir, eventStore: store }));
+  const result = await callRoute(routes, 'POST', '/api/admin/logs/clear');
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.ok, true);
+  assert.equal(result.body.data.ok, true);
+  assert.equal(fs.statSync(path.join(logsDir, 'walker.out.log')).size, 0);
+  assert.equal(fs.existsSync(path.join(logsDir, 'walker.out.log.1')), false);
+  assert.ok(store.events.some((event) => event.type === 'maintenance.clear-logs'));
+});
+
+test('REQ-003/REQ-004: POST clear logs 路由部分失败返回失败列表', async () => {
+  const dataDir = setupDataDir('t4-clear-route-partial-failure');
+  const originalClearLogs = fileAdmin.clearLogs;
+  fileAdmin.clearLogs = () => ({
+    ok: false,
+    truncated: [],
+    deleted: [],
+    failures: [{ file: 'walker.out.log', action: 'truncate', error: 'denied' }],
+  });
+
+  try {
+    const routes = createMaintenanceRoutes(buildAppContext({ dataDir }));
+    const result = await callRoute(routes, 'POST', '/api/admin/logs/clear');
+
+    assert.equal(result.statusCode, 500);
+    assert.equal(result.body.ok, false);
+    assert.equal(result.body.data.failures.length, 1);
+    assert.equal(result.body.data.failures[0].file, 'walker.out.log');
+  } finally {
+    fileAdmin.clearLogs = originalClearLogs;
+  }
+});
+
+test('REQ-004: POST clear logs 非授权请求不执行清空', async () => {
+  const dataDir = setupDataDir('t4-clear-route-unauthorized');
+  const logsDir = path.join(dataDir, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+  const logPath = path.join(logsDir, 'walker.out.log');
+  fs.writeFileSync(logPath, 'active', 'utf8');
+
+  const guard = createAuthGuard({ token: 'secret-token' }, response);
+  const routes = createMaintenanceRoutes(buildAppContext({ dataDir }))
+    .map((route) => ({ ...route, handler: guard(route.handler) }));
+  const result = await callRoute(routes, 'POST', '/api/admin/logs/clear');
+
+  assert.equal(result.statusCode, 401);
+  assert.equal(result.body.ok, false);
+  assert.equal(fs.readFileSync(logPath, 'utf8'), 'active');
 });
 
 // ── REQ-015: 附件列举、下载和删除，路径穿越防护 ──
@@ -887,6 +1102,7 @@ test('createMaintenanceRoutes 注册日志、附件、导出、备份、清理�
   assert.ok(patterns.includes('DELETE /api/admin/attachments/:sessionId/:filename'));
   assert.ok(patterns.includes('GET /api/admin/export'));
   assert.ok(patterns.includes('POST /api/admin/backup'));
+  assert.ok(patterns.includes('POST /api/admin/logs/clear'));
   assert.ok(patterns.includes('POST /api/admin/cleanup'));
   assert.ok(patterns.includes('GET /api/admin/health'));
 });

@@ -1,0 +1,44 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "Adjusted structured logger file persistence to be opt-in via WALKER_LOG_FILE=true, preserving stderr output, log level filtering, and sensitive-field masking while invoking log rotation before opening walker.log.",
+  "artifacts": [
+    "src/core/logger.js",
+    "test/logger.test.js",
+    "specs/2026-07-30-log-optimization/traceability.json",
+    "specs/2026-07-30-log-optimization/evidence/T2-test.log"
+  ],
+  "exported_interfaces": [
+    "createLogger(scope)",
+    "setLogLevel(level)",
+    "_resetForTests()"
+  ],
+  "requirements_verified": ["REQ-001", "REQ-002"],
+  "behaviors_verified": [
+    "REQ-001-B01",
+    "REQ-001-B04",
+    "REQ-001-B06",
+    "REQ-002-B01",
+    "REQ-002-B02",
+    "REQ-002-B03",
+    "REQ-002-B04",
+    "REQ-002-B05"
+  ],
+  "traceability_updated": true,
+  "tests": [
+    {
+      "command": "node --test \"test/logger.test.js\" \"test/log-rotation.test.js\"",
+      "status": "passed",
+      "evidence": "specs/2026-07-30-log-optimization/evidence/T2-test.log",
+      "sha256": "F4290EE5D798CD958D31FB20CE69E9490649504E0D0D1CA6EC4D0589DA1BE79B"
+    }
+  ],
+  "evidence": [
+    "specs/2026-07-30-log-optimization/evidence/T2-test.log"
+  ],
+  "notes": [
+    "WALKER_LOG_FILE must equal true, case-insensitively, before logger creates logs/walker.log.",
+    "rotateLogFile(filePath) is called before fs.createWriteStream(filePath, { flags: 'a' }); rotation errors are ignored by the logger path so logging continues to stderr.",
+    "_resetForTests is exported only to isolate cached stream and environment-sensitive state in tests."
+  ]
+}

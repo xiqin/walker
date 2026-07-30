@@ -69,21 +69,24 @@ export function createLogsWorkspace(options = {}) {
   let active = true;
   let timer = null;
   let logRequest = null;
+  let clearRequest = null;
   let rawLines = [];
 
   const root = element('section', { document: documentRef, className: 'workspace workspace--activity' });
 
   const noteBox = element('div', { document: documentRef, className: 'note-box' });
   const mono1 = element('span', { document: documentRef, className: 'mono', text: 'walker logs [N]' });
-  const mono2 = element('span', { document: documentRef, className: 'mono', text: 'logs/walker.log' });
-  const mono3 = element('span', { document: documentRef, className: 'mono', text: '.out.log' });
-  const mono4 = element('span', { document: documentRef, className: 'mono', text: '.err.log' });
+  const mono2 = element('span', { document: documentRef, className: 'mono', text: 'logs/walker.out.log' });
+  const mono3 = element('span', { document: documentRef, className: 'mono', text: 'logs/walker.err.log' });
+  const mono4 = element('span', { document: documentRef, className: 'mono', text: 'WALKER_LOG_FILE=true' });
+  const mono5 = element('span', { document: documentRef, className: 'mono', text: 'logs/walker.log' });
   noteBox.append(
     documentRef.createTextNode('等价于 '), mono1,
-    documentRef.createTextNode('；日志同时写入终端与 '), mono2,
-    documentRef.createTextNode('（后台模式另写 '), mono3,
-    documentRef.createTextNode(' / '), mono4,
-    documentRef.createTextNode('）。'),
+    documentRef.createTextNode('；默认查看当前日志文件。后台模式写入 '), mono2,
+    documentRef.createTextNode(' / '), mono3,
+    documentRef.createTextNode('；设置 '), mono4,
+    documentRef.createTextNode(' 后才启用结构化文件日志 '), mono5,
+    documentRef.createTextNode('。'),
   );
 
   const card = element('div', { document: documentRef, className: 'card card-flat' });
@@ -109,12 +112,14 @@ export function createLogsWorkspace(options = {}) {
     rowCountSelect.append(o);
   }
   const exportButton = element('button', { document: documentRef, className: 'btn', text: '⬇ 导出', attributes: { type: 'button' } });
+  const clearButton = element('button', { document: documentRef, className: 'btn', text: '清空日志', attributes: { type: 'button', 'aria-busy': 'false' } });
 
-  const toolbar = element('div', { document: documentRef, className: 'toolbar' }, searchInput, levelSelect, sourceSelect, autoScrollLabel, rowCountSelect, exportButton);
+  const toolbar = element('div', { document: documentRef, className: 'toolbar' }, searchInput, levelSelect, sourceSelect, autoScrollLabel, rowCountSelect, exportButton, clearButton);
+  const feedbackBox = element('div', { document: documentRef, className: 'form-status', attributes: { role: 'status', 'aria-live': 'polite' } });
 
   const consoleBox = element('div', { document: documentRef, className: 'console-box', attributes: { 'aria-label': '日志内容' } });
 
-  card.append(toolbar, consoleBox);
+  card.append(toolbar, feedbackBox, consoleBox);
   root.append(noteBox, card);
 
   function getFilters() {
@@ -193,6 +198,34 @@ export function createLogsWorkspace(options = {}) {
     (options.download || ((name, content) => downloadText(documentRef, name, content)))(`walker-logs-${now}.log`, text);
   }
 
+  function setClearBusy(busy) {
+    clearButton.disabled = Boolean(busy);
+    clearButton.setAttribute('aria-busy', String(Boolean(busy)));
+  }
+
+  async function clearLogs() {
+    if (!active || clearRequest) return clearRequest;
+    setClearBusy(true);
+    feedbackBox.textContent = '正在清空日志...';
+    clearRequest = (async () => {
+      try {
+        await api.post('/api/admin/logs/clear', undefined, { signal });
+        await refreshLogs();
+        if (active) {
+          commit(() => { feedbackBox.textContent = '日志已清空'; });
+        }
+      } catch (error) {
+        if (error?.code !== 'ABORTED' && active) {
+          commit(() => { feedbackBox.textContent = `清空失败：${error?.message || '请求失败'}`; });
+        }
+      } finally {
+        clearRequest = null;
+        if (active) setClearBusy(false);
+      }
+    })();
+    return clearRequest;
+  }
+
 
   const cleanups = [];
   cleanups.push(listen(searchInput, 'input', () => { query = searchInput.value; renderLines(); }));
@@ -201,6 +234,7 @@ export function createLogsWorkspace(options = {}) {
   cleanups.push(listen(autoScrollCheckbox, 'change', () => { autoScroll = autoScrollCheckbox.checked; }));
   cleanups.push(listen(rowCountSelect, 'change', () => { rowCount = Number(rowCountSelect.value) || 80; renderLines(); }));
   cleanups.push(listen(exportButton, 'click', exportLogs));
+  cleanups.push(listen(clearButton, 'click', clearLogs));
 
   function cleanup() {
     if (!active) return;
@@ -214,6 +248,7 @@ export function createLogsWorkspace(options = {}) {
     element: root,
     getFilters,
     refreshLogs,
+    clearLogs,
     setAutoRefresh,
     cleanup,
     _test: { rawLines, renderLines, extractLogFields },

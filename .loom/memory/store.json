@@ -1,6 +1,22 @@
 {
   "entries": [
     {
+      "id": "1eba775d",
+      "type": "决策",
+      "content": "日志体积优化已落地：内置 rotateLogFile 同步轮转，默认 10MB 阈值、每类保留 5 个归档；结构化 walker.log 默认关闭，仅 WALKER_LOG_FILE=true 时写入；daemon stdout/stderr 日志在启动前轮转；Admin 日志清空只处理 allowlist 当前日志和数字归档，并支持显式 cwd fallback。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-30T04:47:59.035Z"
+    },
+    {
       "id": "93d1f8a0",
       "type": "踩坑",
       "content": "Loom 0.1.0 当前会检查 stage_history 中所有 approved 记录的 approval_fingerprints；若审批后 plan/tasks 变更并重新审批，旧 approved 记录可能继续触发 stale approval。处理本次 specs/2026-07-27-feishu-model-context-footer 时，在用户明确授权后仅将旧 approved 历史项标记为 superseded_by_reapproval，保留新审批指纹。",

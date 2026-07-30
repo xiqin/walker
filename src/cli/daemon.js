@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { rotateLogFile } = require('../core/log-rotation');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const PID_FILE = path.join(PROJECT_ROOT, 'walker.pid');
@@ -47,6 +48,8 @@ function start() {
   if (!fs.existsSync(LOG_DIR)) {
     fs.mkdirSync(LOG_DIR, { recursive: true });
   }
+  try { rotateLogFile(OUT_LOG); } catch (_) {}
+  try { rotateLogFile(ERR_LOG); } catch (_) {}
   const outFd = fs.openSync(OUT_LOG, 'a');
   const errFd = fs.openSync(ERR_LOG, 'a');
   const entry = path.join(PROJECT_ROOT, 'src', 'index.js');

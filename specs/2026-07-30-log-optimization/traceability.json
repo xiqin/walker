@@ -1,0 +1,315 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1", "T2", "T3"],
+      "tests": [
+        "test/log-rotation.test.js#低于阈值不轮转并保留原文件",
+        "test/log-rotation.test.js#达到阈值生成 .1 且当前路径可继续写入",
+        "test/log-rotation.test.js#已有 5 个归档时再次轮转后仍只保留 5 个归档且最旧被删除",
+        "test/log-rotation.test.js#模拟 FS 错误时不抛并返回错误结果",
+        "test/log-rotation.test.js#实现使用 stat 判断大小且不读取完整日志内容",
+        "test/logger.test.js#WALKER_LOG_FILE=true 时打开写入流前轮转已有大 walker.log",
+        "test/logger.test.js#walker.log 轮转失败不得导致 logger 调用崩溃",
+        "test/daemon.test.js#daemon start 启动前轮转 stdout 日志并以追加模式打开当前文件",
+        "test/daemon.test.js#daemon start 启动前轮转 stderr 日志并以追加模式打开当前文件",
+        "test/daemon.test.js#daemon start 低于阈值时不归档 stdout 或 stderr 日志",
+        "test/daemon.test.js#daemon start 轮转失败时仍继续打开日志并尝试启动进程"
+      ],
+      "evidence": [
+        "evidence/T1-test.log",
+        "evidence/T2-test.log",
+        "evidence/T3-test.log"
+      ],
+      "behaviors": {
+        "REQ-001-B01": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": [
+            "test/log-rotation.test.js#达到阈值生成 .1 且当前路径可继续写入",
+            "test/logger.test.js#WALKER_LOG_FILE=true 时打开写入流前轮转已有大 walker.log",
+            "test/daemon.test.js#daemon start 启动前轮转 stdout 日志并以追加模式打开当前文件",
+            "test/daemon.test.js#daemon start 启动前轮转 stderr 日志并以追加模式打开当前文件"
+          ],
+          "evidence": [
+            "evidence/T1-test.log",
+            "evidence/T2-test.log",
+            "evidence/T3-test.log"
+          ]
+        },
+        "REQ-001-B02": {
+          "tasks": ["T1", "T3"],
+          "tests": [
+            "test/log-rotation.test.js#低于阈值不轮转并保留原文件",
+            "test/daemon.test.js#daemon start 低于阈值时不归档 stdout 或 stderr 日志"
+          ],
+          "evidence": [
+            "evidence/T1-test.log",
+            "evidence/T3-test.log"
+          ]
+        },
+        "REQ-001-B03": {
+          "tasks": ["T1", "T3"],
+          "tests": ["test/log-rotation.test.js#已有 5 个归档时再次轮转后仍只保留 5 个归档且最旧被删除"],
+          "evidence": [
+            "evidence/T1-test.log",
+            "evidence/T3-test.log"
+          ]
+        },
+        "REQ-001-B04": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": [
+            "test/log-rotation.test.js#模拟 FS 错误时不抛并返回错误结果",
+            "test/logger.test.js#walker.log 轮转失败不得导致 logger 调用崩溃",
+            "test/daemon.test.js#daemon start 轮转失败时仍继续打开日志并尝试启动进程"
+          ],
+          "evidence": [
+            "evidence/T1-test.log",
+            "evidence/T2-test.log",
+            "evidence/T3-test.log"
+          ]
+        },
+        "REQ-001-B05": {
+          "tasks": ["T1"],
+          "tests": ["test/log-rotation.test.js#实现使用 stat 判断大小且不读取完整日志内容"],
+          "evidence": ["evidence/T1-test.log"]
+        },
+        "REQ-001-B06": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": [
+            "test/log-rotation.test.js#模拟 FS 错误时不抛并返回错误结果",
+            "test/logger.test.js#walker.log 轮转失败不得导致 logger 调用崩溃",
+            "test/daemon.test.js#daemon start 轮转失败时仍继续打开日志并尝试启动进程"
+          ],
+          "evidence": [
+            "evidence/T1-test.log",
+            "evidence/T2-test.log",
+            "evidence/T3-test.log"
+          ]
+        }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T2"],
+      "tests": [
+        "test/logger.test.js#默认未设置 WALKER_LOG_FILE 时不创建 walker.log",
+        "test/logger.test.js#WALKER_LOG_FILE=true 时创建并写入结构化 JSON walker.log",
+        "test/logger.test.js#WALKER_LOG_FILE=false 时不创建也不追加 walker.log",
+        "test/logger.test.js#stderr 仍输出结构化日志且敏感字段脱敏",
+        "test/logger.test.js#WALKER_LOG_LEVEL 过滤行为保持不变"
+      ],
+      "evidence": ["evidence/T2-test.log"],
+      "behaviors": {
+        "REQ-002-B01": {
+          "tasks": ["T2"],
+          "tests": ["test/logger.test.js#默认未设置 WALKER_LOG_FILE 时不创建 walker.log"],
+          "evidence": ["evidence/T2-test.log"]
+        },
+        "REQ-002-B02": {
+          "tasks": ["T2"],
+          "tests": ["test/logger.test.js#WALKER_LOG_FILE=true 时创建并写入结构化 JSON walker.log"],
+          "evidence": ["evidence/T2-test.log"]
+        },
+        "REQ-002-B03": {
+          "tasks": ["T2"],
+          "tests": ["test/logger.test.js#WALKER_LOG_FILE=false 时不创建也不追加 walker.log"],
+          "evidence": ["evidence/T2-test.log"]
+        },
+        "REQ-002-B04": {
+          "tasks": ["T2"],
+          "tests": ["test/logger.test.js#stderr 仍输出结构化日志且敏感字段脱敏"],
+          "evidence": ["evidence/T2-test.log"]
+        },
+        "REQ-002-B05": {
+          "tasks": ["T2"],
+          "tests": [
+            "test/logger.test.js#stderr 仍输出结构化日志且敏感字段脱敏",
+            "test/logger.test.js#WALKER_LOG_LEVEL 过滤行为保持不变"
+          ],
+          "evidence": ["evidence/T2-test.log"]
+        }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T4", "T5"],
+      "tests": [
+        "test/admin-files-diagnostics.test.js#REQ-003/REQ-004: POST clear logs 路由返回清空结果",
+        "test/admin-files-diagnostics.test.js#REQ-003/REQ-004: POST clear logs 路由部分失败返回失败列表",
+        "test/admin-ui-workspaces.test.js#日志工作区渲染清空日志按钮并说明默认查看当前日志",
+        "test/admin-ui-workspaces.test.js#清空日志点击 POST 清空接口且不携带筛选参数",
+        "test/admin-ui-workspaces.test.js#清空日志成功后刷新日志并显示成功反馈",
+        "test/admin-ui-workspaces.test.js#清空日志失败显示错误且保留当前日志内容",
+        "test/admin-ui-workspaces.test.js#清空日志挂起时重复点击只发一次请求并保持 busy"
+      ],
+      "evidence": [
+        "evidence/T4-test.log",
+        "evidence/T5-test.log"
+      ],
+      "behaviors": {
+        "REQ-003-B01": {
+          "tasks": ["T5"],
+          "tests": [
+            "test/admin-ui-workspaces.test.js#日志工作区渲染清空日志按钮并说明默认查看当前日志",
+            "test/admin-ui-workspaces.test.js#清空日志点击 POST 清空接口且不携带筛选参数"
+          ],
+          "evidence": ["evidence/T5-test.log"]
+        },
+        "REQ-003-B02": {
+          "tasks": ["T4", "T5"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-003/REQ-004: POST clear logs 路由返回清空结果",
+            "test/admin-ui-workspaces.test.js#清空日志成功后刷新日志并显示成功反馈"
+          ],
+          "evidence": [
+            "evidence/T4-test.log",
+            "evidence/T5-test.log"
+          ]
+        },
+        "REQ-003-B03": {
+          "tasks": ["T4", "T5"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-003/REQ-004: POST clear logs 路由部分失败返回失败列表",
+            "test/admin-ui-workspaces.test.js#清空日志失败显示错误且保留当前日志内容"
+          ],
+          "evidence": [
+            "evidence/T4-test.log",
+            "evidence/T5-test.log"
+          ]
+        },
+        "REQ-003-B04": {
+          "tasks": ["T4", "T5"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-003/REQ-004: POST clear logs 路由返回清空结果",
+            "test/admin-ui-workspaces.test.js#清空日志点击 POST 清空接口且不携带筛选参数"
+          ],
+          "evidence": [
+            "evidence/T4-test.log",
+            "evidence/T5-test.log"
+          ]
+        },
+        "REQ-003-B05": {
+          "tasks": ["T5"],
+          "tests": [
+            "test/admin-ui-workspaces.test.js#清空日志成功后刷新日志并显示成功反馈",
+            "test/admin-ui-workspaces.test.js#清空日志失败显示错误且保留当前日志内容"
+          ],
+          "evidence": ["evidence/T5-test.log"]
+        },
+        "REQ-003-B06": {
+          "tasks": ["T5"],
+          "tests": ["test/admin-ui-workspaces.test.js#清空日志挂起时重复点击只发一次请求并保持 busy"],
+          "evidence": ["evidence/T5-test.log"]
+        }
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T4"],
+      "tests": [
+        "test/admin-files-diagnostics.test.js#REQ-004: clearLogs 清空当前日志并删除数字归档",
+        "test/admin-files-diagnostics.test.js#REQ-004: clearLogs 空日志目录连续清空两次成功",
+        "test/admin-files-diagnostics.test.js#REQ-004: clearLogs 不删除 logs 外文件和非日志文件",
+        "test/admin-files-diagnostics.test.js#REQ-004: clearLogs fallbackToCwd 清理工作目录日志且保留非日志文件",
+        "test/admin-files-diagnostics.test.js#REQ-004: clearLogs 部分文件系统失败时返回失败列表",
+        "test/admin-files-diagnostics.test.js#REQ-003/REQ-004: POST clear logs 路由返回清空结果",
+        "test/admin-files-diagnostics.test.js#REQ-003/REQ-004: POST clear logs 路由部分失败返回失败列表",
+        "test/admin-files-diagnostics.test.js#REQ-004: POST clear logs 非授权请求不执行清空"
+      ],
+      "evidence": ["evidence/T4-test.log"],
+      "behaviors": {
+        "REQ-004-B01": {
+          "tasks": ["T4"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-004: clearLogs 清空当前日志并删除数字归档",
+            "test/admin-files-diagnostics.test.js#REQ-004: clearLogs fallbackToCwd 清理工作目录日志且保留非日志文件"
+          ],
+          "evidence": ["evidence/T4-test.log"]
+        },
+        "REQ-004-B02": {
+          "tasks": ["T4"],
+          "tests": ["test/admin-files-diagnostics.test.js#REQ-004: POST clear logs 非授权请求不执行清空"],
+          "evidence": ["evidence/T4-test.log"]
+        },
+        "REQ-004-B03": {
+          "tasks": ["T4"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-004: clearLogs 不删除 logs 外文件和非日志文件",
+            "test/admin-files-diagnostics.test.js#REQ-004: clearLogs fallbackToCwd 清理工作目录日志且保留非日志文件"
+          ],
+          "evidence": ["evidence/T4-test.log"]
+        },
+        "REQ-004-B04": {
+          "tasks": ["T4"],
+          "tests": ["test/admin-files-diagnostics.test.js#REQ-004: clearLogs 空日志目录连续清空两次成功"],
+          "evidence": ["evidence/T4-test.log"]
+        },
+        "REQ-004-B05": {
+          "tasks": ["T4"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-004: clearLogs 部分文件系统失败时返回失败列表",
+            "test/admin-files-diagnostics.test.js#REQ-003/REQ-004: POST clear logs 路由部分失败返回失败列表"
+          ],
+          "evidence": ["evidence/T4-test.log"]
+        },
+        "REQ-004-B06": {
+          "tasks": ["T4"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-004: clearLogs 不删除 logs 外文件和非日志文件",
+            "test/admin-files-diagnostics.test.js#REQ-004: clearLogs fallbackToCwd 清理工作目录日志且保留非日志文件"
+          ],
+          "evidence": ["evidence/T4-test.log"]
+        }
+      }
+    },
+    "REQ-005": {
+      "tasks": ["T4", "T5"],
+      "tests": [
+        "test/admin-files-diagnostics.test.js#REQ-013: readLogs 读取实际运行时日志文件名",
+        "test/admin-files-diagnostics.test.js#REQ-013: readLogs dataDir 无日志时回退读取工作目录日志",
+        "test/admin-files-diagnostics.test.js#REQ-013: readLogs 最近 500 行限制",
+        "test/admin-files-diagnostics.test.js#REQ-005: readLogs 兼容旧文件名、尾部读取且不读取归档",
+        "test/admin-ui-workspaces.test.js#日志工作区渲染清空日志按钮并说明默认查看当前日志",
+        "test/admin-ui-workspaces.test.js#清空日志成功后刷新日志并显示成功反馈"
+      ],
+      "evidence": [
+        "evidence/T4-test.log",
+        "evidence/T5-test.log"
+      ],
+      "behaviors": {
+        "REQ-005-B01": {
+          "tasks": ["T4", "T5"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-005: readLogs 兼容旧文件名、尾部读取且不读取归档",
+            "test/admin-files-diagnostics.test.js#REQ-004: clearLogs fallbackToCwd 清理工作目录日志且保留非日志文件",
+            "test/admin-ui-workspaces.test.js#清空日志成功后刷新日志并显示成功反馈"
+          ],
+          "evidence": [
+            "evidence/T4-test.log",
+            "evidence/T5-test.log"
+          ]
+        },
+        "REQ-005-B02": {
+          "tasks": ["T4"],
+          "tests": ["test/admin-files-diagnostics.test.js#REQ-013: readLogs 读取实际运行时日志文件名"],
+          "evidence": ["evidence/T4-test.log"]
+        },
+        "REQ-005-B03": {
+          "tasks": ["T4"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-013: readLogs 最近 500 行限制",
+            "test/admin-files-diagnostics.test.js#REQ-005: readLogs 兼容旧文件名、尾部读取且不读取归档"
+          ],
+          "evidence": ["evidence/T4-test.log"]
+        },
+        "REQ-005-B04": {
+          "tasks": ["T4", "T5"],
+          "tests": [
+            "test/admin-files-diagnostics.test.js#REQ-005: readLogs 兼容旧文件名、尾部读取且不读取归档",
+            "test/admin-ui-workspaces.test.js#日志工作区渲染清空日志按钮并说明默认查看当前日志"
+          ],
+          "evidence": [
+            "evidence/T4-test.log",
+            "evidence/T5-test.log"
+          ]
+        }
+      }
+    }
+  }
+}
