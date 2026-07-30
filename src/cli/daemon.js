@@ -1,13 +1,27 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { rotateLogFile } = require('../core/log-rotation');
+const { loadDotEnv } = require('../config/env');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
-const PID_FILE = path.join(PROJECT_ROOT, 'walker.pid');
-const LOG_DIR = path.join(PROJECT_ROOT, 'logs');
+function resolveDataDir() {
+  const homeDir = os.homedir() || process.env.USERPROFILE || process.env.HOME || '.';
+  const value = process.env.WALKER_DATA_DIR || path.join(homeDir, '.walker');
+  if (value === '~') return homeDir;
+  if (value.startsWith('~/') || value.startsWith('~\\')) {
+    return path.join(homeDir, value.slice(2));
+  }
+  return value;
+}
+
+loadDotEnv();
+const DATA_DIR = resolveDataDir();
+const PID_FILE = path.join(DATA_DIR, 'walker.pid');
+const LOG_DIR = path.join(DATA_DIR, 'logs');
 const OUT_LOG = path.join(LOG_DIR, 'walker.out.log');
 const ERR_LOG = path.join(LOG_DIR, 'walker.err.log');
 
@@ -142,4 +156,4 @@ function status() {
   return Promise.resolve(0);
 }
 
-module.exports = { start, stop, status, isAlive, readPidFile, PID_FILE, OUT_LOG, ERR_LOG };
+module.exports = { start, stop, status, isAlive, readPidFile, resolveDataDir, DATA_DIR, PID_FILE, OUT_LOG, ERR_LOG };

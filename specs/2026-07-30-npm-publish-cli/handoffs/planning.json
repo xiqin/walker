@@ -1,0 +1,33 @@
+{
+  "task_order": [
+    "T1",
+    "T2"
+  ],
+  "validation": [
+    "loom tasks --spec-dir H:\\walker\\specs\\2026-07-30-npm-publish-cli --validate passed",
+    "validate-plan.mjs blocked: current tool installation missing C:\\Users\\tianxiqin\\.config\\opencode\\src\\core\\requirements.js"
+  ],
+  "parallelism": "serial",
+  "approval_refresh_reason": "用户重新确认审批后，刷新 planning handoff 指纹以反映 T2 owns 扩展到 src/index.js 与 README.md。",
+  "status": "done",
+  "summary": "已将需求拆为两个串行任务：T1 更新 package.json 发布前校验脚本；T2 迁移 daemon 后台 pid/stdout/stderr 日志到 Walker 数据目录并补 daemon 测试。实现期间 T2 的 owns 已经扩展为 src/cli/daemon.js、src/index.js、test/daemon.test.js、README.md，以覆盖 CLI help 与 README 路径说明同步更新。traceability.json 已覆盖 REQ-001/002/003 及所有 behavior 到 task 的映射，包括 REQ-001-B03、REQ-002-B04、REQ-002-B05。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "traceability.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "5b4c92ad4eed0a2cfc20d8e73aac0e59bb0bc0745fe94896184d635d843bd7c4",
+    "spec.md": "37cac602431ebb0397d293069ff3a9c27eea75ef015a59ece7a95e806a11d61c",
+    "tasks/": "e7f0f020c2ea62649a76d63786fd34cd61a9384f11734fd86d2966b84c15e6f3"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "5b4c92ad4eed0a2cfc20d8e73aac0e59bb0bc0745fe94896184d635d843bd7c4",
+    "tasks/T1.md": "a4f712c33787f93f1293bbe787de31f1db923493ec7e0a3acba751bc17e5d6e6",
+    "tasks/T2.md": "e65f114dec723e8a95cc789cfa63eff7b5f6e19d7c39d678b7d348f1642aee82"
+  },
+  "written_at": "2026-07-30T06:25:10.484Z"
+}

@@ -46,7 +46,7 @@ npm start
 | `walker logs [N]` | 查看最近 N 行日志（默认 80） |
 | `walker help` | 显示帮助 |
 
-运行前先配置 `.env`。日志同时输出到终端和 `logs/walker.log`（后台模式额外写 `logs/walker.out.log` / `logs/walker.err.log`）。
+运行前先配置 `.env`。日志同时输出到终端；后台模式额外写入 Walker 数据目录下的 `logs/walker.out.log` / `logs/walker.err.log`（默认 `~/.walker/logs/`，可通过 `WALKER_DATA_DIR` 调整）。
 
 ## 配置
 

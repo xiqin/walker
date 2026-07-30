@@ -1,0 +1,43 @@
+{
+  "validation": {
+    "node_test_opencode_tui_bridge": "passed: tests 76, suites 4, pass 76, cancelled 0",
+    "npm_test": "passed: tests 1261, suites 65, pass 1261, zero unsuccessful, duration_ms 66604.1381",
+    "npm_pack_dry_run": "passed: prepack ran npm test; total files 101; shasum 2da127689211c4fe402b2cf18679ab2155ca6e79",
+    "git_diff_check": "passed"
+  },
+  "graph": {
+    "backend": "codegraph",
+    "index": "already up to date",
+    "check": "146 files, 1843 nodes, 11301 edges"
+  },
+  "memory": {
+    "added_ids": [
+      "8ec6db90",
+      "ec4b6cc6"
+    ],
+    "export": "passed"
+  },
+  "source_changes_during_final_sync": false,
+  "status": "done",
+  "summary": "最终同步完成。发布脚本与 daemon 运行态路径修复已完成；后续审查发现并修复 npm pack lifecycle 环境下 opencode-tui-bridge 短定时器测试 flaky，发布门禁已重新验证通过。CodeGraph 已同步并确认 up to date；daemon 数据目录决策与 npm pack timing-test 踩坑已写入 loom memory 并导出 MEMORY.md；sync-report.md 已更新最新索引、memory 与变更范围。",
+  "artifacts": [
+    "sync-report.md",
+    ".loom/memory/store.json",
+    ".loom/memory/MEMORY.md",
+    "test-report.md",
+    "verify-report.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "5b4c92ad4eed0a2cfc20d8e73aac0e59bb0bc0745fe94896184d635d843bd7c4",
+    "spec.md": "37cac602431ebb0397d293069ff3a9c27eea75ef015a59ece7a95e806a11d61c"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/MEMORY.md": "55cabbc68634d4de7c1566c3823d84379285e8710282ae19f09b0e1d29cf7f33",
+    ".loom/memory/store.json": "603e8342ae4f80c04d6ef8b49a0ca6df7459d67c483d7b264174f22fa6eddf78",
+    "test-report.md": "92dfb0a2ee141e7e9110f39dab7e83ae84c519c0962e4a0fc32e47309fa42872",
+    "verify-report.md": "7abe8a45503ba030a142ebf94efc8fea38aec17016a591443015b84ddd6d75b6"
+  },
+  "written_at": "2026-07-30T07:26:05.160Z"
+}

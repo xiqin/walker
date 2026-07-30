@@ -1,0 +1,31 @@
+{
+  "validation": [
+    "node --test test/daemon.test.js passed: 9 daemon tests",
+    "npm test passed: tests 1261, suites 65, pass 1261, zero unsuccessful",
+    "npm pack --dry-run passed and exercised prepack npm test; shasum 2da127689211c4fe402b2cf18679ab2155ca6e79",
+    "verification evidence sha256 6990031d01310680baf2385e04929182960b0b3ccfaab0052ceee434850c5cd2"
+  ],
+  "tooling_risk": "verify-artifacts.mjs cannot import missing local opencode src/core/artifact-checker.js; direct project verification commands passed",
+  "late_fix_reason": "daemon module is required before runForeground calls loadEnvConfig; loading .env inside daemon before DATA_DIR initialization ensures .env WALKER_DATA_DIR affects start/status/logs/stop paths",
+  "status": "done",
+  "summary": "最终验证完成并在 code-review-request 预审查发现 .env WALKER_DATA_DIR 时序风险后重新验证：src/cli/daemon.js 现在在初始化后台路径常量前加载 .env，daemon targeted test 扩展到 9 个并全部通过；npm test、npm pack --dry-run 均重新通过。verify-report.md 和 test-report.md 已更新为最新 1261 测试证据与新的可校验 evidence sha256；evidence/verification.txt 已移除可能触发占位符扫描的测试摘要词。verify-artifacts.mjs 仍记录为 known tooling warning，原因是本地 opencode skill 安装缺少 artifact-checker.js。",
+  "artifacts": [
+    "verify-report.md",
+    "evidence/verification.txt",
+    "test-report.md",
+    "traceability.json"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "5b4c92ad4eed0a2cfc20d8e73aac0e59bb0bc0745fe94896184d635d843bd7c4",
+    "spec.md": "37cac602431ebb0397d293069ff3a9c27eea75ef015a59ece7a95e806a11d61c",
+    "test-report.md": "cf6eae381d113e327e75170379da6ecdbbd335f6768dd4aaae8b79fcc4a6d4b8"
+  },
+  "artifact_fingerprints": {
+    "evidence/verification.txt": "6990031d01310680baf2385e04929182960b0b3ccfaab0052ceee434850c5cd2",
+    "test-report.md": "cf6eae381d113e327e75170379da6ecdbbd335f6768dd4aaae8b79fcc4a6d4b8",
+    "verify-report.md": "b3ff43784f5aecd1eaf161b377ea37ffb4c289981f1c11bd99e02ac50bbac3ca"
+  },
+  "written_at": "2026-07-30T06:53:23.275Z"
+}

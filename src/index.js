@@ -18,7 +18,7 @@ function printUsage() {
   console.log('  walker logs [N]     Show last N lines of logs (default 80)');
   console.log('  walker help         Show this help');
   console.log('');
-  console.log('Logs: logs/walker.out.log and logs/walker.err.log');
+  console.log('Logs: ' + daemon.OUT_LOG + ' and ' + daemon.ERR_LOG);
 }
 
 async function runForeground() {

@@ -840,5 +840,49 @@
     "violations": [
       "blocker_count 为 0。 |"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-npm-publish-cli",
+    "timestamp": "2026-07-30T06:24:30.844Z",
+    "stage": "executing",
+    "skill": "loom-subagent-driven-development",
+    "passed": false,
+    "violations": [
+      "stale approval after tasks scope update; user re-confirmed task ownership change"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-npm-publish-cli",
+    "timestamp": "2026-07-30T06:26:41.945Z",
+    "stage": "executing",
+    "skill": "loom-subagent-driven-development",
+    "passed": false,
+    "violations": [
+      "stale approval fingerprint still blocking advance; re-approving after all execution artifacts are stable"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-npm-publish-cli",
+    "timestamp": "2026-07-30T06:44:57.012Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-npm-publish-cli",
+    "timestamp": "2026-07-30T06:56:25.871Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-npm-publish-cli",
+    "timestamp": "2026-07-30T06:58:37.368Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
   }
 ]

@@ -1,0 +1,30 @@
+{
+  "validation": [
+    "node --test test/daemon.test.js passed: 9 daemon tests",
+    "npm test passed: tests 1261, suites 65, pass 1261, zero unsuccessful",
+    "npm pack --dry-run passed and exercised prepack npm test",
+    "executing evidence sha256 c141ded2c3dad5681904940563cdf7ae1a59c4a7816fa1be5d8a36beb621b8fc"
+  ],
+  "late_fix_reason": "code-review-request precheck found daemon was required before loadEnvConfig in src/index.js; loadDotEnv is now called before daemon path constants are initialized so .env WALKER_DATA_DIR is honored",
+  "status": "done",
+  "summary": "T1/T2 已完成并在 code-review-request 预审查前补齐一个实现风险修复：src/cli/daemon.js 在计算 DATA_DIR/PID/LOG 路径前调用 loadDotEnv()，确保 WALKER_DATA_DIR 写在 .env 中时后台运行态路径也生效；test/daemon.test.js 新增对应单测。package.json 增加 prepack/prepublishOnly 且复用 npm test；daemon 后台 pid/stdout/stderr 日志迁移到 Walker 数据目录；CLI help 与 README 路径说明同步更新。核心验证最新通过：node --test test/daemon.test.js 为 9 个 daemon 测试全通过，npm test 为 tests 1261/suites 65/pass 1261/zero unsuccessful，npm pack --dry-run 通过并触发 prepack npm test。",
+  "artifacts": [
+    "test-report.md",
+    "traceability.json",
+    "evidence/executing-verification.txt",
+    "task-states/T1.state.json",
+    "task-states/T2.state.json"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "5b4c92ad4eed0a2cfc20d8e73aac0e59bb0bc0745fe94896184d635d843bd7c4",
+    "spec.md": "37cac602431ebb0397d293069ff3a9c27eea75ef015a59ece7a95e806a11d61c",
+    "tasks/": "e7f0f020c2ea62649a76d63786fd34cd61a9384f11734fd86d2966b84c15e6f3"
+  },
+  "artifact_fingerprints": {
+    "evidence/executing-verification.txt": "c141ded2c3dad5681904940563cdf7ae1a59c4a7816fa1be5d8a36beb621b8fc",
+    "test-report.md": "cf6eae381d113e327e75170379da6ecdbbd335f6768dd4aaae8b79fcc4a6d4b8"
+  },
+  "written_at": "2026-07-30T06:51:34.258Z"
+}

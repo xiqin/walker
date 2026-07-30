@@ -1,0 +1,101 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "recovery"],
+      "required_categories": ["happy-path", "recovery", "forbidden-behavior"],
+      "acceptance": "npm 打包与发布前自动执行现有测试校验。",
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "package.json 暴露 prepack 和 prepublishOnly 脚本。",
+          "status": "failing",
+          "acceptance": "两个脚本均执行 npm test。"
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "forbidden-behavior",
+          "description": "发布脚本不得绕过现有 lint/check 流程。",
+          "status": "failing",
+          "acceptance": "脚本复用 npm test，而不是直接运行部分检查。"
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "recovery",
+          "description": "发布前校验失败时 npm 打包或发布流程应随 npm test 的失败退出码中止。",
+          "status": "failing",
+          "acceptance": "prepack 和 prepublishOnly 不吞掉 npm test 失败，保留 npm 生命周期默认失败传播语义。"
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "write", "state", "compatibility"],
+      "required_categories": ["happy-path", "state-transition", "atomicity", "compatibility", "forbidden-behavior"],
+      "acceptance": "后台 pid 和 stdout/stderr 日志写入解析后的 Walker 数据目录。",
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "未配置 WALKER_DATA_DIR 时，daemon 使用用户主目录下的 .walker 作为运行态目录。",
+          "status": "failing",
+          "acceptance": "PID_FILE、OUT_LOG、ERR_LOG 均位于默认数据目录下。"
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "compatibility",
+          "description": "配置 WALKER_DATA_DIR 时，daemon 使用配置目录作为运行态目录。",
+          "status": "failing",
+          "acceptance": "PID_FILE、OUT_LOG、ERR_LOG 均位于 WALKER_DATA_DIR 解析后的目录下。"
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "forbidden-behavior",
+          "description": "daemon 不再依赖包安装目录存放 pid 和后台日志。",
+          "status": "failing",
+          "acceptance": "路径计算不使用项目根目录作为 pid/log 根目录。"
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "state-transition",
+          "description": "daemon start/stop/status 在迁移后的数据目录中读写同一个 pid 文件以维持运行状态转换。",
+          "status": "failing",
+          "acceptance": "start 写入数据目录 walker.pid，stop/status 从同一路径读取并保持现有状态判断语义。"
+        },
+        {
+          "id": "REQ-002-B05",
+          "category": "atomicity",
+          "description": "daemon start 在打开后台 stdout/stderr 日志前确保数据目录下 logs 目录存在。",
+          "status": "failing",
+          "acceptance": "日志目录创建失败或文件打开失败时不产生指向包安装目录的回退写入。"
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["compatibility", "functional"],
+      "required_categories": ["happy-path", "compatibility"],
+      "acceptance": "现有 CLI 启动和 daemon 子命令保持可用。",
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "happy-path",
+          "description": "walker 默认命令仍以前台模式启动。",
+          "status": "failing",
+          "acceptance": "src/index.js 默认分支不改变。"
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "compatibility",
+          "description": "walker start/stop/status/logs 子命令语义保持不变。",
+          "status": "failing",
+          "acceptance": "现有 daemon 测试继续通过。"
+        }
+      ]
+    }
+  ]
+}

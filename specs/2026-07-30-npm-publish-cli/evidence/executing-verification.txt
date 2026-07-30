@@ -1,0 +1,15 @@
+Command evidence for executing stage.
+
+1. node --test test/daemon.test.js
+Result: PASS
+Summary: 9 daemon tests passed. Covered default ~/.walker data dir, explicit WALKER_DATA_DIR with ~ expansion, .env WALKER_DATA_DIR loading before daemon path initialization, no package-install-directory runtime files, and data-dir logs directory creation before opening daemon stdout/stderr files.
+
+2. npm test
+Result: PASS
+Summary: lint and check completed successfully after the opencode-tui-bridge timing test stabilization. Node test runner reported tests 1261, suites 65, pass 1261, zero unsuccessful, duration_ms 66604.1381.
+Full raw output retained by opencode at C:\Users\tianxiqin\.local\share\opencode\tool-output\tool_fb1e39e96001LoiWcROvVgh5PV.
+
+3. npm pack --dry-run
+Result: PASS
+Summary: npm lifecycle ran prepack, which ran npm test successfully before dry-run packing. Node test runner reported tests 1261, suites 65, pass 1261, zero unsuccessful, duration_ms 67075.278. Dry-run tarball succeeded as walker-bridge-0.1.0.tgz with total files 101 and shasum 2da127689211c4fe402b2cf18679ab2155ca6e79.
+Full raw output retained by opencode at C:\Users\tianxiqin\.local\share\opencode\tool-output\tool_fb1e5539f001YAeA2U1Y7wf5OL.

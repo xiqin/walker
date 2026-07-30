@@ -1,0 +1,102 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1"],
+      "tests": [
+        "package.json",
+        "test/daemon.test.js"
+      ],
+      "evidence": [
+        "test-report.md#npm-test",
+        "test-report.md#npm-pack-dry-run",
+        "verify-report.md#verification-commands",
+        "evidence/executing-verification.txt",
+        "evidence/verification.txt"
+      ],
+      "behaviors": {
+        "REQ-001-B01": {
+          "tasks": ["T1"],
+          "tests": ["package.json"],
+          "evidence": ["test-report.md#npm-pack-dry-run", "evidence/executing-verification.txt", "evidence/verification.txt"]
+        },
+        "REQ-001-B02": {
+          "tasks": ["T1"],
+          "tests": ["package.json"],
+          "evidence": ["test-report.md#npm-test", "evidence/executing-verification.txt", "evidence/verification.txt"]
+        },
+        "REQ-001-B03": {
+          "tasks": ["T1"],
+          "tests": ["package.json"],
+          "evidence": ["test-report.md#npm-pack-dry-run", "evidence/executing-verification.txt", "evidence/verification.txt"]
+        }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T2"],
+      "tests": [
+        "test/daemon.test.js"
+      ],
+      "evidence": [
+        "test-report.md#daemon-targeted-test",
+        "test-report.md#npm-test",
+        "verify-report.md#verification-commands",
+        "evidence/executing-verification.txt",
+        "evidence/verification.txt"
+      ],
+      "behaviors": {
+        "REQ-002-B01": {
+          "tasks": ["T2"],
+          "tests": ["test/daemon.test.js"],
+          "evidence": ["test-report.md#daemon-targeted-test", "evidence/executing-verification.txt", "evidence/verification.txt"]
+        },
+        "REQ-002-B02": {
+          "tasks": ["T2"],
+          "tests": ["test/daemon.test.js"],
+          "evidence": ["test-report.md#daemon-targeted-test", "evidence/executing-verification.txt", "evidence/verification.txt"]
+        },
+        "REQ-002-B03": {
+          "tasks": ["T2"],
+          "tests": ["test/daemon.test.js"],
+          "evidence": ["test-report.md#daemon-targeted-test", "evidence/executing-verification.txt", "evidence/verification.txt"]
+        },
+        "REQ-002-B04": {
+          "tasks": ["T2"],
+          "tests": ["test/daemon.test.js"],
+          "evidence": ["test-report.md#daemon-targeted-test", "evidence/executing-verification.txt", "evidence/verification.txt"]
+        },
+        "REQ-002-B05": {
+          "tasks": ["T2"],
+          "tests": ["test/daemon.test.js"],
+          "evidence": ["test-report.md#daemon-targeted-test", "evidence/executing-verification.txt", "evidence/verification.txt"]
+        }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T2"],
+      "tests": [
+        "test/daemon.test.js",
+        "src/index.js"
+      ],
+      "evidence": [
+        "test-report.md#daemon-targeted-test",
+        "test-report.md#npm-test",
+        "test-report.md#npm-pack-dry-run",
+        "verify-report.md#verification-commands",
+        "evidence/executing-verification.txt",
+        "evidence/verification.txt"
+      ],
+      "behaviors": {
+        "REQ-003-B01": {
+          "tasks": ["T2"],
+          "tests": ["src/index.js"],
+          "evidence": ["test-report.md#npm-test", "evidence/verification.txt"]
+        },
+        "REQ-003-B02": {
+          "tasks": ["T2"],
+          "tests": ["test/daemon.test.js"],
+          "evidence": ["test-report.md#daemon-targeted-test", "test-report.md#npm-pack-dry-run", "evidence/verification.txt"]
+        }
+      }
+    }
+  }
+}

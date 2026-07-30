@@ -1,6 +1,38 @@
 {
   "entries": [
     {
+      "id": "ec4b6cc6",
+      "type": "踩坑",
+      "content": "npm pack lifecycle 环境下，OpencodeTuiBridge 测试中等待业务 unref() timer 的 assert.rejects 可能触发 Node test runner 的 cancelledByParent。测试应使用带 ref 的 watchdog timer（assertRejectsWithRefTimer）维持事件循环，并避免 30/50ms 过短真实定时器；发布门禁全量测试使用 --test-concurrency=1 降低资源竞争。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-30T07:24:49.672Z"
+    },
+    {
+      "id": "8ec6db90",
+      "type": "决策",
+      "content": "Walker daemon 后台运行态文件（walker.pid、walker.out.log、walker.err.log）应写入 Walker 数据目录：优先 WALKER_DATA_DIR（包括 .env 中配置），否则默认 ~/.walker；daemon 在计算 DATA_DIR/PID/LOG 常量前加载 .env。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-07-30T06:59:17.446Z"
+    },
+    {
       "id": "1eba775d",
       "type": "决策",
       "content": "日志体积优化已落地：内置 rotateLogFile 同步轮转，默认 10MB 阈值、每类保留 5 个归档；结构化 walker.log 默认关闭，仅 WALKER_LOG_FILE=true 时写入；daemon stdout/stderr 日志在启动前轮转；Admin 日志清空只处理 allowlist 当前日志和数字归档，并支持显式 cwd fallback。",

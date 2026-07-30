@@ -1,0 +1,26 @@
+{
+  "decisions": [
+    "复用现有 WALKER_DATA_DIR 语义",
+    "发布前校验脚本复用 npm test",
+    "发布脚本失败传播依赖 npm 生命周期默认退出码语义",
+    "daemon start/stop/status 共享数据目录 walker.pid"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "确认本次需求为 npm 发布脚本补齐与 daemon 后台运行态路径迁移。范围：package.json 增加 prepack/prepublishOnly，daemon pid/stdout/stderr 日志从包安装目录迁移到 Walker 数据目录，保持 CLI 现有语义；requirements.json 已补齐 recovery、state-transition、atomicity 行为维度。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "plan.md": "5b4c92ad4eed0a2cfc20d8e73aac0e59bb0bc0745fe94896184d635d843bd7c4",
+    "spec.md": "37cac602431ebb0397d293069ff3a9c27eea75ef015a59ece7a95e806a11d61c"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "f69cc6d3aeab98cf5c47ebf83b316421b6eb75a77da0814f72c3db039197375d",
+    "spec.md": "37cac602431ebb0397d293069ff3a9c27eea75ef015a59ece7a95e806a11d61c"
+  },
+  "written_at": "2026-07-30T06:12:24.059Z"
+}

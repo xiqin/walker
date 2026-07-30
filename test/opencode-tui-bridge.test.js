@@ -18,6 +18,22 @@ function waitMs(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function assertRejectsWithRefTimer(promise, expected, timeoutMs) {
+  let timer;
+  try {
+    await Promise.race([
+      assert.rejects(promise, expected),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('expected rejection did not settle within ' + timeoutMs + 'ms'));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function createHarness() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-tui-bridge-'));
   const sessionService = new SessionService({
@@ -769,7 +785,7 @@ describe('OpencodeTuiBridge clearSession', () => {
   });
 
   it('clear 错误和超时不切换焦点并清理 pending', async () => {
-    const h = setupClearHarness({ promptTimeoutMs: 50 });
+    const h = setupClearHarness({ promptTimeoutMs: 100 });
     try {
       const errorPromise = h.bridge.clearSession(h.tuiSession.agentRef);
       const delivery = h.bridge.poll({ runtimeId: 'runtime-clear', sessionId: 'ses_old' });
@@ -785,7 +801,7 @@ describe('OpencodeTuiBridge clearSession', () => {
 
       const timeoutPromise = h.bridge.clearSession(h.tuiSession.agentRef);
       h.bridge.poll({ runtimeId: 'runtime-clear', sessionId: 'ses_old' });
-      await assert.rejects(timeoutPromise, /timed out|超时/i);
+      await assertRejectsWithRefTimer(timeoutPromise, /timed out|超时/i, 1000);
       const currentAfterTimeout = h.sessionService.getCurrent(h.routeKey);
       assert.equal(currentAfterTimeout.agentRef.opencodeSessionId, 'ses_old', '超时后焦点不得切换');
       assert.equal(h.bridge._clearPending.size, 0, '超时后 pending 应清理');
@@ -847,11 +863,11 @@ describe('OpencodeTuiBridge clearSession', () => {
   });
 
   it('迟到 control 在 pending 清理后不提交焦点', async () => {
-    const h = setupClearHarness({ promptTimeoutMs: 30 });
+    const h = setupClearHarness({ promptTimeoutMs: 100 });
     try {
       const clearPromise = h.bridge.clearSession(h.tuiSession.agentRef);
       const delivery = h.bridge.poll({ runtimeId: 'runtime-clear', sessionId: 'ses_old' });
-      await assert.rejects(clearPromise, /timed out|超时/i);
+      await assertRejectsWithRefTimer(clearPromise, /timed out|超时/i, 1000);
       assert.equal(h.bridge._clearPending.size, 0);
 
       assert.throws(
@@ -869,11 +885,11 @@ describe('OpencodeTuiBridge clearSession', () => {
   });
 
   it('迟到关联 register 在 pending 清理后被拒绝且不改变焦点', async () => {
-    const h = setupClearHarness({ promptTimeoutMs: 30 });
+    const h = setupClearHarness({ promptTimeoutMs: 100 });
     try {
       const clearPromise = h.bridge.clearSession(h.tuiSession.agentRef);
       const delivery = h.bridge.poll({ runtimeId: 'runtime-clear', sessionId: 'ses_old' });
-      await assert.rejects(clearPromise, /timed out|超时/i);
+      await assertRejectsWithRefTimer(clearPromise, /timed out|超时/i, 1000);
 
       assert.throws(
         () => h.bridge.register({
@@ -1169,7 +1185,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
   });
 
   it('租约超时触发 _loseLease，reject prompt 并创建 transport_lost tombstone', async () => {
-    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    const h = setupV3Harness({ leaseTimeoutMs: 100 });
     try {
       const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'lease expire');
       const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
@@ -1179,10 +1195,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         deliveryId: delivery.deliveryId, deliveryState: 'accepted',
       });
 
-      await Promise.all([
-        assert.rejects(promptPromise, /TUI_RUNTIME_DISCONNECTED/),
-        waitMs(50),
-      ]);
+      await assertRejectsWithRefTimer(promptPromise, /TUI_RUNTIME_DISCONNECTED/, 1000);
 
       assert.equal(h.bridge.pending.size, 0, 'pending 应已清理');
       const tombstone = h.bridge._tombstones.get(delivery.deliveryId);
@@ -1194,7 +1207,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
   });
 
   it('迟到 final 在 transport_lost tombstone 上转交事件到 watchers（至多一次）', async () => {
-    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    const h = setupV3Harness({ leaseTimeoutMs: 100 });
     try {
       const promptPromise = h.bridge.prompt(h.tuiSession.agentRef, 'late final');
       const delivery = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
@@ -1204,10 +1217,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         deliveryId: delivery.deliveryId, deliveryState: 'accepted',
       });
 
-      await Promise.all([
-        assert.rejects(promptPromise, /TUI_RUNTIME_DISCONNECTED/),
-        waitMs(50),
-      ]);
+      await assertRejectsWithRefTimer(promptPromise, /TUI_RUNTIME_DISCONNECTED/, 1000);
 
       const received = [];
       const stop = h.bridge.watchSession(h.tuiSession.agentRef, {
@@ -1571,7 +1581,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
   });
 
   it('迟到 final 在无 watcher 时 transport_lost tombstone 仍标记 resolved', async () => {
-    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    const h = setupV3Harness({ leaseTimeoutMs: 100 });
     try {
       const p = h.bridge.prompt(h.tuiSession.agentRef, 'no watcher');
       const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
@@ -1579,10 +1589,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
         deliveryId: d.deliveryId, deliveryState: 'accepted',
       });
-      await Promise.all([
-        assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/),
-        waitMs(50),
-      ]);
+      await assertRejectsWithRefTimer(p, /TUI_RUNTIME_DISCONNECTED/, 1000);
 
       const result = h.bridge.reportEvents({
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
@@ -1626,7 +1633,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
   });
 
   it('transport_lost tombstone 恢复后再次 report 返回 duplicate', async () => {
-    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    const h = setupV3Harness({ leaseTimeoutMs: 100 });
     try {
       const p = h.bridge.prompt(h.tuiSession.agentRef, 'recovery once');
       const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
@@ -1634,10 +1641,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
         deliveryId: d.deliveryId, deliveryState: 'accepted',
       });
-      await Promise.all([
-        assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/),
-        waitMs(50),
-      ]);
+      await assertRejectsWithRefTimer(p, /TUI_RUNTIME_DISCONNECTED/, 1000);
 
       h.bridge.reportEvents({
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
@@ -1657,7 +1661,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
   });
 
   it('transport_lost tombstone 恢复后，同 assistantMessageId 的旁路 final 应去重', async () => {
-    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    const h = setupV3Harness({ leaseTimeoutMs: 100 });
     try {
       const p = h.bridge.prompt(h.tuiSession.agentRef, 'late assistant duplicate');
       const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
@@ -1665,10 +1669,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
         deliveryId: d.deliveryId, deliveryState: 'accepted',
       });
-      await Promise.all([
-        assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/),
-        waitMs(50),
-      ]);
+      await assertRejectsWithRefTimer(p, /TUI_RUNTIME_DISCONNECTED/, 1000);
 
       const received = [];
       h.bridge.watchSession(h.tuiSession.agentRef, { onEvent: (event) => received.push(event) });
@@ -1698,7 +1699,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
   });
 
   it('error final 在 transport_lost tombstone 上不投递到 watcher', async () => {
-    const h = setupV3Harness({ leaseTimeoutMs: 30 });
+    const h = setupV3Harness({ leaseTimeoutMs: 100 });
     try {
       const p = h.bridge.prompt(h.tuiSession.agentRef, 'error recovery');
       const d = h.bridge.poll({ runtimeId: 'runtime-v3', sessionId: 'ses_v3' });
@@ -1706,10 +1707,7 @@ describe('OpencodeTuiBridge v3 lease and tombstone', () => {
         runtimeId: 'runtime-v3', sessionId: 'ses_v3',
         deliveryId: d.deliveryId, deliveryState: 'accepted',
       });
-      await Promise.all([
-        assert.rejects(p, /TUI_RUNTIME_DISCONNECTED/),
-        waitMs(50),
-      ]);
+      await assertRejectsWithRefTimer(p, /TUI_RUNTIME_DISCONNECTED/, 1000);
 
       const received = [];
       const stop = h.bridge.watchSession(h.tuiSession.agentRef, {
@@ -2043,7 +2041,7 @@ describe('OpencodeTuiBridge replyQuestion', () => {
   });
 
   it('replyQuestion lease 超时时 reject', async () => {
-    const h = setupReplyHarness({ leaseTimeoutMs: 30 });
+    const h = setupReplyHarness({ leaseTimeoutMs: 100 });
     try {
       const replyPromise = h.bridge.replyQuestion(h.tuiSession.agentRef, 'req_007', [['timeout']]);
       const delivery = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
@@ -2053,9 +2051,7 @@ describe('OpencodeTuiBridge replyQuestion', () => {
         deliveryId: delivery.deliveryId, deliveryState: 'accepted',
       });
 
-      const rejected = assert.rejects(replyPromise, /TUI_RUNTIME_DISCONNECTED/);
-      await waitMs(50);
-      await rejected;
+      await assertRejectsWithRefTimer(replyPromise, /TUI_RUNTIME_DISCONNECTED/, 1000);
       assert.equal(h.bridge.pending.size, 0, 'pending 应已清理');
     } finally {
       h.cleanup();

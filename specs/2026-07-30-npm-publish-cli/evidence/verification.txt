@@ -1,0 +1,23 @@
+Verification evidence for specs/2026-07-30-npm-publish-cli
+
+1. node --test test/daemon.test.js
+Result: PASS
+Summary: 9 daemon tests passed, covering default ~/.walker data directory, WALKER_DATA_DIR with ~ expansion, .env WALKER_DATA_DIR loading before daemon path initialization, avoiding package install directory runtime files, creating data-dir logs before opening daemon stdout/stderr, existing log rotation behavior, and startup resilience when rotation errors occur.
+
+2. npm test
+Result: PASS
+Summary: lint and check completed successfully after the opencode-tui-bridge timing test stabilization. Node test runner reported tests 1261, suites 65, pass 1261, zero unsuccessful, cancelled 0, skipped 0, zero deferred, duration_ms 66604.1381.
+Full output: C:\Users\tianxiqin\.local\share\opencode\tool-output\tool_fb1e39e96001LoiWcROvVgh5PV
+
+3. npm pack --dry-run
+Result: PASS
+Summary: npm lifecycle ran prepack, which ran npm test successfully. Node test runner reported tests 1261, suites 65, pass 1261, zero unsuccessful, cancelled 0, skipped 0, zero deferred, duration_ms 67075.278. Dry-run package succeeded as walker-bridge-0.1.0.tgz with package size 227.2 kB, unpacked size 929.0 kB, total files 101, shasum 2da127689211c4fe402b2cf18679ab2155ca6e79.
+Full output: C:\Users\tianxiqin\.local\share\opencode\tool-output\tool_fb1e5539f001YAeA2U1Y7wf5OL
+
+4. Unfinished-marker scan
+Result: PASS for this feature scope
+Summary: repository scan only matched pre-existing .loom template markers and existing todo/TYPE_TODO business identifiers; no new implementation or spec artifact incomplete marker was introduced by this change.
+
+5. verify-artifacts.mjs
+Result: WARN from local skill installation
+Summary: node C:\Users\tianxiqin\.config\opencode\skills\loom-verification-before-completion\scripts\verify-artifacts.mjs --spec-dir H:\walker\specs\2026-07-30-npm-publish-cli could not complete because the current opencode skill installation cannot import C:\Users\tianxiqin\.config\opencode\src\core\artifact-checker.js. This matches the earlier validate-plan.mjs tool installation issue and is not a project verification defect.

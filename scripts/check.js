@@ -64,7 +64,7 @@ const testFiles = fs.readdirSync(testDir)
   .filter(f => f.endsWith('.test.js'))
   .map(f => path.join('test', f));
 try {
-  execFileSync(process.execPath, ['--test', ...testFiles], { cwd: root, stdio: 'inherit' });
+  execFileSync(process.execPath, ['--test', '--test-concurrency=1', ...testFiles], { cwd: root, stdio: 'inherit' });
 } catch (err) {
   process.exit(err.status || 1);
 }

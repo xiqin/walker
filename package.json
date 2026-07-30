@@ -30,6 +30,8 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "npm run lint && npm run check",
+    "prepack": "npm test",
+    "prepublishOnly": "npm test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "check": "node scripts/check.js"
