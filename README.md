@@ -226,24 +226,278 @@ WSL 模式下自动探测 WSL IP 构建 server URL，也可通过 `OPENCODE_SERV
 
 ## 数据存储
 
-Walker 数据存储在 `.walker/` 目录下：
+Walker 数据默认存储在 `~/.walker/` 目录下，也可通过 `WALKER_DATA_DIR` 指定：
 
-- `sessions.json`：Walker session 信息
-- `routes.json`：飞书 routeKey 到 session 的绑定
+- `state.json`：Walker session、飞书 routeKey 绑定、焦点 session 等状态
+- `dedup.json`：飞书消息去重窗口
 - `attachments/`：入站附件文件
+- `logs/`：前台或守护进程运行日志
 
 ## Architecture
 
-飞书开放平台 → Walker Agent Hub（Node.js 单进程）→ Agent Driver → Runtime → Agent CLI
+Walker 是一个 Node.js 单进程 IM-to-Agent 桥接器：飞书开放平台通过长连接把消息和卡片交互推送给 Walker，Walker 根据 routeKey 找到当前焦点 session，把用户输入交给本机 Agent Driver，再将 Agent 事件实时回写到飞书文本或卡片。
 
-- 飞书长连接（WSClient）接收消息和卡片回调
-- MessageDedup 5 分钟去重窗口
-- routeKey 三种模式精准路由到 Walker session
-- 1:N session 路由：同一 routeKey 绑定多 session，焦点 session 接收普通消息
-- OpenCode hook plugin：自动安装，启动即纳入，无需飞书命令干预
-- 心跳轮询检测 OpenCode detached，自动取消 turn 并切焦点
-- AgentDriver 抽象支持多 CLI 扩展
-- ProgressCard 结构化卡片实时更新
+```mermaid
+flowchart LR
+  User[用户 / 飞书群聊或单聊] --> Feishu[飞书开放平台<br/>消息事件 / 卡片回调]
+  Feishu -->|WebSocket 长连接| Platform[FeishuPlatform<br/>src/platform/feishu/platform.js]
+
+  Platform -->|解析消息 / 命令 / routeKey| Dispatcher[MessageDispatcher<br/>src/dispatch/message-dispatcher.js]
+
+  Dispatcher --> Dedup[MessageDedup<br/>消息去重]
+  Dispatcher --> Session[SessionService<br/>会话与路由状态]
+  Dispatcher --> Registry[DriverRegistry<br/>Agent 驱动注册表]
+  Dispatcher --> Progress[ProgressRenderer / ProgressCard<br/>进度卡片渲染]
+  Dispatcher --> Permission[PermissionHandler<br/>权限确认交互]
+  Dispatcher --> Question[QuestionHandler<br/>提问卡片交互]
+  Dispatcher --> Attachments[AttachmentService<br/>附件落盘]
+
+  Registry --> OpenCodeDriver[OpencodeDriver<br/>src/drivers/opencode-driver.js]
+  Registry --> ClaudeStub[Claude Stub<br/>预留扩展]
+  Registry --> CodexStub[Codex Stub<br/>预留扩展]
+
+  OpenCodeDriver -->|HTTP API / SSE| OpenCodeServe[opencode serve<br/>localhost:4096]
+  OpenCodeDriver -->|TUI bridge transport| TuiBridge[OpencodeTuiBridge<br/>src/opencode-tui-bridge/bridge.js]
+
+  Runtime[RuntimeFactory<br/>windows / wsl] --> OpenCodeServe
+  Runtime --> AgentCLI[本机 Agent CLI]
+
+  Dispatcher -->|reply / send / patch card| FeishuApi[FeishuApi<br/>src/platform/feishu/api.js]
+  FeishuApi -->|Open API HTTP| Feishu
+
+  Session --> State[(state.json)]
+  Dedup --> DedupStore[(dedup.json)]
+  Attachments --> AttachmentDir[(attachments/)]
+  Dispatcher --> EventStore[EventStore<br/>管理端事件流]
+
+  Admin[Admin HTTP Server<br/>src/admin/*] --> Session
+  Admin --> Registry
+  Admin --> EventStore
+  Admin --> TuiBridge
+  Admin --> Dispatcher
+  Admin --> Health[HealthPoller]
+```
+
+### 分层设计
+
+```mermaid
+flowchart TB
+  subgraph L1[接入层 / Platform]
+    FeishuPlatform[FeishuPlatform<br/>飞书 WS 事件接入]
+    FeishuApi[FeishuApi<br/>飞书 OpenAPI 响应]
+    AdminServer[Admin Server<br/>管理后台与本地 Hook 接口]
+  end
+
+  subgraph L2[应用编排层 / Dispatch]
+    MessageDispatcher[MessageDispatcher<br/>命令处理 / 消息路由 / Agent 事件回写]
+    ProgressRenderer[ProgressRenderer<br/>进度文本或卡片]
+    PermissionHandler[PermissionHandler<br/>权限卡片]
+    QuestionHandler[QuestionHandler<br/>问题卡片]
+    TurnState[TurnState<br/>单轮运行状态]
+  end
+
+  subgraph L3[领域服务层 / Core]
+    SessionService[SessionService<br/>session / route / focus 管理]
+    MessageDedup[MessageDedup<br/>消息去重]
+    RouteKey[route-key<br/>thread / user / channel]
+    JsonStore[JsonStore<br/>JSON 持久化]
+    EventStore[EventStore<br/>管理端事件]
+  end
+
+  subgraph L4[Agent 驱动层 / Drivers]
+    DriverRegistry[DriverRegistry]
+    AgentDriver[AgentDriver 抽象]
+    OpencodeDriver[OpencodeDriver<br/>HTTP/SSE/TUI transport]
+    StubDrivers[Claude / Codex Stub]
+  end
+
+  subgraph L5[运行时层 / Runtime]
+    RuntimeFactory[RuntimeFactory]
+    WindowsRuntime[WindowsRuntime]
+    WslRuntime[WslRuntime]
+  end
+
+  subgraph L6[外部系统]
+    FeishuCloud[飞书开放平台]
+    OpenCode[OpenCode Serve / TUI]
+    LocalCLI[本机 Agent CLI]
+    FileSystem[本地文件系统<br/>~/.walker / logs / attachments]
+  end
+
+  FeishuCloud <--> FeishuPlatform
+  FeishuPlatform --> MessageDispatcher
+  MessageDispatcher --> FeishuApi
+  FeishuApi --> FeishuCloud
+
+  AdminServer --> MessageDispatcher
+  AdminServer --> SessionService
+  AdminServer --> EventStore
+
+  MessageDispatcher --> SessionService
+  MessageDispatcher --> MessageDedup
+  MessageDispatcher --> ProgressRenderer
+  MessageDispatcher --> PermissionHandler
+  MessageDispatcher --> QuestionHandler
+  MessageDispatcher --> DriverRegistry
+
+  DriverRegistry --> OpencodeDriver
+  DriverRegistry --> StubDrivers
+  OpencodeDriver --> RuntimeFactory
+  RuntimeFactory --> WindowsRuntime
+  RuntimeFactory --> WslRuntime
+
+  OpencodeDriver <--> OpenCode
+  WindowsRuntime --> LocalCLI
+  WslRuntime --> LocalCLI
+
+  JsonStore --> FileSystem
+  EventStore --> FileSystem
+```
+
+### 启动流程
+
+```mermaid
+flowchart TD
+  CLI[walker CLI<br/>src/index.js] --> Config[读取 env / .env<br/>src/config/env.js]
+  Config --> Bootstrap[createApp(config)<br/>src/app/bootstrap.js]
+
+  Bootstrap --> DataDir[解析 WALKER_DATA_DIR]
+  Bootstrap --> StateStore[JsonStore(state.json)]
+  Bootstrap --> SessionService[SessionService]
+  Bootstrap --> RuntimeFactory[createRuntime<br/>windows-runtime / wsl-runtime]
+  Bootstrap --> TuiBridge[OpencodeTuiBridge]
+  Bootstrap --> OpencodeDriver[OpencodeDriver]
+  Bootstrap --> Registry[DriverRegistry]
+  Bootstrap --> Dedup[MessageDedup + dedup.json]
+  Bootstrap --> Dispatcher[MessageDispatcher]
+  Bootstrap --> Platform[FeishuPlatform]
+  Bootstrap --> AdminServer[AdminServer]
+  Bootstrap --> HealthPoller[OpenCode HealthPoller]
+  Bootstrap --> HookInstaller[OpenCode TUI Plugin Installer]
+
+  Bootstrap --> Start[start()]
+  Start --> Recover[恢复 running session 为 idle<br/>清理孤儿 route]
+  Start --> InstallPlugin[安装 / 更新 OpenCode TUI plugin]
+  Start --> StartFeishu[启动飞书 WSClient]
+  Start --> StartAdmin[启动 Admin HTTP Server]
+  Start --> RestoreHealth[恢复 OpenCode 健康轮询]
+```
+
+### 消息处理时序
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant F as 飞书开放平台
+  participant P as FeishuPlatform
+  participant D as MessageDispatcher
+  participant S as SessionService
+  participant R as DriverRegistry
+  participant O as OpencodeDriver
+  participant OC as OpenCode
+  participant API as FeishuApi
+
+  U->>F: 发送文本或命令
+  F->>P: im.message.receive_v1
+  P->>P: parseMessageEvent / parseCommand / buildRouteKey
+
+  alt 命令消息
+    P->>D: handleCommand(command, routeKey)
+    D->>S: 查询或修改 session / route
+    D->>API: 回复命令结果卡片或文本
+    API->>F: reply / patch card
+    F->>U: 展示结果
+  else 普通文本
+    P->>D: handleIncomingMessage(event)
+    D->>S: getCurrent(routeKey)
+    D->>R: get(agent)
+    R-->>D: OpencodeDriver
+    D->>O: prompt(agentRef, text)
+    O->>OC: HTTP prompt / SSE watch
+    OC-->>O: Agent events / final message
+    O-->>D: AgentEvent 流
+    D->>API: sendProgressCard / updateProgressCard
+    API->>F: patch card
+    F->>U: 实时展示 Agent 输出
+    D->>S: markIdle / markError
+  end
+```
+
+### OpenCode 自动纳入
+
+Walker 启动时会自动安装 OpenCode TUI plugin。用户在本机终端启动 `opencode` 后，plugin 会通过本地 Admin HTTP 接口把 OpenCode session 上报给 Walker，Walker 再按 `cwd` 自动纳入对应 route。
+
+```mermaid
+sequenceDiagram
+  participant W as Walker 启动
+  participant I as Hook Installer
+  participant T as OpenCode TUI Plugin
+  participant A as Admin Server
+  participant H as Hook Receiver
+  participant S as SessionService
+  participant D as MessageDispatcher
+  participant HP as HealthPoller
+
+  W->>I: installHookPlugin()
+  I->>T: 写入 walker-tui-plugin.js / 更新 tui.json
+
+  T->>A: POST /opencode/hook/session-created
+  A->>H: createHookReceiverRoutes handler
+  H->>H: loopback + token 校验
+  H->>S: 按 cwd 查找 routeKey / 创建 Walker session
+  H->>D: ensureWatchForSession(sessionId)
+  H->>HP: track(sessionId, agentRef)
+  H-->>T: { ok, sessionId, routeKey }
+```
+
+### TUI Bridge 通信
+
+```mermaid
+flowchart LR
+  TUI[OpenCode TUI Plugin] -->|register| Routes[/POST /opencode/tui-bridge/register/]
+  TUI -->|poll| Poll[/POST /opencode/tui-bridge/poll/]
+  TUI -->|events| Events[/POST /opencode/tui-bridge/events/]
+  TUI -->|dispose| Dispose[/POST /opencode/tui-bridge/dispose/]
+
+  Routes --> Bridge[OpencodeTuiBridge]
+  Poll --> Bridge
+  Events --> Bridge
+  Dispose --> Bridge
+
+  Dispatcher[MessageDispatcher] -->|投递 prompt / clear / question reply / permission reply| Bridge
+  Bridge -->|delivery| TUI
+  TUI -->|Agent events| Bridge
+  Bridge -->|事件回流| Dispatcher
+  Dispatcher --> FeishuApi[FeishuApi]
+```
+
+### 关键模块职责
+
+| 模块 | 路径 | 职责 |
+| --- | --- | --- |
+| CLI 入口 | `src/index.js` | 处理 `walker`、`start`、`stop`、`status`、`logs`、`help` 等命令 |
+| 应用组装 | `src/app/bootstrap.js` | 创建并连接平台、调度器、驱动、运行时、管理后台、健康轮询 |
+| 飞书接入 | `src/platform/feishu/*` | 飞书 WS 事件接收、命令解析、卡片和消息发送 |
+| 消息调度 | `src/dispatch/message-dispatcher.js` | 处理命令、普通消息、Agent 事件、进度卡片、权限和提问交互 |
+| 会话服务 | `src/core/session-service.js` | 管理 session、routeKey、焦点 session、状态恢复与清理 |
+| Agent 驱动 | `src/drivers/*` | 抽象多 Agent 驱动；当前主要实现 OpenCode |
+| OpenCode Driver | `src/drivers/opencode-driver.js` | 通过 OpenCode HTTP/SSE 或 TUI Bridge 控制会话 |
+| TUI Bridge | `src/opencode-tui-bridge/*` | 与 OpenCode TUI plugin 通过本地 HTTP 轮询协议通信 |
+| Hook 接收 | `src/opencode-hook/*` | 自动纳入本机启动的 OpenCode session |
+| Admin 后台 | `src/admin/*` | 本地管理 UI、状态诊断、配置、路由、工具接口 |
+| Runtime | `src/runtime/*` | Windows / WSL 运行时抽象 |
+| 持久化 | `src/core/json-store.js` | JSON 文件读写封装 |
+
+### 架构要点
+
+- 飞书长连接（WSClient）接收消息、卡片回调和 reaction 事件。
+- `MessageDedup` 提供 5 分钟去重窗口，避免飞书重复投递造成重复 prompt。
+- routeKey 支持 `thread`、`user`、`channel` 三种路由模式。
+- 1:N session 路由允许同一 routeKey 绑定多个 session，并通过焦点 session 接收普通消息。
+- OpenCode hook plugin 自动安装，用户本机启动 OpenCode 后可自动纳入 Walker，无需飞书命令干预。
+- 心跳轮询检测 OpenCode detached，并按配置自动取消 turn、移除 route 或切换焦点。
+- `AgentDriver` 抽象保留多 CLI 扩展点，当前 `opencode` 已实现，`claude`、`codex` 为预留 stub。
+- `ProgressCard` 支持结构化卡片实时更新，也可按配置退回 legacy 文本进度。
 
 ## 贡献
 
