@@ -1,6 +1,6 @@
 {
   "name": "walker-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "description": "Walker — IM tool and AI agent CLI multiplexer. Bridges IM long-connections (Feishu, etc.) to local agent sessions.",
   "type": "commonjs",
