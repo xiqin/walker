@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const { loadEnvConfig } = require('../src/config/env');
 const { EDITABLE_ENV_KEYS } = require('../src/admin/config');
@@ -93,6 +96,46 @@ test('loadEnvConfig 缺少飞书凭据时标记为缺失', () => {
   assert.equal(config.feishuAppId, '');
   assert.equal(config.feishuAppSecret, '');
   assert.equal(config.feishuConfigSource, 'missing');
+});
+
+test('loadEnvConfig 默认读取用户数据目录 .env', () => {
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-home-'));
+  const dataDir = path.join(homeDir, '.walker');
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, '.env'), 'FEISHU_APP_ID=cli_data\nFEISHU_APP_SECRET=secret_data\n', 'utf8');
+
+  const config = loadEnvConfig({ env: {}, homeDir, packageEnvPath: path.join(homeDir, 'missing-package.env') });
+
+  assert.equal(config.feishuAppId, 'cli_data');
+  assert.equal(config.feishuAppSecret, 'secret_data');
+});
+
+test('loadEnvConfig 读取 WALKER_DATA_DIR 指定目录 .env', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-data-'));
+  fs.writeFileSync(path.join(tmpDir, '.env'), 'FEISHU_APP_ID=cli_custom\nFEISHU_APP_SECRET=secret_custom\n', 'utf8');
+  const env = { WALKER_DATA_DIR: tmpDir };
+
+  const config = loadEnvConfig({ env, homeDir: path.join(tmpDir, 'home'), packageEnvPath: path.join(tmpDir, 'missing-package.env') });
+
+  assert.equal(config.feishuAppId, 'cli_custom');
+  assert.equal(config.feishuAppSecret, 'secret_custom');
+  assert.equal(config.walkerDataDir, tmpDir);
+});
+
+test('loadEnvConfig 已存在环境变量优先于数据目录 .env', () => {
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-home-'));
+  const dataDir = path.join(homeDir, '.walker');
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, '.env'), 'FEISHU_APP_ID=cli_data\nFEISHU_APP_SECRET=secret_data\n', 'utf8');
+
+  const config = loadEnvConfig({
+    env: { FEISHU_APP_ID: 'cli_env', FEISHU_APP_SECRET: 'secret_env' },
+    homeDir,
+    packageEnvPath: path.join(homeDir, 'missing-package.env'),
+  });
+
+  assert.equal(config.feishuAppId, 'cli_env');
+  assert.equal(config.feishuAppSecret, 'secret_env');
 });
 
 test('loadEnvConfig emoji 为 none 时归一化为空字符串', () => {

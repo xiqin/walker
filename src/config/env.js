@@ -1,12 +1,32 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+
+const PACKAGE_ENV_PATH = path.join(__dirname, '..', '..', '.env');
 
 /**
  * 从 .env 文件加载环境变量到 process.env（不覆盖已存在的变量）
- * @param {string} [envPath] - .env 文件路径，默认为项目根目录下的 .env
+ * @param {string} [envPath] - 显式 .env 文件路径
+ * @param {Object} [options]
+ * @param {Object} [options.env] - 要写入的环境变量对象，默认 process.env
+ * @param {string} [options.homeDir] - 用户目录，测试注入用
+ * @param {string} [options.packageEnvPath] - 安装包 .env 路径，测试注入用
  */
-function loadDotEnv(envPath) {
-  const filePath = envPath || path.join(__dirname, '..', '..', '.env');
+function loadDotEnv(envPath, options) {
+  const opts = options || {};
+  const targetEnv = opts.env || process.env;
+  const filePaths = getDotEnvPaths(envPath, {
+    env: targetEnv,
+    homeDir: opts.homeDir,
+    packageEnvPath: opts.packageEnvPath,
+  });
+
+  for (const filePath of filePaths) {
+    loadDotEnvFile(filePath, targetEnv);
+  }
+}
+
+function loadDotEnvFile(filePath, targetEnv) {
   if (!fs.existsSync(filePath)) return;
   const raw = fs.readFileSync(filePath, 'utf8');
   for (const line of raw.split(/\r?\n/)) {
@@ -19,10 +39,33 @@ function loadDotEnv(envPath) {
     if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
       val = val.slice(1, -1);
     }
-    if (!process.env[key]) {
-      process.env[key] = val;
+    if (!targetEnv[key]) {
+      targetEnv[key] = val;
     }
   }
+}
+
+function getDotEnvPaths(envPath, options) {
+  const opts = options || {};
+  const env = opts.env || process.env;
+  const paths = [];
+  if (envPath) paths.push(envPath);
+
+  const dataDir = resolveWalkerDataDir(env, opts.homeDir);
+  if (dataDir) paths.push(path.join(dataDir, '.env'));
+
+  paths.push(opts.packageEnvPath || PACKAGE_ENV_PATH);
+  return Array.from(new Set(paths));
+}
+
+function resolveWalkerDataDir(env, homeDir) {
+  const home = homeDir || os.homedir() || env.USERPROFILE || env.HOME || '.';
+  const value = env.WALKER_DATA_DIR || path.join(home, '.walker');
+  if (value === '~') return home;
+  if (value.startsWith('~/') || value.startsWith('~\\')) {
+    return path.join(home, value.slice(2));
+  }
+  return value;
 }
 
 /**
@@ -32,8 +75,15 @@ function loadDotEnv(envPath) {
  * @returns {Object} 包含所有配置项的对象
  */
 function loadEnvConfig(options) {
-  loadDotEnv(options && options.envPath);
   const env = (options && options.env) || process.env;
+  const shouldLoadDotEnv = !options || !options.env || options.envPath || options.homeDir || options.packageEnvPath;
+  if (shouldLoadDotEnv) {
+    loadDotEnv(options && options.envPath, {
+      env,
+      homeDir: options && options.homeDir,
+      packageEnvPath: options && options.packageEnvPath,
+    });
+  }
 
   const feishuAppId = env.FEISHU_APP_ID || '';
   const feishuAppSecret = env.FEISHU_APP_SECRET || '';
