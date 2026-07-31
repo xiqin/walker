@@ -884,5 +884,80 @@
     "skill": "loom-verification-before-completion",
     "passed": true,
     "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-walker-integration-layer",
+    "timestamp": "2026-07-30T11:44:03.564Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed；验证阶段复核 `test.log` SHA-256 匹配。 |",
+      "blocker。 |",
+      "blocker。 |",
+      "fail 0`",
+      "fail 0`",
+      "blocker：0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-walker-integration-layer",
+    "timestamp": "2026-07-30T11:48:29.386Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed；验证阶段复核 `test.log` SHA-256 匹配。 |",
+      "blocker。 |",
+      "blocker。 |",
+      "fail 0`",
+      "fail 0`",
+      "blocker：0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-30-walker-integration-layer",
+    "timestamp": "2026-07-30T12:09:53.394Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "failed；验证阶段复核 `test.log` SHA-256 匹配。 |",
+      "blocker。 |",
+      "blocker。 |",
+      "fail 0`",
+      "fail 0`",
+      "blocker：0"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-review-fixes",
+    "timestamp": "2026-07-31T03:05:18.042Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker count 0."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-review-fixes",
+    "timestamp": "2026-07-31T03:09:39.555Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker count 0."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-review-fixes",
+    "timestamp": "2026-07-31T03:12:39.067Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker count 0."
+    ]
   }
 ]
