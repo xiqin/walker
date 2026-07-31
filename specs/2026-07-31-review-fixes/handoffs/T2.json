@@ -1,0 +1,21 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "加固 /api/v1/events/stream：WebSocket upgrade 显式使用 auth.getSessionStore(adminConfig) 返回的同实例 session store 支持登录 sid，不再扫描 Symbol Map；浏览器 Origin 必须匹配 Host，无 Origin 脚本客户端继续兼容；限制 maxPayload 和 filter 字段长度；连续无效消息达到阈值后关闭连接；adminServer.stop() 主动关闭客户端并释放 eventBus 订阅；拒绝、错误、关闭路径写入脱敏事件。新增 oversized payload 回归测试覆盖 REQ-002-B03。",
+  "artifacts": [
+    "src/admin/ws-events.js",
+    "src/admin/server.js",
+    "test/events-websocket.test.js",
+    "specs/2026-07-31-review-fixes/evidence/T2-test.log",
+    "specs/2026-07-31-review-fixes/traceability.json"
+  ],
+  "requirements": ["REQ-002"],
+  "behavior_ids": ["REQ-002-B01", "REQ-002-B02", "REQ-002-B03", "REQ-002-B04", "REQ-002-B05", "REQ-002-B06"],
+  "tests": [
+    {
+      "command": "node --test test/events-websocket.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-07-31-review-fixes/evidence/T2-test.log"
+    }
+  ]
+}

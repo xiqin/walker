@@ -1,0 +1,710 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": [
+        "T1"
+      ],
+      "tests": [
+        "test/provider-catalog.test.js",
+        "test/driver-registry.test.js"
+      ],
+      "evidence": [
+        "evidence/T1-provider-catalog-tests.md",
+        "evidence/test.log"
+      ],
+      "behaviors": {
+        "REQ-001-B01": {
+          "tasks": [
+            "T1"
+          ],
+          "tests": [
+            "test/provider-catalog.test.js"
+          ],
+          "evidence": [
+            "evidence/T1-provider-catalog-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-001-B02": {
+          "tasks": [
+            "T1"
+          ],
+          "tests": [
+            "test/provider-catalog.test.js",
+            "test/driver-registry.test.js"
+          ],
+          "evidence": [
+            "evidence/T1-provider-catalog-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-001-B03": {
+          "tasks": [
+            "T1"
+          ],
+          "tests": [
+            "test/driver-registry.test.js"
+          ],
+          "evidence": [
+            "evidence/T1-provider-catalog-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-001-B04": {
+          "tasks": [
+            "T1"
+          ],
+          "tests": [
+            "test/provider-catalog.test.js"
+          ],
+          "evidence": [
+            "evidence/T1-provider-catalog-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-001-B05": {
+          "tasks": [
+            "T1"
+          ],
+          "tests": [
+            "test/provider-catalog.test.js"
+          ],
+          "evidence": [
+            "evidence/T1-provider-catalog-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-001-B06": {
+          "tasks": [
+            "T1"
+          ],
+          "tests": [
+            "test/provider-catalog.test.js"
+          ],
+          "evidence": [
+            "evidence/T1-provider-catalog-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-001-B07": {
+          "tasks": [
+            "T1"
+          ],
+          "tests": [
+            "test/driver-registry.test.js"
+          ],
+          "evidence": [
+            "evidence/T1-provider-catalog-tests.md",
+            "evidence/test.log"
+          ]
+        }
+      }
+    },
+    "REQ-002": {
+      "tasks": [
+        "T2"
+      ],
+      "tests": [
+        "test/doctor-cli.test.js",
+        "test/providers-cli.test.js"
+      ],
+      "evidence": [
+        "evidence/T2-cli-doctor-tests.md",
+        "evidence/test.log"
+      ],
+      "behaviors": {
+        "REQ-002-B01": {
+          "tasks": [
+            "T2"
+          ],
+          "tests": [
+            "test/doctor-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-002-B02": {
+          "tasks": [
+            "T2"
+          ],
+          "tests": [
+            "test/providers-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-002-B03": {
+          "tasks": [
+            "T2"
+          ],
+          "tests": [
+            "test/doctor-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-002-B04": {
+          "tasks": [
+            "T2"
+          ],
+          "tests": [
+            "test/doctor-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-002-B05": {
+          "tasks": [
+            "T2"
+          ],
+          "tests": [
+            "test/doctor-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-002-B06": {
+          "tasks": [
+            "T2"
+          ],
+          "tests": [
+            "test/doctor-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/test.log"
+          ]
+        }
+      }
+    },
+    "REQ-003": {
+      "tasks": [
+        "T3"
+      ],
+      "tests": [
+        "test/api-v1.test.js",
+        "test/api-v1-auth.test.js",
+        "test/admin-core-api.test.js"
+      ],
+      "evidence": [
+        "evidence/T3-api-v1-tests.md",
+        "evidence/test.log"
+      ],
+      "behaviors": {
+        "REQ-003-B01": {
+          "tasks": [
+            "T3"
+          ],
+          "tests": [
+            "test/api-v1.test.js"
+          ],
+          "evidence": [
+            "evidence/T3-api-v1-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-003-B02": {
+          "tasks": [
+            "T3"
+          ],
+          "tests": [
+            "test/api-v1.test.js"
+          ],
+          "evidence": [
+            "evidence/T3-api-v1-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-003-B03": {
+          "tasks": [
+            "T3"
+          ],
+          "tests": [
+            "test/api-v1-auth.test.js"
+          ],
+          "evidence": [
+            "evidence/T3-api-v1-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-003-B04": {
+          "tasks": [
+            "T3"
+          ],
+          "tests": [
+            "test/api-v1.test.js"
+          ],
+          "evidence": [
+            "evidence/T3-api-v1-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-003-B05": {
+          "tasks": [
+            "T3"
+          ],
+          "tests": [
+            "test/api-v1.test.js"
+          ],
+          "evidence": [
+            "evidence/T3-api-v1-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-003-B06": {
+          "tasks": [
+            "T3"
+          ],
+          "tests": [
+            "test/admin-core-api.test.js",
+            "test/api-v1.test.js"
+          ],
+          "evidence": [
+            "evidence/T3-api-v1-tests.md",
+            "evidence/test.log"
+          ]
+        }
+      }
+    },
+    "REQ-004": {
+      "tasks": [
+        "T6"
+      ],
+      "tests": [
+        "test/platform-driver.test.js",
+        "test/feishu-platform-driver.test.js",
+        "test/message-dispatcher-platform-event.test.js",
+        "test/feishu-platform.test.js",
+        "test/message-dispatcher.test.js"
+      ],
+      "evidence": [
+        "evidence/T6-platform-driver-tests.md",
+        "evidence/test.log"
+      ],
+      "behaviors": {
+        "REQ-004-B01": {
+          "tasks": [
+            "T6"
+          ],
+          "tests": [
+            "test/feishu-platform-driver.test.js"
+          ],
+          "evidence": [
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-004-B02": {
+          "tasks": [
+            "T6"
+          ],
+          "tests": [
+            "test/message-dispatcher-platform-event.test.js"
+          ],
+          "evidence": [
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-004-B03": {
+          "tasks": [
+            "T6"
+          ],
+          "tests": [
+            "test/message-dispatcher-platform-event.test.js",
+            "test/message-dispatcher.test.js"
+          ],
+          "evidence": [
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-004-B04": {
+          "tasks": [
+            "T6"
+          ],
+          "tests": [
+            "test/feishu-platform.test.js",
+            "test/message-dispatcher.test.js"
+          ],
+          "evidence": [
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-004-B05": {
+          "tasks": [
+            "T6"
+          ],
+          "tests": [
+            "test/feishu-platform-driver.test.js",
+            "test/message-dispatcher-platform-event.test.js"
+          ],
+          "evidence": [
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-004-B06": {
+          "tasks": [
+            "T6"
+          ],
+          "tests": [
+            "test/platform-driver.test.js"
+          ],
+          "evidence": [
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        }
+      }
+    },
+    "REQ-005": {
+      "tasks": [
+        "T2",
+        "T4"
+      ],
+      "tests": [
+        "test/doctor-cli.test.js",
+        "test/providers-cli.test.js",
+        "test/init-cli.test.js"
+      ],
+      "evidence": [
+        "evidence/T2-cli-doctor-tests.md",
+        "evidence/T4-init-tests.md",
+        "evidence/test.log"
+      ],
+      "behaviors": {
+        "REQ-005-B01": {
+          "tasks": [
+            "T4"
+          ],
+          "tests": [
+            "test/init-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T4-init-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-005-B02": {
+          "tasks": [
+            "T4"
+          ],
+          "tests": [
+            "test/init-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T4-init-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-005-B03": {
+          "tasks": [
+            "T4"
+          ],
+          "tests": [
+            "test/init-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T4-init-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-005-B04": {
+          "tasks": [
+            "T4"
+          ],
+          "tests": [
+            "test/init-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T4-init-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-005-B05": {
+          "tasks": [
+            "T4"
+          ],
+          "tests": [
+            "test/init-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T4-init-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-005-B06": {
+          "tasks": [
+            "T2",
+            "T4"
+          ],
+          "tests": [
+            "test/doctor-cli.test.js",
+            "test/providers-cli.test.js",
+            "test/init-cli.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/T4-init-tests.md",
+            "evidence/test.log"
+          ]
+        }
+      }
+    },
+    "REQ-006": {
+      "tasks": [
+        "T5"
+      ],
+      "tests": [
+        "test/event-bus.test.js",
+        "test/events-websocket.test.js",
+        "test/admin-server.test.js"
+      ],
+      "evidence": [
+        "evidence/T5-events-websocket-tests.md",
+        "evidence/test.log"
+      ],
+      "behaviors": {
+        "REQ-006-B01": {
+          "tasks": [
+            "T5"
+          ],
+          "tests": [
+            "test/events-websocket.test.js"
+          ],
+          "evidence": [
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-006-B02": {
+          "tasks": [
+            "T5"
+          ],
+          "tests": [
+            "test/events-websocket.test.js"
+          ],
+          "evidence": [
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-006-B03": {
+          "tasks": [
+            "T5"
+          ],
+          "tests": [
+            "test/events-websocket.test.js"
+          ],
+          "evidence": [
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-006-B04": {
+          "tasks": [
+            "T5"
+          ],
+          "tests": [
+            "test/event-bus.test.js",
+            "test/events-websocket.test.js"
+          ],
+          "evidence": [
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-006-B05": {
+          "tasks": [
+            "T5"
+          ],
+          "tests": [
+            "test/events-websocket.test.js"
+          ],
+          "evidence": [
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-006-B06": {
+          "tasks": [
+            "T5"
+          ],
+          "tests": [
+            "test/events-websocket.test.js"
+          ],
+          "evidence": [
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/test.log"
+          ]
+        }
+      }
+    },
+    "REQ-007": {
+      "tasks": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6"
+      ],
+      "tests": [
+        "test/doctor-cli.test.js",
+        "test/providers-cli.test.js",
+        "test/api-v1.test.js",
+        "test/api-v1-auth.test.js",
+        "test/admin-core-api.test.js",
+        "test/init-cli.test.js",
+        "test/events-websocket.test.js",
+        "test/event-bus.test.js",
+        "test/admin-server.test.js",
+        "test/platform-driver.test.js",
+        "test/feishu-platform-driver.test.js",
+        "test/message-dispatcher-platform-event.test.js",
+        "test/feishu-platform.test.js",
+        "test/message-dispatcher.test.js"
+      ],
+      "evidence": [
+        "evidence/T2-cli-doctor-tests.md",
+        "evidence/T3-api-v1-tests.md",
+        "evidence/T4-init-tests.md",
+        "evidence/T5-events-websocket-tests.md",
+        "evidence/T6-platform-driver-tests.md",
+        "evidence/test.log"
+      ],
+      "behaviors": {
+        "REQ-007-B01": {
+          "tasks": [
+            "T3",
+            "T6"
+          ],
+          "tests": [
+            "test/admin-core-api.test.js",
+            "test/api-v1.test.js",
+            "test/message-dispatcher.test.js",
+            "test/feishu-platform.test.js"
+          ],
+          "evidence": [
+            "evidence/T3-api-v1-tests.md",
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-007-B02": {
+          "tasks": [
+            "T6"
+          ],
+          "tests": [
+            "test/message-dispatcher.test.js",
+            "test/message-dispatcher-platform-event.test.js"
+          ],
+          "evidence": [
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-007-B03": {
+          "tasks": [
+            "T2",
+            "T3",
+            "T4",
+            "T5",
+            "T6"
+          ],
+          "tests": [
+            "test/doctor-cli.test.js",
+            "test/providers-cli.test.js",
+            "test/api-v1-auth.test.js",
+            "test/init-cli.test.js",
+            "test/events-websocket.test.js",
+            "test/admin-server.test.js",
+            "test/platform-driver.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/T3-api-v1-tests.md",
+            "evidence/T4-init-tests.md",
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-007-B04": {
+          "tasks": [
+            "T3",
+            "T5",
+            "T6"
+          ],
+          "tests": [
+            "test/api-v1.test.js",
+            "test/events-websocket.test.js",
+            "test/feishu-platform-driver.test.js",
+            "test/message-dispatcher-platform-event.test.js"
+          ],
+          "evidence": [
+            "evidence/T3-api-v1-tests.md",
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-007-B05": {
+          "tasks": [
+            "T1",
+            "T3",
+            "T4",
+            "T5",
+            "T6"
+          ],
+          "tests": [
+            "test/provider-catalog.test.js",
+            "test/api-v1.test.js",
+            "test/init-cli.test.js",
+            "test/event-bus.test.js",
+            "test/events-websocket.test.js",
+            "test/message-dispatcher-platform-event.test.js"
+          ],
+          "evidence": [
+            "evidence/T1-provider-catalog-tests.md",
+            "evidence/T3-api-v1-tests.md",
+            "evidence/T4-init-tests.md",
+            "evidence/T5-events-websocket-tests.md",
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        },
+        "REQ-007-B06": {
+          "tasks": [
+            "T2",
+            "T4",
+            "T6"
+          ],
+          "tests": [
+            "test/providers-cli.test.js",
+            "test/init-cli.test.js",
+            "test/platform-driver.test.js"
+          ],
+          "evidence": [
+            "evidence/T2-cli-doctor-tests.md",
+            "evidence/T4-init-tests.md",
+            "evidence/T6-platform-driver-tests.md",
+            "evidence/test.log"
+          ]
+        }
+      }
+    }
+  }
+}

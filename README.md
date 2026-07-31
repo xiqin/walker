@@ -44,9 +44,27 @@ npm start
 | `walker stop` | 停止后台进程 |
 | `walker status` | 查看后台进程状态和最近日志 |
 | `walker logs [N]` | 查看最近 N 行日志（默认 80） |
+| `walker init [--data-dir <dir>]` | 初始化数据目录、模板配置和必要本地文件；不会覆盖已有配置 |
+| `walker doctor` | 检查核心配置、飞书环境、OpenCode 和 provider 状态，输出问题与修复建议 |
+| `walker providers list` | 列出内置 provider catalog 及本机检测状态 |
+| `walker providers doctor <id>` | 诊断单个 provider，例如 `opencode`、`claude`、`codex`、`shell` |
 | `walker help` | 显示帮助 |
 
 运行前先配置 `.env`。日志同时输出到终端；后台模式额外写入 Walker 数据目录下的 `logs/walker.out.log` / `logs/walker.err.log`（默认 `~/.walker/logs/`，可通过 `WALKER_DATA_DIR` 调整）。
+
+### 本地并行测试
+
+如果已经通过 npm 全局安装启动了一个 Walker，又想在源码目录启动新版做验证，不要直接复用默认配置。至少隔离 Admin 端口、数据目录和 OpenCode hook，否则会出现端口占用、状态文件互相污染或用户级 hook 插件被后启动实例覆盖。
+
+```powershell
+$env:WALKER_ADMIN_PORT="8788"
+$env:WALKER_DATA_DIR="H:\walker\.tmp\walker-dev"
+$env:WALKER_OPENCODE_HOOK_ENABLED="false"
+$env:WALKER_ADMIN_TOKEN="dev-test-token"
+npm start
+```
+
+真实飞书消息测试建议只保留一个实例连接同一个飞书 App。两个 Walker 使用相同 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` 时，可能同时消费同一条消息并各自回复，导致验证结果混乱。只验证 Admin API 或 WebSocket 时，可以临时清空飞书凭据，仅启动本地管理端。
 
 ## 配置
 
@@ -233,16 +251,131 @@ Walker 数据默认存储在 `~/.walker/` 目录下，也可通过 `WALKER_DATA_
 - `attachments/`：入站附件文件
 - `logs/`：前台或守护进程运行日志
 
+## Admin API v1
+
+Admin API v1 提供稳定的本地 JSON 接口，默认挂载在 Admin HTTP Server 上，和管理后台复用 `WALKER_ADMIN_TOKEN`。配置 token 后，请使用 Bearer token 调用：
+
+```bash
+curl -H "Authorization: Bearer dev-test-token" http://127.0.0.1:8787/api/v1/sessions
+```
+
+统一响应格式：
+
+```json
+{
+  "ok": true,
+  "data": {}
+}
+```
+
+错误响应：
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "错误说明",
+    "details": {}
+  }
+}
+```
+
+核心端点：
+
+| 方法与路径 | 说明 |
+| --- | --- |
+| `GET /api/v1/providers` | 返回内置 provider catalog 与本机检测状态 |
+| `GET /api/v1/providers/:id/doctor` | 诊断单个 provider，例如 `opencode` |
+| `GET /api/v1/sessions` | 列出 session 安全摘要 |
+| `POST /api/v1/sessions` | 创建 session，body 复用 Admin session 创建参数 |
+| `GET /api/v1/sessions/:id` | 获取单个 session 安全摘要 |
+| `POST /api/v1/sessions/:id/stop` | 停止 session |
+| `POST /api/v1/sessions/:id/cancel` | 取消 session 当前执行，当前实现复用 stop 逻辑 |
+| `DELETE /api/v1/sessions/:id` | 删除 session |
+| `GET /api/v1/routes` | 列出 route、焦点 session 和健康摘要 |
+| `GET /api/v1/routes/:routeKey` | 获取单个 route 摘要 |
+| `POST /api/v1/routes/:routeKey/focus` | 设置焦点 session，body 需包含 `sessionId` |
+| `POST /api/v1/routes/:routeKey/unfocus` | 移除 route 绑定 |
+| `POST /api/v1/prompt` | 向 `sessionId` 或 `routeKey` 的焦点 session 发送 prompt |
+| `GET /api/v1/events` | 查询历史事件，支持 `limit`、`level`、`type`、`sessionId`、`routeKey`、`after` |
+| `GET /api/v1/metrics` | 获取事件指标摘要 |
+
+发送 prompt 示例：
+
+```bash
+curl -X POST http://127.0.0.1:8787/api/v1/prompt \
+  -H "Authorization: Bearer dev-test-token" \
+  -H "Content-Type: application/json" \
+  -d '{"routeKey":"feishu:oc_xxx:root:om_xxx","text":"继续总结当前任务"}'
+```
+
+API 响应会对 token、secret、password、credential、api key 等敏感字段做脱敏。`/api/v1` 是面向脚本和外部本地集成的稳定接口；`/api/admin` 仍服务管理后台页面和既有内部工具。
+
+### WebSocket 事件流
+
+实时事件流地址为 `ws://127.0.0.1:8787/api/v1/events/stream`，鉴权同样复用 `WALKER_ADMIN_TOKEN`。连接建立后发送订阅消息：
+
+```json
+{
+  "type": "subscribe",
+  "filter": {
+    "routeKey": "feishu:oc_xxx:root:om_xxx",
+    "level": "info"
+  }
+}
+```
+
+支持的过滤字段为 `sessionId`、`routeKey`、`level`、`type`。服务端确认订阅后返回：
+
+```json
+{
+  "type": "subscribed",
+  "filter": {
+    "routeKey": "feishu:oc_xxx:root:om_xxx",
+    "level": "info"
+  }
+}
+```
+
+之后新写入 eventStore 的事件会以如下格式推送：
+
+```json
+{
+  "type": "event",
+  "event": {
+    "type": "platform.message_received",
+    "level": "info",
+    "routeKey": "feishu:oc_xxx:root:om_xxx",
+    "message": "platform message received"
+  }
+}
+```
+
+事件流只推送连接建立后的新事件；需要查询历史事件时使用 `GET /api/v1/events`。服务端会做 Origin 校验、心跳、payload 大小限制、连续非法消息关闭和敏感字段脱敏。
+
 ## Architecture
 
 Walker 是一个 Node.js 单进程 IM-to-Agent 桥接器：飞书开放平台通过长连接把消息和卡片交互推送给 Walker，Walker 根据 routeKey 找到当前焦点 session，把用户输入交给本机 Agent Driver，再将 Agent 事件实时回写到飞书文本或卡片。
+
+### PlatformDriver 边界
+
+`src/platforms/` 定义轻量平台抽象：`PlatformDriver` 只负责平台接入边界和发送代理，标准消息事件字段固定为 `platform`、`type`、`messageId`、`routeKey`、`userId`、`text`、`attachments`、`raw`。`MessageDispatcher.handlePlatformMessage(event)` 会先校验这些字段，再复用既有消息去重、route、session 和 turn 状态机；无效事件返回 `BAD_REQUEST`，不会调用 Agent driver。
+
+`PlatformRegistry` 管理平台 driver 实例和启动状态，但本版本只提供飞书轻 adapter，不注册、不启动 Telegram、Slack 等真实外部平台接入，也不新增第三方平台运行时依赖。`FeishuPlatformDriver` 把飞书 `im.message.receive_v1` 转为标准事件，并代理 `sendMessage`、`updateMessage`、`sendCard`、`uploadAttachment` 等能力；发送失败和 adapter 错误会记录为 `platform.delivery_failed` / `platform.adapter_error` 日志或事件。
+
+事件语义：`platform.message_received` 只在标准事件进入 `MessageDispatcher.handlePlatformMessage(event)` 并准备复用业务状态机时记录。adapter 成功转换不再记录同名事件，避免同一条飞书消息在 `/api/v1/events` 或 WebSocket 事件流中出现重复的 `platform.message_received`。如果需要观察 adapter 转换失败，请关注 `platform.adapter_error`。
+
+兼容说明：现有飞书 WebSocket 长连接、卡片、附件、命令、权限和问题处理入口保持可用；`src/platform/feishu/platform.js` 内部经 adapter 生成标准事件后仍回到原有 `onMessage` / `onCardAction` 回调形状，因此不需要迁移既有 `.env`、CLI 子命令或 Admin API。
+
+日常使用方式保持不变：先运行 `walker init` 准备本地数据目录和模板配置，再用 `walker doctor` 检查核心环境、飞书配置和 provider 状态，最后运行 `walker` 或 `walker start` 启动飞书长连接。管理端 `/api/v1/events/stream` WebSocket 事件流与 Admin API 继续复用 `WALKER_ADMIN_TOKEN` 安全边界。
 
 ```mermaid
 flowchart LR
   User[用户 / 飞书群聊或单聊] --> Feishu[飞书开放平台<br/>消息事件 / 卡片回调]
   Feishu -->|WebSocket 长连接| Platform[FeishuPlatform<br/>src/platform/feishu/platform.js]
 
-  Platform -->|解析消息 / 命令 / routeKey| Dispatcher[MessageDispatcher<br/>src/dispatch/message-dispatcher.js]
+  Platform -->|标准 platformEvent / 命令 / routeKey| Dispatcher[MessageDispatcher<br/>src/dispatch/message-dispatcher.js]
 
   Dispatcher --> Dedup[MessageDedup<br/>消息去重]
   Dispatcher --> Session[SessionService<br/>会话与路由状态]
@@ -399,7 +532,7 @@ sequenceDiagram
 
   U->>F: 发送文本或命令
   F->>P: im.message.receive_v1
-  P->>P: parseMessageEvent / parseCommand / buildRouteKey
+  P->>P: parseMessageEvent / toPlatformEvent / parseCommand / buildRouteKey
 
   alt 命令消息
     P->>D: handleCommand(command, routeKey)
@@ -408,7 +541,7 @@ sequenceDiagram
     API->>F: reply / patch card
     F->>U: 展示结果
   else 普通文本
-    P->>D: handleIncomingMessage(event)
+    P->>D: handlePlatformMessage(platformEvent)
     D->>S: getCurrent(routeKey)
     D->>R: get(agent)
     R-->>D: OpencodeDriver

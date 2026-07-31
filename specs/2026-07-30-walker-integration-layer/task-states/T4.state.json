@@ -1,0 +1,11 @@
+{
+  "task_id": "T4",
+  "spec_dir": "H:\\walker\\specs\\2026-07-30-walker-integration-layer",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-07-30T10:55:44.031Z",
+  "updated_at": "2026-07-30T11:22:40.675Z",
+  "last_reviewer_result": null,
+  "blocker": null
+}

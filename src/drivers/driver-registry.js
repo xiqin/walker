@@ -1,6 +1,8 @@
 'use strict';
 
 const { createLogger } = require('../core/logger');
+const { getProviderCatalog, listProviderCatalog } = require('../providers/provider-catalog');
+const providerHealth = require('../providers/provider-health');
 const logger = createLogger('driver-registry');
 
 /**
@@ -10,8 +12,10 @@ class DriverRegistry {
   /**
    * 初始化空的驱动注册表
    */
-  constructor() {
+  constructor(options) {
+    const opts = options || {};
     this.drivers = {};
+    this.detectorOptions = opts.detectorOptions || {};
   }
 
   /**
@@ -44,6 +48,48 @@ class DriverRegistry {
   }
 
   /**
+   * 列出 provider catalog，并标记当前 driver 注册状态。
+   * @returns {Object[]} provider 元信息列表。
+   */
+  listProviders() {
+    return listProviderCatalog().map((provider) => this._attachRegistration(provider));
+  }
+
+  /**
+   * 查询单个 provider 元信息，并标记当前 driver 注册状态。
+   * @param {string} id - provider id。
+   * @returns {Object|null} provider 元信息，不存在返回 null。
+   */
+  getProviderMetadata(id) {
+    const provider = getProviderCatalog(id);
+    return provider ? this._attachRegistration(provider) : null;
+  }
+
+  /**
+   * 检测单个 provider 状态，并附加 registry 注册状态。
+   * @param {string} id - provider id。
+   * @param {Object} [options] - 检测依赖覆盖。
+   * @returns {Promise<Object>} provider doctor 结果。
+   */
+  async doctorProvider(id, options) {
+    const opts = { ...this.detectorOptions, ...(options || {}) };
+    const result = await providerHealth.doctorProvider(id, opts);
+    if (result.ok) result.provider = this._attachRegistration(result.provider);
+    return result;
+  }
+
+  /**
+   * 检测所有 provider 状态，并附加 registry 注册状态。
+   * @param {Object} [options] - 检测依赖覆盖。
+   * @returns {Promise<Object[]>} provider 状态列表。
+   */
+  async listProviderStatuses(options) {
+    const opts = { ...this.detectorOptions, ...(options || {}) };
+    const statuses = await providerHealth.listProviderStatuses(opts);
+    return statuses.map((status) => this._attachRegistration(status));
+  }
+
+  /**
    * 注销指定名称的驱动
    * @param {string} name - 驱动名称
    */
@@ -56,6 +102,16 @@ class DriverRegistry {
    */
   clear() {
     this.drivers = {};
+  }
+
+  /**
+   * 给 provider/status 对象附加 driver 注册状态。
+   * @param {Object} provider - provider 元信息或检测状态。
+   * @returns {Object} 附加注册状态后的副本。
+   */
+  _attachRegistration(provider) {
+    const registered = !!this.drivers[provider.driver];
+    return { ...provider, registered, driverRegistered: registered };
   }
 }
 

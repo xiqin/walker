@@ -1,0 +1,26 @@
+{
+  "decisions": [
+    "采用渐进式集成层改造，不引入重型后端。",
+    "Provider Catalog/Doctor 作为第一优先级，为 API、Admin、init 复用。",
+    "/api/v1 作为 Admin、平台入口和第三方集成的稳定服务边界。",
+    "PlatformDriver 首版只做飞书 adapter 化，不实现其他平台真实接入。",
+    "WebSocket 基于现有 event-store 增加 event-bus，不阻塞 prompt 主流程。"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已将 Walker 可扩展集成层推进方案落成 spec.md 与 requirements.json。选定渐进式方案：Provider Catalog + Doctor 优先，随后稳定 /api/v1，再做 walker init、WebSocket 事件流，最后以轻 adapter 方式抽象 PlatformDriver，避免一次性重写飞书链路。requirements.json 覆盖 7 个 REQ、43 个 behavior，detail expansion check 已通过。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "93b9d16b5c8e5a2c3c33a1d602841075a10d7de7794bc8c7f51406faff8cecfd"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "42cdeffad5bf03633e51e5eccf8f49ba51e8157dac6df1171f3f6a5825640132",
+    "spec.md": "93b9d16b5c8e5a2c3c33a1d602841075a10d7de7794bc8c7f51406faff8cecfd"
+  },
+  "written_at": "2026-07-30T10:03:16.804Z"
+}

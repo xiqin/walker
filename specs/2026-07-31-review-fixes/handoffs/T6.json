@@ -1,0 +1,20 @@
+{
+  "task_id": "T6",
+  "status": "done",
+  "summary": "safeWriteJson 在 overwrite=false 时改为先写临时文件并校验 JSON，再通过 linkSync(tempPath, filePath) 执行原子 no-clobber 提交；目标已存在或并发创建时不覆盖并返回 written:false；overwrite=true 仍使用 renameSync 显式覆盖；写入、提交或清理失败路径保持明确错误并清理临时文件。",
+  "artifacts": [
+    "src/cli/safe-write.js",
+    "test/init-cli.test.js",
+    "specs/2026-07-31-review-fixes/evidence/T6-test.log",
+    "specs/2026-07-31-review-fixes/traceability.json"
+  ],
+  "requirements": ["REQ-006"],
+  "behavior_ids": ["REQ-006-B01", "REQ-006-B02", "REQ-006-B03", "REQ-006-B04"],
+  "tests": [
+    {
+      "command": "node --test test/init-cli.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-07-31-review-fixes/evidence/T6-test.log"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "Repaired T5 reviewer blocker by changing Admin server event-store publishing from a single-bus closure guard to one push wrapper with a registered bus set and per-server stop cleanup; added regression coverage for reused eventStore across two Admin servers.",
+  "requirements": ["REQ-006", "REQ-007"],
+  "behavior_ids": [
+    "REQ-006-B01",
+    "REQ-006-B02",
+    "REQ-006-B03",
+    "REQ-006-B04",
+    "REQ-006-B05",
+    "REQ-006-B06",
+    "REQ-007-B03",
+    "REQ-007-B04",
+    "REQ-007-B05"
+  ],
+  "changed_files": [
+    "src/events/event-bus.js",
+    "src/admin/ws-events.js",
+    "src/admin/server.js",
+    "test/event-bus.test.js",
+    "test/events-websocket.test.js",
+    "specs/2026-07-30-walker-integration-layer/traceability.json",
+    "specs/2026-07-30-walker-integration-layer/evidence/T5-events-websocket-tests.md",
+    "specs/2026-07-30-walker-integration-layer/handoffs/T5.json"
+  ],
+  "verification": [
+    {
+      "command": "node --test test/event-bus.test.js test/events-websocket.test.js test/admin-server.test.js",
+      "result": "PASS",
+      "summary": "54 tests passed, 0 failed"
+    },
+    {
+      "command": "npm run check",
+      "result": "PASS",
+      "summary": "1321 tests passed, 0 failed"
+    }
+  ],
+  "evidence": ["specs/2026-07-30-walker-integration-layer/evidence/T5-events-websocket-tests.md"],
+  "exported_interfaces": [
+    "createEventBus(options)",
+    "createEventsWebSocketHandler(options)",
+    "WS /api/v1/events/stream"
+  ],
+  "breaking_changes": [],
+  "notes": [
+    "Kept changes within T5 owns files; did not modify src/admin/event-store.js, src/api/v1/events-routes.js, or src/app/bootstrap.js.",
+    "Event publication is attached in createAdminServer by wrapping eventStore.events.push once and storing a non-enumerable __walkerEventBusPublisher with registered bus reference counts.",
+    "Each createAdminServer instance registers its eventBus with the shared publisher; stop() detaches the current bus both for started and never-started servers, so stopped servers do not receive later recordEvent pushes.",
+    "Added test/events-websocket.test.js regression coverage that reuses one eventStore for two Admin servers, verifies the second server WebSocket receives a new event, then verifies the stopped second bus no longer receives later events while the first remains active.",
+    "The cross-task CLI usage assertion was synced after T4 init wiring; current full npm run check passes.",
+    "traceability.json was re-read and left unchanged because existing T5 mappings already include test/event-bus.test.js, test/events-websocket.test.js, test/admin-server.test.js, and the T5 evidence receipt without removing other task mappings."
+  ]
+}

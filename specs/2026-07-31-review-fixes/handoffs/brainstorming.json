@@ -1,0 +1,26 @@
+{
+  "decisions": [
+    "采用最小安全闭环修复，不重构完整多平台回复通道",
+    "不改变现有 CLI 命令名称和 API 路径",
+    "WebSocket cookie 鉴权需要 Origin 防护",
+    "provider detector 使用最小环境执行外部命令",
+    "API v1 不向客户端返回原始内部异常"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确认最小安全闭环修复方案，覆盖 Admin session 隔离、WebSocket 安全与资源释放、provider 诊断最小环境、API 错误/prompt 脱敏、飞书 platform event 边界、safeWriteJson 竞态。requirements.json 包含 6 个 REQ、27 个 behavior 且 detail expansion check 通过。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "c1ec5de9688178d151a1a9661466f6c73fbe8bfd03bc8bfa9cd611380b5e21ab"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "954fce50aa22cc41ccffd6ac1cd35a586c3ab4f4a98a4f3350946d75ce98a05c",
+    "spec.md": "c1ec5de9688178d151a1a9661466f6c73fbe8bfd03bc8bfa9cd611380b5e21ab"
+  },
+  "written_at": "2026-07-31T01:42:53.657Z"
+}

@@ -797,6 +797,142 @@ describe('createApp', () => {
     assert.deepEqual(handleCommandArg.formValue, { question_answer: 'yes' });
   });
 
+  it('飞书文本消息优先通过标准 platform event 进入 dispatcher', async () => {
+    let platformArg = null;
+    let incomingCalled = false;
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    const deps = {
+      FeishuPlatform: class {
+        constructor(options) { this.options = options; this.api = {}; }
+        start() { return Promise.resolve(); }
+        stop() {}
+      },
+      SessionService: class { recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class {},
+      OpencodeDriver: class {},
+      OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
+      stubClaudeDriver: () => ({}),
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} get() { return null; } },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class {
+        constructor() { this.feishuApi = {}; }
+        handleCommand() { return Promise.resolve(); }
+        handleIncomingMessage() { incomingCalled = true; return Promise.resolve(); }
+        handlePlatformMessage(event) { platformArg = event; return Promise.resolve('prompted'); }
+      },
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+    const app = createApp(config, deps);
+    const platformEvent = { platform: 'feishu', type: 'message', messageId: 'om_1', routeKey: 'feishu:oc_1:root:oc_1', userId: 'ou_1', text: 'hello', attachments: [], raw: {} };
+
+    await app.platform.options.onMessage({ type: 'text', text: 'hello', routeKey: platformEvent.routeKey, platformEvent });
+
+    assert.equal(incomingCalled, false);
+    assert.equal(platformArg, platformEvent);
+  });
+
+  it('飞书命令消息保留标准 platform event 观测上下文', async () => {
+    let commandArg = null;
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    const deps = {
+      FeishuPlatform: class {
+        constructor(options) { this.options = options; this.api = {}; }
+        start() { return Promise.resolve(); }
+        stop() {}
+      },
+      SessionService: class { recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class {},
+      OpencodeDriver: class {},
+      OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
+      stubClaudeDriver: () => ({}),
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} get() { return null; } },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class {
+        constructor() { this.feishuApi = {}; }
+        handleCommand(cmd) { commandArg = cmd; return Promise.resolve(); }
+        handleIncomingMessage() { return Promise.resolve(); }
+      },
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+    const app = createApp(config, deps);
+    const platformEvent = { platform: 'feishu', type: 'message', messageId: 'om_cmd', routeKey: 'feishu:oc_1:root:oc_1', userId: 'ou_1', text: '/new', attachments: [], raw: {} };
+
+    await app.platform.options.onMessage({ type: 'command', command: { name: 'new', args: [] }, routeKey: platformEvent.routeKey, platformEvent });
+
+    assert.equal(commandArg.platformEvent, platformEvent);
+  });
+
+  it('飞书平台 adapter 事件写入 app eventStore', async () => {
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    const deps = {
+      FeishuPlatform: class {
+        constructor(options) { this.options = options; this.api = {}; }
+        start() { return Promise.resolve(); }
+        stop() {}
+      },
+      SessionService: class { recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class {},
+      OpencodeDriver: class {},
+      OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
+      stubClaudeDriver: () => ({}),
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} get() { return null; } },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class {
+        constructor() { this.feishuApi = {}; }
+        handleCommand() { return Promise.resolve(); }
+        handleIncomingMessage() { return Promise.resolve(); }
+      },
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+    const app = createApp(config, deps);
+
+    app.platform.options.onEvent({
+      type: 'platform.adapter_error',
+      platform: 'feishu',
+      data: { routeKey: 'feishu:oc_1:root:oc_1', error: 'invalid platform event' },
+    });
+
+    const event = app.eventStore.events.find((item) => item.type === 'platform.adapter_error');
+    assert.ok(event);
+    assert.equal(event.level, 'error');
+    assert.equal(event.routeKey, 'feishu:oc_1:root:oc_1');
+    assert.equal(event.data.platform, 'feishu');
+    assert.equal(event.data.error, 'invalid platform event');
+  });
+
   it('sendPermissionCard 绑定为函数并调用 replyCard', async () => {
     const calls = [];
     const app = makeModelCardApp(calls, {

@@ -1,0 +1,29 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "飞书 platform event 兼容 sender_id.open_id/user_id/union_id fallback，toFeishuPlatformEvent 兼容已标准化 userId/messageId/routeKey 字段；标准 platform event 允许 text 为空字符串但仍拒绝缺 messageId/routeKey/userId 的不可恢复结构；FeishuPlatform 构造器向 FeishuPlatformDriver 传递 onEvent，createApp 生产装配路径将 platform.adapter_error 写入 app eventStore；空文本和 sender fallback 的文本消息不再在 adapter 层静默丢弃。",
+  "artifacts": [
+    "src/platforms/platform-driver.js",
+    "src/platforms/feishu-platform-driver.js",
+    "src/platform/feishu/events.js",
+    "src/platform/feishu/platform.js",
+    "src/app/bootstrap.js",
+    "test/platform-driver.test.js",
+    "test/feishu-platform-driver.test.js",
+    "test/feishu-events.test.js",
+    "test/feishu-platform.test.js",
+    "test/message-dispatcher-platform-event.test.js",
+    "test/bootstrap.test.js",
+    "specs/2026-07-31-review-fixes/evidence/T5-test.log",
+    "specs/2026-07-31-review-fixes/traceability.json"
+  ],
+  "requirements": ["REQ-005"],
+  "behavior_ids": ["REQ-005-B01", "REQ-005-B02", "REQ-005-B03", "REQ-005-B04", "REQ-005-B05"],
+  "tests": [
+    {
+      "command": "node --test test/platform-driver.test.js test/feishu-platform-driver.test.js test/feishu-events.test.js test/feishu-platform.test.js test/message-dispatcher-platform-event.test.js test/bootstrap.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-07-31-review-fixes/evidence/T5-test.log"
+    }
+  ]
+}

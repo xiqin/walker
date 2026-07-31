@@ -5,7 +5,20 @@
 ## [Unreleased]
 
 ### 新增
+- 增加 PlatformDriver 集成层，定义标准平台消息事件并让飞书文本消息通过 `MessageDispatcher.handlePlatformMessage()` 复用现有去重、route、session 和 turn 状态机。
+- 增加 Admin API v1，提供 providers、sessions、routes、prompt、events、metrics 等本地 JSON 接口，并复用 `WALKER_ADMIN_TOKEN` 鉴权和敏感字段脱敏。
+- 增加 `/api/v1/events/stream` WebSocket 事件流，支持 token 鉴权、Origin 校验、心跳、订阅过滤、payload 限制、非法消息限流和敏感字段脱敏。
+- 增加 provider catalog 与健康检查能力，覆盖 `opencode`、`claude`、`codex`、`shell`，并新增 `walker doctor`、`walker providers list`、`walker providers doctor <id>` 诊断命令。
+- 增加 `walker init [--data-dir <dir>]`，用于初始化数据目录、默认 JSON 文件和可选 OpenCode hook，不覆盖已有配置。
+- 补充 README 中 CLI、Admin API v1、WebSocket 事件流、PlatformDriver 边界和本地并行测试说明。
 - 补充 LICENSE（MIT）、CONTRIBUTING.md、CHANGELOG.md 项目治理文档
+
+### 变更
+- 将 Admin 登录 session 从全局状态改为每个 admin config 独立的私有 session store，避免多实例或测试 server 之间复用登录态。
+- 将飞书 sender fallback 扩展为 `open_id || user_id || union_id`，减少缺失 `open_id` 时的消息丢弃风险。
+
+### 修复
+- 修复同一条飞书文本消息在 adapter 成功转换和 dispatcher 处理时重复记录 `platform.message_received` 的问题；该事件现在只表示标准事件进入 dispatcher 业务状态机。
 
 ## [0.1.0] - 2026-07
 

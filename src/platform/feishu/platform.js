@@ -3,6 +3,7 @@ const { parseMessageEvent, parseCardAction } = require('./events');
 const { parseCommand } = require('./commands');
 const { buildRouteKey } = require('../../core/route-key');
 const { FeishuApi } = require('./api');
+const { FeishuPlatformDriver } = require('../../platforms/feishu-platform-driver');
 const { createLogger } = require('../../core/logger');
 
 const logger = createLogger('feishu-platform');
@@ -19,15 +20,17 @@ class FeishuPlatform {
    * @param {Function} options.onMessage - 消息事件回调函数
    * @param {Function} options.onCardAction - 卡片交互回调函数
    */
-  constructor({ config, sessionService, onMessage, onCardAction }) {
+  constructor({ config, sessionService, onMessage, onCardAction, onEvent }) {
     this.config = config;
     this.sessionService = sessionService;
     this.onMessage = onMessage;
     this.onCardAction = onCardAction;
+    this.onEvent = onEvent;
     this.wsClient = null;
     const appId = config.feishuAppId || '';
     const appSecret = config.feishuAppSecret || '';
     this.api = new FeishuApi({ appId, appSecret });
+    this.driver = new FeishuPlatformDriver({ api: this.api, routeMode: config.feishuRouteMode || 'thread', onEvent });
   }
 
   /**
@@ -77,6 +80,14 @@ class FeishuPlatform {
       return;
     }
 
+    let platformEvent;
+    try {
+      platformEvent = this.driver.toPlatformEvent(data);
+    } catch (err) {
+      logger.error('feishu adapter error', { error: err && err.message ? err.message : String(err) });
+      return;
+    }
+
     const routeKey = buildRouteKey(parsed, routeMode);
     const cmd = parseCommand(parsed.text);
 
@@ -86,23 +97,25 @@ class FeishuPlatform {
         command: cmd,
         routeKey,
         chatId: parsed.chatId,
-        messageId: parsed.messageId,
-        openId: parsed.openId,
+        messageId: platformEvent.messageId,
+        openId: platformEvent.userId,
         rootId: parsed.rootId,
         createTime: parsed.createTime,
+        platformEvent,
       });
       return;
     }
 
     await this.onMessage({
       type: 'text',
-      text: parsed.text,
+      text: platformEvent.text,
       routeKey,
       chatId: parsed.chatId,
-      messageId: parsed.messageId,
-      openId: parsed.openId,
+      messageId: platformEvent.messageId,
+      openId: platformEvent.userId,
       rootId: parsed.rootId,
       createTime: parsed.createTime,
+      platformEvent,
     });
   }
 

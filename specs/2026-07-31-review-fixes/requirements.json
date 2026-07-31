@@ -1,0 +1,85 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["authorization", "security", "state"],
+      "required_categories": ["authorization", "security", "forbidden-behavior", "state-transition"],
+      "acceptance": ["不同 admin server 或不同 token 的登录 session 不能互相认证", "登录成功后的 session 仍可访问同一 server 的受保护接口", "Bearer admin token 与 cookie session 的语义清晰且不引入跨实例绕过"],
+      "behaviors": [
+        { "id": "REQ-001-B01", "category": "authorization", "description": "同一 server 使用登录 sid 可访问受保护接口", "status": "failing", "acceptance": ["测试证明登录 sid 在原 server 上认证通过"], "test_plan": { "strategy": "集成测试 auth handler 或 admin server 登录后访问受保护 API", "inputs": ["admin token", "登录请求", "返回的 walker_admin_sid"], "expected": ["同一 server 接受 sid 并返回成功响应"] } },
+        { "id": "REQ-001-B02", "category": "forbidden-behavior", "description": "不同 token 的 server 不能复用彼此的 sid", "status": "failing", "acceptance": ["测试证明 server A 的 sid 访问 server B 返回 401"], "test_plan": { "strategy": "构造两个不同 token 的 admin server，复用 A 的 sid 请求 B", "inputs": ["token-a", "token-b", "server A sid"], "expected": ["server B 返回 401 且不泄漏 sid/token"] } },
+        { "id": "REQ-001-B03", "category": "state-transition", "description": "登录 session 绑定到当前 auth 配置或实例状态", "status": "failing", "acceptance": ["代码结构证明 session 不再是无 realm 的全局认证凭据"], "test_plan": { "strategy": "单元测试或代码审查 session store 作用域", "inputs": ["两个 auth guard/handler 实例"], "expected": ["session 状态不会作为无 realm 全局凭据共享"] } },
+        { "id": "REQ-001-B04", "category": "security", "description": "认证失败时不泄漏 token/sid 细节", "status": "failing", "acceptance": ["测试或审查证明 401 响应不包含 token/sid 明文"], "test_plan": { "strategy": "断言 401 响应体", "inputs": ["错误 token", "跨实例 sid"], "expected": ["响应只包含通用未授权错误"] } }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["authorization", "security", "performance", "recovery", "observable"],
+      "required_categories": ["authorization", "security", "performance", "recovery", "observability", "invalid-input"],
+      "acceptance": ["WebSocket 事件流拒绝恶意浏览器 Origin", "超大或连续无效订阅消息不会造成无限资源消耗", "server stop 主动关闭或终止已连接 WebSocket 客户端"],
+      "behaviors": [
+        { "id": "REQ-002-B01", "category": "authorization", "description": "WebSocket upgrade 在认证通过前拒绝未授权请求", "status": "failing", "acceptance": ["现有未认证 401 测试继续通过"], "test_plan": { "strategy": "WebSocket 集成测试", "inputs": ["无 Authorization/cookie 的连接"], "expected": ["upgrade 返回 401 并记录 auth_failed"] } },
+        { "id": "REQ-002-B02", "category": "security", "description": "带 cookie 的 WebSocket 请求若 Origin 不被允许则拒绝 upgrade", "status": "failing", "acceptance": ["测试证明恶意 Origin 被拒绝"], "test_plan": { "strategy": "WebSocket Origin 安全测试", "inputs": ["合法 sid cookie", "Origin: https://evil.example"], "expected": ["连接失败且不会收到事件流"] } },
+        { "id": "REQ-002-B03", "category": "performance", "description": "WebSocket 消息 payload 和 filter 字段长度受限", "status": "failing", "acceptance": ["测试证明超大消息或超长 filter 被拒绝或连接关闭"], "test_plan": { "strategy": "发送超限 subscribe 消息", "inputs": ["超过 maxPayload 的 JSON", "超长 routeKey/type filter"], "expected": ["服务端拒绝消息或关闭连接，不增长订阅状态"] } },
+        { "id": "REQ-002-B04", "category": "recovery", "description": "AdminServer stop 时释放所有 WebSocket 客户端连接和订阅", "status": "failing", "acceptance": ["测试证明 stop 后客户端 close 且 client count 为 0"], "test_plan": { "strategy": "打开连接后调用 adminServer.stop", "inputs": ["已认证 WS 客户端", "stop 调用"], "expected": ["客户端收到 close 或 terminate，订阅释放"] } },
+        { "id": "REQ-002-B05", "category": "observability", "description": "WebSocket 拒绝、错误、关闭路径保留可观测事件且不泄漏秘密", "status": "failing", "acceptance": ["测试或审查证明事件记录存在且敏感字段脱敏"], "test_plan": { "strategy": "检查 eventStore 记录", "inputs": ["auth_failed", "origin_denied", "send_failed", "server_close"], "expected": ["记录包含事件类型但不包含 token/cookie 明文"] } },
+        { "id": "REQ-002-B06", "category": "invalid-input", "description": "连续无效 JSON 或不支持消息类型不会无限保持连接", "status": "failing", "acceptance": ["测试证明达到阈值后连接关闭"], "test_plan": { "strategy": "连续发送非法消息", "inputs": ["多条非 JSON 或 unsupported type 消息"], "expected": ["达到阈值后服务端关闭连接"] } }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["external", "security", "observable"],
+      "required_categories": ["external-failure", "security", "compatibility", "observability"],
+      "acceptance": ["Provider detector 执行外部命令时使用最小环境", "诊断失败仍返回结构化错误和建议", "Windows 与 POSIX 必需环境变量被保留"],
+      "behaviors": [
+        { "id": "REQ-003-B01", "category": "security", "description": "runCommand/defaultResolveCommand 不向子进程传递 token/secret/password/api key 等敏感环境变量", "status": "failing", "acceptance": ["测试证明敏感 env 不在传入 execFile 的 options.env 中"], "test_plan": { "strategy": "注入 fake execFile 或 runCommand 捕获 env", "inputs": ["含 WALKER_ADMIN_TOKEN/FEISHU_APP_SECRET/API_KEY 的 process.env"], "expected": ["子进程 options.env 不包含敏感键"] } },
+        { "id": "REQ-003-B02", "category": "compatibility", "description": "最小环境保留 PATH/Path/PATHEXT/SystemRoot/COMSPEC/HOME/USERPROFILE 等平台必要变量", "status": "failing", "acceptance": ["测试证明 Windows/POSIX 命令解析所需变量被保留"], "test_plan": { "strategy": "单元测试最小 env 构造函数", "inputs": ["混合大小写 PATH 与 Windows/POSIX 基础变量"], "expected": ["必要变量保留，敏感变量剔除"] } },
+        { "id": "REQ-003-B03", "category": "external-failure", "description": "provider version 命令失败时仍返回结构化 problem/suggestion，不抛未处理异常", "status": "failing", "acceptance": ["现有 provider 失败测试继续通过"], "test_plan": { "strategy": "provider detector 失败路径单元测试", "inputs": ["version command 抛错"], "expected": ["返回 VERSION_FAILED problem 和建议"] } },
+        { "id": "REQ-003-B04", "category": "observability", "description": "CLI 输出错误信息经过既有脱敏层处理", "status": "failing", "acceptance": ["测试或审查证明 CLI 输出不包含敏感 env 明文"], "test_plan": { "strategy": "CLI 输出快照或字符串断言", "inputs": ["包含 secret 的错误消息"], "expected": ["输出中 secret 被 redacted"] } }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "status": "failing",
+      "types": ["security", "observable", "functional"],
+      "required_categories": ["security", "forbidden-behavior", "observability", "happy-path"],
+      "acceptance": ["API v1 INTERNAL_ERROR 响应不包含原始内部异常消息", "prompt 返回的 events 不泄漏 token/secret/Bearer/cookie/authorization", "服务端仍记录足够排障信息"],
+      "behaviors": [
+        { "id": "REQ-004-B01", "category": "forbidden-behavior", "description": "API wrapper 捕获内部异常时不把 err.message 返回给客户端", "status": "failing", "acceptance": ["测试证明响应体不包含模拟异常文本"], "test_plan": { "strategy": "API v1 handler 抛错测试", "inputs": ["抛出 Error('doctor exploded') 的 handler"], "expected": ["响应为 INTERNAL_ERROR 但不包含 doctor exploded"] } },
+        { "id": "REQ-004-B02", "category": "security", "description": "prompt 返回 events 时递归脱敏敏感 key 和 Bearer/env secret 文本", "status": "failing", "acceptance": ["测试证明 token/secret/authorization/Bearer 明文不出现在响应中"], "test_plan": { "strategy": "prompt API 返回脱敏测试", "inputs": ["driver events 含 token/authorization/Bearer 文本"], "expected": ["响应 events 中敏感字段为 redacted"] } },
+        { "id": "REQ-004-B03", "category": "observability", "description": "内部错误仍记录到 eventStore 或 logger，便于定位", "status": "failing", "acceptance": ["测试或审查证明 eventStore 中存在 api.v1.error"], "test_plan": { "strategy": "检查 eventStore", "inputs": ["API handler 抛错"], "expected": ["eventStore 有 api.v1.error 和 path/code"] } },
+        { "id": "REQ-004-B04", "category": "happy-path", "description": "正常 prompt 请求仍返回成功响应和安全事件数据", "status": "failing", "acceptance": ["现有 prompt 成功测试继续通过并适配安全 DTO/脱敏结果"], "test_plan": { "strategy": "现有 prompt 成功测试更新断言", "inputs": ["有效 sessionId/routeKey 和 prompt text"], "expected": ["返回 ok、sessionId 和安全 events"] } }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "status": "failing",
+      "types": ["input", "observable", "compatibility", "recovery"],
+      "required_categories": ["boundary", "compatibility", "observability", "recovery", "invalid-input"],
+      "acceptance": ["飞书 sender ID 变体能够生成标准 userId", "空文本不被 platform-driver 校验直接拒绝", "适配失败路径产生 admin 可观测事件且不静默吞掉所有信息"],
+      "behaviors": [
+        { "id": "REQ-005-B01", "category": "compatibility", "description": "parseMessageEvent/toFeishuPlatformEvent 支持 open_id、user_id、union_id fallback", "status": "failing", "acceptance": ["测试证明只有 user_id 或 union_id 时 userId 非空"], "test_plan": { "strategy": "飞书事件解析单元测试", "inputs": ["sender_id 仅含 user_id 或 union_id 的 raw event"], "expected": ["platformEvent.userId 使用 fallback 值"] } },
+        { "id": "REQ-005-B02", "category": "boundary", "description": "标准 platform event 允许 text 为空字符串，由业务层决定处理", "status": "failing", "acceptance": ["测试证明空 text 的事件通过平台校验"], "test_plan": { "strategy": "platform-driver 校验单元测试", "inputs": ["text: '' 且其他必填字段有效的 event"], "expected": ["validatePlatformEvent 返回 ok"] } },
+        { "id": "REQ-005-B03", "category": "invalid-input", "description": "结构不可恢复的飞书事件仍被拒绝并返回明确 BAD_REQUEST/adapter error 结果", "status": "failing", "acceptance": ["测试证明缺失必要 messageId/routeKey 时被拒绝"], "test_plan": { "strategy": "platform event invalid-input 测试", "inputs": ["缺 messageId 或 routeKey 的事件"], "expected": ["返回 BAD_REQUEST 或 adapter_error，并包含错误原因"] } },
+        { "id": "REQ-005-B04", "category": "observability", "description": "FeishuPlatform adapter 转换失败时记录 admin/platform adapter error 事件", "status": "failing", "acceptance": ["测试或审查证明失败路径不是只有 logger.error"], "test_plan": { "strategy": "注入 onAdapterError/onMessage 错误观测回调或 eventStore", "inputs": ["无法转换的飞书 raw event"], "expected": ["产生 platform.adapter_error 可观测事件"] } },
+        { "id": "REQ-005-B05", "category": "recovery", "description": "可恢复字段缺失时尽量降级到旧文本/命令分发路径或返回用户可理解反馈", "status": "failing", "acceptance": ["测试覆盖空文本或 sender fallback 不再静默丢弃"], "test_plan": { "strategy": "飞书平台分发测试", "inputs": ["空文本或 sender fallback 的 message event"], "expected": ["不会因适配校验失败直接 return，进入业务分发或明确观测"] } }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "status": "failing",
+      "types": ["write", "concurrent", "atomicity", "recovery"],
+      "required_categories": ["atomicity", "concurrency", "forbidden-behavior", "recovery"],
+      "acceptance": ["safeWriteJson overwrite=false 不覆盖已存在或并发创建的目标文件", "写入失败时清理临时文件并保留原始文件", "overwrite=true 继续支持显式覆盖"],
+      "behaviors": [
+        { "id": "REQ-006-B01", "category": "forbidden-behavior", "description": "overwrite=false 时目标存在则不覆盖，并验证已有 JSON 可读", "status": "failing", "acceptance": ["现有目标存在测试继续通过"], "test_plan": { "strategy": "safeWriteJson 既有文件测试", "inputs": ["已有有效 JSON 文件", "overwrite=false"], "expected": ["返回 written:false 且不改变文件"] } },
+        { "id": "REQ-006-B02", "category": "concurrency", "description": "检查后目标被并发创建时，不覆盖该目标", "status": "failing", "acceptance": ["测试通过 mock fs 模拟竞态并证明目标内容未被替换"], "test_plan": { "strategy": "mock fs 在提交阶段制造 EEXIST 或目标创建", "inputs": ["检查时不存在、提交时已存在的目标"], "expected": ["目标内容保持并发创建版本，safeWriteJson 不覆盖"] } },
+        { "id": "REQ-006-B03", "category": "atomicity", "description": "成功写入的 JSON 在返回前经过 parse 校验，失败时不留下半写目标", "status": "failing", "acceptance": ["现有安全写测试继续通过"], "test_plan": { "strategy": "safeWriteJson 成功和失败路径测试", "inputs": ["可序列化 JSON", "写入/parse 失败模拟"], "expected": ["成功文件可 parse，失败不留下半写目标"] } },
+        { "id": "REQ-006-B04", "category": "recovery", "description": "写入或提交失败时清理临时文件并返回明确错误", "status": "failing", "acceptance": ["测试证明 rename/open 失败后临时文件被清理"], "test_plan": { "strategy": "mock fs 抛错并检查 cleanup", "inputs": ["rename/open/write 抛错"], "expected": ["临时文件被 best-effort 删除，错误消息明确"] } }
+      ]
+    }
+  ]
+}

@@ -8,16 +8,25 @@ const crypto = require('crypto');
 
 const SESSION_ID_BYTES = 32;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const activeSessions = new Map();
+const SESSION_STORE = Symbol('walker.admin.auth.sessionStore');
 
 function generateSessionId() {
   return crypto.randomBytes(SESSION_ID_BYTES).toString('hex');
 }
 
-function pruneExpiredSessions() {
+function getSessionStore(config) {
+  if (!config || typeof config !== 'object') return null;
+  if (!config[SESSION_STORE]) {
+    Object.defineProperty(config, SESSION_STORE, { value: new Map(), enumerable: false });
+  }
+  return config[SESSION_STORE];
+}
+
+function pruneExpiredSessions(sessionStore) {
+  if (!sessionStore) return;
   const now = Date.now();
-  for (const [sid, entry] of activeSessions) {
-    if (now - entry.createdAt > SESSION_TTL_MS) activeSessions.delete(sid);
+  for (const [sid, entry] of sessionStore) {
+    if (now - entry.createdAt > SESSION_TTL_MS) sessionStore.delete(sid);
   }
 }
 
@@ -64,12 +73,12 @@ function extractToken(req) {
  * @param {{ token: string }} config - 管理端配置中的 admin 部分
  * @returns {boolean}
  */
-function isAuthenticated(req, config) {
+function isAuthenticated(req, config, sessionStore) {
   if (!config.token) return true;
   const token = extractToken(req);
 
-  pruneExpiredSessions();
-  if (activeSessions.has(token)) return true;
+  pruneExpiredSessions(sessionStore);
+  if (sessionStore && sessionStore.has(token)) return true;
 
   return safeEqual(token, config.token);
 }
@@ -82,6 +91,7 @@ function isAuthenticated(req, config) {
  * @returns {Function} 包装函数 (handler) => wrappedHandler
  */
 function createAuthGuard(config, response) {
+  const sessionStore = getSessionStore(config);
   /**
    * 包装一个路由 handler，要求请求先通过鉴权
    * @param {Function} handler - 鉴权通过后执行的原始路由处理器 (req, res, params) => void
@@ -95,7 +105,7 @@ function createAuthGuard(config, response) {
      * @param {Object} params - 路由参数
      */
     return function guardedHandler(req, res, params) {
-      if (!isAuthenticated(req, config)) {
+      if (!isAuthenticated(req, config, sessionStore)) {
         response.send(res, response.error('UNAUTHORIZED', '需要有效的管理端 token'), 401);
         return;
       }
@@ -174,13 +184,14 @@ function parseBody(req, callback) {
  * @returns {{ statusHandler: Function, loginHandler: Function }}
  */
 function createAuthHandlers(config, response) {
+  const sessionStore = getSessionStore(config);
   /**
    * 处理 GET /api/admin/auth/status：返回是否已认证和是否需要 token
    * @param {import('http').IncomingMessage} req - HTTP 请求
    * @param {import('http').ServerResponse} res - HTTP 响应
    */
   function statusHandler(req, res) {
-    const authenticated = isAuthenticated(req, config);
+    const authenticated = isAuthenticated(req, config, sessionStore);
     response.send(res, response.success({
       authenticated,
       tokenRequired: Boolean(config.token),
@@ -219,9 +230,9 @@ function createAuthHandlers(config, response) {
       return;
     }
 
-    pruneExpiredSessions();
+    pruneExpiredSessions(sessionStore);
     const sessionId = generateSessionId();
-    activeSessions.set(sessionId, { createdAt: Date.now() });
+    sessionStore.set(sessionId, { createdAt: Date.now() });
 
     const isHttps = req.connection && req.connection.encrypted;
     const cookieFlags = 'Path=/; HttpOnly; SameSite=Strict' + (isHttps ? '; Secure' : '');
@@ -232,4 +243,4 @@ function createAuthHandlers(config, response) {
   return { statusHandler, loginHandler };
 }
 
-module.exports = { extractToken, isAuthenticated, createAuthGuard, parseBody, createAuthHandlers };
+module.exports = { extractToken, isAuthenticated, createAuthGuard, parseBody, createAuthHandlers, getSessionStore };

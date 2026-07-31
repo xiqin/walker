@@ -1,0 +1,29 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "Implemented read-only doctor CLI, provider list/doctor CLI, unified sanitized CLI output, and index command dispatch for doctor/providers/init while preserving existing CLI usage.",
+  "changed_files": [
+    "src/index.js",
+    "src/cli/cli-output.js",
+    "src/cli/doctor-command.js",
+    "src/cli/providers-command.js",
+    "test/doctor-cli.test.js",
+    "test/providers-cli.test.js",
+    "specs/2026-07-30-walker-integration-layer/traceability.json",
+    "specs/2026-07-30-walker-integration-layer/evidence/T2-cli-doctor-tests.md",
+    "specs/2026-07-30-walker-integration-layer/handoffs/T2.json"
+  ],
+  "verification": [
+    { "command": "node --test test/doctor-cli.test.js test/providers-cli.test.js", "result": "PASS", "summary": "7 tests passed, 0 failed" },
+    { "command": "npm run check", "result": "PASS", "summary": "1283 tests passed, 0 failed" },
+    { "command": "npm run lint", "result": "PASS", "summary": "ESLint completed without reported errors" }
+  ],
+  "evidence": ["specs/2026-07-30-walker-integration-layer/evidence/T2-cli-doctor-tests.md"],
+  "exported_interfaces": [
+    "src/cli/cli-output.js exports createOutput, sanitize, formatPresence, formatBool, section, row, list, table",
+    "src/cli/doctor-command.js exports run and resolveDataDir",
+    "src/cli/providers-command.js exports run and printProviderDoctor",
+    "src/index.js exports main, printUsage, printInitPreview, runForeground and dispatches doctor/providers/init"
+  ],
+  "breaking_changes": []
+}

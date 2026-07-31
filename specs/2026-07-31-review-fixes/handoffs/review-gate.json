@@ -1,0 +1,23 @@
+{
+  "verdict": "PASS",
+  "approval_source": "user ok",
+  "findings": "none",
+  "status": "done",
+  "summary": "人工 review gate 已收到用户确认 ok，并补齐 review-feedback.md，verdict 为 PASS，无阻断发现。",
+  "artifacts": [
+    "review-request.md",
+    "review-feedback.md",
+    "verify-report.md"
+  ],
+  "stage": "review-gate",
+  "task_id": "review-gate",
+  "basis_fingerprints": {
+    "plan.md": "db98f91ec987ee9428a5b7a4d6c53412e0c90aec57e28439d1d66914f3bababa",
+    "spec.md": "c1ec5de9688178d151a1a9661466f6c73fbe8bfd03bc8bfa9cd611380b5e21ab"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "15c463d57b24b921981f7806f779f23a46b31329fd5f924ca316abaf048f3b7f",
+    "verify-report.md": "eecc1f2c25e03599db3b7a444e5d1b0f10ff4a35c289a1a6696b8a3fff9c7941"
+  },
+  "written_at": "2026-07-31T03:10:21.713Z"
+}

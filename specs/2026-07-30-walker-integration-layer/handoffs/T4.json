@@ -1,0 +1,32 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "Repaired reviewer-blocked T4 init integration by wiring src/index.js walker init to initCommand.run, updating usage text away from preview, and adding an entry-level main(['init'], opts) test that proves real data directory bootstrap and token masking.",
+  "changed_files": [
+    "src/index.js",
+    "src/cli/init-command.js",
+    "src/cli/safe-write.js",
+    "test/init-cli.test.js",
+    "test/providers-cli.test.js",
+    "specs/2026-07-30-walker-integration-layer/traceability.json",
+    "specs/2026-07-30-walker-integration-layer/evidence/T4-init-tests.md",
+    "specs/2026-07-30-walker-integration-layer/handoffs/T4.json"
+  ],
+  "verification": [
+    { "command": "node --test test/init-cli.test.js", "result": "PASS", "summary": "8 tests passed, 0 failed" },
+    { "command": "node --test test/init-cli.test.js test/providers-cli.test.js", "result": "PASS", "summary": "12 tests passed, 0 failed after syncing CLI usage assertion" },
+    { "command": "npm run check", "result": "PASS", "summary": "1321 tests passed, 0 failed" }
+  ],
+  "evidence": ["specs/2026-07-30-walker-integration-layer/evidence/T4-init-tests.md"],
+  "exported_interfaces": [
+    "src/cli/init-command.js exports run(argv, options), resolveDataDir(env, options), maskSecret(value), configTemplate()",
+    "src/cli/safe-write.js exports safeWriteJson(filePath, value, options), assertExistingJsonReadable(filePath, options)"
+  ],
+  "breaking_changes": [],
+  "notes": [
+    "src/index.js now requires ./cli/init-command and dispatches init with initCommand.run(args.slice(1), opts), then uses the returned exit code through the injectable opts.exit hook or process.exit by default.",
+    "test/providers-cli.test.js was updated to expect the real init usage text instead of the removed preview wording.",
+    "init-command.run remains compatible with injected env/output/fs/path/crypto/installHookPlugin dependencies for tests.",
+    "traceability.json was re-read and already contained T4 behavior-level tests/evidence for REQ-005-B01..B06 and REQ-007 T4 behaviors; no other task mappings were deleted or rewritten."
+  ]
+}

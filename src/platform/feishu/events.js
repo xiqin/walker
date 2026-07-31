@@ -24,10 +24,33 @@ function parseMessageEvent(data) {
     messageId: msg.message_id || '',
     rootId: msg.root_id || '',
     parentId: msg.parent_id || '',
-    openId: senderId.open_id || '',
+    openId: senderId.open_id || senderId.user_id || senderId.union_id || '',
     messageType: msg.message_type || 'text',
     text,
     createTime: msg.create_time ? Number(msg.create_time) : undefined,
+  };
+}
+
+function toFeishuPlatformEvent(parsed, options) {
+  const event = parsed || {};
+  const messageId = event.messageId || event.message_id || '';
+  const chatId = event.chatId || event.chat_id || '';
+  const openId = event.openId || event.userId || event.user_id || event.union_id || '';
+  return {
+    platform: 'feishu',
+    type: 'message',
+    messageId,
+    routeKey: options && options.routeKey || event.routeKey || '',
+    userId: openId,
+    text: event.text !== undefined ? String(event.text) : '',
+    attachments: event.attachments || [],
+    raw: options && options.raw || event.raw || event,
+    chatId,
+    openId,
+    rootId: event.rootId || event.root_id || '',
+    parentId: event.parentId || event.parent_id || '',
+    messageType: event.messageType || event.message_type || 'text',
+    createTime: event.createTime || event.create_time,
   };
 }
 
@@ -74,4 +97,4 @@ function parseCardAction(data) {
   };
 }
 
-module.exports = { parseMessageEvent, parseCardAction };
+module.exports = { parseMessageEvent, toFeishuPlatformEvent, parseCardAction };

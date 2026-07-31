@@ -1,0 +1,253 @@
+{
+  "spec_dir": "H:\\walker\\specs\\2026-07-31-review-fixes",
+  "pipeline_type": "feature",
+  "current_stage": "synced",
+  "loom_version": "0.1.1",
+  "started_at": "2026-07-31T01:38:02.453Z",
+  "updated_at": "2026-07-31T03:15:28.404Z",
+  "stage_history": [
+    {
+      "stage": "brainstorming",
+      "entered_at": "2026-07-31T01:38:02.453Z",
+      "exited_at": "2026-07-31T01:43:48.253Z",
+      "status": "passed"
+    },
+    {
+      "stage": "planning",
+      "entered_at": "2026-07-31T01:43:48.253Z",
+      "exited_at": "2026-07-31T01:59:28.833Z",
+      "status": "passed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-07-31T01:59:28.833Z",
+      "exited_at": "2026-07-31T02:02:27.494Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "fb4fe95df4d5e6b9cdc125d47ffdad142dcd7b09f763d0ea568b4d3aa3407b85",
+        "plan.md": "db98f91ec987ee9428a5b7a4d6c53412e0c90aec57e28439d1d66914f3bababa",
+        "requirements.json": "954fce50aa22cc41ccffd6ac1cd35a586c3ab4f4a98a4f3350946d75ce98a05c",
+        "spec.md": "c1ec5de9688178d151a1a9661466f6c73fbe8bfd03bc8bfa9cd611380b5e21ab",
+        "tasks/": "03a93b22227381b1e39efdf27771fd49ca0849c6a411c78d2ec269614916e99f"
+      },
+      "approved_at": "2026-07-31T02:02:27.494Z"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-07-31T02:02:27.494Z",
+      "exited_at": "2026-07-31T02:56:28.075Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-07-31T02:56:28.075Z",
+      "exited_at": "2026-07-31T03:05:18.019Z",
+      "status": "passed"
+    },
+    {
+      "stage": "code-review-request",
+      "entered_at": "2026-07-31T03:05:18.019Z",
+      "exited_at": "2026-07-31T03:09:39.532Z",
+      "status": "passed"
+    },
+    {
+      "stage": "review-gate",
+      "entered_at": "2026-07-31T03:09:39.532Z",
+      "exited_at": "2026-07-31T03:10:50.894Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "fb4fe95df4d5e6b9cdc125d47ffdad142dcd7b09f763d0ea568b4d3aa3407b85",
+        "plan.md": "db98f91ec987ee9428a5b7a4d6c53412e0c90aec57e28439d1d66914f3bababa",
+        "requirements.json": "954fce50aa22cc41ccffd6ac1cd35a586c3ab4f4a98a4f3350946d75ce98a05c",
+        "review-request.md": "15c463d57b24b921981f7806f779f23a46b31329fd5f924ca316abaf048f3b7f",
+        "spec.md": "c1ec5de9688178d151a1a9661466f6c73fbe8bfd03bc8bfa9cd611380b5e21ab"
+      },
+      "approved_at": "2026-07-31T03:10:50.893Z"
+    },
+    {
+      "stage": "code-review-response",
+      "entered_at": "2026-07-31T03:10:50.894Z",
+      "exited_at": "2026-07-31T03:12:39.044Z",
+      "status": "passed"
+    },
+    {
+      "stage": "synced",
+      "entered_at": "2026-07-31T03:12:39.044Z",
+      "exited_at": "2026-07-31T03:15:28.404Z",
+      "status": "passed",
+      "terminal": true
+    }
+  ],
+  "metadata": {
+    "completed": true,
+    "completed_stage": "synced",
+    "completed_at": "2026-07-31T03:15:28.404Z"
+  },
+  "dynamic_steps": [
+    {
+      "id": "brainstorming",
+      "skill": "loom-brainstorming",
+      "requires": [],
+      "outputs": [
+        "spec.md",
+        "requirements.json",
+        "handoffs/brainstorming.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "需求头脑风暴，探索 2-3 种实现方案"
+    },
+    {
+      "id": "planning",
+      "skill": "loom-writing-plans",
+      "requires": [
+        "spec.md",
+        "requirements.json"
+      ],
+      "outputs": [
+        "plan.md",
+        "tasks/",
+        "traceability.json",
+        "handoffs/planning.json"
+      ],
+      "validators": [
+        "planning-artifacts"
+      ],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "分层拆解实现计划"
+    },
+    {
+      "id": "approved",
+      "skill": null,
+      "requires": [],
+      "outputs": [],
+      "validators": [],
+      "gate": "human-approval",
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": ""
+    },
+    {
+      "id": "executing",
+      "skill": "loom-subagent-driven-development",
+      "requires": [
+        "plan.md",
+        "tasks/",
+        "traceability.json"
+      ],
+      "outputs": [
+        "test-report.md",
+        "traceability.json",
+        "handoffs/executing.json"
+      ],
+      "validators": [
+        "task-state-closure",
+        "requirement-task-closure"
+      ],
+      "gate_verdict": "test-report.md",
+      "evidence_required": true,
+      "approval_requires": [],
+      "mandatory": true,
+      "optional": false,
+      "description": "subagent 并行编码执行"
+    },
+    {
+      "id": "verification",
+      "skill": "loom-verification-before-completion",
+      "requires": [
+        "test-report.md",
+        "traceability.json"
+      ],
+      "outputs": [
+        "verify-report.md",
+        "handoffs/verification.json"
+      ],
+      "validators": [
+        "verification-artifacts"
+      ],
+      "gate_verdict": "verify-report.md",
+      "evidence_required": true,
+      "approval_requires": [],
+      "mandatory": true,
+      "optional": false,
+      "description": "spec 覆盖 / 类型一致性 / 编译测试"
+    },
+    {
+      "id": "code-review-request",
+      "skill": "loom-requesting-code-review",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [
+        "review-request.md",
+        "handoffs/code-review-request.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "双轴预审查（Standards + Spec）后生成代码审查请求"
+    },
+    {
+      "id": "review-gate",
+      "skill": null,
+      "requires": [
+        "review-request.md"
+      ],
+      "outputs": [],
+      "validators": [],
+      "gate": "human-approval",
+      "evidence_required": false,
+      "approval_requires": [
+        "review-feedback.md"
+      ],
+      "mandatory": false,
+      "optional": false,
+      "description": "等待审查者反馈到达后继续（审查请求已发出，人工或外部审查者回看）"
+    },
+    {
+      "id": "code-review-response",
+      "skill": "loom-receiving-code-review",
+      "requires": [
+        "review-request.md",
+        "review-feedback.md"
+      ],
+      "outputs": [
+        "review-response.md",
+        "handoffs/code-review-response.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "处理审查反馈：BLOCKER 修复 / SUGGESTION 采纳或拒绝 / 讨论项沟通，修复后重跑测试"
+    },
+    {
+      "id": "synced",
+      "skill": "loom-index-update",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "图后端同步与结构化记忆更新"
+    }
+  ],
+  "current_stage_started_at": "2026-07-31T03:12:39.044Z"
+}

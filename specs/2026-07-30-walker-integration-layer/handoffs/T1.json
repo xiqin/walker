@@ -1,0 +1,39 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "Fixed reviewer blockers for T1: POSIX default command resolution now uses an executable lookup command, and Admin agent listing reuses full provider status structures from real DriverRegistry status output while preserving metadata fallback.",
+  "requirements": ["REQ-001", "REQ-007-B05"],
+  "behavior_ids": [
+    "REQ-001-B01",
+    "REQ-001-B02",
+    "REQ-001-B03",
+    "REQ-001-B04",
+    "REQ-001-B05",
+    "REQ-001-B06",
+    "REQ-001-B07",
+    "REQ-007-B05"
+  ],
+  "changed_files": [
+    "src/providers/provider-catalog.js",
+    "src/providers/provider-detectors.js",
+    "src/providers/provider-health.js",
+    "src/drivers/driver-registry.js",
+    "src/admin/agent-runtime-admin.js",
+    "test/provider-catalog.test.js",
+    "test/driver-registry.test.js",
+    "specs/2026-07-30-walker-integration-layer/traceability.json",
+    "specs/2026-07-30-walker-integration-layer/evidence/T1-provider-catalog-tests.md",
+    "specs/2026-07-30-walker-integration-layer/handoffs/T1.json"
+  ],
+  "verification": [
+    { "command": "node --test test/provider-catalog.test.js test/driver-registry.test.js", "result": "PASS", "summary": "12 tests passed, 0 failed" },
+    { "command": "npm run lint", "result": "PASS" },
+    { "command": "npm run check", "result": "PASS", "summary": "1276 tests passed, 0 failed" }
+  ],
+  "evidence": ["specs/2026-07-30-walker-integration-layer/evidence/T1-provider-catalog-tests.md"],
+  "notes": [
+    "listAgents remains synchronous for existing Admin tests and callers; it now prefers providerStatuses and accepts both array and object-map forms before falling back to getProviderMetadata.",
+    "Default command resolution keeps execFile and timeouts, uses where on Windows, and uses which on non-Windows instead of the POSIX shell builtin command.",
+    "Traceability behavior-level mappings remain complete and unchanged because test/evidence paths did not change."
+  ]
+}

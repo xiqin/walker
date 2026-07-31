@@ -9,9 +9,11 @@ const url = require('url');
 
 const { createRouter, isAdminApiPath } = require('./router');
 const { success, error, send } = require('./response');
-const { createAuthGuard, createAuthHandlers } = require('./auth');
+const { createAuthGuard, createAuthHandlers, getSessionStore } = require('./auth');
 const { handleStatic } = require('./static');
 const { createLogger } = require('../core/logger');
+const { createEventBus } = require('../events/event-bus');
+const { createEventsWebSocketHandler } = require('./ws-events');
 
 const logger = createLogger('admin-server');
 
@@ -39,10 +41,22 @@ function createAdminServer(options) {
   const router = createRouter();
   const publicDir = opts.publicDir || '';
   const serverFactory = opts.serverFactory;
-
+  const eventBus = opts.eventBus || createEventBus({
+    onListenerError(entry) {
+      logger.error('event bus listener failed', { err: entry.err });
+    },
+  });
   const responseModule = { success, error, send };
+  const sessionStore = getSessionStore(adminConfig);
   const authHandlers = createAuthHandlers(adminConfig, responseModule);
   const authGuard = createAuthGuard(adminConfig, responseModule);
+  const detachEventStorePublisher = attachEventStorePublisher(opts.eventStore, eventBus);
+  const wsEvents = createEventsWebSocketHandler({
+    config: adminConfig,
+    sessionStore,
+    eventStore: opts.eventStore,
+    eventBus,
+  });
 
   router.add('GET', '/api/admin/auth/status', authHandlers.statusHandler);
   router.add('POST', '/api/admin/auth/login', authHandlers.loginHandler);
@@ -124,6 +138,11 @@ function createAdminServer(options) {
     return new Promise((resolve, reject) => {
       const httpServer = serverFactory ? serverFactory(handleRequest) : http.createServer(handleRequest);
 
+      httpServer.on('upgrade', (req, socket, head) => {
+        const handled = wsEvents.handleUpgrade(req, socket, head);
+        if (!handled) socket.destroy();
+      });
+
       httpServer.on('error', (err) => {
         if (server) {
           logger.error('admin server runtime error', { err });
@@ -152,14 +171,17 @@ function createAdminServer(options) {
   function stop() {
     if (!server) {
       started = false;
+      detachEventStorePublisher();
       return Promise.resolve({ ok: true });
     }
 
     return new Promise((resolve) => {
       let settled = false;
+      wsEvents.close();
       const done = (result) => {
         if (settled) return;
         settled = true;
+        detachEventStorePublisher();
         server = null;
         started = false;
         resolve(result);
@@ -189,7 +211,40 @@ function createAdminServer(options) {
     return { started: false, disabled: false, host: adminConfig.host, port: adminConfig.port };
   }
 
-  return { start, stop, server, getStatus, router };
+  return { start, stop, server, getStatus, router, eventBus, wsEvents };
+}
+
+function attachEventStorePublisher(eventStore, eventBus) {
+  if (!eventStore || !eventStore.events || !eventBus || typeof eventBus.publish !== 'function') return () => false;
+  const events = eventStore.events;
+  let publisher = events.__walkerEventBusPublisher;
+
+  if (!publisher) {
+    publisher = {
+      originalPush: events.push.bind(events),
+      buses: new Map(),
+    };
+    Object.defineProperty(events, '__walkerEventBusPublisher', { value: publisher, enumerable: false });
+    events.push = function pushAndPublish(...items) {
+      const result = publisher.originalPush(...items);
+      const buses = Array.from(publisher.buses.keys());
+      for (const item of items) {
+        for (const bus of buses) bus.publish(item);
+      }
+      return result;
+    };
+  }
+
+  publisher.buses.set(eventBus, (publisher.buses.get(eventBus) || 0) + 1);
+  let detached = false;
+  return function detachEventStorePublisher() {
+    if (detached) return false;
+    detached = true;
+    const count = publisher.buses.get(eventBus) || 0;
+    if (count <= 1) publisher.buses.delete(eventBus);
+    else publisher.buses.set(eventBus, count - 1);
+    return true;
+  };
 }
 
 module.exports = { createAdminServer };

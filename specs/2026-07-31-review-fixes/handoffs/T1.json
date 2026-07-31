@@ -1,0 +1,20 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "修复 admin 登录 sid 模块级全局共享问题：每个 admin auth 配置实例拥有独立 session store，同 server 登录 sid 可访问受保护 v1 API，不同 token server 复用 sid 返回 401，失败响应不泄漏 sid/token；补充显式导出 getSessionStore 供同实例 WebSocket 鉴权复用，避免下游扫描 Symbol Map。",
+  "artifacts": [
+    "src/admin/auth.js",
+    "test/api-v1-auth.test.js",
+    "specs/2026-07-31-review-fixes/evidence/T1-test.log",
+    "specs/2026-07-31-review-fixes/traceability.json"
+  ],
+  "requirements": ["REQ-001"],
+  "behavior_ids": ["REQ-001-B01", "REQ-001-B02", "REQ-001-B03", "REQ-001-B04"],
+  "tests": [
+    {
+      "command": "node --test test/api-v1-auth.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-07-31-review-fixes/evidence/T1-test.log"
+    }
+  ]
+}

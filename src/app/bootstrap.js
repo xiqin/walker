@@ -15,8 +15,9 @@ const { ProgressCard } = require('../platform/feishu/progress-card');
 const { parseCommand } = require('../platform/feishu/commands');
 const { buildRouteKey } = require('../core/route-key');
 const { createLogger } = require('../core/logger');
-const { createEventStore } = require('../admin/event-store');
+const { createEventStore, recordEvent } = require('../admin/event-store');
 const { createAdminServerFromContext } = require('../admin/index');
+const { createApiV1Routes } = require('../api/v1');
 const { installHookPlugin } = require('../opencode-hook/installer');
 const { createHookReceiverRoutes } = require('../opencode-hook/receiver');
 const { createHealthPoller } = require('../opencode-hook/health-poller');
@@ -169,7 +170,11 @@ function createApp(config, deps) {
           openId: event.openId,
           rootId: event.rootId,
           createTime: event.createTime,
+          platformEvent: event.platformEvent,
         });
+      }
+      if (event.platformEvent && typeof dispatcher.handlePlatformMessage === 'function') {
+        return dispatcher.handlePlatformMessage(event.platformEvent);
       }
       return dispatcher.handleIncomingMessage(event);
     },
@@ -194,6 +199,18 @@ function createApp(config, deps) {
         chatId: action.chatId,
         messageId: action.messageId,
         openId: action.openId,
+      });
+    },
+    onEvent: (event) => {
+      recordEvent(eventStore, {
+        type: event.type,
+        level: event.type === 'platform.adapter_error' ? 'error' : 'info',
+        routeKey: (event.data && event.data.routeKey) || '',
+        message: event.type,
+        data: {
+          platform: event.platform || 'feishu',
+          ...(event.data || {}),
+        },
       });
     },
   });
@@ -349,6 +366,7 @@ function createApp(config, deps) {
         admin: () => summarizeAdminLifecycle(adminServer),
       },
     };
+    adminContext.hookReceiverRoutes = hookReceiverRoutes.concat(createApiV1Routes(adminContext));
     const server = createAdminServerFn(adminContext, {
       stopApp: async function stopWalkerApp() { stop(); return { ok: true }; },
       exitProcess: function exitWalkerProcess(code) { process.exit(code || 0); },

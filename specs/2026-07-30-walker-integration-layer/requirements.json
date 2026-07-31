@@ -1,0 +1,439 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "input", "state", "external", "observable", "recovery"],
+      "required_categories": ["happy-path", "invalid-input", "state-transition", "external-failure", "observability", "recovery", "compatibility"],
+      "acceptance": [
+        "Provider Catalog 能列出 opencode、claude、codex、shell 的元信息、capabilities 和检测策略。",
+        "DriverRegistry 能关联 driver 实例与 provider 元信息，并提供 provider 状态查询入口。",
+        "provider 检测失败不会中断 Walker 主进程。"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "已安装 provider 能返回 installed=true、可执行路径、版本、capabilities 和健康摘要。",
+          "status": "failing",
+          "acceptance": ["测试覆盖 provider 检测成功路径，包含至少 opencode 或 shell。"],
+          "test_plan": { "strategy": "unit", "inputs": ["mock command resolver 返回 opencode 可执行路径", "mock version 命令返回版本号"], "expected": ["检测结果 installed=true", "version 与 capabilities 存在", "healthy 状态可计算"] }
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "invalid-input",
+          "description": "未知 provider id 返回明确错误，不访问未定义 driver。",
+          "status": "failing",
+          "acceptance": ["测试证明查询未知 provider 返回 NOT_FOUND 或等价错误。"],
+          "test_plan": { "strategy": "unit", "inputs": ["provider id=unknown"], "expected": ["返回 NOT_FOUND", "不调用 driver 实例方法"] }
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "state-transition",
+          "description": "DriverRegistry 注册、注销、清空 driver 后，provider 状态查询与 driver 列表保持一致。",
+          "status": "failing",
+          "acceptance": ["测试证明 register/unregister/clear 后 list 和 provider metadata 不产生矛盾。"],
+          "test_plan": { "strategy": "unit", "inputs": ["注册 opencode driver", "注销 opencode driver", "清空 registry"], "expected": ["list() 反映 driver 状态", "provider metadata 仍可查询", "无 stale driver 引用"] }
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "external-failure",
+          "description": "provider 命令不存在、版本命令失败或健康检查失败时，检测结果包含 problems 和 suggestions。",
+          "status": "failing",
+          "acceptance": ["测试证明命令失败被转换成结构化健康结果。"],
+          "test_plan": { "strategy": "unit", "inputs": ["mock command not found", "mock version timeout", "mock health check failure"], "expected": ["installed 或 healthy 为 false", "problems 非空", "suggestions 非空", "无未处理异常"] }
+        },
+        {
+          "id": "REQ-001-B05",
+          "category": "observability",
+          "description": "provider 状态可通过 API、CLI 或 Admin 复用同一数据结构展示。",
+          "status": "failing",
+          "acceptance": ["测试或集成验证 provider 列表输出包含状态字段。"],
+          "test_plan": { "strategy": "integration", "inputs": ["调用 provider list API 或 CLI"], "expected": ["输出包含 installed/version/healthy/problems/suggestions/capabilities"] }
+        },
+        {
+          "id": "REQ-001-B06",
+          "category": "recovery",
+          "description": "单个 provider 检测异常不影响其他 provider 检测，也不影响 Walker 启动。",
+          "status": "failing",
+          "acceptance": ["测试证明一个 provider 抛错时 provider 列表仍返回其他 provider 状态。"],
+          "test_plan": { "strategy": "unit", "inputs": ["mock claude detector 抛异常", "shell detector 正常"], "expected": ["claude 结果包含失败问题", "shell 结果正常", "整体调用成功返回"] }
+        },
+        {
+          "id": "REQ-001-B07",
+          "category": "compatibility",
+          "description": "现有 driverRegistry.list() 仍返回已注册 driver 名称，避免破坏 /agents 命令。",
+          "status": "failing",
+          "acceptance": ["现有 MessageDispatcher /agents 测试继续通过。"],
+          "test_plan": { "strategy": "regression", "inputs": ["现有 /agents 命令测试"], "expected": ["输出仍包含已注册 driver 名称"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "input", "security", "observable", "recovery"],
+      "required_categories": ["happy-path", "invalid-input", "security", "observability", "recovery", "forbidden-behavior"],
+      "acceptance": [
+        "`walker doctor` 输出核心环境、平台配置和 provider 状态。",
+        "`walker providers list` 与 `walker providers doctor [id]` 可用。",
+        "doctor 不输出 secret 原文，不自动写入第三方密钥。"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "执行 doctor 命令时展示 Node.js、数据目录、admin token、平台和 provider 检测结果。",
+          "status": "failing",
+          "acceptance": ["CLI 输出包含 Core、Platforms、Providers、Suggestions 分组。"],
+          "test_plan": { "strategy": "cli", "inputs": ["walker doctor"], "expected": ["输出核心分组", "退出码为 0 或按严重问题返回明确码"] }
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "invalid-input",
+          "description": "执行 `walker providers doctor unknown` 时返回明确错误和非零退出码。",
+          "status": "failing",
+          "acceptance": ["未知 provider 不产生未处理异常。"],
+          "test_plan": { "strategy": "cli", "inputs": ["walker providers doctor unknown"], "expected": ["输出 unknown provider 错误", "退出码非 0"] }
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "security",
+          "description": "doctor 输出必须脱敏 token、app secret 和环境变量敏感值。",
+          "status": "failing",
+          "acceptance": ["输出中不包含已注入 secret 原文。"],
+          "test_plan": { "strategy": "unit", "inputs": ["env 中设置 WALKER_ADMIN_TOKEN 和 FEISHU_APP_SECRET"], "expected": ["CLI/API 输出不包含 secret 原文", "仅显示 missing/present 或脱敏值"] }
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "observability",
+          "description": "doctor 对每个失败检查给出 problem 与 suggestion。",
+          "status": "failing",
+          "acceptance": ["缺失 FEISHU_APP_ID 或 opencode 命令时存在可读建议。"],
+          "test_plan": { "strategy": "unit", "inputs": ["mock 缺失 FEISHU_APP_ID", "mock opencode command not found"], "expected": ["problems 描述失败项", "suggestions 给出配置或安装建议"] }
+        },
+        {
+          "id": "REQ-002-B05",
+          "category": "recovery",
+          "description": "doctor 检测项失败后继续执行后续检查并汇总结果。",
+          "status": "failing",
+          "acceptance": ["测试证明一个 check 失败不阻断其他 check。"],
+          "test_plan": { "strategy": "unit", "inputs": ["mock provider check failure", "mock core check success"], "expected": ["报告同时包含失败 provider 和成功 core 检查"] }
+        },
+        {
+          "id": "REQ-002-B06",
+          "category": "forbidden-behavior",
+          "description": "doctor 默认不得修改用户配置或写入第三方平台密钥。",
+          "status": "failing",
+          "acceptance": ["代码审查确认 doctor 只读，除显式 --fix 安全修复外不写配置。"],
+          "test_plan": { "strategy": "review", "inputs": ["doctor 实现 diff"], "expected": ["无默认写配置路径", "无写入 FEISHU_APP_SECRET 等密钥逻辑"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["functional", "input", "authorization", "security", "observable", "compatibility"],
+      "required_categories": ["happy-path", "invalid-input", "authorization", "security", "observability", "compatibility"],
+      "acceptance": [
+        "`/api/v1` 暴露 providers、sessions、routes、prompt、events、metrics。",
+        "所有 API 使用统一 `{ ok, data }` / `{ ok, error }` 响应格式。",
+        "受保护 API 复用 `WALKER_ADMIN_TOKEN`。"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "happy-path",
+          "description": "合法请求能通过 `/api/v1` 查询 provider、session、route、event 并发送 prompt。",
+          "status": "failing",
+          "acceptance": ["API 测试覆盖 providers、sessions、routes、events 和 prompt 成功路径。"],
+          "test_plan": { "strategy": "integration", "inputs": ["带合法 token 的 /api/v1 请求", "mock appContext"], "expected": ["返回 ok=true", "data 使用稳定结构"] }
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "invalid-input",
+          "description": "缺少 prompt text、routeKey/sessionId 均缺失、非法 JSON 等输入返回 BAD_REQUEST。",
+          "status": "failing",
+          "acceptance": ["无效输入不会调用 driver 或修改 session。"],
+          "test_plan": { "strategy": "integration", "inputs": ["空 prompt body", "缺少 text", "缺少 routeKey 和 sessionId"], "expected": ["返回 BAD_REQUEST", "driver.prompt 未调用"] }
+        },
+        {
+          "id": "REQ-003-B03",
+          "category": "authorization",
+          "description": "未认证或 token 错误的 `/api/v1` 请求被拒绝。",
+          "status": "failing",
+          "acceptance": ["无 token 返回 UNAUTHORIZED。"],
+          "test_plan": { "strategy": "integration", "inputs": ["无 Authorization header", "错误 token"], "expected": ["返回 401 或 UNAUTHORIZED", "不返回受保护数据"] }
+        },
+        {
+          "id": "REQ-003-B04",
+          "category": "security",
+          "description": "API 响应必须脱敏 secret、token 和敏感环境变量。",
+          "status": "failing",
+          "acceptance": ["diagnostics/provider 输出不会泄露 secret 原文。"],
+          "test_plan": { "strategy": "integration", "inputs": ["appContext 中含 secret", "调用 v1 diagnostics 或 providers"], "expected": ["响应中不包含 secret 原文"] }
+        },
+        {
+          "id": "REQ-003-B05",
+          "category": "observability",
+          "description": "API prompt、provider doctor 和错误请求记录事件或指标。",
+          "status": "failing",
+          "acceptance": ["event-store 可看到相关事件。"],
+          "test_plan": { "strategy": "integration", "inputs": ["调用 /api/v1/prompt", "触发 provider doctor 失败"], "expected": ["事件列表包含 prompt/provider/error 相关事件"] }
+        },
+        {
+          "id": "REQ-003-B06",
+          "category": "compatibility",
+          "description": "现有 `/api/admin/*` 路由保持兼容，已有 Admin 测试继续通过。",
+          "status": "failing",
+          "acceptance": ["现有 admin 相关测试通过。"],
+          "test_plan": { "strategy": "regression", "inputs": ["现有 admin routes 测试"], "expected": ["测试全部通过", "响应字段未破坏"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "status": "failing",
+      "types": ["functional", "input", "state", "compatibility", "observable"],
+      "required_categories": ["happy-path", "invalid-input", "state-transition", "compatibility", "observability", "forbidden-behavior"],
+      "acceptance": [
+        "定义 PlatformDriver 接口和 PlatformRegistry。",
+        "飞书入口可转换为平台中立事件并交给 dispatcher。",
+        "现有飞书消息、命令、卡片回复行为不回退。"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-004-B01",
+          "category": "happy-path",
+          "description": "FeishuPlatformDriver 能把飞书消息转成标准 platform event。",
+          "status": "failing",
+          "acceptance": ["标准事件包含 platform、type、messageId、routeKey、userId、text、attachments。"],
+          "test_plan": { "strategy": "unit", "inputs": ["mock 飞书消息对象"], "expected": ["输出平台中立事件字段完整"] }
+        },
+        {
+          "id": "REQ-004-B02",
+          "category": "invalid-input",
+          "description": "缺少必要字段的平台事件被 dispatcher 拒绝并返回明确错误。",
+          "status": "failing",
+          "acceptance": ["invalid platform event 不触发 prompt。"],
+          "test_plan": { "strategy": "unit", "inputs": ["缺少 text 或 routeKey 的 platform event"], "expected": ["返回 BAD_REQUEST 或明确错误", "不调用 driver.prompt"] }
+        },
+        {
+          "id": "REQ-004-B03",
+          "category": "state-transition",
+          "description": "平台事件进入 dispatcher 后仍按 dedup、route、session、turn 状态机处理。",
+          "status": "failing",
+          "acceptance": ["现有 message-dispatcher 状态流测试继续通过或补充新测试。"],
+          "test_plan": { "strategy": "regression", "inputs": ["标准 platform event", "重复 messageId"], "expected": ["首次进入 prompt 状态流", "重复消息被 dedup"] }
+        },
+        {
+          "id": "REQ-004-B04",
+          "category": "compatibility",
+          "description": "飞书现有长连接、卡片更新、附件处理和命令回复保持兼容。",
+          "status": "failing",
+          "acceptance": ["现有 feishu-platform 与集成测试通过。"],
+          "test_plan": { "strategy": "regression", "inputs": ["现有 feishu-platform 测试", "integration-feishu-tui-sync 测试"], "expected": ["测试全部通过"] }
+        },
+        {
+          "id": "REQ-004-B05",
+          "category": "observability",
+          "description": "平台消息接收、发送失败和 adapter 错误可记录为统一事件或日志。",
+          "status": "failing",
+          "acceptance": ["平台入口错误可在事件或日志中定位。"],
+          "test_plan": { "strategy": "unit", "inputs": ["mock platform send failure"], "expected": ["记录 platform.delivery_failed 或错误日志"] }
+        },
+        {
+          "id": "REQ-004-B06",
+          "category": "forbidden-behavior",
+          "description": "本次不得实现其他平台的真实网络接入，避免扩大范围。",
+          "status": "failing",
+          "acceptance": ["代码审查确认只提供接口或 stub，不新增 Telegram/Slack 等外部依赖。"],
+          "test_plan": { "strategy": "review", "inputs": ["package.json 和 platforms 目录 diff"], "expected": ["无新增第三方平台运行时依赖", "无真实外部平台连接代码"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "status": "failing",
+      "types": ["functional", "write", "security", "idempotent", "recovery"],
+      "required_categories": ["happy-path", "idempotency", "security", "atomicity", "recovery", "forbidden-behavior"],
+      "acceptance": [
+        "`walker init` 能创建 Walker 所需本地目录和配置模板。",
+        "重复执行 `walker init` 不破坏已有 state 和用户配置。",
+        "init 不自动写入第三方密钥。"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-005-B01",
+          "category": "happy-path",
+          "description": "首次执行 init 创建 `~/.walker`、state、dedup、attachments、logs 和配置模板。",
+          "status": "failing",
+          "acceptance": ["临时数据目录下目录与文件存在。"],
+          "test_plan": { "strategy": "cli", "inputs": ["临时 WALKER_DATA_DIR", "walker init"], "expected": ["创建 state.json/dedup.json/attachments/logs/config 模板"] }
+        },
+        {
+          "id": "REQ-005-B02",
+          "category": "idempotency",
+          "description": "重复执行 init 不覆盖已有用户配置和已有 state 数据。",
+          "status": "failing",
+          "acceptance": ["已有 config 字段和 state 内容保留。"],
+          "test_plan": { "strategy": "cli", "inputs": ["预置 config/state", "连续运行 walker init 两次"], "expected": ["已有字段不被覆盖", "命令仍成功"] }
+        },
+        {
+          "id": "REQ-005-B03",
+          "category": "security",
+          "description": "init 生成或提示 admin token 时不在日志中泄露完整 secret。",
+          "status": "failing",
+          "acceptance": ["输出脱敏。"],
+          "test_plan": { "strategy": "review", "inputs": ["init 输出和日志路径"], "expected": ["无完整 token 明文输出，除用户明确请求显示外"] }
+        },
+        {
+          "id": "REQ-005-B04",
+          "category": "atomicity",
+          "description": "init 中途失败时不留下损坏 JSON 文件。",
+          "status": "failing",
+          "acceptance": ["写文件使用安全写入或失败可恢复。"],
+          "test_plan": { "strategy": "unit", "inputs": ["mock 写文件中途失败"], "expected": ["不会留下不可解析 JSON", "错误信息明确"] }
+        },
+        {
+          "id": "REQ-005-B05",
+          "category": "recovery",
+          "description": "检测到缺失目录或损坏可恢复资源时，init 能补齐安全资源并报告不可自动修复项。",
+          "status": "failing",
+          "acceptance": ["缺失 attachments/logs 可重建，损坏配置不被静默覆盖。"],
+          "test_plan": { "strategy": "cli", "inputs": ["删除 attachments/logs", "预置损坏 config"], "expected": ["目录被重建", "损坏 config 报错并保留原文件"] }
+        },
+        {
+          "id": "REQ-005-B06",
+          "category": "forbidden-behavior",
+          "description": "init 不自动修改 shell profile、系统服务或第三方平台密钥。",
+          "status": "failing",
+          "acceptance": ["代码审查确认 init 只写 Walker 数据目录和明确 plugin 文件。"],
+          "test_plan": { "strategy": "review", "inputs": ["init 实现 diff"], "expected": ["无 shell profile 修改", "无系统服务修改", "无第三方密钥写入"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "status": "failing",
+      "types": ["functional", "authorization", "security", "performance", "observable", "recovery"],
+      "required_categories": ["happy-path", "authorization", "security", "performance", "recovery", "observability"],
+      "acceptance": [
+        "`WS /api/v1/events/stream` 能向认证客户端广播新事件。",
+        "客户端可按 sessionId、routeKey、level 或 type 做基本过滤。",
+        "连接具备心跳、断开清理和敏感字段脱敏。"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-006-B01",
+          "category": "happy-path",
+          "description": "认证客户端连接后能收到后续 event-store 发布的新事件。",
+          "status": "failing",
+          "acceptance": ["publish 后客户端收到 event 消息。"],
+          "test_plan": { "strategy": "integration", "inputs": ["认证 WS 客户端", "发布 session.output 事件"], "expected": ["客户端收到 type=event 的消息"] }
+        },
+        {
+          "id": "REQ-006-B02",
+          "category": "authorization",
+          "description": "未认证 WebSocket 连接被拒绝或关闭。",
+          "status": "failing",
+          "acceptance": ["无 token 客户端无法收到事件。"],
+          "test_plan": { "strategy": "integration", "inputs": ["无 token WS 连接", "错误 token WS 连接"], "expected": ["连接被拒绝或关闭", "不发送事件"] }
+        },
+        {
+          "id": "REQ-006-B03",
+          "category": "security",
+          "description": "广播事件前必须复用脱敏逻辑。",
+          "status": "failing",
+          "acceptance": ["包含 secret 的事件 data 被脱敏。"],
+          "test_plan": { "strategy": "integration", "inputs": ["事件 data 中包含 token/secret"], "expected": ["WS 消息不包含敏感原文"] }
+        },
+        {
+          "id": "REQ-006-B04",
+          "category": "performance",
+          "description": "事件广播不得阻塞 prompt 主流程，慢客户端不得拖慢 event-store 写入。",
+          "status": "failing",
+          "acceptance": ["广播失败被隔离处理，publish 不 await 慢 I/O。"],
+          "test_plan": { "strategy": "unit", "inputs": ["慢 listener", "抛错 listener"], "expected": ["publish 快速返回", "其他 listener 继续收到事件"] }
+        },
+        {
+          "id": "REQ-006-B05",
+          "category": "recovery",
+          "description": "客户端断开时服务端释放订阅资源。",
+          "status": "failing",
+          "acceptance": ["close/error 会 unsubscribe。"],
+          "test_plan": { "strategy": "integration", "inputs": ["WS 客户端连接后断开"], "expected": ["订阅数量下降", "后续 publish 不再向该连接发送"] }
+        },
+        {
+          "id": "REQ-006-B06",
+          "category": "observability",
+          "description": "WebSocket 连接、订阅、断开和发送失败有事件或日志记录。",
+          "status": "failing",
+          "acceptance": ["日志或事件可观察连接状态。"],
+          "test_plan": { "strategy": "integration", "inputs": ["连接、订阅、断开、发送失败"], "expected": ["日志或 event-store 包含对应记录"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "status": "failing",
+      "types": ["compatibility", "state", "security", "observable", "recovery"],
+      "required_categories": ["compatibility", "state-transition", "security", "observability", "recovery", "forbidden-behavior"],
+      "acceptance": [
+        "现有飞书入口、Admin 路由、OpenCode session watcher 和 message dispatcher 测试继续通过。",
+        "已有 state schema 不被破坏，老 route/session 可恢复。",
+        "没有引入需要用户迁移的配置破坏。"
+      ],
+      "behaviors": [
+        {
+          "id": "REQ-007-B01",
+          "category": "compatibility",
+          "description": "现有 `/api/admin/*`、飞书命令和 `/agents` 输出保持可用。",
+          "status": "failing",
+          "acceptance": ["相关既有测试通过。"],
+          "test_plan": { "strategy": "regression", "inputs": ["admin、feishu、message-dispatcher 测试"], "expected": ["测试全部通过"] }
+        },
+        {
+          "id": "REQ-007-B02",
+          "category": "state-transition",
+          "description": "已有 session/route 状态迁移和启动恢复逻辑不受 Provider/API 抽象影响。",
+          "status": "failing",
+          "acceptance": ["SessionService 相关测试通过。"],
+          "test_plan": { "strategy": "regression", "inputs": ["session-service 测试", "旧 schema fixture"], "expected": ["迁移和 recoverOnStartup 仍成功"] }
+        },
+        {
+          "id": "REQ-007-B03",
+          "category": "security",
+          "description": "新增 API、CLI、WS 不降低现有 loopback 与 admin token 安全边界。",
+          "status": "failing",
+          "acceptance": ["认证逻辑一致。"],
+          "test_plan": { "strategy": "review", "inputs": ["server 监听和鉴权 diff"], "expected": ["默认 loopback", "受保护入口复用 admin token"] }
+        },
+        {
+          "id": "REQ-007-B04",
+          "category": "observability",
+          "description": "兼容性风险、provider 错误、API 错误和 WS 错误可通过事件或日志定位。",
+          "status": "failing",
+          "acceptance": ["错误路径有日志或 event-store 记录。"],
+          "test_plan": { "strategy": "integration", "inputs": ["触发 provider/API/WS 错误"], "expected": ["日志或事件包含错误类型和上下文"] }
+        },
+        {
+          "id": "REQ-007-B05",
+          "category": "recovery",
+          "description": "provider/doctor/API/WS 出错时记录错误并保持 Walker 主进程继续运行。",
+          "status": "failing",
+          "acceptance": ["异常被捕获并转换成错误响应或事件。"],
+          "test_plan": { "strategy": "integration", "inputs": ["mock provider 抛错", "mock API handler 抛错", "mock WS send 抛错"], "expected": ["进程不退出", "客户端收到结构化错误或连接安全关闭"] }
+        },
+        {
+          "id": "REQ-007-B06",
+          "category": "forbidden-behavior",
+          "description": "本次改造不得删除现有环境变量入口、CLI 子命令或 Admin 既有 API。",
+          "status": "failing",
+          "acceptance": ["代码审查确认没有移除公开入口，README 如需更新必须说明兼容。"],
+          "test_plan": { "strategy": "review", "inputs": ["git diff", "README/CLI 改动"], "expected": ["无删除现有公开入口", "兼容说明清晰"] }
+        }
+      ]
+    }
+  ]
+}

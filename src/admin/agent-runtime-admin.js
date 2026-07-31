@@ -11,9 +11,12 @@
  * @param {Object} ctx - 上下文对象
  * @returns {Object[]} driver 摘要列表
  */
-function listAgents(ctx) {
+function listAgents(ctx, opts) {
+  const options = opts || {};
+  const providerStatuses = normalizeProviderStatuses(options.providerStatuses);
   const names = ctx.registry.list();
-  return names.map((name) => {
+  const agents = [];
+  for (const name of names) {
     const driver = ctx.registry.get(name);
     const summary = {
       name,
@@ -40,8 +43,34 @@ function listAgents(ctx) {
       }
     }
 
-    return summary;
-  });
+    if (providerStatuses[name]) {
+      summary.provider = providerStatuses[name];
+    } else if (ctx.registry.getProviderMetadata) {
+      const provider = ctx.registry.getProviderMetadata(name);
+      if (provider) summary.provider = provider;
+    }
+
+    agents.push(summary);
+  }
+  return agents;
+}
+
+/**
+ * 将 provider 检测状态转换为按 driver/id 可查的映射。
+ * @param {Object[]|Object} providerStatuses - provider status 数组或映射。
+ * @returns {Object} provider status 映射。
+ */
+function normalizeProviderStatuses(providerStatuses) {
+  if (!providerStatuses) return {};
+  const map = {};
+  const statuses = Array.isArray(providerStatuses) ? providerStatuses : Object.values(providerStatuses);
+  for (const status of statuses) {
+    if (!status || typeof status !== 'object') continue;
+    if (status.driver) map[status.driver] = status;
+    if (status.id) map[status.id] = status;
+    if (status.name) map[status.name] = status;
+  }
+  return map;
 }
 
 /**

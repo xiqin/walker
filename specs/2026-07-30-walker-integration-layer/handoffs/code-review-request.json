@@ -1,0 +1,44 @@
+{
+  "pre_review": {
+    "fixed_point": "HEAD",
+    "scope": "working tree diff including untracked files",
+    "standards_findings": 0,
+    "spec_findings": 0,
+    "worst": "none"
+  },
+  "validation": {
+    "regression": "PASS: npm run check 1321 tests passed, 0 failed",
+    "lint": "PASS: exit 0",
+    "git_diff_check": "PASS: exit 0",
+    "traceability": "PASS: 7 REQ / 43 behaviors covered with tests/evidence",
+    "convergence": "PASS: 43 covered, 0 blockers",
+    "omission_hunter": "PASS: 43 checked, 0 blockers"
+  },
+  "review_focus": [
+    "/api/v1 and WebSocket auth/redaction",
+    "route DTO does not leak raw session/agentRef",
+    "EventBus multi-server lifecycle cleanup",
+    "existing Feishu/Admin/CLI compatibility",
+    "walker init safe/idempotent writes"
+  ],
+  "status": "done",
+  "summary": "已生成代码审查请求 review-request.md。审查范围固定为当前工作区相对 HEAD 的未提交 diff；完成 Standards + Spec 双轴预审查，均无 blocker；审查请求汇总 Provider Catalog/Doctor CLI/API v1/walker init/EventBus WebSocket/PlatformDriver 等主要变更，列明安全、API DTO、WS 生命周期、兼容性与 CLI 写入安全为重点关注项；引用验证证据 npm run check 1321 tests passed、lint/diff/traceability/convergence/omission hunter 均通过。",
+  "artifacts": [
+    "review-request.md",
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "3e095f6b03caf2598f47da51b823d35e1b1e92610da7bac85b154cbdc6f4c36b",
+    "spec.md": "93b9d16b5c8e5a2c3c33a1d602841075a10d7de7794bc8c7f51406faff8cecfd"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "e69e24821cf2b5a9c05fe24805e7d1d3e4994ad9241654f2361bb3717ecb3a0b",
+    "test-report.md": "b58042c6c8f6eca90d459962f44f236ca08fa2acc8a5398ceef36f6daad29e22",
+    "verify-report.md": "5771f3e881612d8a33f86d1c96205ac6ffdccf72b5dfb4ec4d363a12bcfda676"
+  },
+  "written_at": "2026-07-30T11:46:36.278Z"
+}

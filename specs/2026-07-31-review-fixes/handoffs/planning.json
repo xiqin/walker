@@ -1,0 +1,52 @@
+{
+  "task_count": 6,
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006"
+  ],
+  "behavior_count": 27,
+  "dependencies": [
+    "T1 -> T2",
+    "T3/T4/T5/T6 independent"
+  ],
+  "validation": {
+    "loom_validate_plan": "ok",
+    "loom_analyze_artifacts": "ok"
+  },
+  "frontmatter_compatibility": "requirements and behavior_ids are formatted as inline arrays so both validate-plan and analyze-artifacts can parse them.",
+  "parallelization": "T3、T4、T5、T6 可与 T1 并行；T2 依赖 T1。主 agent 执行时需遵守 owns 边界，若跨 owns 文件需调整计划。",
+  "status": "done",
+  "summary": "已完成并刷新实现计划拆分：6 个 task 覆盖全部 6 个 REQ 和 27 个 behavior；修正 task frontmatter 为 loom 分析器可识别的同一行 requirements/behavior_ids 格式；loom_validate_plan 与 loom_analyze_artifacts 均通过，无错误或 blocker。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md",
+    "traceability.json",
+    "artifact-analysis.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "db98f91ec987ee9428a5b7a4d6c53412e0c90aec57e28439d1d66914f3bababa",
+    "spec.md": "c1ec5de9688178d151a1a9661466f6c73fbe8bfd03bc8bfa9cd611380b5e21ab",
+    "tasks/": "03a93b22227381b1e39efdf27771fd49ca0849c6a411c78d2ec269614916e99f"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "db98f91ec987ee9428a5b7a4d6c53412e0c90aec57e28439d1d66914f3bababa",
+    "tasks/T1.md": "fd258cf9a86328c4b41280eb435588b70234d2730d63105b6b05081166877e68",
+    "tasks/T2.md": "d44df5da49058d5d90d952d3ef40aabfd4073302ca0f2a644b1aeeb9e9125fe5",
+    "tasks/T3.md": "6009d50e2d4547255d66151bbef1938f7397559876317de38fab3e1f77a2b75f",
+    "tasks/T4.md": "8ba2331367c15e50ad1e69c877acec53091fe391296adb2657a5816ad5be5e2f",
+    "tasks/T5.md": "a65f9c1ac107c5556ac7e2afaed05cd7a913212877cf5b5377ec94bf084936dd",
+    "tasks/T6.md": "469d88471cdfd27d9def8bf89092d5694bf66a1bd81a0305c7552ffaea815f9d"
+  },
+  "written_at": "2026-07-31T02:01:52.095Z"
+}

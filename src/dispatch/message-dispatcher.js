@@ -9,6 +9,7 @@ const { ProgressRenderer } = require('./progress-renderer');
 const { PermissionHandler } = require('./permission-handler');
 const { QuestionHandler } = require('./question-handler');
 const { recordEvent, recordMetric } = require('../admin/event-store');
+const { validatePlatformEvent } = require('../platforms/platform-driver');
 
 const logger = createLogger('message-dispatcher');
 const DEFAULT_HEARTBEAT_INITIAL_MS = 30000;
@@ -195,6 +196,52 @@ class MessageDispatcher {
     return this._enqueueRouteLock(routeKey, () => this._enqueuePrompt(current, promptEvent, driver, agentRef));
   }
 
+  async handlePlatformMessage(event) {
+    const validation = validatePlatformEvent(event);
+    if (!validation.ok) {
+      logger.warn('invalid platform event rejected', { errors: validation.errors });
+      this._recordAdminEvent({
+        type: 'platform.invalid_event',
+        level: 'warn',
+        routeKey: event && event.routeKey || '',
+        message: 'invalid platform event',
+        data: { errors: validation.errors },
+      });
+      return { error: 'BAD_REQUEST', message: 'invalid platform event', details: validation.errors };
+    }
+    this._recordAdminEvent({
+      type: 'platform.message_received',
+      routeKey: event.routeKey,
+      message: 'platform message received',
+      data: { platform: event.platform, messageId: event.messageId, userId: event.userId },
+    });
+    try {
+      return await this.handleIncomingMessage({
+        type: 'text',
+        text: event.text,
+        routeKey: event.routeKey,
+        chatId: event.chatId || event.raw && event.raw.message && event.raw.message.chat_id || '',
+        messageId: event.messageId,
+        openId: event.userId,
+        rootId: event.rootId || '',
+        parentId: event.parentId || '',
+        createTime: event.createTime,
+        attachments: event.attachments,
+        platformEvent: event,
+      });
+    } catch (err) {
+      logger.error('platform adapter dispatch failed', { platform: event.platform, messageId: event.messageId, error: err && err.message ? err.message : String(err) });
+      this._recordAdminEvent({
+        type: 'platform.adapter_error',
+        level: 'error',
+        routeKey: event.routeKey,
+        message: err && err.message ? err.message : String(err),
+        data: { platform: event.platform, messageId: event.messageId },
+      });
+      return { error: 'adapter_error', message: err && err.message ? err.message : String(err) };
+    }
+  }
+
   /**
    * 将 prompt 请求排入 session 串行队列，同一 session 并发消息排队执行
    * @param {Object} session - 会话对象
@@ -336,6 +383,26 @@ class MessageDispatcher {
    * @returns {Promise<Object>} 命令执行结果
    */
   async handleCommand(cmd) {
+    if (cmd.platformEvent) {
+      const validation = validatePlatformEvent(cmd.platformEvent);
+      if (!validation.ok) {
+        logger.warn('invalid platform event rejected', { errors: validation.errors });
+        this._recordAdminEvent({
+          type: 'platform.invalid_event',
+          level: 'warn',
+          routeKey: cmd.platformEvent && cmd.platformEvent.routeKey || cmd.routeKey || '',
+          message: 'invalid platform event',
+          data: { errors: validation.errors },
+        });
+        return { error: 'BAD_REQUEST', message: 'invalid platform event', details: validation.errors };
+      }
+      this._recordAdminEvent({
+        type: 'platform.message_received',
+        routeKey: cmd.platformEvent.routeKey,
+        message: 'platform message received',
+        data: { platform: cmd.platformEvent.platform, messageId: cmd.platformEvent.messageId, userId: cmd.platformEvent.userId },
+      });
+    }
     const dedupArgs = (cmd.args || []).join(' ');
     const dedupKey = cmd.messageId ? 'cmd:' + cmd.messageId + ':' + cmd.name + ':' + dedupArgs : null;
     const isModelPage = cmd.name === 'model' && cmd.args && cmd.args[0] === '--page';

@@ -62,6 +62,7 @@ function createPlatform(FeishuPlatform, overrides) {
     sessionService: {},
     onMessage: overrides && overrides.onMessage || (() => Promise.resolve()),
     onCardAction: overrides && overrides.onCardAction || (() => Promise.resolve()),
+    onEvent: overrides && overrides.onEvent,
   });
 }
 
@@ -111,6 +112,70 @@ test('FeishuPlatform 后台消息错误被捕获', async () => {
   await delay(20);
   process.removeListener('unhandledRejection', onUnhandled);
   assert.equal(unhandled, null);
+});
+
+test('REQ-005-B04: FeishuPlatform adapter 转换失败产生可观测事件', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const observed = [];
+  const messages = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onEvent: (event) => observed.push(event),
+    onMessage: (message) => { messages.push(message); return Promise.resolve(); },
+  });
+
+  await platform._handleMessageEvent({
+    sender: { sender_id: { open_id: 'ou_1' } },
+    message: { message_id: '', chat_id: 'oc_1', message_type: 'text', content: JSON.stringify({ text: 'hello' }) },
+  }, 'thread');
+
+  assert.equal(messages.length, 0);
+  assert.equal(observed.some((event) => event.type === 'platform.adapter_error'), true);
+});
+
+test('REQ-005-B05: FeishuPlatform 空文本和 sender fallback 不静默丢弃', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const messages = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onMessage: (message) => { messages.push(message); return Promise.resolve(); },
+  });
+
+  await platform._handleMessageEvent({
+    sender: { sender_id: { user_id: 'uid_1' } },
+    message: { message_id: 'om_1', chat_id: 'oc_1', message_type: 'text', content: JSON.stringify({ text: '' }) },
+  }, 'thread');
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].type, 'text');
+  assert.equal(messages[0].platformEvent.userId, 'uid_1');
+  assert.equal(messages[0].platformEvent.text, '');
+});
+
+test('FeishuPlatform 单条文本消息只产生一次 platform.message_received', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const observed = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onEvent: (event) => observed.push(event),
+    onMessage: (message) => {
+      observed.push({
+        type: 'platform.message_received',
+        platform: 'feishu',
+        data: { messageId: message.platformEvent.messageId, routeKey: message.platformEvent.routeKey },
+      });
+      return Promise.resolve();
+    },
+  });
+
+  await platform._handleMessageEvent({
+    sender: { sender_id: { open_id: 'ou_1' } },
+    message: { message_id: 'om_once', chat_id: 'oc_1', root_id: 'om_root', message_type: 'text', content: JSON.stringify({ text: 'hello' }) },
+  }, 'thread');
+
+  const receivedEvents = observed.filter((event) => event.type === 'platform.message_received');
+  assert.equal(receivedEvents.length, 1);
+  assert.equal(receivedEvents[0].data.messageId, 'om_once');
 });
 
 test('FeishuPlatform 卡片事件快速 ACK，不等待 onCardAction 完成', async () => {

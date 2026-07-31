@@ -1,0 +1,22 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "实现 provider detector 最小环境：runCommand 和 defaultResolveCommand 仅向外部命令传递 PATH/Path/PATHEXT/SystemRoot/COMSPEC/HOME/USERPROFILE 等平台必要变量，剔除 token/secret/password/api key 等敏感环境变量；保留 version command 失败时的 VERSION_FAILED problem 和 suggestion；通过 providers/doctor CLI 使用 cli-output 脱敏层验证敏感错误输出不泄漏。",
+  "artifacts": [
+    "src/providers/provider-detectors.js",
+    "test/provider-catalog.test.js",
+    "test/providers-cli.test.js",
+    "test/doctor-cli.test.js",
+    "specs/2026-07-31-review-fixes/evidence/T3-test.log",
+    "specs/2026-07-31-review-fixes/traceability.json"
+  ],
+  "requirements": ["REQ-003"],
+  "behavior_ids": ["REQ-003-B01", "REQ-003-B02", "REQ-003-B03", "REQ-003-B04"],
+  "tests": [
+    {
+      "command": "node --test test/provider-catalog.test.js test/providers-cli.test.js test/doctor-cli.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-07-31-review-fixes/evidence/T3-test.log"
+    }
+  ]
+}

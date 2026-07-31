@@ -1,0 +1,21 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "API v1 统一异常响应不再向客户端返回原始 err.message，仍通过 eventStore 记录 api.v1.error 以保留服务端可观测性；prompt API 返回 events 前递归脱敏敏感 key、Bearer 文本和 env secret 文本，同时保留正常 { sessionId, events } 响应结构。",
+  "artifacts": [
+    "src/api/v1/common.js",
+    "src/api/v1/prompt-routes.js",
+    "test/api-v1.test.js",
+    "specs/2026-07-31-review-fixes/evidence/T4-test.log",
+    "specs/2026-07-31-review-fixes/traceability.json"
+  ],
+  "requirements": ["REQ-004"],
+  "behavior_ids": ["REQ-004-B01", "REQ-004-B02", "REQ-004-B03", "REQ-004-B04"],
+  "tests": [
+    {
+      "command": "node --test test/api-v1.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-07-31-review-fixes/evidence/T4-test.log"
+    }
+  ]
+}
