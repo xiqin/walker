@@ -1,0 +1,26 @@
+{
+  "decisions": [
+    "采用Walker持有ConPTY + 外部attach客户端方案",
+    "外部窗口必须能显示并操作原生Claude TUI",
+    "Claude会话只允许一个主kscc TUI进程",
+    "飞书prompt不再启动kscc --print",
+    "OpenCode driver、OpenCode专属模块和测试不得修改"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确认Claude provider改为Walker持有长期ConPTY与唯一kscc TUI进程，外部Windows终端通过walker claude attach连接，飞书与本地键盘经统一输入仲裁写入同一PTY；精确Claude UUID的JSONL负责轮次观察；禁止每轮kscc --print；OpenCode源码、测试和行为为P0保护边界。spec.md与requirements.json已生成并通过detail expansion检查。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "ed03cbd9d724e33102f9869486fc9067fff40d2310c5e1e1b23e6293ca3f8794"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "5b5fd4b2f6610a88bdf855aab7894893979b055ec04de23bd4c22514d376aa7d",
+    "spec.md": "ed03cbd9d724e33102f9869486fc9067fff40d2310c5e1e1b23e6293ca3f8794"
+  },
+  "written_at": "2026-08-03T10:35:23.375Z"
+}

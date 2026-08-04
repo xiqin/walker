@@ -193,7 +193,7 @@ test('导出结构化诊断报告包含时间、总体状态和全部检查', as
   assert.equal(JSON.stringify(result.body).includes(secret), false);
 });
 
-test('配置元数据完整覆盖六个分组和全部 allowlist', () => {
+test('配置元数据完整覆盖分组和全部 allowlist', () => {
   const summary = buildConfigSummary({
     WALKER_ADMIN_HOST: '127.0.0.1',
     FEISHU_APP_SECRET: 'T3_SENTINEL_SECRET',
@@ -202,7 +202,7 @@ test('配置元数据完整覆盖六个分组和全部 allowlist', () => {
   const items = summary.groups.flatMap((group) => group.items);
 
   assert.deepEqual(summary.groups.map((group) => group.id), CONFIG_GROUPS.map((group) => group.id));
-  assert.equal(summary.groups.length, 6);
+  assert.equal(summary.groups.length, 7);
   assert.deepEqual(new Set(items.map((item) => item.env)), new Set(summary.editableKeys.concat(summary.sensitiveKeys, ['FEISHU_APP_ID'])));
   for (const item of items) {
     assert.equal(typeof item.label, 'string');
@@ -214,6 +214,41 @@ test('配置元数据完整覆盖六个分组和全部 allowlist', () => {
   assert.equal(secretItems.every((item) => item.configured && item.masked === '********' && !Object.hasOwn(item, 'value')), true);
   assert.equal(JSON.stringify(summary).includes('T3_SENTINEL_SECRET'), false);
   assert.equal(JSON.stringify(summary).includes('T3_ADMIN_SENTINEL'), false);
+});
+
+test('REQ-007-B01 和 REQ-007-B03: Claude 配置项可见、可编辑且不含 Secret', () => {
+  const summary = buildConfigSummary({
+    CLAUDE_CMD: 'claude-beta',
+    CLAUDE_MODEL: 'sonnet',
+    CLAUDE_FALLBACK_MODEL: 'opus',
+    CLAUDE_AGENT: 'reviewer',
+    CLAUDE_PERMISSION_MODE: 'plan',
+    CLAUDE_ALLOWED_TOOLS: 'Read,Grep',
+    CLAUDE_DISALLOWED_TOOLS: 'Bash',
+    CLAUDE_CONFIG_DIR: 'C:\\claude',
+    CLAUDE_PROMPT_TIMEOUT_MS: '45000',
+  });
+  const group = summary.groups.find((item) => item.id === 'claude');
+  const items = new Map(group.items.map((item) => [item.env, item]));
+
+  assert.ok(group);
+  assert.deepEqual([
+    'CLAUDE_CMD',
+    'CLAUDE_MODEL',
+    'CLAUDE_FALLBACK_MODEL',
+    'CLAUDE_AGENT',
+    'CLAUDE_PERMISSION_MODE',
+    'CLAUDE_ALLOWED_TOOLS',
+    'CLAUDE_DISALLOWED_TOOLS',
+    'CLAUDE_CONFIG_DIR',
+    'CLAUDE_PROMPT_TIMEOUT_MS',
+  ].every((key) => summary.editableKeys.includes(key)), true);
+  assert.equal(items.get('CLAUDE_CMD').value, 'claude-beta');
+  assert.equal(items.get('CLAUDE_MODEL').value, 'sonnet');
+  assert.equal(items.get('CLAUDE_PERMISSION_MODE').value, 'plan');
+  assert.equal(items.get('CLAUDE_PROMPT_TIMEOUT_MS').value, '45000');
+  assert.equal(summary.sensitiveKeys.some((key) => key.startsWith('CLAUDE_')), false);
+  assert.equal(group.items.some((item) => item.secret), false);
 });
 
 test('配置 DTO 暴露客户端可复用的类型和约束元数据', () => {
@@ -280,6 +315,7 @@ test('配置客户端约束覆盖全部可编辑项的专用服务端校验类�
     'route-mode': { type: 'enum', values: ['thread', 'user', 'channel'], labels: { thread: 'thread（按消息线程）', user: 'user（按用户）', channel: 'channel（按群）' } },
     'progress-style': { type: 'enum', values: ['card', 'legacy'], labels: { card: 'card（结构化卡片）', legacy: 'legacy（逐条文本）' } },
     'exit-action': { type: 'enum', values: ['cancel', 'stop', 'none'], labels: { cancel: 'cancel（取消 turn 并移出 route）', none: 'none（仅记录 detached）' } },
+    'claude-permission-mode': { type: 'enum', values: ['default', 'acceptEdits', 'auto', 'dontAsk', 'plan'] },
     url: { type: 'url', protocols: ['http:', 'https:'], allowEmpty: true },
     'non-empty': { type: 'text', required: true, trim: true, minLength: 1 },
   };
@@ -317,6 +353,37 @@ test('配置服务端校验非法值且多字段失败不部分写入', () => {
     WALKER_ADMIN_PORT: '70000',
   }), /WALKER_ADMIN_PORT/);
   assert.equal(fs.readFileSync(envPath, 'utf8'), original);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('REQ-007-B02 和 REQ-007-B04: Claude 配置编辑校验并保持失败原子性', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-claude-config-'));
+  const envPath = path.join(tmpDir, '.env');
+  fs.writeFileSync(envPath, '# keep\nUNKNOWN_KEY=keep\n', 'utf8');
+
+  const result = updateDotEnv(envPath, {
+    CLAUDE_CMD: 'claude-beta',
+    CLAUDE_PERMISSION_MODE: 'plan',
+    CLAUDE_PROMPT_TIMEOUT_MS: '45000',
+  });
+  const raw = fs.readFileSync(envPath, 'utf8');
+
+  assert.deepEqual(result.effectiveValues, {
+    CLAUDE_CMD: 'claude-beta',
+    CLAUDE_PERMISSION_MODE: 'plan',
+    CLAUDE_PROMPT_TIMEOUT_MS: '45000',
+  });
+  assert.match(raw, /^UNKNOWN_KEY=keep/m);
+  assert.match(raw, /^CLAUDE_CMD=claude-beta/m);
+  assert.match(raw, /^CLAUDE_PERMISSION_MODE=plan/m);
+  assert.match(raw, /^CLAUDE_PROMPT_TIMEOUT_MS=45000/m);
+
+  const before = fs.readFileSync(envPath, 'utf8');
+  assert.throws(() => updateDotEnv(envPath, {
+    CLAUDE_PERMISSION_MODE: 'bypassPermissions',
+    CLAUDE_PROMPT_TIMEOUT_MS: '0',
+  }), /CLAUDE_PERMISSION_MODE/);
+  assert.equal(fs.readFileSync(envPath, 'utf8'), before);
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

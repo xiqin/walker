@@ -1,5 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 const { WindowsRuntime } = require('../src/runtime/windows-runtime');
 const { WslRuntime } = require('../src/runtime/wsl-runtime');
 const { createRuntime } = require('../src/runtime/runtime-factory');
@@ -25,6 +26,10 @@ function makeMockSpawn(results) {
     return proc;
   };
   return { spawn, calls };
+}
+
+function escapeExpectedCmdArg(value) {
+  return String(value).replace(/[\r\n]/g, ' ').replace(/([&|<>\^%!(\)" \t])/g, '^$1');
 }
 
 describe('WindowsRuntime', () => {
@@ -158,6 +163,58 @@ describe('WindowsRuntime openTerminal', () => {
       mock.calls[0].args[2],
       'open^&^|^<^>^^^%^!^"code arg^ ^&^|^<^>^^^%^!^"^ value',
     );
+  });
+
+  it('openTerminal 保持旧签名和旧命令语义', async () => {
+    const mock = makeMockSpawn({});
+    const rt = new WindowsRuntime({ spawn: mock.spawn });
+    assert.equal(rt.openTerminal.length, 3);
+    await rt.openTerminal('opencode', ['serve'], { cwd: 'H:\\walker' });
+    assert.deepEqual(mock.calls[0].args, ['/v:off', '/k', 'opencode serve']);
+  });
+
+  it('REQ-002-B05: openClaudeAttachTerminal 启动 walker claude attach 且 spawn 失败可诊断', async () => {
+    const mock = makeMockSpawn({});
+    const rt = new WindowsRuntime({ spawn: mock.spawn });
+    await rt.openClaudeAttachTerminal('rt_1', { cwd: 'H:\\walker', walkerCommand: 'walker', attachUrl: 'ws://127.0.0.1:1/a?token=top-secret', token: 'top-secret' });
+    assert.equal(mock.calls[0].cmd, 'cmd.exe');
+    assert.equal(mock.calls[0].args[2], 'walker claude attach rt_1');
+    assert.equal(mock.calls[0].opts.cwd, 'H:\\walker');
+    assert.equal(mock.calls[0].opts.env.WALKER_CLAUDE_ATTACH_URL, 'ws://127.0.0.1:1/a?token=top-secret');
+    assert.equal(mock.calls[0].opts.env.WALKER_CLAUDE_ATTACH_TOKEN, 'top-secret');
+
+    const failing = new WindowsRuntime({ spawn: makeMockSpawn({ 'cmd.exe': { error: new Error('spawn denied') } }).spawn });
+    await assert.rejects(() => failing.openClaudeAttachTerminal('rt_1'), { message: /Claude attach terminal failed: spawn denied/ });
+  });
+
+  it('openClaudeAttachTerminal 默认使用当前 Node 和包内 CLI，避免命中过期的全局 walker', async () => {
+    const mock = makeMockSpawn({});
+    const rt = new WindowsRuntime({ spawn: mock.spawn });
+    await rt.openClaudeAttachTerminal('rt_1', { cwd: 'H:\\walker' });
+
+    const cliEntry = path.resolve(__dirname, '..', 'src', 'index.js');
+    assert.equal(mock.calls[0].cmd, 'cmd.exe');
+    assert.equal(mock.calls[0].args[2], [process.execPath, cliEntry, 'claude', 'attach', 'rt_1'].map(escapeExpectedCmdArg).join(' '));
+  });
+
+  it('REQ-006-B05: openClaudeAttachTerminal 日志不包含 attach token 或完整 URL', async () => {
+    const mock = makeMockSpawn({});
+    const logs = [];
+    const originalWrite = process.stderr.write;
+    process.stderr.write = function write(chunk, encoding, cb) {
+      logs.push(String(chunk));
+      if (typeof cb === 'function') cb();
+      return true;
+    };
+    try {
+      const rt = new WindowsRuntime({ spawn: mock.spawn });
+      await rt.openClaudeAttachTerminal('rt_1', { attachUrl: 'ws://127.0.0.1:1/a?token=top-secret', token: 'top-secret' });
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+    const text = logs.join('');
+    assert.doesNotMatch(text, /top-secret/);
+    assert.doesNotMatch(text, /WALKER_CLAUDE_ATTACH_TOKEN/);
   });
 });
 

@@ -80,6 +80,7 @@ function withRuntimeDiagnostics(ctx, session, routes) {
     transport,
     runtimeId,
     watch: { active: watchActive, mode: watchActive ? transport : 'unknown' },
+    window: agentRef.terminal ? { ...agentRef.terminal } : null,
     health: health ? { status: health.status || 'unknown', reason: health.reason || null }
       : runtime && runtime.health ? { ...runtime.health }
         : { status: 'unknown', reason: null },
@@ -120,6 +121,8 @@ function isBusinessEvent(event) {
  * @returns {string} tui、sse、polling 或 unknown。
  */
 function normalizeTransport(transport) {
+  if (transport === 'cli') return 'cli';
+  if (transport === 'cli-terminal') return 'cli-terminal';
   if (transport === 'tui-bridge' || transport === 'tui') return 'tui';
   if (transport === 'sse') return 'sse';
   if (transport === 'polling' || transport === 'http') return 'polling';
@@ -147,7 +150,7 @@ function withRouteDiagnostics(session, routes) {
 }
 
 /**
- * 创建 Walker session，可选同时创建底层 opencode session 写入 agentRef
+ * 创建 Walker session，可选同时创建底层 agent session 写入 agentRef
  * @param {Object} ctx - 上下文对象
  * @param {Object} opts - 创建选项
  * @param {string} [opts.agent] - Agent 类型，默认 'opencode'
@@ -175,13 +178,23 @@ async function createSession(ctx, opts) {
     data: { agent: session.agent, runtime: session.runtime },
   });
 
-  if (options.createAgentSession && session.agent === 'opencode') {
-    const driver = ctx.registry.get('opencode');
-    if (driver) {
+  if (options.createAgentSession) {
+    const driver = ctx.registry.get(session.agent);
+    if (!driver) {
+      const message = 'driver not found for agent: ' + session.agent;
+      ctx.sessionService.markError(session.id, message);
+      recordEvent(ctx.eventStore, {
+        type: 'error',
+        level: 'error',
+        sessionId: session.id,
+        message: 'agent session creation failed: ' + message,
+      });
+    } else {
       try {
         const agentRef = await driver.createSession({
           title: session.title,
           cwd: session.cwd,
+          model: options.model,
         });
         ctx.sessionService.updateSessionField(session.id, 'agentRef', agentRef);
         ctx.sessionService.markRunning(session.id);
@@ -192,7 +205,7 @@ async function createSession(ctx, opts) {
           type: 'session.state',
           sessionId: session.id,
           message: 'agent session created',
-          data: { agentRef },
+          data: { agent: session.agent, agentRef },
         });
       } catch (err) {
         ctx.sessionService.markError(session.id, err.message);

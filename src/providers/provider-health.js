@@ -17,11 +17,21 @@ async function doctorProvider(id, options) {
   }
 
   try {
-    const status = opts.detectProvider ? await opts.detectProvider(provider) : await detectProvider(provider, opts);
+    const providerForDetection = applyConfiguredCommand(provider, opts);
+    const status = opts.detectProvider ? await opts.detectProvider(providerForDetection) : await detectProvider(providerForDetection, opts);
     return { ok: true, provider: status };
   } catch (err) {
     return { ok: true, provider: createExceptionStatus(provider, err) };
   }
+}
+
+function applyConfiguredCommand(provider, options) {
+  if (!provider || provider.id !== 'claude') return provider;
+  const env = options && options.env || process.env;
+  const configured = env && typeof env.CLAUDE_CMD === 'string' ? env.CLAUDE_CMD.trim() : '';
+  if (!configured) return provider;
+  const candidates = [configured].concat(provider.executableCandidates || []).filter(Boolean);
+  return { ...provider, executableCandidates: Array.from(new Set(candidates)) };
 }
 
 /**

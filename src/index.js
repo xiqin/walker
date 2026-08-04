@@ -10,6 +10,7 @@ const doctorCommand = require('./cli/doctor-command');
 const providersCommand = require('./cli/providers-command');
 const initCommand = require('./cli/init-command');
 const cliOutput = require('./cli/cli-output');
+const { runClaudeAttachCommand } = require('./cli/claude-attach-command');
 
 function printUsage(output) {
   const out = output || cliOutput.createOutput();
@@ -24,6 +25,7 @@ function printUsage(output) {
   out.write('  walker doctor       Run read-only diagnostics');
   out.write('  walker providers list           List available providers');
   out.write('  walker providers doctor [id]    Diagnose provider');
+  out.write('  walker claude attach <runtime-id> Attach to a local Claude PTY runtime');
   out.write('  walker init         Initialize Walker data directory and config');
   out.write('  walker help         Show this help');
   out.write('');
@@ -104,6 +106,15 @@ async function main(argv, options) {
       return;
     case 'providers':
       code = await providersCommand.run(args.slice(1), opts);
+      exit(code);
+      return;
+    case 'claude':
+      if (args[1] === 'attach') {
+        code = await runClaudeAttachCommand(args.slice(2), opts);
+      } else {
+        output.error('unknown claude command: ' + (args[1] || ''));
+        code = 1;
+      }
       exit(code);
       return;
     case 'init':

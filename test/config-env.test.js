@@ -20,6 +20,15 @@ test('loadEnvConfig 默认值正常', () => {
   assert.equal(config.opencodeCmd, 'opencode');
   assert.equal(config.opencodeModel, '');
   assert.equal(config.opencodeAgent, '');
+  assert.equal(config.claudeCmd, 'claude');
+  assert.equal(config.claudeModel, '');
+  assert.equal(config.claudeFallbackModel, '');
+  assert.equal(config.claudeAgent, '');
+  assert.equal(config.claudePermissionMode, 'default');
+  assert.equal(config.claudeAllowedTools, '');
+  assert.equal(config.claudeDisallowedTools, '');
+  assert.equal(config.claudeConfigDir, '');
+  assert.equal(config.claudePromptTimeoutMs, 120000);
   assert.equal(config.feishuProgressStyle, 'card');
   assert.equal(config.feishuReactionEmoji, 'OnIt');
   assert.equal(config.feishuDoneEmoji, '');
@@ -44,6 +53,15 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
     OPENCODE_CMD: 'opencode-custom',
     OPENCODE_MODEL: 'anthropic/claude-sonnet-4',
     OPENCODE_AGENT: 'coder',
+    CLAUDE_CMD: 'claude-beta',
+    CLAUDE_MODEL: 'sonnet',
+    CLAUDE_FALLBACK_MODEL: 'opus',
+    CLAUDE_AGENT: 'reviewer',
+    CLAUDE_PERMISSION_MODE: 'plan',
+    CLAUDE_ALLOWED_TOOLS: 'Read,Grep',
+    CLAUDE_DISALLOWED_TOOLS: 'Bash',
+    CLAUDE_CONFIG_DIR: 'C:\\claude',
+    CLAUDE_PROMPT_TIMEOUT_MS: '45000',
     FEISHU_PROGRESS_STYLE: 'compact',
     FEISHU_REACTION_EMOJI: 'ThumbsUp',
     FEISHU_DONE_EMOJI: 'Done',
@@ -66,6 +84,15 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
   assert.equal(config.opencodeCmd, 'opencode-custom');
   assert.equal(config.opencodeModel, 'anthropic/claude-sonnet-4');
   assert.equal(config.opencodeAgent, 'coder');
+  assert.equal(config.claudeCmd, 'claude-beta');
+  assert.equal(config.claudeModel, 'sonnet');
+  assert.equal(config.claudeFallbackModel, 'opus');
+  assert.equal(config.claudeAgent, 'reviewer');
+  assert.equal(config.claudePermissionMode, 'plan');
+  assert.equal(config.claudeAllowedTools, 'Read,Grep');
+  assert.equal(config.claudeDisallowedTools, 'Bash');
+  assert.equal(config.claudeConfigDir, 'C:\\claude');
+  assert.equal(config.claudePromptTimeoutMs, 45000);
   assert.equal(config.feishuProgressStyle, 'compact');
   assert.equal(config.feishuReactionEmoji, 'ThumbsUp');
   assert.equal(config.feishuDoneEmoji, 'Done');
@@ -82,6 +109,7 @@ test('loadEnvConfig 长任务数值配置无效时回落默认值', () => {
       WALKER_PROMPT_HEARTBEAT_INTERVAL_MS: '-1',
       WALKER_PROMPT_HEARTBEAT_STUCK_MS: 'abc',
       WALKER_MAX_TURN_TIME_MINS: 'nope',
+      CLAUDE_PROMPT_TIMEOUT_MS: '0',
     },
   });
 
@@ -89,6 +117,7 @@ test('loadEnvConfig 长任务数值配置无效时回落默认值', () => {
   assert.equal(config.walkerPromptHeartbeatIntervalMs, 60000);
   assert.equal(config.walkerPromptHeartbeatStuckMs, 300000);
   assert.equal(config.walkerMaxTurnTimeMins, 0);
+  assert.equal(config.claudePromptTimeoutMs, 120000);
 });
 
 test('loadEnvConfig 缺少飞书凭据时标记为缺失', () => {

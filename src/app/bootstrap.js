@@ -5,7 +5,8 @@ const { SessionService } = require('../core/session-service');
 const { MessageDedup } = require('../core/message-dedup');
 const { DriverRegistry } = require('../drivers/driver-registry');
 const { OpencodeDriver } = require('../drivers/opencode-driver');
-const { stubClaudeDriver, stubCodexDriver } = require('../drivers/stub-drivers');
+const { ClaudeDriver } = require('../drivers/claude-driver');
+const { stubCodexDriver } = require('../drivers/stub-drivers');
 const { createRuntime } = require('../runtime/runtime-factory');
 const { MessageDispatcher } = require('../dispatch/message-dispatcher');
 const { AttachmentService } = require('../dispatch/attachment-service');
@@ -53,8 +54,8 @@ function createApp(config, deps) {
   const SessionServiceClass = deps.SessionService || SessionService;
   const JsonStoreClass = deps.JsonStore || JsonStore;
   const OpencodeDriverClass = deps.OpencodeDriver || OpencodeDriver;
+  const ClaudeDriverClass = deps.ClaudeDriver || ClaudeDriver;
   const OpencodeTuiBridgeClass = deps.OpencodeTuiBridge || OpencodeTuiBridge;
-  const stubClaude = deps.stubClaudeDriver || stubClaudeDriver;
   const stubCodex = deps.stubCodexDriver || stubCodexDriver;
   const DriverRegistryClass = deps.DriverRegistry || DriverRegistry;
   const createRuntimeFn = deps.createRuntime || createRuntime;
@@ -107,10 +108,24 @@ function createApp(config, deps) {
     opencodeDbPath: config.opencodeDbPath,
     tuiBridge,
   });
+  const claudeDriver = new ClaudeDriverClass({
+    runtime,
+    cwd: config.walkerDefaultCwd || process.cwd(),
+    claudeCmd: config.claudeCmd || 'claude',
+    model: config.claudeModel,
+    fallbackModel: config.claudeFallbackModel,
+    agent: config.claudeAgent,
+    permissionMode: config.claudePermissionMode,
+    allowedTools: config.claudeAllowedTools,
+    disallowedTools: config.claudeDisallowedTools,
+    addDirs: config.claudeAddDirs || config.claudeAddDir,
+    configDir: config.claudeConfigDir,
+    promptTimeoutMs: config.claudePromptTimeoutMs ?? 120000,
+  });
 
   const registry = new DriverRegistryClass();
   registry.register('opencode', opencodeDriver);
-  registry.register('claude', stubClaude());
+  registry.register('claude', claudeDriver);
   registry.register('codex', stubCodex());
 
   const dedupStore = new JsonStoreClass(path.join(dataDir, 'dedup.json'), {});

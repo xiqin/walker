@@ -139,6 +139,93 @@ describe('MessageDispatcher unbound route', () => {
 });
 
 describe('MessageDispatcher bound route prompt', () => {
+  it('Claude 首轮 prompt 后持久化 conversationReady 和终端状态', async () => {
+    const mocks = makeMocks();
+    const agentRef = {
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      conversationReady: false,
+      terminal: { status: 'pending' },
+    };
+    const session = { id: 'wks_claude_first', agent: 'claude', status: 'idle', agentRef };
+    const updates = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
+    mocks.driver.prompt = async (ref) => {
+      ref.conversationReady = true;
+      ref.terminal = { status: 'active', windowId: 'win_1' };
+      return [new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'success' })];
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_claude_first', openId: 'ou_user1', text: '你好',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.equal(session.agentRef.conversationReady, true);
+    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
+      sessionId: 'wks_claude_first',
+      field: 'agentRef',
+      value: agentRef,
+    });
+  });
+
+  it('REQ-005-B05: Claude prompt 后持久化完整 pty-attach agentRef', async () => {
+    const mocks = makeMocks();
+    const agentRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_claude_1',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 1,
+      terminal: { status: 'pending' },
+      conversationReady: false,
+    };
+    const session = { id: 'wks_claude_pty', agent: 'claude', status: 'idle', agentRef };
+    const updates = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
+    mocks.driver.prompt = async (ref) => {
+      Object.assign(ref, {
+        conversationReady: true,
+        runtimeId: 'rt_claude_2',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        processGeneration: 2,
+        terminal: { status: 'active', windowId: 'win_2' },
+      });
+      return [new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'submitted' })];
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_claude_pty1', openId: 'ou_user1', text: '继续',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
+      sessionId: 'wks_claude_pty',
+      field: 'agentRef',
+      value: {
+        provider: 'claude',
+        transport: 'pty-attach',
+        runtimeId: 'rt_claude_2',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        processGeneration: 2,
+        terminal: { status: 'active', windowId: 'win_2' },
+        conversationReady: true,
+      },
+    });
+  });
+
   it('_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata', async () => {
     const mocks = makeMocks();
     const sessions = [
@@ -1479,6 +1566,80 @@ describe('MessageDispatcher /new command', () => {
     assert.equal(sendMarkdown.text, '终端回复');
   });
 
+  it('REQ-010-B01/B06/B11: /new claude 创建 session 后展示终端窗口状态且不要求 opencodeSessionId', async () => {
+    const mocks = makeMocks();
+    const created = {};
+    const claudeDriver = {
+      ensureReady: async () => true,
+      createSession: async (opts) => ({
+        provider: 'claude',
+        transport: 'cli-terminal',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        cwd: opts.cwd,
+        title: opts.title,
+        terminal: { status: 'active', windowId: 'win_1' },
+      }),
+      watchSession: () => () => {},
+    };
+    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
+    mocks.sessionService.createSession = (opts) => {
+      created.opts = opts;
+      return { id: 'wks_claude1', agent: opts.agent, status: 'created', route: opts.route, agentRef: opts.agentRef };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: ['claude', 'kscc-test'],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_claude1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.sessionId, 'wks_claude1');
+    assert.equal(created.opts.title, 'kscc-test');
+    assert.equal(created.opts.agentRef.claudeSessionId, '11111111-1111-4111-8111-111111111111');
+    assert.equal(created.opts.agentRef.opencodeSessionId, undefined);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.match(reply.text, /Session created: wks_claude1 \(claude\)/);
+    assert.match(reply.text, /terminal active/);
+  });
+
+  it('REQ-010-B03/B05/B11: /new claude 终端降级时回复明确状态', async () => {
+    const mocks = makeMocks();
+    const claudeDriver = {
+      ensureReady: async () => true,
+      createSession: async () => ({
+        provider: 'claude',
+        transport: 'cli-terminal',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        terminal: { status: 'failed', reason: 'spawn failed' },
+      }),
+      watchSession: () => () => {},
+    };
+    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
+    mocks.sessionService.createSession = (opts) => ({ id: 'wks_claude_failed1', agent: opts.agent, status: 'created', route: opts.route, agentRef: opts.agentRef });
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    await dispatcher.handleCommand({
+      type: 'command', name: 'new', args: ['claude', 'kscc-test'],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_new_claude_failed1', chatId: 'oc_chat1',
+    });
+
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.match(reply.text, /terminal failed: spawn failed/);
+  });
+
   it('/new driver 准备失败时发送错误卡片并返回错误结果', async () => {
     const mocks = makeMocks();
     mocks.driver.ensureReady = async () => { throw new Error('driver boot failed'); };
@@ -1663,6 +1824,44 @@ describe('MessageDispatcher command error boundary', () => {
 });
 
 describe('MessageDispatcher turn lifecycle commands', () => {
+  it('REQ-005-B05: /stop 和 /delete 使用 Claude pty-attach agentRef 调用 driver', async () => {
+    const mocks = makeMocks();
+    const agentRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_claude_stop1',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 4,
+    };
+    const session = { id: 'wks_claude_stop1', agent: 'claude', status: 'idle', agentRef };
+    const stopCalls = [];
+    const deleteCalls = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.listSessionsInRoute = () => [session];
+    mocks.sessionService.stopSession = () => { session.status = 'stopped'; };
+    const claudeDriver = {
+      stop: async (ref) => { stopCalls.push(ref); },
+      delete: async (ref) => { deleteCalls.push(ref); },
+    };
+    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const stopped = await dispatcher.handleCommand({
+      type: 'command', name: 'stop', args: [],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_stop_claude1', chatId: 'oc_chat1',
+    });
+    const deleted = await dispatcher.handleCommand({
+      type: 'command', name: 'delete', args: ['wks_claude_stop1'],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_delete_claude1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(stopped.stopped, 'wks_claude_stop1');
+    assert.equal(deleted.deleted, 'wks_claude_stop1');
+    assert.deepEqual(stopCalls, [agentRef]);
+    assert.deepEqual(deleteCalls, [agentRef]);
+  });
+
   it('/cancel 无绑定 session 时返回可诊断提示', async () => {
     const mocks = makeMocks();
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
@@ -1980,9 +2179,128 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     const sendCardCalls = mocks.feishuApi.calls.filter(c => c.type === 'sendProgressCard');
     assert.equal(sendCardCalls.length, 0, '非 card 模式不应建进度卡片');
   });
+
+  it('REQ-005-B05: Claude pty-attach watch 使用 claudeSessionId/runtimeId 并路由到飞书', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_claude_watch1',
+      agent: 'claude',
+      status: 'idle',
+      route: 'feishu:oc_chat1:root:om_root1',
+      agentRef: {
+        provider: 'claude',
+        transport: 'pty-attach',
+        runtimeId: 'rt_claude_watch1',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      },
+    };
+    let watchedRef;
+    let watchedHandlers;
+    mocks.driver.watchSession = (agentRef, handlers) => {
+      watchedRef = agentRef;
+      watchedHandlers = handlers;
+      return () => {};
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    dispatcher._watchSessionEvents(session, { chatId: 'oc_chat1' }, mocks.driver);
+    const tokenUsage = { inputTokens: 12, outputTokens: 8, cacheReadTokens: 100, cacheWriteTokens: 5, totalTokens: 125 };
+    await watchedHandlers.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, {
+      text: 'Claude 本地 TUI 回复',
+      model: 'claude-sonnet-4-20250514',
+      contextSize: 125,
+      tokenUsage,
+    }));
+    await watchedHandlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, {
+      reason: 'watch',
+      model: 'claude-sonnet-4-20250514',
+      contextSize: 125,
+      tokenUsage,
+    }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(watchedRef, session.agentRef);
+    const send = mocks.feishuApi.calls.find(c => c.type === 'sendMarkdown');
+    assert.equal(send.chatId, 'oc_chat1');
+    assert.equal(send.text, 'Claude 本地 TUI 回复');
+    assert.equal(send.runtime.model, 'claude-sonnet-4-20250514');
+    assert.equal(send.runtime.contextSize, 125);
+    assert.deepEqual(send.runtime.tokenUsage, tokenUsage);
+  });
 });
 
 describe('MessageDispatcher /attach command', () => {
+  it('REQ-005-B05: /attach claude <uuid> 精确 resume 并持久化 pty-attach ref', async () => {
+    const mocks = makeMocks();
+    const uuid = '11111111-1111-4111-8111-111111111111';
+    const resumeCalls = [];
+    let createOpts;
+    let watchedRef;
+    const claudeDriver = {
+      ensureReady: async () => true,
+      resumeSession: async (ref) => {
+        resumeCalls.push(ref);
+        return Object.assign({}, ref, {
+          provider: 'claude',
+          transport: 'pty-attach',
+          runtimeId: 'rt_resumed_1',
+          processGeneration: 3,
+          terminal: { status: 'active', windowId: 'win_resumed' },
+        });
+      },
+      watchSession: (agentRef) => { watchedRef = agentRef; return () => {}; },
+    };
+    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
+    mocks.sessionService.createSession = (opts) => {
+      createOpts = opts;
+      return { id: 'wks_claude_attached1', agent: opts.agent, status: 'created', route: opts.route, agentRef: opts.agentRef };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', defaultCwd: 'H:\walker' });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['claude', uuid],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_attach_claude1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(result.sessionId, 'wks_claude_attached1');
+    assert.deepEqual(resumeCalls, [{ claudeSessionId: uuid, cwd: 'H:\walker' }]);
+    assert.equal(createOpts.agent, 'claude');
+    assert.equal(createOpts.agentRef.transport, 'pty-attach');
+    assert.equal(createOpts.agentRef.runtimeId, 'rt_resumed_1');
+    assert.equal(createOpts.agentRef.claudeSessionId, uuid);
+    assert.equal(createOpts.agentRef.processGeneration, 3);
+    assert.deepEqual(createOpts.agentRef.terminal, { status: 'active', windowId: 'win_resumed' });
+    assert.deepEqual(watchedRef, createOpts.agentRef);
+    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('Claude session attached')));
+  });
+
+  it('REQ-005-B05: /attach claude 缺失或非法 UUID fail closed 且不调用 resumeSession', async () => {
+    const mocks = makeMocks();
+    const resumeCalls = [];
+    const claudeDriver = {
+      ensureReady: async () => true,
+      resumeSession: async (ref) => { resumeCalls.push(ref); return ref; },
+      watchSession: () => () => {},
+    };
+    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const missing = await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['claude'],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_attach_claude_missing1', chatId: 'oc_chat1',
+    });
+    const invalid = await dispatcher.handleCommand({
+      type: 'command', name: 'attach', args: ['claude', 'not-a-uuid'],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_attach_claude_invalid1', chatId: 'oc_chat1',
+    });
+
+    assert.equal(missing.error, 'invalid_claude_session_id');
+    assert.equal(invalid.error, 'invalid_claude_session_id');
+    assert.deepEqual(resumeCalls, []);
+    assert.equal(mocks.feishuApi.calls.filter((c) => c.type === 'sendErrorCard' && /Claude session id/.test(c.message)).length, 2);
+  });
+
   it('/attach 单个候选时自动纳入 Walker session 并绑定 routeKey', async () => {
     const mocks = makeMocks();
     let createOpts;
@@ -3521,6 +3839,29 @@ describe('MessageDispatcher ensureWatchForSession', () => {
     assert.equal(dispatcher.sessionWatchStops.has(session.id), false, '调用前不应有 watch');
     dispatcher.ensureWatchForSession(session.id);
     assert.equal(dispatcher.sessionWatchStops.has(session.id), true, '调用后应启动 watch');
+  });
+
+  it('REQ-010-B04/B06: Claude session 通过 claudeSessionId 启动 watch 且重复调用幂等', () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_claude_watch1', agent: 'claude', status: 'idle', agentRef: { claudeSessionId: 'claude_watch1', transport: 'cli-terminal', terminal: { status: 'active' } } };
+    mocks.sessionService.getSession = (id) => id === session.id ? session : null;
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
+    let watchCount = 0;
+    const claudeDriver = { watchSession: () => { watchCount += 1; return () => {}; } };
+    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+    });
+
+    dispatcher.ensureWatchForSession(session.id);
+    dispatcher.ensureWatchForSession(session.id);
+
+    assert.equal(watchCount, 1);
+    assert.equal(dispatcher.sessionWatchStops.has(session.id), true);
   });
 
   it('session 不存在时安全跳过', () => {

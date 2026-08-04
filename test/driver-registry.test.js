@@ -43,6 +43,26 @@ test('REQ-001-B07: driverRegistry.list() 仍只返回已注册 driver 名称', (
   assert.ok(!registry.list().some((item) => typeof item === 'object'));
 });
 
+test('REQ-001-B02 和 REQ-008-B04: Claude provider 注册后不再呈现 stub 状态', async () => {
+  const registry = new DriverRegistry({
+    detectorOptions: {
+      resolveCommand: async (candidate) => candidate === 'claude' ? '/usr/bin/claude' : null,
+      runCommand: async () => ({ stdout: '2.1.196 (Claude Code)\n' }),
+    },
+  });
+
+  registry.register('claude', { name: 'claude', _isStub: false, ensureReady() {} });
+  const metadata = registry.getProviderMetadata('claude');
+  const status = await registry.doctorProvider('claude');
+
+  assert.equal(metadata.registered, true);
+  assert.equal(status.provider.registered, true);
+  assert.equal(status.provider.driverRegistered, true);
+  assert.equal(status.provider.installed, true);
+  assert.equal(status.provider.healthy, true);
+  assert.equal(status.provider.version, '2.1.196 (Claude Code)');
+});
+
 test('REQ-001-B02: registry 查询未知 provider 返回 NOT_FOUND', async () => {
   const registry = new DriverRegistry();
   const result = await registry.doctorProvider('unknown');

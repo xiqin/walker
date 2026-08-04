@@ -1,0 +1,355 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "state", "external", "recovery"],
+      "required_categories": ["happy-path", "state-transition", "external-failure", "recovery", "forbidden-behavior"],
+      "acceptance": ["/new claude立即启动且仅启动一个长期kscc TUI进程，飞书prompt不再创建独立kscc --print进程"],
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "创建Claude会话时由Walker启动长期ConPTY和kscc TUI进程",
+          "status": "failing",
+          "acceptance": ["测试证明createSession创建PTY runtime并以--session-id启动一次kscc"],
+          "test_plan": {"strategy": "fake PTY单元测试", "inputs": ["新Claude会话选项"], "expected": ["以--session-id启动一次kscc并进入active"]}
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "state-transition",
+          "description": "Claude runtime按starting、active、stopped或error转换并更新agentRef",
+          "status": "failing",
+          "acceptance": ["测试覆盖正常启动、正常退出和异常退出状态"],
+          "test_plan": {"strategy": "PTY生命周期事件测试", "inputs": ["open、exit、error事件"], "expected": ["agentRef状态按定义转换"]}
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "external-failure",
+          "description": "ConPTY或kscc启动失败时清理资源并返回可诊断错误",
+          "status": "failing",
+          "acceptance": ["启动失败不会留下活动runtime或attach端点"],
+          "test_plan": {"strategy": "故障注入测试", "inputs": ["PTY spawn异常"], "expected": ["资源清理且返回稳定错误码"]}
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "recovery",
+          "description": "已有精确Claude UUID的会话恢复时用新PTY进程执行--resume",
+          "status": "failing",
+          "acceptance": ["测试证明恢复不使用--continue且processGeneration递增"],
+          "test_plan": {"strategy": "恢复单元测试", "inputs": ["含精确UUID的持久化agentRef"], "expected": ["使用--resume且generation递增"]}
+        },
+        {
+          "id": "REQ-001-B05",
+          "category": "forbidden-behavior",
+          "description": "飞书prompt不得启动第二个kscc --print或并发Claude进程",
+          "status": "failing",
+          "acceptance": ["连续prompt始终写入同一PTY且spawn次数不增加"],
+          "test_plan": {"strategy": "多轮进程复用测试", "inputs": ["连续两条prompt"], "expected": ["spawn仅一次且参数不含--print"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "input", "state", "security"],
+      "required_categories": ["happy-path", "boundary", "invalid-input", "state-transition", "security", "external-failure"],
+      "acceptance": ["外部Windows终端可attach同一Claude TUI并完成原始输入输出、resize、detach和重新attach"],
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "attach客户端原样转发PTY输出和终端键盘字节",
+          "status": "failing",
+          "acceptance": ["ANSI字节未经文本重写地双向转发"],
+          "test_plan": {"strategy": "本地attach集成测试", "inputs": ["ANSI输出字节", "键盘输入字节"], "expected": ["字节未经改写地双向转发"]}
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "boundary",
+          "description": "终端resize被限制为有效尺寸并转发给PTY",
+          "status": "failing",
+          "acceptance": ["非法尺寸被拒绝，合法尺寸调用PTY resize"],
+          "test_plan": {"strategy": "resize边界测试", "inputs": ["0、负数、超大值、正常行列"], "expected": ["仅合法尺寸传给PTY"]}
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "state-transition",
+          "description": "attach断开只改变连接状态，不终止Claude进程",
+          "status": "failing",
+          "acceptance": ["detach后runtime仍active且可以重新attach"],
+          "test_plan": {"strategy": "attach状态测试", "inputs": ["连接、断开、重连"], "expected": ["PTY保持active且可重新attach"]}
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "security",
+          "description": "attach端点仅接受本机且持有有效凭据的客户端",
+          "status": "failing",
+          "acceptance": ["无效凭据和非本机连接被拒绝"],
+          "test_plan": {"strategy": "attach认证测试", "inputs": ["缺失、错误、正确token"], "expected": ["仅正确token握手成功"]}
+        },
+        {
+          "id": "REQ-002-B05",
+          "category": "external-failure",
+          "description": "外部终端窗口启动失败不关闭已启动的Claude runtime",
+          "status": "failing",
+          "acceptance": ["窗口失败被记录且可稍后手工attach"],
+          "test_plan": {"strategy": "窗口故障注入测试", "inputs": ["外部终端spawn异常"], "expected": ["runtime仍active且错误可诊断"]}
+        },
+        {
+          "id": "REQ-002-B06",
+          "category": "invalid-input",
+          "description": "attach协议拒绝未知消息类型和畸形二进制帧",
+          "status": "failing",
+          "acceptance": ["无效消息关闭当前连接但不影响Claude runtime"],
+          "test_plan": {"strategy": "协议模糊输入测试", "inputs": ["未知类型、缺字段、超长帧"], "expected": ["连接被拒绝且runtime继续运行"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["input", "state", "concurrent", "performance"],
+      "required_categories": ["happy-path", "concurrency", "boundary", "invalid-input", "performance", "state-transition", "forbidden-behavior"],
+      "acceptance": ["飞书与本地键盘输入通过统一仲裁器进入同一PTY，不发生字符交错或跨轮污染"],
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "happy-path",
+          "description": "飞书prompt以完整不可交错事务写入PTY并提交Enter",
+          "status": "failing",
+          "acceptance": ["文本与提交键在同一输入事务中按顺序写入"],
+          "test_plan": {"strategy": "输入事务并发测试", "inputs": ["飞书prompt与terminal字节并发"], "expected": ["prompt字节连续且仅提交一次"]}
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "concurrency",
+          "description": "本地用户编辑未提交时飞书prompt排队而不插入编辑行",
+          "status": "failing",
+          "acceptance": ["本地提交或取消后才消费飞书队列"],
+          "test_plan": {"strategy": "writer lease竞争测试", "inputs": ["本地半行、飞书prompt、本地Enter"], "expected": ["飞书prompt在本地提交后写入"]}
+        },
+        {
+          "id": "REQ-003-B03",
+          "category": "boundary",
+          "description": "飞书prompt队列有固定容量且满载时明确拒绝",
+          "status": "failing",
+          "acceptance": ["默认容量5条，不发生无限内存增长"],
+          "test_plan": {"strategy": "队列容量测试", "inputs": ["连续6条等待prompt"], "expected": ["前5条排队且第6条明确拒绝"]}
+        },
+        {
+          "id": "REQ-003-B04",
+          "category": "state-transition",
+          "description": "writer lease在提交、取消、detach或超时后释放",
+          "status": "failing",
+          "acceptance": ["每种释放路径都能继续处理队列"],
+          "test_plan": {"strategy": "lease释放状态测试", "inputs": ["Enter、Ctrl+C、detach、超时"], "expected": ["每条路径均释放lease并继续队列"]}
+        },
+        {
+          "id": "REQ-003-B05",
+          "category": "forbidden-behavior",
+          "description": "权限选择或已知忙碌状态下普通飞书文本不得直接作为TUI按键注入",
+          "status": "failing",
+          "acceptance": ["危险状态中的普通prompt只排队或拒绝"],
+          "test_plan": {"strategy": "危险状态输入测试", "inputs": ["permission和busy状态下的普通prompt"], "expected": ["PTY不直接收到prompt字节"]}
+        },
+        {
+          "id": "REQ-003-B06",
+          "category": "invalid-input",
+          "description": "空prompt、超长prompt和非文本payload被明确拒绝",
+          "status": "failing",
+          "acceptance": ["无效输入不进入队列或PTY"],
+          "test_plan": {"strategy": "prompt输入校验测试", "inputs": ["空白、超长、非字符串payload"], "expected": ["稳定校验错误且无PTY写入"]}
+        },
+        {
+          "id": "REQ-003-B07",
+          "category": "performance",
+          "description": "输入仲裁在固定资源上限内处理队列且不进行忙轮询",
+          "status": "failing",
+          "acceptance": ["队列有界且空闲时无轮询定时器持续占用"],
+          "test_plan": {"strategy": "资源上限测试", "inputs": ["满队列与空闲runtime"], "expected": ["内存项数有界且无忙轮询"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "status": "failing",
+      "types": ["functional", "observable", "external", "security"],
+      "required_categories": ["happy-path", "observability", "external-failure", "security", "forbidden-behavior"],
+      "acceptance": ["飞书和本地TUI发起的Claude轮次均通过精确UUID transcript观察并路由正确回复"],
+      "behaviors": [
+        {
+          "id": "REQ-004-B01",
+          "category": "happy-path",
+          "description": "飞书prompt只收集其提交边界之后对应的assistant文本",
+          "status": "failing",
+          "acceptance": ["旧消息和prompt echo不进入本轮回复"],
+          "test_plan": {"strategy": "JSONL轮次fixture测试", "inputs": ["旧消息与边界后新轮次"], "expected": ["仅返回新assistant文本"]}
+        },
+        {
+          "id": "REQ-004-B02",
+          "category": "observability",
+          "description": "本地TUI提交的新轮次通过watchSession发送到既有分发链路",
+          "status": "failing",
+          "acceptance": ["本地user和assistant消息可形成一次可路由watch事件"],
+          "test_plan": {"strategy": "本地TUI watcher测试", "inputs": ["追加user和assistant JSONL记录"], "expected": ["watch callback收到对应轮次事件"]}
+        },
+        {
+          "id": "REQ-004-B03",
+          "category": "external-failure",
+          "description": "JSONL缺失、部分行或写入超时时返回明确失败且watcher可继续工作",
+          "status": "failing",
+          "acceptance": ["部分行不崩溃，超时不读取替代session"],
+          "test_plan": {"strategy": "transcript故障测试", "inputs": ["文件缺失、部分行、写入超时"], "expected": ["明确失败且watcher可继续"]}
+        },
+        {
+          "id": "REQ-004-B04",
+          "category": "security",
+          "description": "transcript路径必须位于预期配置根目录并匹配canonical workspace与UUID",
+          "status": "failing",
+          "acceptance": ["路径越界、错误workspace或非法UUID被拒绝"],
+          "test_plan": {"strategy": "transcript路径安全测试", "inputs": ["路径穿越、symlink、错误workspace"], "expected": ["全部fail closed"]}
+        },
+        {
+          "id": "REQ-004-B05",
+          "category": "forbidden-behavior",
+          "description": "禁止按目录最新mtime选择JSONL或转发其他Claude会话回复",
+          "status": "failing",
+          "acceptance": ["同cwd两个活跃UUID时只读取绑定UUID"],
+          "test_plan": {"strategy": "多会话隔离测试", "inputs": ["同cwd两个UUID及非绑定文件新mtime"], "expected": ["只读取绑定UUID"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "status": "failing",
+      "types": ["state", "recovery", "external", "write"],
+      "required_categories": ["state-transition", "recovery", "external-failure", "atomicity", "compatibility"],
+      "acceptance": ["Claude runtime可安全detach、停止、异常退出并以精确ID恢复，不遗留进程或伪造原地继续"],
+      "behaviors": [
+        {
+          "id": "REQ-005-B01",
+          "category": "state-transition",
+          "description": "stop和delete关闭PTY、attach端点及Claude进程树并结束等待者",
+          "status": "failing",
+          "acceptance": ["资源按顺序关闭且操作幂等"],
+          "test_plan": {"strategy": "关闭幂等测试", "inputs": ["重复stop和delete"], "expected": ["进程树和端点安全清理且无悬挂"]}
+        },
+        {
+          "id": "REQ-005-B02",
+          "category": "recovery",
+          "description": "Walker重启后用持久化UUID和canonical cwd启动新PTY并--resume",
+          "status": "failing",
+          "acceptance": ["恢复明确增加processGeneration且不声称reattach旧进程"],
+          "test_plan": {"strategy": "重启恢复测试", "inputs": ["序列化agentRef"], "expected": ["新runtime使用--resume且generation递增"]}
+        },
+        {
+          "id": "REQ-005-B03",
+          "category": "external-failure",
+          "description": "Claude进程异常退出时队列和等待中的prompt全部收到失败",
+          "status": "failing",
+          "acceptance": ["无悬挂Promise或静默丢消息"],
+          "test_plan": {"strategy": "异常退出测试", "inputs": ["非零PTY exit"], "expected": ["队列和全部pending调用失败完成"]}
+        },
+        {
+          "id": "REQ-005-B04",
+          "category": "atomicity",
+          "description": "runtime启动或恢复的持久状态更新与失败清理保持一致",
+          "status": "failing",
+          "acceptance": ["失败后agentRef不显示active且成功后包含完整runtime字段"],
+          "test_plan": {"strategy": "启动原子性故障注入", "inputs": ["PTY、attach端点、窗口启动失败"], "expected": ["agentRef状态与实际资源一致"]}
+        },
+        {
+          "id": "REQ-005-B05",
+          "category": "compatibility",
+          "description": "旧Claude agentRef有精确UUID时可迁移，无有效UUID时fail closed",
+          "status": "failing",
+          "acceptance": ["不使用--continue或最近会话猜测"],
+          "test_plan": {"strategy": "旧引用兼容测试", "inputs": ["有效UUID、缺UUID、非法UUID"], "expected": ["仅有效UUID可精确恢复"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "status": "failing",
+      "types": ["security", "observable", "performance", "input"],
+      "required_categories": ["security", "observability", "performance", "invalid-input", "forbidden-behavior"],
+      "acceptance": ["本地attach与Claude runtime具备安全默认值、资源上限和不泄密的诊断信息"],
+      "behaviors": [
+        {
+          "id": "REQ-006-B01",
+          "category": "security",
+          "description": "attach凭据使用高熵值且仅用于本机端点认证",
+          "status": "failing",
+          "acceptance": ["错误token无法订阅输出或发送输入"],
+          "test_plan": {"strategy": "端点安全测试", "inputs": ["不同token与bind配置"], "expected": ["仅loopback正确token可连接"]}
+        },
+        {
+          "id": "REQ-006-B02",
+          "category": "observability",
+          "description": "日志包含runtime、generation、输入来源、队列深度和退出原因",
+          "status": "failing",
+          "acceptance": ["关键生命周期均有结构化日志"],
+          "test_plan": {"strategy": "结构化日志测试", "inputs": ["启动、输入、attach、退出事件"], "expected": ["日志包含要求字段"]}
+        },
+        {
+          "id": "REQ-006-B03",
+          "category": "performance",
+          "description": "PTY回放缓冲和消息队列均有固定上限",
+          "status": "failing",
+          "acceptance": ["默认回放不超过1MiB且队列不超过5条"],
+          "test_plan": {"strategy": "缓冲上限测试", "inputs": ["超过1MiB输出与超过5条消息"], "expected": ["输出淘汰旧数据且消息超限拒绝"]}
+        },
+        {
+          "id": "REQ-006-B04",
+          "category": "invalid-input",
+          "description": "attach命令拒绝缺失runtime ID、非法token和畸形控制消息",
+          "status": "failing",
+          "acceptance": ["返回非零退出码且不影响Claude runtime"],
+          "test_plan": {"strategy": "CLI和协议校验测试", "inputs": ["缺runtime ID、非法token、畸形消息"], "expected": ["非零结果且runtime不受影响"]}
+        },
+        {
+          "id": "REQ-006-B05",
+          "category": "forbidden-behavior",
+          "description": "日志和持久化状态不得包含attach token、完整prompt或敏感环境变量",
+          "status": "failing",
+          "acceptance": ["敏感值扫描无命中"],
+          "test_plan": {"strategy": "敏感信息泄漏测试", "inputs": ["带哨兵secret的token、prompt和env"], "expected": ["日志与agentRef不包含哨兵值"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "status": "failing",
+      "types": ["compatibility", "forbidden-behavior"],
+      "required_categories": ["compatibility", "forbidden-behavior"],
+      "acceptance": ["OpenCode源码、测试和运行行为不发生变化"],
+      "behaviors": [
+        {
+          "id": "REQ-007-B01",
+          "category": "compatibility",
+          "description": "现有OpenCode单元与集成测试保持通过",
+          "status": "failing",
+          "acceptance": ["OpenCode相关测试全绿"],
+          "test_plan": {"strategy": "既有OpenCode回归测试", "inputs": ["未修改的OpenCode测试集"], "expected": ["全部通过"]}
+        },
+        {
+          "id": "REQ-007-B02",
+          "category": "forbidden-behavior",
+          "description": "实现diff不得修改OpenCode专属源码与测试",
+          "status": "failing",
+          "acceptance": ["git diff文件清单不包含OpenCode专属路径"],
+          "test_plan": {"strategy": "变更范围机械检查", "inputs": ["git diff --name-only"], "expected": ["不包含OpenCode专属源码与测试"]}
+        },
+        {
+          "id": "REQ-007-B03",
+          "category": "compatibility",
+          "description": "WindowsRuntime现有openTerminal方法保持语义兼容",
+          "status": "failing",
+          "acceptance": ["现有runtime测试无需修改即可通过"],
+          "test_plan": {"strategy": "runtime兼容回归", "inputs": ["现有runtime测试与Claude专用测试"], "expected": ["openTerminal旧语义不变且新能力独立通过"]}
+        }
+      ]
+    }
+  ]
+}

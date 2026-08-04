@@ -1,0 +1,72 @@
+{
+  "task_id": "T6",
+  "status": "done",
+  "summary": "OpenCode 边界检查、OpenCode 定向测试、Claude 定向测试、diff check 和全量 npm test 均通过；T6 期间修复了一个仅测试 fixture 的 Claude 非 UUID agentRef 回归，使其符合已批准的 fail-closed UUID 规格。",
+  "modified_files": [
+    "specs/2026-08-03+claude-native-external-tui/traceability.json",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T6-diff-name-only.log",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T6-opencode-tests.log",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T6-claude-tests.log",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T6-diff-check.log",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T6-npm-test.log",
+    "specs/2026-08-03+claude-native-external-tui/handoffs/T6.json",
+    "test/message-dispatcher-platform-event.test.js"
+  ],
+  "validation": [
+    {
+      "command": "git diff --name-only",
+      "status": "pass",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T6-diff-name-only.log",
+      "summary": "diff 清单未包含 OpenCode 专属源码/测试路径。"
+    },
+    {
+      "command": "node --test test/opencode-driver.test.js test/opencode-tui-bridge.test.js test/opencode-http-client.test.js test/runtime.test.js",
+      "status": "pass",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T6-opencode-tests.log",
+      "summary": "186 tests passed, 0 failed."
+    },
+    {
+      "command": "node --test test/claude-pty-broker.test.js test/claude-attach.test.js test/cli-claude-attach.test.js test/claude-driver.test.js test/claude-transcript.test.js test/message-dispatcher.test.js test/message-dispatcher-platform-event.test.js test/runtime.test.js",
+      "status": "pass",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T6-claude-tests.log",
+      "summary": "260 tests passed, 0 failed."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T6-diff-check.log",
+      "summary": "No whitespace errors reported."
+    },
+    {
+      "command": "npm test",
+      "status": "pass",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T6-npm-test.log",
+      "summary": "1418 tests run, 1418 passed, 0 failed."
+    }
+  ],
+  "diff_scope": {
+    "opencode_exclusive_paths_present": false,
+    "checked_paths": [
+      "src/drivers/opencode-driver.js",
+      "src/opencode-tui-bridge/",
+      "test/opencode-driver.test.js",
+      "test/opencode-tui-bridge.test.js",
+      "test/opencode-http-client.test.js"
+    ],
+    "verdict": "pass"
+  },
+  "opencode_boundary_verdict": "pass",
+  "requirements_verified": ["REQ-007"],
+  "behaviors_verified": ["REQ-007-B01", "REQ-007-B02", "REQ-007-B03"],
+  "traceability_updated": true,
+  "blocker": null,
+  "repair_notes": [
+    "首次 npm test 暴露 test/message-dispatcher-platform-event.test.js 的 Claude fixture 使用非 UUID claudeSessionId=claude_1，与 T5 fail-closed 规则冲突。",
+    "已将该测试 fixture 改为合法 UUID 11111111-1111-4111-8111-111111111111；生产逻辑仍拒绝缺失或非法 Claude UUID。",
+    "修复后 node --test test/message-dispatcher-platform-event.test.js、dispatcher 定向、Claude 定向和 npm test 均通过。"
+  ],
+  "known_risks": [
+    "当前工作树存在大量非 T6 改动；T6 未回退或修改这些改动。",
+    "diff 清单包含 src/runtime/windows-runtime.js 和 test/runtime.test.js 等 feature 相关路径，但未包含 OpenCode 专属源码/测试路径。"
+  ]
+}

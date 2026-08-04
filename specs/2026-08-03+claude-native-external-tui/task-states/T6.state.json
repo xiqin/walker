@@ -1,0 +1,11 @@
+{
+  "task_id": "T6",
+  "spec_dir": "H:\\walker\\specs\\2026-08-03+claude-native-external-tui",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-08-03T12:16:12.073Z",
+  "updated_at": "2026-08-03T12:31:50.426Z",
+  "last_reviewer_result": null,
+  "blocker": "npm test 失败 1 项：test/message-dispatcher-platform-event.test.js:73 handlePlatformMessage 支持 Claude agentRef 并复用通用 prompt 状态机，expected status prompted, actual error。T6 不允许修改源码。"
+}

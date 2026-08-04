@@ -275,7 +275,8 @@ describe('createApp', () => {
       },
       JsonStore: class { constructor() { this.read = () => ({}); this.update = () => {}; } },
       OpencodeDriver: class { constructor() {} },
-      stubClaudeDriver: () => ({ name: 'claude' }),
+      ClaudeDriver: class { constructor() { this.name = 'claude'; } },
+      stubClaudeDriver: () => ({ name: 'claude-stub' }),
       stubCodexDriver: () => ({ name: 'codex' }),
       DriverRegistry: class {
         register() {}
@@ -292,6 +293,56 @@ describe('createApp', () => {
     await app.start();
     assert.deepEqual(platformStarted, ['feishu']);
     assert.ok(!platformStarted.includes('opendray'));
+  });
+
+  it('启动时注册真实 ClaudeDriver 并保留 opencode/codex 注册', () => {
+    const registered = [];
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
+      walkerDataDir: '', opencodeServerUrl: 'http://localhost:4096', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', claudeCmd: 'claude-test', claudeModel: 'sonnet',
+      claudeFallbackModel: 'opus', claudeAgent: 'reviewer', claudePermissionMode: 'plan',
+      claudeAllowedTools: 'Read,Grep', claudeDisallowedTools: 'Bash', claudeConfigDir: 'C:\\claude',
+      claudePromptTimeoutMs: 45000, walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+    };
+    const deps = {
+      FeishuPlatform: class { constructor() { this.api = {}; } start() { return Promise.resolve(); } stop() {} },
+      SessionService: class { recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class { constructor() { this.read = () => ({}); this.update = () => {}; } },
+      OpencodeDriver: class { constructor(options) { this.name = 'opencode'; this.options = options; } },
+      ClaudeDriver: class { constructor(options) { this.name = 'claude'; this.options = options; } },
+      OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
+      stubClaudeDriver: () => ({ name: 'claude-stub' }),
+      stubCodexDriver: () => ({ name: 'codex-stub' }),
+      DriverRegistry: class {
+        constructor() { this.drivers = new Map(); }
+        register(name, driver) { registered.push({ name, driver }); this.drivers.set(name, driver); }
+        get(name) { return this.drivers.get(name) || null; }
+      },
+      createRuntime: () => ({ spawn() {} }),
+      MessageDedup: class {},
+      MessageDispatcher: class {},
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+
+    createApp(config, deps);
+
+    assert.deepEqual(registered.map((item) => item.name), ['opencode', 'claude', 'codex']);
+    const claude = registered.find((item) => item.name === 'claude').driver;
+    assert.equal(claude.name, 'claude');
+    assert.equal(claude.options.claudeCmd, 'claude-test');
+    assert.equal(claude.options.model, 'sonnet');
+    assert.equal(claude.options.fallbackModel, 'opus');
+    assert.equal(claude.options.agent, 'reviewer');
+    assert.equal(claude.options.permissionMode, 'plan');
+    assert.equal(claude.options.allowedTools, 'Read,Grep');
+    assert.equal(claude.options.disallowedTools, 'Bash');
+    assert.equal(claude.options.configDir, 'C:\\claude');
+    assert.equal(claude.options.promptTimeoutMs, 45000);
   });
 
   it('stop 关闭 platform', async () => {

@@ -1,0 +1,25 @@
+{
+  "status": "done",
+  "summary": "刷新 stale handoff：T2 provider/bootstrap/doctor 接入与 Windows 命令解析修复保持；T5/REQ-010 已将 Claude catalog 能力更新为 Walker 层 tui/window true 且 http false，表达真实 terminal window 能力而不伪造 OpenCode bridge。最新 provider catalog 测试覆盖该能力表达。",
+  "artifacts": [
+    "src/providers/provider-catalog.js",
+    "src/providers/provider-detectors.js",
+    "test/provider-catalog.test.js",
+    "specs/2026-07-31-claude-provider/evidence/T2-provider-bootstrap-tests.md",
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.md"
+  ],
+  "task_id": "T2",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c",
+    "tasks/T2.md": "16e63e0c85804af493594d18b11c3652d3f8bddf300592bdfb812bebbfb26fb7"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-31-claude-provider/evidence/T2-provider-bootstrap-tests.md": "ca7f14634f138ed5a55991064ae845e3e00ccb643e1f50411cdb980eb40cf2bd",
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.md": "dea79ead712edd071e00a00d17cbb089b477834c00edde0de9613f24918ffa99",
+    "src/providers/provider-catalog.js": "1f8f545c4607a3e28e7551715043079e3abfc9d34788cffcf8c60e98ecd7f36d",
+    "src/providers/provider-detectors.js": "a2545a64e45436554bb4e09fb0f9662f0fab6c21051c4c04571aba37f65c772a",
+    "test/provider-catalog.test.js": "d4e84dce70043037176754fe322f7ee42b43745411654ed689f519e77cc22866"
+  },
+  "written_at": "2026-08-03T07:33:10.742Z"
+}

@@ -67,6 +67,9 @@ test('config 摘要脱敏并暴露可编辑字段 allowlist', () => {
   assert.equal(summary.values.WALKER_ADMIN_HOST, '127.0.0.1');
   assert.deepEqual(summary.editableKeys, EDITABLE_ENV_KEYS);
   assert.equal(summary.sensitiveKeys.includes('FEISHU_APP_SECRET'), true);
+  assert.equal(summary.editableKeys.includes('CLAUDE_CMD'), true);
+  assert.equal(summary.editableKeys.includes('CLAUDE_PROMPT_TIMEOUT_MS'), true);
+  assert.equal(summary.sensitiveKeys.some((key) => key.startsWith('CLAUDE_')), false);
 });
 
 test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知键', () => {
@@ -84,6 +87,7 @@ test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知�
     WALKER_ADMIN_HOST: '0.0.0.0',
     WALKER_ADMIN_PORT: 8788,
     OPENCODE_SERVER_AUTOSTART: false,
+    CLAUDE_PROMPT_TIMEOUT_MS: 45000,
   });
   const raw = fs.readFileSync(envPath, 'utf8');
 
@@ -92,6 +96,7 @@ test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知�
     'WALKER_ADMIN_HOST',
     'WALKER_ADMIN_PORT',
     'OPENCODE_SERVER_AUTOSTART',
+    'CLAUDE_PROMPT_TIMEOUT_MS',
   ]);
   assert.match(raw, /^# walker config/m);
   assert.match(raw, /^FEISHU_APP_SECRET=keep-secret/m);
@@ -99,6 +104,7 @@ test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知�
   assert.match(raw, /^WALKER_ADMIN_HOST=0\.0\.0\.0/m);
   assert.match(raw, /^WALKER_ADMIN_PORT=8788/m);
   assert.match(raw, /^OPENCODE_SERVER_AUTOSTART=false/m);
+  assert.match(raw, /^CLAUDE_PROMPT_TIMEOUT_MS=45000/m);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

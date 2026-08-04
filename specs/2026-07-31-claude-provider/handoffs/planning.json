@@ -1,0 +1,28 @@
+{
+  "artifact_analysis_status": "pass",
+  "requirement_coverage": "100%",
+  "behavior_coverage": "100%",
+  "traceability_coverage": "100%",
+  "status": "done",
+  "summary": "刷新 stale handoff：REQ-010/T5 增量规划与审查材料已最终同步；plan.md、tasks/T5.md、traceability.json、artifact-analysis.json、review-request.md 均已反映 Claude/kscc Walker 层 cli-terminal/window 会话链路。loom_analyze_artifacts 最新通过，requirement/behavior/traceability coverage 均 100%，findings 为空。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T5.md",
+    "traceability.json",
+    "artifact-analysis.json",
+    "review-request.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c",
+    "tasks/": "d5dc898617bbb56addebc1bd78d99ddde7eeb5146bc1619f493e28d1a9db96aa"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "review-request.md": "bf738c1b9407971b91e9979b6e9e88df03e7ce5cbb8e8a7a19bd520b3354bf0c",
+    "tasks/T5.md": "e77f0ad2595991dbc2021faea68f9101d17f6e2ea8e5e612aafa32ef657701e4"
+  },
+  "written_at": "2026-08-03T07:44:13.856Z"
+}

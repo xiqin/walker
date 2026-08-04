@@ -1,0 +1,20 @@
+{
+  "refresh_reason": "REQ-010 changed spec.md and requirements.json after original approval",
+  "status": "done",
+  "summary": "刷新 stale handoff：原 Claude provider brainstorming 已完成首版后台 CLI/stream-json 方案；用户飞书实测后新增 REQ-010，要求 Claude/kscc 在 Walker 层实现与 OpenCode 等价 TUI 会话链路。spec.md 与 requirements.json 已追加该增量范围，保留原后台 --print 行为为兼容/可诊断回退。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "98ff5909460d06cad02f5085aafd09e2908d80d2f30295715d6b15c82aa35804",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c"
+  },
+  "written_at": "2026-08-03T07:05:40.122Z"
+}

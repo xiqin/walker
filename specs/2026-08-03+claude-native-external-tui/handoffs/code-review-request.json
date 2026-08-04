@@ -1,0 +1,49 @@
+{
+  "fixed_point": "current working tree vs HEAD",
+  "pre_review": {
+    "standards_findings_unresolved": 0,
+    "spec_findings_unresolved": 0,
+    "fixed_blockers": [
+      "Removed persisted terminal.attachUrl containing attach token from ClaudeDriver terminal state; token/url are still passed only to openClaudeAttachTerminal for process launch."
+    ],
+    "evidence": [
+      "src/drivers/claude-driver.js:251-262",
+      "test/claude-driver.test.js:149-152"
+    ]
+  },
+  "validation": {
+    "targeted_node_test": "node --test test/claude-driver.test.js test/message-dispatcher.test.js test/claude-attach.test.js test/runtime.test.js => 232 pass / 0 fail",
+    "eslint": "npx eslint src/drivers/claude-driver.js test/claude-driver.test.js => pass",
+    "loom_verify_artifacts": "pass",
+    "npm_test": "1418 pass / 0 fail",
+    "git_diff_check": "pass"
+  },
+  "review_focus": [
+    "attach token not persisted or logged",
+    "PTY runtime generation/lifecycle isolation",
+    "input lease and queue correctness",
+    "exact UUID resume only, no --continue",
+    "canonical transcript path safety",
+    "OpenCode boundary preservation"
+  ],
+  "status": "done",
+  "summary": "已完成 code-review-request 阶段并生成 review-request.md。预审查 fixed point 为当前工作树相对 HEAD；Standards/Spec 双轴预审查发现 1 个安全 blocker：ClaudeDriver 曾将含 attach token 的 URL 写入可持久化 terminal 状态。已在本阶段修复为仅传给 openClaudeAttachTerminal、不写入 agentRef/terminal，并补充测试断言 ref 不含 token。修复后定向测试 232/232、eslint、loom_verify_artifacts、npm test 1418/1418、git diff --check 均通过。review-request.md 已记录主要变更、风险、验证结果和审查重点。",
+  "artifacts": [
+    "review-request.md",
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "8885773693f768887ac23c4bad2a111d8053ef6eea18ad9a08c4f7906cc2c21f",
+    "spec.md": "ed03cbd9d724e33102f9869486fc9067fff40d2310c5e1e1b23e6293ca3f8794"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "8037a7158c30e7559c76d7de213f3777ee4e4306e6c13b8afd32543e5d2238b1",
+    "test-report.md": "4a83cec6c9b37ce1c2288f39e1b47b9db312c023caa52e609a701a6fbe63f608",
+    "verify-report.md": "5bf9ce0f81b771983a3b2785437f113fc5d63cb993eb70759bbb626fb61f2efb"
+  },
+  "written_at": "2026-08-03T12:56:09.374Z"
+}

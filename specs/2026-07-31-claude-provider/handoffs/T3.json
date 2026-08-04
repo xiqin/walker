@@ -1,0 +1,25 @@
+{
+  "status": "done",
+  "summary": "刷新 stale handoff：T3 admin config/session 泛化和 .env CLAUDE_CMD 读取保持；T5/REQ-010 已在 admin session DTO 中展示 Claude cli-terminal transport 与 terminal/window 诊断，normalizeTransport 支持 cli-terminal。最新 admin-core-api 测试覆盖该状态展示。",
+  "artifacts": [
+    "src/admin/session-admin.js",
+    "src/config/env.js",
+    "test/admin-core-api.test.js",
+    "test/config-env.test.js",
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.md"
+  ],
+  "task_id": "T3",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c",
+    "tasks/T3.md": "70d0b30b7874058f9fb87abf8c738e79943d743f86e5cc0be0f0730b5421c6f0"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.md": "dea79ead712edd071e00a00d17cbb089b477834c00edde0de9613f24918ffa99",
+    "src/admin/session-admin.js": "d82abb020d559c98adc5bd3bce5eea2ab6256f971d8853800f35098d1e5733bc",
+    "src/config/env.js": "1ff9b8b4d386b5a498d25ce9014b0a803af177bbba2973f322364cf125a8ce16",
+    "test/admin-core-api.test.js": "b954674008927d1507db92dc66195f628532d1fc6ed56baf8aa2754633953bde",
+    "test/config-env.test.js": "386dd87a11e4d553dfb333ff8280ad3f6215e610fac546d956751539c42181ce"
+  },
+  "written_at": "2026-08-03T07:33:10.860Z"
+}

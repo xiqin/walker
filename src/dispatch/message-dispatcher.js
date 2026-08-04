@@ -16,6 +16,26 @@ const DEFAULT_HEARTBEAT_INITIAL_MS = 30000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 60000;
 const DEFAULT_HEARTBEAT_STUCK_MS = 300000;
 
+function getAgentRefId(agentRef) {
+  if (!agentRef || typeof agentRef !== 'object') return '';
+  return agentRef.opencodeSessionId || agentRef.claudeSessionId || agentRef.runtimeId || agentRef.sessionId || agentRef.id || '';
+}
+
+function hasAgentSessionRef(agentRef) {
+  return Boolean(getAgentRefId(agentRef));
+}
+
+function isUuid(value) {
+  return typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function shouldPersistAgentRef(agentRef) {
+  if (!agentRef || typeof agentRef !== 'object') return false;
+  if (agentRef.conversationReady === true) return true;
+  return agentRef.transport === 'pty-attach' && Boolean(agentRef.claudeSessionId);
+}
+
 /**
  * 消息调度器，处理飞书平台的消息和命令事件并协调 Agent 驱动与飞书 API 交互
  */
@@ -175,11 +195,16 @@ class MessageDispatcher {
       return 'error';
     }
 
-    const agentRef = current.agentRef;
-    if (!agentRef || !agentRef.opencodeSessionId) {
+    let agentRef = current.agentRef;
+    if (!hasAgentSessionRef(agentRef)) {
       logger.error('session has no agentRef', { sessionId: current.id });
       this._sendFeishu('sendErrorCard', [this._replyCtx(event), 'Session has no active agent reference']);
       return 'error';
+    }
+    if (current.agent === 'claude') {
+      const prepared = await this._prepareClaudeAgentRef(current, driver, event);
+      if (prepared.error) return 'error';
+      agentRef = prepared.agentRef;
     }
 
     this.sessionService.markRunning(current.id);
@@ -189,7 +214,9 @@ class MessageDispatcher {
       routeKey,
       sessionId: current.id,
       agent: current.agent,
+      agentRefId: getAgentRefId(agentRef),
       opencodeSessionId: agentRef.opencodeSessionId,
+      claudeSessionId: agentRef.claudeSessionId,
     });
 
     const promptEvent = event.routeKey === routeKey ? event : { ...event, routeKey };
@@ -266,6 +293,10 @@ class MessageDispatcher {
         this._recordAdminMetric('activeTurns');
         if (progressCardId) this._recordAdminMetric('cardDeliveries');
         const events = await driver.prompt(agentRef, event.text, { model, signal: turnState.abortController.signal });
+        if (shouldPersistAgentRef(agentRef)) {
+          session.agentRef = agentRef;
+          this._updateSessionRuntimeField(session.id, 'agentRef', agentRef);
+        }
         await this._capturePromptRuntime(session, model, events, driver, agentRef);
         this._recordAdminMetric('promptDurationMs', Date.now() - promptStartedAt);
         if (this._isTurnCancelled(sessionId, token)) {
@@ -590,10 +621,11 @@ class MessageDispatcher {
     const inheritedModel = this._resolveInheritedModel(current);
     const agentRef = await driver.createSession({ title, cwd, model: inheritedModel });
 
+    const sessionTitle = title || ('session ' + this._agentRefLabel(agentRef));
     const session = this.sessionService.createSession({
       route: routeKey,
       agent: agentName,
-      title: title || ('session ' + agentRef.opencodeSessionId.slice(0, 12)),
+      title: sessionTitle,
       runtime: this.runtimeType,
       cwd,
       agentRef,
@@ -602,7 +634,7 @@ class MessageDispatcher {
 
     logger.info('new session created via /new', { sessionId: session.id, agent: agentName, routeKey });
     this._watchSessionEvents(session, cmd, driver);
-    await this._callFeishu('replyText', [this._replyCtx(cmd), 'Session created: ' + session.id + ' (' + agentName + ')']);
+    await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatSessionCreated(session, agentName)]);
     return { sessionId: session.id, agentRef };
   }
 
@@ -617,6 +649,7 @@ class MessageDispatcher {
       if (pendingPrompt) await pendingPrompt.catch(() => {});
     }
     const args = cmd.args || [];
+    if (args[0] === 'claude') return this._cmdAttachClaude(cmd, args[1]);
     let targetOpencodeSessionId = '';
     let page;
     let search = '';
@@ -760,6 +793,52 @@ class MessageDispatcher {
     this._watchSessionEvents(session, cmd, driver);
     await this._callFeishu('replyText', [this._replyCtx(cmd), 'OpenCode session attached: ' + session.id + ' (' + remoteSession.id + ')']);
     return { sessionId: session.id, agentRef };
+  }
+
+  async _cmdAttachClaude(cmd, claudeSessionId) {
+    const driver = this.driverRegistry.get('claude');
+    if (!driver) {
+      await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), 'Agent not found: claude']);
+      return { error: 'driver_not_found' };
+    }
+    if (!isUuid(claudeSessionId)) {
+      const message = 'Invalid or missing Claude session id: expected exact UUID for resume.';
+      await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), message]);
+      return { error: 'invalid_claude_session_id', message };
+    }
+    if (typeof driver.ensureReady === 'function') await driver.ensureReady();
+    const agentRef = await driver.resumeSession({
+      claudeSessionId,
+      cwd: this.defaultCwd,
+    });
+    const session = this.sessionService.createSession({
+      route: cmd.routeKey,
+      agent: 'claude',
+      title: 'claude ' + claudeSessionId.slice(0, 12),
+      runtime: this.runtimeType,
+      cwd: agentRef.cwd || this.defaultCwd,
+      agentRef,
+    });
+    this.sessionService.markIdle(session.id);
+    this._watchSessionEvents(session, cmd, driver);
+    await this._callFeishu('replyText', [this._replyCtx(cmd), 'Claude session attached: ' + session.id + ' (' + claudeSessionId + ')']);
+    return { sessionId: session.id, agentRef };
+  }
+
+  async _prepareClaudeAgentRef(session, driver, event) {
+    const agentRef = session && session.agentRef;
+    if (!isUuid(agentRef && agentRef.claudeSessionId)) {
+      const message = 'Invalid or missing Claude session id: cannot resume without exact UUID.';
+      logger.warn('claude agentRef rejected before prompt', { sessionId: session && session.id, reason: 'invalid_claude_session_id' });
+      await this._callFeishu('sendErrorCard', [this._replyCtx(event), message], null, { sessionId: session && session.id });
+      return { error: 'invalid_claude_session_id', message };
+    }
+    if (agentRef.transport === 'pty-attach' && agentRef.runtimeId) return { agentRef };
+    if (!driver || typeof driver.resumeSession !== 'function') return { agentRef };
+    const resumed = await driver.resumeSession(agentRef);
+    session.agentRef = resumed;
+    this._updateSessionRuntimeField(session.id, 'agentRef', resumed);
+    return { agentRef: resumed };
   }
 
   /**
@@ -1238,7 +1317,7 @@ class MessageDispatcher {
   }
 
   _ensureWatch(session, chatId) {
-    if (!session || !session.agentRef || !session.agentRef.opencodeSessionId) return;
+    if (!this._canWatchSession(session)) return;
     if (this.sessionWatchStops.has(session.id)) return;
     const driver = this.driverRegistry.get(session.agent || 'opencode');
     if (!driver || typeof driver.watchSession !== 'function') return;
@@ -1246,7 +1325,7 @@ class MessageDispatcher {
   }
 
   _refreshWatch(session, chatId) {
-    if (!session || !session.agentRef || !session.agentRef.opencodeSessionId) return;
+    if (!this._canWatchSession(session)) return;
     const driver = this.driverRegistry.get(session.agent || 'opencode');
     if (!driver || typeof driver.watchSession !== 'function') return;
     this._watchSessionEvents(session, { chatId }, driver);
@@ -1263,13 +1342,13 @@ class MessageDispatcher {
   }
 
   restoreWatches() {
-    const driver = this.driverRegistry.get('opencode');
-    if (!driver || typeof driver.watchSession !== 'function') return;
     const sessions = this.sessionService.listSessions();
     let restored = 0;
     for (const session of sessions) {
       if (session.status === 'deleted') continue;
-      if (!session.agentRef || !session.agentRef.opencodeSessionId) continue;
+      if (!this._canWatchSession(session)) continue;
+      const driver = this.driverRegistry.get(session.agent || 'opencode');
+      if (!driver || typeof driver.watchSession !== 'function') continue;
       const routeKey = this.sessionService.getRouteForSession(session.id);
       if (!routeKey) continue;
       const chatId = this._chatIdFromRouteKey(routeKey);
@@ -1278,6 +1357,29 @@ class MessageDispatcher {
       restored++;
     }
     if (restored > 0) logger.info('restored session watches on startup', { count: restored });
+  }
+
+  _canWatchSession(session) {
+    if (!session || !session.agentRef) return false;
+    const driver = this.driverRegistry.get(session.agent || 'opencode');
+    return !!(driver && typeof driver.watchSession === 'function' && hasAgentSessionRef(session.agentRef));
+  }
+
+  _agentRefLabel(agentRef) {
+    const id = getAgentRefId(agentRef);
+    return id ? String(id).slice(0, 12) : 'agent';
+  }
+
+  _formatSessionCreated(session, agentName) {
+    let text = 'Session created: ' + session.id + ' (' + agentName + ')';
+    const terminal = session.agentRef && session.agentRef.terminal;
+    if (terminal && terminal.status && terminal.status !== 'active') {
+      text += ' - terminal ' + terminal.status;
+      if (terminal.reason) text += ': ' + terminal.reason;
+    } else if (terminal && terminal.status === 'active') {
+      text += ' - terminal active';
+    }
+    return text;
   }
 
   _stopSessionWatch(sessionId) {
@@ -1694,7 +1796,8 @@ class MessageDispatcher {
 
     if (runtime.model === undefined) {
       const model = this._firstOwnValue(value, ['model']);
-      if (model && typeof model === 'object' && (model.modelID || model.providerID)) runtime.model = model;
+      if (typeof model === 'string' && model) runtime.model = model;
+      else if (model && typeof model === 'object' && (model.modelID || model.providerID)) runtime.model = model;
       if (!runtime.model) {
         const modelID = this._firstOwnValue(value, ['modelID', 'modelId']);
         const providerID = this._firstOwnValue(value, ['providerID', 'providerId']);

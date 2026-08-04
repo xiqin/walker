@@ -383,6 +383,20 @@ test('REQ-004: listSessions 返回 route 归属和 OpenCode 诊断字段', () =>
   assert.equal(free.isUnbound, true);
 });
 
+test('REQ-007-B01 和 REQ-010-B06: listSessions 展示 Claude terminal/window 诊断', () => {
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      { id: 'wks_claude', agent: 'claude', title: 'claude', runtime: 'windows', cwd: 'H:\\walker', status: 'running', agentRef: { provider: 'claude', transport: 'cli-terminal', claudeSessionId: '11111111-1111-4111-8111-111111111111', terminal: { status: 'active', windowId: 'win_1', updatedAt: 2000 } }, errorMessage: null, createdAt: 1000, updatedAt: 1000 },
+    ]),
+  });
+
+  const result = sessionAdmin.listSessions(ctx);
+
+  assert.equal(result[0].transport, 'cli-terminal');
+  assert.deepEqual(result[0].watch, { active: false, mode: 'unknown' });
+  assert.deepEqual(result[0].window, { status: 'active', windowId: 'win_1', updatedAt: 2000 });
+});
+
 test('REQ-004: listSessions 按会话创建时间倒序并分离业务事件和心跳时间', () => {
   const ctx = buildAppContext({
     sessionService: createFakeSessionService([
@@ -454,6 +468,57 @@ test('REQ-005: 创建 Walker session 并创建底层 opencode session', async ()
   assert.equal(session.status, 'running');
   assert.ok(session.agentRef);
   assert.ok(session.agentRef.opencodeSessionId);
+});
+
+test('REQ-007-B01 和 REQ-008-B01: 创建底层 Claude session 时按 agent 获取 driver', async () => {
+  let createOptions = null;
+  const ctx = buildAppContext({
+    registry: createFakeRegistry({
+      opencode: createFakeOpencodeDriver(),
+      claude: {
+        name: 'claude',
+        createSession: async (opts) => {
+          createOptions = opts;
+          return { provider: 'claude', transport: 'cli', claudeSessionId: 'claude-session-1', cwd: opts.cwd };
+        },
+      },
+    }),
+  });
+
+  const session = await sessionAdmin.createSession(ctx, {
+    agent: 'claude',
+    title: 'claude test',
+    cwd: 'H:\\walker',
+    createAgentSession: true,
+    model: { providerID: 'claude', modelID: 'sonnet' },
+  });
+
+  assert.equal(session.agent, 'claude');
+  assert.equal(session.status, 'running');
+  assert.deepEqual(session.agentRef, {
+    provider: 'claude',
+    transport: 'cli',
+    claudeSessionId: 'claude-session-1',
+    cwd: 'H:\\walker',
+  });
+  assert.deepEqual(createOptions, {
+    title: 'claude test',
+    cwd: 'H:\\walker',
+    model: { providerID: 'claude', modelID: 'sonnet' },
+  });
+});
+
+test('REQ-007-B05: createAgentSession 缺少对应 driver 时记录可诊断错误', async () => {
+  const ctx = buildAppContext({ registry: createFakeRegistry({}) });
+
+  const session = await sessionAdmin.createSession(ctx, {
+    agent: 'claude',
+    createAgentSession: true,
+  });
+
+  assert.equal(session.status, 'error');
+  assert.match(session.errorMessage, /driver not found for agent: claude/);
+  assert.equal(ctx.eventStore.events.some((event) => event.message.includes('driver not found for agent: claude')), true);
 });
 
 test('REQ-005: 创建底层 session 失败时标记错误', async () => {
@@ -817,6 +882,21 @@ test('REQ-009: listAgents 展示 stub driver 不可用状态', () => {
   const codex = agents.find((a) => a.name === 'codex');
   assert.equal(codex.available, false);
   assert.ok(codex.reason.includes('not implemented'));
+});
+
+test('REQ-001-B02: listAgents 展示真实 Claude driver 可用状态', () => {
+  const ctx = buildAppContext({
+    registry: createFakeRegistry({
+      opencode: createFakeOpencodeDriver(),
+      claude: { name: 'claude', ensureReady: async () => true },
+    }),
+  });
+
+  const agents = agentRuntimeAdmin.listAgents(ctx);
+  const claude = agents.find((a) => a.name === 'claude');
+
+  assert.equal(claude.available, true);
+  assert.equal(claude.reason, '');
 });
 
 // ── REQ-010: OpenCode check 和 ensure-ready 返回明确结果 ──

@@ -1,0 +1,57 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "实现并修复 Claude PTY runtime 和 broker 生命周期，覆盖 pty-attach agentRef、generation 递增、迟到旧 exit 隔离、创建、恢复、退出、停止删除、输出回放、队列上限和结构化日志。",
+  "artifacts": [
+    "src/drivers/claude-pty-runtime.js",
+    "src/drivers/claude-pty-broker.js",
+    "test/claude-pty-broker.test.js",
+    "package.json",
+    "package-lock.json",
+    "specs/2026-08-03+claude-native-external-tui/traceability.json",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T1-node-test.log"
+  ],
+  "exported_interfaces": {
+    "src/drivers/claude-pty-runtime.js": [
+      "createClaudePtyRuntime(options)",
+      "ClaudePtyRuntime",
+      "createRuntimeError(message, cause)"
+    ],
+    "src/drivers/claude-pty-broker.js": [
+      "new ClaudePtyBroker({ command, cwd, env, ptyFactory, idFactory, logger, replayLimitBytes, queueLimit })",
+      "createRuntime({ claudeSessionId, cwd, env, cols, rows })",
+      "resumeRuntime({ runtimeId, claudeSessionId, cwd, env, processGeneration, cols, rows })",
+      "getRuntime(runtimeId)",
+      "stopRuntime(runtimeId, reason)",
+      "deleteRuntime(runtimeId, reason)",
+      "writeInput(runtimeId, data, { source })",
+      "resize(runtimeId, cols, rows)",
+      "subscribeOutput(runtimeId, fn, { replay })"
+    ]
+  },
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-001", "REQ-005", "REQ-006"],
+  "behaviors_verified": [
+    "REQ-001-B01",
+    "REQ-001-B02",
+    "REQ-001-B03",
+    "REQ-001-B04",
+    "REQ-005-B01",
+    "REQ-005-B02",
+    "REQ-005-B03",
+    "REQ-005-B04",
+    "REQ-006-B02",
+    "REQ-006-B03"
+  ],
+  "traceability_updated": true,
+  "notes": [
+    "TDD red: 初次运行 node --test test/claude-pty-broker.test.js 因缺少 ../src/drivers/claude-pty-broker 模块失败。",
+    "最终验证: node --test test/claude-pty-broker.test.js 通过，10 pass / 0 fail。",
+    "reviewer 修复: agentRef.transport 从 pty 改为 pty-attach，测试显式拒绝 pty。",
+    "reviewer 修复: resumeRuntime 将传入 processGeneration 作为持久化基线并强制递增。",
+    "reviewer 修复: 每次 spawn 绑定 runtime/generation guard，旧 generation 的迟到 data/exit 不再修改当前 record 或失败当前 pending。",
+    "reviewer 覆盖补齐: 旧 generation 迟到 data 不会发送给新 generation subscriber，也不会进入新 generation replay。",
+    "npm install node-pty --save 已更新 package.json/package-lock.json；npm 报告 eslint 相关包需要 Node >=22.13.0 的 engine warning，当前 Node 为 22.11.0。",
+    "未修改 WindowsRuntime.openTerminal 或任何 OpenCode 专属源码/测试。"
+  ]
+}

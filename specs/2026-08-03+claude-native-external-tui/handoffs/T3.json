@@ -1,0 +1,67 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "实现 ClaudeDriver 从每轮 kscc --print 改为 Walker 持有的长期 Claude PTY runtime；补齐 attach broker facade，确保真实 attach 输入路径与飞书 prompt 共享同一输入仲裁。",
+  "modified_files": [
+    "src/drivers/claude-driver.js",
+    "test/claude-driver.test.js",
+    "specs/2026-08-03+claude-native-external-tui/traceability.json",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T3-node-test.log",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T3-eslint.log",
+    "specs/2026-08-03+claude-native-external-tui/handoffs/T3.json"
+  ],
+  "exported_interfaces": {
+    "src/drivers/claude-driver.js": [
+      "new ClaudeDriver({ ptyBroker, attachServer, attachServerFactory, openClaudeAttachTerminal, queueLimit, maxPromptLength, localLeaseTimeoutMs, setTimeout, clearTimeout })",
+      "createSession(options) -> pty-attach sessionRef with runtimeId, claudeSessionId, processGeneration, terminal",
+      "prompt(sessionRef, text, options) -> writes Buffer.from(text + '\\r') to broker.writeInput(runtimeId, ..., { source: 'feishu' }) and returns DONE event",
+      "stop(sessionRef) -> broker.stopRuntime(runtimeId)",
+      "delete(sessionRef) -> broker.deleteRuntime(runtimeId) and clears input arbitration state",
+      "attachBroker facade -> getRuntime/resize/subscribeOutput/stopRuntime/deleteRuntime passthrough; writeInput(source:'attach') routes through Driver input arbitration; detach(runtimeId) releases local lease"
+    ],
+    "internal_test_interfaces": [
+      "_acquireLocalLease(runtimeId, reason)",
+      "_releaseLocalLease(runtimeId, reason)",
+      "_setRuntimeBusy(runtimeId, active)",
+      "_setPermissionState(runtimeId, active)",
+      "_handleAttachInput(runtimeId, chunk)"
+    ]
+  },
+  "validation": [
+    {
+      "command": "node --test test/claude-driver.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T3-node-test.log",
+      "summary": "19 pass / 0 fail; REQ-003-B02/B04 now exercise attachServer.broker facade writeInput(source:'attach') instead of direct private method calls"
+    },
+    {
+      "command": "npx eslint src/drivers/claude-driver.js test/claude-driver.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T3-eslint.log",
+      "summary": "eslint exited 0 with no findings"
+    }
+  ],
+  "red_summary": "TDD red: 初次运行 node --test test/claude-driver.test.js 失败，旧 ClaudeDriver 仍返回 cli-terminal、prompt 仍 spawn --print，且缺少 _handleAttachInput/_acquireLocalLease/_setRuntimeBusy 等输入仲裁接口。Reviewer 修复 red: 真实 attach server 持有原始 ptyBroker 时会绕过 Driver 输入仲裁，原 B02/B04 测试仅直接调用私有方法。",
+  "requirements_verified": ["REQ-001", "REQ-003"],
+  "behaviors_verified": [
+    "REQ-001-B05",
+    "REQ-003-B01",
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-003-B04",
+    "REQ-003-B05",
+    "REQ-003-B06",
+    "REQ-003-B07"
+  ],
+  "traceability_updated": true,
+  "known_risks": [
+    "T3 仅返回 prompt submitted DONE 事件；精确 Claude JSONL 轮次观察由 T4 接入。",
+    "busy/permission 状态目前通过内部状态切换接口驱动；真实 TUI 输出解析与状态识别由后续观察/集成任务接入。",
+    "默认不自动启动 attach server；若注入 attachServer 或 attachServerFactory，Driver 会提供 attachBroker facade。T2 当前不会自动调用 detach hook，但 facade 已提供 detach(runtimeId) 并由 T3 测试覆盖。"
+  ],
+  "notes": [
+    "Reviewer 修复: attachServer.broker 被强制替换为 driver.attachBroker facade，避免真实 attach writeInput(source:'attach') 直接写原始 ptyBroker。",
+    "Reviewer 修复: facade.writeInput(source:'attach') 调用 _handleAttachInput，由 Driver 建立/释放 local lease，再写原始 ptyBroker，避免递归。",
+    "Reviewer 修复: REQ-003-B02/B04 测试改为经 attachServer.broker.writeInput(source:'attach') 和 attachServer.broker.detach(runtimeId) 验证真实 attach 入口。"
+  ]
+}

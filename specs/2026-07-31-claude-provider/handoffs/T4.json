@@ -1,0 +1,22 @@
+{
+  "status": "done",
+  "summary": "刷新 stale handoff：T4 原首版验证保持通过；test-report.md 已由 T5/REQ-010 增量更新到最终 10 个 REQ/47 behaviors 的测试报告，全量 npm test 1379 tests passed，REQ-010 verification 由后续 verification/code-review-response 产物覆盖。",
+  "artifacts": [
+    "test-report.md",
+    "evidence/test.log",
+    "verify-report.md"
+  ],
+  "stage": "T4",
+  "task_id": "T4",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c",
+    "tasks/T4.md": "58f30e6547e44709cd1009796a129af605cd3fdfe7c6601151ffe123f7ecfa99"
+  },
+  "artifact_fingerprints": {
+    "evidence/test.log": "9261ee22791bdd930f7ae37068ef5e77063e58b42aaed37a342aad6be090554b",
+    "test-report.md": "7a68ba2e9d9375f3faf2121d05fa83bc645edb7cbfc750e3395e2f188c54fa95",
+    "verify-report.md": "0c4f751d99046def3bb922842d81a8f3cca56ebf91031d2ce1df9d98222aaed1"
+  },
+  "written_at": "2026-08-03T07:44:40.191Z"
+}

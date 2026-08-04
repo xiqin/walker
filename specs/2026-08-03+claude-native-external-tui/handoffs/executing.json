@@ -1,0 +1,58 @@
+{
+  "tasks_done": [
+    "T1",
+    "T2",
+    "T3",
+    "T4",
+    "T5",
+    "T6"
+  ],
+  "validation": {
+    "traceability_behaviors": 36,
+    "loom_verify_artifacts": "pass",
+    "npm_test": "1418 pass / 0 fail",
+    "opencode_tests": "186 pass / 0 fail",
+    "claude_tests": "260 pass / 0 fail",
+    "diff_check": "pass",
+    "evidence_receipt": "test-report.md includes verdict PASS, evidence-command, evidence-exit-code, evidence-file, evidence-sha256"
+  },
+  "key_outputs": [
+    "src/drivers/claude-pty-runtime.js",
+    "src/drivers/claude-pty-broker.js",
+    "src/drivers/claude-attach-server.js",
+    "src/cli/claude-attach-command.js",
+    "src/drivers/claude-driver.js",
+    "src/drivers/claude-transcript.js",
+    "src/dispatch/message-dispatcher.js"
+  ],
+  "residual_risks": [
+    "node-pty install surfaced existing eslint engine warning for Node 22.11.0 vs ^22.13.0 declarations, but tests and lint passed",
+    "npm audit high severity items are from existing @larksuiteoapi/node-sdk -> axios chain, not node-pty",
+    "worktree contains pre-existing unrelated changes; they were not reverted"
+  ],
+  "status": "done",
+  "summary": "执行阶段完成 T1-T6。已实现 Claude 长期 PTY runtime、loopback attach server/CLI/Windows attach terminal、ClaudeDriver pty-attach prompt 与输入仲裁、精确 UUID transcript 模块、dispatcher 持久化/旧引用迁移，以及 OpenCode 零变更回归。T1-T6 均经 reviewer PASS；test-report.md 已生成并补齐 verdict: PASS 与标准 Evidence Receipt；traceability.json 覆盖 7 个 REQ 和 36 个 behavior，所有 behavior 均有真实 tests/evidence 且 loom_verify_artifacts 通过。最终 npm test 1418/1418 通过，OpenCode 定向 186/186，Claude 定向 260/260，git diff --check 通过。",
+  "artifacts": [
+    "test-report.md",
+    "traceability.json",
+    "handoffs/T1.json",
+    "handoffs/T2.json",
+    "handoffs/T3.json",
+    "handoffs/T4.json",
+    "handoffs/T5.json",
+    "handoffs/T6.json",
+    "evidence/T6-npm-test.log"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "8885773693f768887ac23c4bad2a111d8053ef6eea18ad9a08c4f7906cc2c21f",
+    "spec.md": "ed03cbd9d724e33102f9869486fc9067fff40d2310c5e1e1b23e6293ca3f8794",
+    "tasks/": "3a1cddd8d3289c7b542024d1ecfd253f6f5d5a885e656ed0500ef66504034dc6"
+  },
+  "artifact_fingerprints": {
+    "evidence/T6-npm-test.log": "6b3fc7f66d4ccc19a04c4a42d1a42f0d2ee3e88fcb40eaee7fa68a9650a93b0e",
+    "test-report.md": "4a83cec6c9b37ce1c2288f39e1b47b9db312c023caa52e609a701a6fbe63f608"
+  },
+  "written_at": "2026-08-03T12:40:01.864Z"
+}

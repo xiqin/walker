@@ -1,0 +1,62 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "Implemented dispatcher support for Claude pty-attach agentRef persistence, exact UUID resume migration, fail-closed invalid resume, stop/delete, and watch routing.",
+  "modified_files": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js",
+    "specs/2026-08-03+claude-native-external-tui/traceability.json",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T5-node-test.log",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T5-eslint.log",
+    "specs/2026-08-03+claude-native-external-tui/handoffs/T5.json"
+  ],
+  "exported_behavior": {
+    "REQ-005-B05": [
+      "Dispatcher now recognizes Claude pty-attach refs by claudeSessionId/runtimeId without regressing OpenCode opencodeSessionId refs.",
+      "Prompt completion persists full Claude pty-attach agentRef when driver mutates runtimeId, claudeSessionId, processGeneration, terminal, or conversationReady.",
+      "Incoming messages for legacy Claude refs migrate only when claudeSessionId is an exact UUID, via driver.resumeSession; invalid or missing UUID fails closed before prompt.",
+      "/attach claude <uuid> resumes exact Claude UUID via driver.resumeSession and stores returned pty-attach ref; no --continue or latest-session guessing is used.",
+      "stop/delete/watch paths pass the current Claude pty-attach agentRef to the driver and reuse existing Feishu watch event dispatch."
+    ]
+  },
+  "validation": [
+    {
+      "command": "node --test test/message-dispatcher.test.js",
+      "status": "pass",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T5-node-test.log",
+      "summary": "185 tests passed, 0 failed."
+    },
+    {
+      "command": "npx eslint src/dispatch/message-dispatcher.js test/message-dispatcher.test.js",
+      "status": "pass",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T5-eslint.log",
+      "summary": "ESLint completed with exit code 0 and no output."
+    }
+  ],
+  "red_summary": {
+    "command": "node --test test/message-dispatcher.test.js",
+    "status": "failed_before_implementation",
+    "observed_failures": [
+      "New REQ-005-B05 tests initially failed because dispatcher lacked /attach claude <uuid> exact resume handling and complete pty-attach ref persistence semantics."
+    ]
+  },
+  "traceability": {
+    "requirement": "REQ-005",
+    "behavior": "REQ-005-B05",
+    "tests": [
+      "test/message-dispatcher.test.js#REQ-005-B05: Claude prompt 后持久化完整 pty-attach agentRef",
+      "test/message-dispatcher.test.js#REQ-005-B05: /attach claude <uuid> 精确 resume 并持久化 pty-attach ref",
+      "test/message-dispatcher.test.js#REQ-005-B05: /attach claude 缺失或非法 UUID fail closed 且不调用 resumeSession",
+      "test/message-dispatcher.test.js#REQ-005-B05: /stop 和 /delete 使用 Claude pty-attach agentRef 调用 driver",
+      "test/message-dispatcher.test.js#REQ-005-B05: Claude pty-attach watch 使用 claudeSessionId/runtimeId 并路由到飞书"
+    ],
+    "evidence": [
+      "specs/2026-08-03+claude-native-external-tui/evidence/T5-node-test.log",
+      "specs/2026-08-03+claude-native-external-tui/evidence/T5-eslint.log"
+    ]
+  },
+  "known_risks": [
+    "T5 adds dispatcher-level /attach claude <uuid>; UI/help discoverability and any richer T6 admin/API exposure remain downstream work.",
+    "ClaudeDriver watchSession currently determines actual transcript watching behavior; dispatcher only guarantees handler routing for AgentEvent TEXT/DONE emitted by the driver."
+  ]
+}

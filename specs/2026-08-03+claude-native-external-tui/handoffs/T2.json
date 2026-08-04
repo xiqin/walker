@@ -1,0 +1,78 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "实现本机 Claude attach WebSocket 协议、walker claude attach CLI 客户端和 Windows Claude 专用外部窗口入口；保持 WindowsRuntime.openTerminal(command,args,options) 旧签名和旧语义。",
+  "modified_files": [
+    "src/drivers/claude-attach-server.js",
+    "src/cli/claude-attach-command.js",
+    "src/runtime/windows-runtime.js",
+    "src/index.js",
+    "test/claude-attach.test.js",
+    "test/cli-claude-attach.test.js",
+    "test/runtime.test.js",
+    "specs/2026-08-03+claude-native-external-tui/traceability.json",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T2-node-test.log",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T2-eslint.log",
+    "specs/2026-08-03+claude-native-external-tui/handoffs/T2.json"
+  ],
+  "exported_interfaces": {
+    "src/drivers/claude-attach-server.js": [
+      "new ClaudeAttachServer({ broker, host='127.0.0.1', port=0, tokenFactory, logger })",
+      "start()",
+      "stop()",
+      "createAttachment(runtimeId) -> { runtimeId, url, token }",
+      "getAttachment(runtimeId) -> { runtimeId, url } without token",
+      "urlFor(runtimeId)",
+      "isLoopback(address)"
+    ],
+    "src/cli/claude-attach-command.js": [
+      "runClaudeAttachCommand(argv, deps)",
+      "sendResize(ws, cols, rows)"
+    ],
+    "src/runtime/windows-runtime.js": [
+      "openTerminal(command, args, options) unchanged",
+      "openClaudeAttachTerminal(runtimeId, options)"
+    ],
+    "src/index.js": [
+      "walker claude attach <runtime-id>"
+    ]
+  },
+  "validation": [
+    {
+      "command": "node --test test/claude-attach.test.js test/cli-claude-attach.test.js test/runtime.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T2-node-test.log"
+    },
+    {
+      "command": "npx eslint src/drivers/claude-attach-server.js src/cli/claude-attach-command.js src/runtime/windows-runtime.js src/index.js test/claude-attach.test.js test/cli-claude-attach.test.js test/runtime.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T2-eslint.log"
+    }
+  ],
+  "red_summary": "TDD red: 初次运行 node --test test/claude-attach.test.js test/cli-claude-attach.test.js test/runtime.test.js 因缺少 ../src/drivers/claude-attach-server、../src/cli/claude-attach-command，以及 WindowsRuntime.openClaudeAttachTerminal is not a function 失败。",
+  "requirements_verified": ["REQ-002", "REQ-006"],
+  "behaviors_verified": [
+    "REQ-002-B01",
+    "REQ-002-B02",
+    "REQ-002-B03",
+    "REQ-002-B04",
+    "REQ-002-B05",
+    "REQ-002-B06",
+    "REQ-006-B01",
+    "REQ-006-B04",
+    "REQ-006-B05"
+  ],
+  "known_risks": [
+    "CLI 当前仅通过 deps.resolveAttachment 或 WALKER_CLAUDE_ATTACH_URL/WALKER_CLAUDE_ATTACH_TOKEN 获取端点；真实 runtime 到 attach endpoint 的解析由后续集成任务接入。",
+    "attach server 默认 loopback WebSocket，不实现远程网络 attach、浏览器 xterm 或 tmux。"
+  ],
+  "notes": [
+    "attach token 至少 32 bytes，createAttachment 返回 token 供启动窗口使用，getAttachment 不返回 token。",
+    "server 仅允许 127.0.0.1、::1、::ffff:127.0.0.1；错误 token 或非本机来源关闭连接。",
+    "二进制 WebSocket 消息作为键盘字节原样写入 broker.writeInput(runtimeId, Buffer, {source:'attach'})。",
+    "文本 JSON 控制帧仅支持 {type:'resize', cols, rows}，尺寸必须是 1..1000 的整数。",
+    "连接 close 只 unsubscribe/detach，不调用 broker.stopRuntime 或 deleteRuntime。",
+    "日志不输出 attach token、完整 attach URL、prompt 或敏感 env；Windows 外部窗口日志只记录 runtimeId/command/cwd/title。"
+  ],
+  "traceability_updated": true
+}

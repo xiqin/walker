@@ -1,0 +1,57 @@
+{
+  "task_count": 6,
+  "task_order": [
+    "T1",
+    "T2",
+    "T3",
+    "T4",
+    "T5",
+    "T6"
+  ],
+  "validation": {
+    "loom_validate_plan": "ok",
+    "loom_analyze_artifacts": "ok",
+    "findings": 0,
+    "requirement_coverage": "100%",
+    "behavior_coverage": "100%",
+    "traceability_req_coverage": "100%",
+    "traceability_behavior_coverage": "100%"
+  },
+  "key_constraints": [
+    "不得修改OpenCode专属源码/测试",
+    "WindowsRuntime.openTerminal保持旧语义",
+    "Claude外部窗口必须运行walker claude attach而非直接kscc",
+    "飞书prompt不得再启动kscc --print",
+    "恢复只能用精确claudeSessionId --resume，禁止--continue"
+  ],
+  "status": "done",
+  "summary": "已将Claude外部原生TUI规格拆解为6个串行任务：T1 PTY broker生命周期、T2本机attach协议/CLI/窗口入口、T3 ClaudeDriver长期PTY prompt与输入仲裁、T4精确UUID JSONL观察、T5 dispatcher持久化与旧引用迁移、T6 OpenCode零变更最终回归。plan.md、tasks/T1-T6.md、traceability.json已生成；每个REQ和36个behavior均映射到任务；OpenCode专属源码和测试不在任何实现task owns中。loom_validate_plan通过；loom_analyze_artifacts通过，requirement/behavior/traceability覆盖均为100%，无findings/blocker。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md",
+    "traceability.json",
+    "artifact-analysis.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "8885773693f768887ac23c4bad2a111d8053ef6eea18ad9a08c4f7906cc2c21f",
+    "spec.md": "ed03cbd9d724e33102f9869486fc9067fff40d2310c5e1e1b23e6293ca3f8794",
+    "tasks/": "3a1cddd8d3289c7b542024d1ecfd253f6f5d5a885e656ed0500ef66504034dc6"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "8885773693f768887ac23c4bad2a111d8053ef6eea18ad9a08c4f7906cc2c21f",
+    "tasks/T1.md": "e64517eba377b330410605177fbae3911ffa1ac46c7edb69feb76b3596e68964",
+    "tasks/T2.md": "7c087288d1e5a6d8273a5e2717dccdabfc40d0e9cd8e503acbea7bb4d33d56db",
+    "tasks/T3.md": "b80762702638df7d7da88cd66929d4bb2ffbb4839c5e51e688b3a3c5ef6e87a3",
+    "tasks/T4.md": "3b7a0354323b0c5d7a1a6d66382d8541fa2b3676ac815cf801b23e2c8125bacc",
+    "tasks/T5.md": "a9ff187ef2764ce700dc41e3756c448e2a705a2083776f911b3a3fd9a49d0953",
+    "tasks/T6.md": "15f478639541e8832450e435244b16e2e60ad994295db17e9cb869840e4ce74e"
+  },
+  "written_at": "2026-08-03T10:44:13.813Z"
+}

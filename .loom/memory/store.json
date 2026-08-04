@@ -1,6 +1,38 @@
 {
   "entries": [
     {
+      "id": "a58dd3a7",
+      "type": "决策",
+      "content": "Claude/kscc provider 的 OpenCode 等价体验采用 Walker 层 cli-terminal/window 链路：/new claude 通过可注入 openTerminal 拉起可见 Claude/kscc 终端并记录 terminal metadata；飞书普通消息继续通过后台 claude --print --output-format stream-json 向同一 claudeSessionId 发送以复用上下文；不向可见 TUI 进程注入输入，也不伪造 OpenCode HTTP server、TUI bridge、sqlite 或 opencodeSessionId 语义。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-08-03T07:52:51.730Z"
+    },
+    {
+      "id": "8326ad76",
+      "type": "决策",
+      "content": "Claude provider 已按 Claude Code CLI 集成：使用 claude --print --output-format stream-json 作为真实 driver 传输层，不依赖未验证 Claude HTTP API，不伪造 OpenCode TUI/sqlite 能力，默认不传 bypassPermissions 或 dangerous skip 权限；自动测试使用 fake CLI 或注入依赖避免真实 Claude prompt。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-08-03T01:23:49.840Z"
+    },
+    {
       "id": "68767104",
       "type": "踩坑",
       "content": "Loom verification/executing validators 对报告文本和证据格式较严格：test-report.md/verify-report.md 的 PASS evidence receipt 需要行级字段 evidence-command、evidence-exit-code、evidence-file、evidence-sha256，evidence-file 使用 specDir 相对路径且 SHA-256 必须匹配；traceability.json 的 evidence 也应使用 specDir 相对路径；报告正文避免出现 TBD/TODO/FIXME/XXX、FAIL/失败/不通过 等会被机械扫描误判的字面量，历史初审阻断或异常路径需用中性表述。",

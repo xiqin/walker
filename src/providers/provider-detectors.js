@@ -1,6 +1,8 @@
 'use strict';
 
 const { execFile } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const DEFAULT_TIMEOUT_MS = 3000;
 const MINIMAL_ENV_KEYS = ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'COMSPEC', 'HOME', 'USERPROFILE'];
@@ -22,13 +24,26 @@ function buildMinimalEnv(env) {
  */
 function defaultResolveCommand(command, options) {
   const opts = options || {};
+  if (isPathLikeCommand(command)) {
+    return Promise.resolve(fs.existsSync(command) ? command : null);
+  }
   const lookup = process.platform === 'win32' ? 'where' : 'which';
   const args = [command];
   const execute = opts.runCommand || runCommand;
   return execute(lookup, args, { ...opts, env: buildMinimalEnv(opts.env) }).then((result) => {
-    const first = String(result.stdout || '').split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+    const lines = String(result.stdout || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const first = process.platform === 'win32' ? pickWindowsExecutable(lines) : lines[0];
     return first || null;
   }).catch(() => null);
+}
+
+function isPathLikeCommand(command) {
+  const value = String(command || '');
+  return path.isAbsolute(value) || value.includes('/') || value.includes('\\');
+}
+
+function pickWindowsExecutable(lines) {
+  return lines.find((line) => /\.(exe|com)$/i.test(line)) || lines.find((line) => /\.(cmd|bat)$/i.test(line)) || lines[0];
 }
 
 /**

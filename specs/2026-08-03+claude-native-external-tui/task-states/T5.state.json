@@ -1,0 +1,11 @@
+{
+  "task_id": "T5",
+  "spec_dir": "H:\\walker\\specs\\2026-08-03+claude-native-external-tui",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-08-03T12:04:04.589Z",
+  "updated_at": "2026-08-03T12:15:53.085Z",
+  "last_reviewer_result": null,
+  "blocker": null
+}

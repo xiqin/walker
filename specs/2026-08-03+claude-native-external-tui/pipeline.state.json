@@ -1,0 +1,242 @@
+{
+  "spec_dir": "H:\\walker\\specs\\2026-08-03+claude-native-external-tui",
+  "pipeline_type": "feature",
+  "current_stage": "synced",
+  "loom_version": "0.1.2",
+  "started_at": "2026-08-03T10:25:48.425Z",
+  "updated_at": "2026-08-03T13:03:31.141Z",
+  "stage_history": [
+    {
+      "stage": "brainstorming",
+      "entered_at": "2026-08-03T10:25:48.425Z",
+      "exited_at": "2026-08-03T10:36:27.088Z",
+      "status": "passed"
+    },
+    {
+      "stage": "planning",
+      "entered_at": "2026-08-03T10:36:27.088Z",
+      "exited_at": "2026-08-03T10:45:32.698Z",
+      "status": "passed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-08-03T10:45:32.698Z",
+      "exited_at": "2026-08-03T10:46:22.206Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "e02e9bce4f4d5ab57a155b69fd1e86085b5f1dc0c1a0d23c656642384cd499ff",
+        "plan.md": "8885773693f768887ac23c4bad2a111d8053ef6eea18ad9a08c4f7906cc2c21f",
+        "requirements.json": "5b5fd4b2f6610a88bdf855aab7894893979b055ec04de23bd4c22514d376aa7d",
+        "spec.md": "ed03cbd9d724e33102f9869486fc9067fff40d2310c5e1e1b23e6293ca3f8794",
+        "tasks/": "3a1cddd8d3289c7b542024d1ecfd253f6f5d5a885e656ed0500ef66504034dc6"
+      },
+      "approved_at": "2026-08-03T10:46:22.206Z"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-08-03T10:46:22.206Z",
+      "exited_at": "2026-08-03T12:40:37.447Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-08-03T12:40:37.447Z",
+      "exited_at": "2026-08-03T12:48:53.482Z",
+      "status": "passed"
+    },
+    {
+      "stage": "code-review-request",
+      "entered_at": "2026-08-03T12:48:53.482Z",
+      "exited_at": "2026-08-03T12:57:00.555Z",
+      "status": "passed"
+    },
+    {
+      "stage": "review-gate",
+      "entered_at": "2026-08-03T12:57:00.555Z",
+      "exited_at": "2026-08-03T13:01:39.667Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "e02e9bce4f4d5ab57a155b69fd1e86085b5f1dc0c1a0d23c656642384cd499ff",
+        "plan.md": "8885773693f768887ac23c4bad2a111d8053ef6eea18ad9a08c4f7906cc2c21f",
+        "requirements.json": "5b5fd4b2f6610a88bdf855aab7894893979b055ec04de23bd4c22514d376aa7d",
+        "review-request.md": "8037a7158c30e7559c76d7de213f3777ee4e4306e6c13b8afd32543e5d2238b1",
+        "spec.md": "ed03cbd9d724e33102f9869486fc9067fff40d2310c5e1e1b23e6293ca3f8794"
+      },
+      "approved_at": "2026-08-03T13:01:39.666Z"
+    },
+    {
+      "stage": "code-review-response",
+      "entered_at": "2026-08-03T13:01:39.667Z",
+      "exited_at": "2026-08-03T13:03:31.141Z",
+      "status": "passed"
+    }
+  ],
+  "metadata": {},
+  "dynamic_steps": [
+    {
+      "id": "brainstorming",
+      "skill": "loom-brainstorming",
+      "requires": [],
+      "outputs": [
+        "spec.md",
+        "requirements.json",
+        "handoffs/brainstorming.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "需求头脑风暴，探索 2-3 种实现方案"
+    },
+    {
+      "id": "planning",
+      "skill": "loom-writing-plans",
+      "requires": [
+        "spec.md",
+        "requirements.json"
+      ],
+      "outputs": [
+        "plan.md",
+        "tasks/",
+        "traceability.json",
+        "handoffs/planning.json"
+      ],
+      "validators": [
+        "planning-artifacts"
+      ],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "分层拆解实现计划"
+    },
+    {
+      "id": "approved",
+      "skill": null,
+      "requires": [],
+      "outputs": [],
+      "validators": [],
+      "gate": "human-approval",
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": ""
+    },
+    {
+      "id": "executing",
+      "skill": "loom-subagent-driven-development",
+      "requires": [
+        "plan.md",
+        "tasks/",
+        "traceability.json"
+      ],
+      "outputs": [
+        "test-report.md",
+        "traceability.json",
+        "handoffs/executing.json"
+      ],
+      "validators": [
+        "task-state-closure",
+        "requirement-task-closure"
+      ],
+      "gate_verdict": "test-report.md",
+      "evidence_required": true,
+      "approval_requires": [],
+      "mandatory": true,
+      "optional": false,
+      "description": "subagent 并行编码执行"
+    },
+    {
+      "id": "verification",
+      "skill": "loom-verification-before-completion",
+      "requires": [
+        "test-report.md",
+        "traceability.json"
+      ],
+      "outputs": [
+        "verify-report.md",
+        "handoffs/verification.json"
+      ],
+      "validators": [
+        "verification-artifacts"
+      ],
+      "gate_verdict": "verify-report.md",
+      "evidence_required": true,
+      "approval_requires": [],
+      "mandatory": true,
+      "optional": false,
+      "description": "spec 覆盖 / 类型一致性 / 编译测试"
+    },
+    {
+      "id": "code-review-request",
+      "skill": "loom-requesting-code-review",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [
+        "review-request.md",
+        "handoffs/code-review-request.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "双轴预审查（Standards + Spec）后生成代码审查请求"
+    },
+    {
+      "id": "review-gate",
+      "skill": null,
+      "requires": [
+        "review-request.md"
+      ],
+      "outputs": [],
+      "validators": [],
+      "gate": "human-approval",
+      "evidence_required": false,
+      "approval_requires": [
+        "review-feedback.md"
+      ],
+      "mandatory": false,
+      "optional": false,
+      "description": "等待审查者反馈到达后继续（审查请求已发出，人工或外部审查者回看）"
+    },
+    {
+      "id": "code-review-response",
+      "skill": "loom-receiving-code-review",
+      "requires": [
+        "review-request.md",
+        "review-feedback.md"
+      ],
+      "outputs": [
+        "review-response.md",
+        "handoffs/code-review-response.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "处理审查反馈：BLOCKER 修复 / SUGGESTION 采纳或拒绝 / 讨论项沟通，修复后重跑测试"
+    },
+    {
+      "id": "synced",
+      "skill": "loom-index-update",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "optional": false,
+      "description": "图后端同步与结构化记忆更新"
+    }
+  ],
+  "current_stage_started_at": "2026-08-03T13:03:31.141Z"
+}

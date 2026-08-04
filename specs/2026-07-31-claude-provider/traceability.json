@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "feature": "claude-provider",
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T2", "T4"],
+      "tests": ["test/bootstrap.test.js", "test/provider-catalog.test.js", "test/driver-registry.test.js", "test/claude-driver.test.js", "test/admin-core-api.test.js"],
+      "evidence": ["evidence/T2-provider-bootstrap-tests.md", "evidence/T1-claude-driver-tests.md", "evidence/T3-admin-config-session-tests.md", "test-report.md"],
+      "behaviors": {
+        "REQ-001-B01": { "tasks": ["T2"], "tests": ["test/bootstrap.test.js#启动时注册真实 ClaudeDriver 并保留 opencode/codex 注册", "test/provider-catalog.test.js#Claude catalog 声明真实 CLI driver 能力和配置键"], "evidence": ["evidence/T2-provider-bootstrap-tests.md"] },
+        "REQ-001-B02": { "tasks": ["T2"], "tests": ["test/driver-registry.test.js#Claude provider 注册后不再呈现 stub 状态", "test/admin-core-api.test.js#创建底层 Claude session 时按 agent 获取 driver"], "evidence": ["evidence/T2-provider-bootstrap-tests.md", "evidence/T3-admin-config-session-tests.md"] },
+        "REQ-001-B03": { "tasks": ["T2"], "tests": ["test/driver-registry.test.js#Claude provider 注册后不再呈现 stub 状态"], "evidence": ["evidence/T2-provider-bootstrap-tests.md"] },
+        "REQ-001-B04": { "tasks": ["T2", "T4"], "tests": ["test/bootstrap.test.js#启动时注册真实 ClaudeDriver 并保留 opencode/codex 注册", "test/provider-catalog.test.js#命令缺失、版本失败和健康失败转换为 problems 与 suggestions", "test-report.md#npm-test 全量回归 1363 tests passed"], "evidence": ["evidence/T2-provider-bootstrap-tests.md", "test-report.md"] }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T1"],
+      "tests": ["test/claude-driver.test.js", "test/driver-registry.test.js"],
+      "evidence": ["evidence/T1-claude-driver-tests.md", "evidence/T2-provider-bootstrap-tests.md"],
+      "behaviors": {
+        "REQ-002-B01": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#使用 claude --version 探测 CLI"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-002-B02": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#CLI 不可用时返回脱敏诊断错误"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-002-B03": { "tasks": ["T1"], "tests": ["test/driver-registry.test.js#Claude provider 注册后不再呈现 stub 状态"], "evidence": ["evidence/T2-provider-bootstrap-tests.md"] },
+        "REQ-002-B04": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#CLI 不可用时返回脱敏诊断错误"], "evidence": ["evidence/T1-claude-driver-tests.md"] }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T1", "T3"],
+      "tests": ["test/claude-driver.test.js"],
+      "evidence": ["evidence/T1-claude-driver-tests.md"],
+      "behaviors": {
+        "REQ-003-B01": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#创建和恢复 Claude sessionRef"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-003-B02": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#创建和恢复 Claude sessionRef"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-003-B03": { "tasks": ["T1", "T3"], "tests": ["test/claude-driver.test.js#prompt requires sessionRef with claudeSessionId"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-003-B04": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#创建和恢复 Claude sessionRef"], "evidence": ["evidence/T1-claude-driver-tests.md"] }
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T1"],
+      "tests": ["test/claude-driver.test.js"],
+      "evidence": ["evidence/T1-claude-driver-tests.md"],
+      "behaviors": {
+        "REQ-004-B01": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#使用安全 argv 调用 claude --print stream-json 并解析事件"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-004-B02": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#映射 reasoning、tool_use、tool_result 和未知事件"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-004-B03": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#非零退出时返回 stderr 脱敏错误"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-004-B04": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#映射 reasoning、tool_use、tool_result 和未知事件"], "evidence": ["evidence/T1-claude-driver-tests.md"] }
+      }
+    },
+    "REQ-005": {
+      "tasks": ["T1"],
+      "tests": ["test/claude-driver.test.js"],
+      "evidence": ["evidence/T1-claude-driver-tests.md"],
+      "behaviors": {
+        "REQ-005-B01": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#使用安全 argv 调用 claude --print stream-json 并解析事件"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-005-B02": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#使用安全 argv 调用 claude --print stream-json 并解析事件"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-005-B03": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#使用安全 argv 调用 claude --print stream-json 并解析事件"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-005-B04": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#默认不传危险权限参数"], "evidence": ["evidence/T1-claude-driver-tests.md"] }
+      }
+    },
+    "REQ-006": {
+      "tasks": ["T1"],
+      "tests": ["test/claude-driver.test.js"],
+      "evidence": ["evidence/T1-claude-driver-tests.md"],
+      "behaviors": {
+        "REQ-006-B01": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#stop 和 delete 幂等终止 pending 子进程"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-006-B02": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#stop 和 delete 幂等终止 pending 子进程"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-006-B03": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#stop 和 delete 幂等终止 pending 子进程"], "evidence": ["evidence/T1-claude-driver-tests.md"] },
+        "REQ-006-B04": { "tasks": ["T1"], "tests": ["test/claude-driver.test.js#stop 和 delete 幂等终止 pending 子进程"], "evidence": ["evidence/T1-claude-driver-tests.md"] }
+      }
+    },
+    "REQ-007": {
+      "tasks": ["T2", "T3"],
+      "tests": ["test/provider-catalog.test.js", "test/admin-observability-config.test.js", "test/admin-config-event.test.js", "test/admin-core-api.test.js", "test/config-env.test.js"],
+      "evidence": ["evidence/T2-provider-bootstrap-tests.md", "evidence/T3-admin-config-session-tests.md"],
+      "behaviors": {
+        "REQ-007-B01": { "tasks": ["T3"], "tests": ["test/admin-observability-config.test.js#Claude 配置项可见、可编辑且不含 Secret", "test/admin-core-api.test.js#创建底层 Claude session 时按 agent 获取 driver"], "evidence": ["evidence/T3-admin-config-session-tests.md"] },
+        "REQ-007-B02": { "tasks": ["T3"], "tests": ["test/admin-observability-config.test.js#Claude 配置编辑校验并保持失败原子性", "test/admin-config-event.test.js#updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知键"], "evidence": ["evidence/T3-admin-config-session-tests.md"] },
+        "REQ-007-B03": { "tasks": ["T2", "T3"], "tests": ["test/provider-catalog.test.js#Claude catalog 声明真实 CLI driver 能力和配置键", "test/admin-observability-config.test.js#Claude 配置项可见、可编辑且不含 Secret", "test/config-env.test.js#loadEnvConfig 环境变量覆盖默认值"], "evidence": ["evidence/T2-provider-bootstrap-tests.md", "evidence/T3-admin-config-session-tests.md"] },
+        "REQ-007-B04": { "tasks": ["T3"], "tests": ["test/admin-observability-config.test.js#Claude 配置编辑校验并保持失败原子性"], "evidence": ["evidence/T3-admin-config-session-tests.md"] },
+        "REQ-007-B05": { "tasks": ["T3"], "tests": ["test/admin-core-api.test.js#createAgentSession 缺少对应 driver 时记录可诊断错误"], "evidence": ["evidence/T3-admin-config-session-tests.md"] }
+      }
+    },
+    "REQ-008": {
+      "tasks": ["T2", "T3", "T4"],
+      "tests": ["test/bootstrap.test.js", "test/driver-registry.test.js", "test/admin-core-api.test.js", "test/config-env.test.js"],
+      "evidence": ["evidence/T2-provider-bootstrap-tests.md", "evidence/T3-admin-config-session-tests.md"],
+      "behaviors": {
+        "REQ-008-B01": { "tasks": ["T3"], "tests": ["test/admin-core-api.test.js#创建底层 Claude session 时按 agent 获取 driver"], "evidence": ["evidence/T3-admin-config-session-tests.md"] },
+        "REQ-008-B02": { "tasks": ["T3"], "tests": ["test/admin-core-api.test.js#创建 Walker session 并创建底层 opencode session", "test/config-env.test.js#loadEnvConfig 默认值正常"], "evidence": ["evidence/T3-admin-config-session-tests.md"] },
+        "REQ-008-B03": { "tasks": ["T2", "T4"], "tests": ["test/bootstrap.test.js#启动时注册真实 ClaudeDriver 并保留 opencode/codex 注册", "test-report.md#npm-test 全量回归 1363 tests passed"], "evidence": ["evidence/T2-provider-bootstrap-tests.md", "test-report.md"] },
+        "REQ-008-B04": { "tasks": ["T2"], "tests": ["test/driver-registry.test.js#Claude provider 注册后不再呈现 stub 状态"], "evidence": ["evidence/T2-provider-bootstrap-tests.md"] }
+      }
+    },
+    "REQ-009": {
+      "tasks": ["T1", "T4"],
+      "tests": ["test/claude-driver.test.js", "test-report.md#验证命令", "test/claude-driver.test.js#fake CLI assertions"],
+      "evidence": ["evidence/T1-claude-driver-tests.md", "test-report.md"],
+      "behaviors": {
+        "REQ-009-B01": { "tasks": ["T1", "T4"], "tests": ["test/claude-driver.test.js", "test-report.md#验证命令 全量回归 1363 tests passed"], "evidence": ["evidence/T1-claude-driver-tests.md", "test-report.md"] },
+        "REQ-009-B02": { "tasks": ["T4"], "tests": ["test-report.md#资料基线 claude version help npm metadata"], "evidence": ["test-report.md"] },
+        "REQ-009-B03": { "tasks": ["T1", "T4"], "tests": ["test/claude-driver.test.js#使用安全 argv 调用 claude --print stream-json 并解析事件", "test-report.md#真实 Claude 调用约束"], "evidence": ["evidence/T1-claude-driver-tests.md", "test-report.md"] }
+      }
+    },
+    "REQ-010": {
+      "tasks": ["T5"],
+      "tests": ["test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/provider-catalog.test.js", "test/admin-core-api.test.js"],
+      "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log", "test-report.md"],
+      "behaviors": {
+        "REQ-010-B01": { "tasks": ["T5"], "tests": ["test/claude-driver.test.js#REQ-010-B01/B07/B11: 创建 session 时拉起 Claude 终端窗口并记录 metadata", "test/message-dispatcher.test.js#REQ-010-B01/B06/B11: /new claude 创建 session 后展示终端窗口状态且不要求 opencodeSessionId", "test/provider-catalog.test.js#Claude catalog 声明真实 CLI driver 能力和配置键"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] },
+        "REQ-010-B02": { "tasks": ["T5"], "tests": ["test/claude-driver.test.js#REQ-010-B02: 同一 Claude session 连续 prompt 复用相同 session id"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] },
+        "REQ-010-B03": { "tasks": ["T5"], "tests": ["test/claude-driver.test.js#REQ-010-B03/B05/B11: 终端启动失败时保留降级状态且脱敏", "test/message-dispatcher.test.js#REQ-010-B03/B05/B11: /new claude 终端降级时回复明确状态"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] },
+        "REQ-010-B04": { "tasks": ["T5"], "tests": ["test/claude-driver.test.js#REQ-010-B04/B08: watchSession 幂等复用已有窗口状态", "test/message-dispatcher.test.js#REQ-010-B04/B06: Claude session 通过 claudeSessionId 启动 watch 且重复调用幂等"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] },
+        "REQ-010-B05": { "tasks": ["T5"], "tests": ["test/claude-driver.test.js#REQ-010-B03/B05/B11: 终端启动失败时保留降级状态且脱敏", "test/claude-driver.test.js#REQ-010-B05/B06: 无 pending prompt 时 stop 仍更新终端状态诊断", "test/message-dispatcher.test.js#REQ-010-B03/B05/B11: /new claude 终端降级时回复明确状态"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] },
+        "REQ-010-B06": { "tasks": ["T5"], "tests": ["test/message-dispatcher.test.js#REQ-010-B01/B06/B11: /new claude 创建 session 后展示终端窗口状态且不要求 opencodeSessionId", "test/message-dispatcher.test.js#REQ-010-B04/B06: Claude session 通过 claudeSessionId 启动 watch 且重复调用幂等", "test/admin-core-api.test.js#REQ-007-B01 和 REQ-010-B06: listSessions 展示 Claude terminal/window 诊断"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] },
+        "REQ-010-B07": { "tasks": ["T5"], "tests": ["test/claude-driver.test.js#REQ-010-B01/B07/B11: 创建 session 时拉起 Claude 终端窗口并记录 metadata", "test/claude-driver.test.js#REQ-010-B03/B05/B11: 终端启动失败时保留降级状态且脱敏"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] },
+        "REQ-010-B08": { "tasks": ["T5"], "tests": ["test/claude-driver.test.js#REQ-010-B04/B08: watchSession 幂等复用已有窗口状态", "test/claude-driver.test.js#创建和恢复 Claude sessionRef"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] },
+        "REQ-010-B09": { "tasks": ["T5"], "tests": ["test/message-dispatcher.test.js#REQ-010-B01/B06/B11: /new claude 创建 session 后展示终端窗口状态且不要求 opencodeSessionId", "test/provider-catalog.test.js#Claude catalog 声明真实 CLI driver 能力和配置键", "test/admin-core-api.test.js#REQ-007-B01 和 REQ-010-B06: listSessions 展示 Claude terminal/window 诊断", "test-report.md#npm test 全量回归 1379 tests passed"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log", "test-report.md"] },
+        "REQ-010-B10": { "tasks": ["T5"], "tests": ["test/provider-catalog.test.js#Claude catalog 声明真实 CLI driver 能力和配置键", "test/admin-core-api.test.js#REQ-007-B01 和 REQ-010-B06: listSessions 展示 Claude terminal/window 诊断", "test-report.md#npm test 全量回归 1379 tests passed"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log", "test-report.md"] },
+        "REQ-010-B11": { "tasks": ["T5"], "tests": ["test/claude-driver.test.js#REQ-010-B01/B07/B11: 创建 session 时拉起 Claude 终端窗口并记录 metadata", "test/claude-driver.test.js#REQ-010-B03/B05/B11: 终端启动失败时保留降级状态且脱敏", "test/message-dispatcher.test.js#REQ-010-B01/B06/B11: /new claude 创建 session 后展示终端窗口状态且不要求 opencodeSessionId", "test/message-dispatcher.test.js#REQ-010-B03/B05/B11: /new claude 终端降级时回复明确状态"], "evidence": ["evidence/T5-req010-tests.md", "evidence/T5-req010-tests.log"] }
+      }
+    }
+  }
+}

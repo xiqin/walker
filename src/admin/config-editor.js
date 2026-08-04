@@ -92,6 +92,9 @@ function validateEnvValue(key, value) {
     case 'exit-action':
       if (!['cancel', 'stop', 'none'].includes(text)) throw new Error(`${key} 值无效`);
       return text;
+    case 'claude-permission-mode':
+      if (!['default', 'acceptEdits', 'auto', 'dontAsk', 'plan'].includes(text)) throw new Error(`${key} 值无效`);
+      return text;
     case 'url':
       if (text) {
         let parsed;

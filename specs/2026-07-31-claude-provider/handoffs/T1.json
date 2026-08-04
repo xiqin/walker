@@ -1,0 +1,23 @@
+{
+  "status": "done",
+  "summary": "刷新 stale handoff：T1 原 ClaudeDriver 后台 CLI/stream-json 能力仍保持；T5/REQ-010 已在同一 driver 上增量实现 Walker 层 cli-terminal 窗口链路、terminal metadata、watch/isActive/stop 状态诊断和同 claudeSessionId prompt 复用。T1 首版行为与新增 T5 行为均由最新 claude-driver 测试覆盖。",
+  "artifacts": [
+    "src/drivers/claude-driver.js",
+    "test/claude-driver.test.js",
+    "specs/2026-07-31-claude-provider/evidence/T1-claude-driver-tests.md",
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.md"
+  ],
+  "task_id": "T1",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c",
+    "tasks/T1.md": "44106c0a65d89a5554085906f5a71256ad776bcf2c3aa7d714ffb920b1b09d14"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-31-claude-provider/evidence/T1-claude-driver-tests.md": "e3046f804b7bc31ec3c3ce38443f5f4ad499f5dbc2dcaf72a9cae2ddb3b4349f",
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.md": "dea79ead712edd071e00a00d17cbb089b477834c00edde0de9613f24918ffa99",
+    "src/drivers/claude-driver.js": "9bf169d487c0cc4af9673b2637c89d16e1c2e9d572144915c1bbf5b0097784b2",
+    "test/claude-driver.test.js": "80962dea2c9ed26b329d8e630282fe64fb23e2256d252e8ece5be703d2b105d8"
+  },
+  "written_at": "2026-08-03T07:33:10.715Z"
+}

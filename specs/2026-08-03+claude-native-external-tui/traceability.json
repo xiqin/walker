@@ -1,0 +1,89 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1", "T3"],
+      "tests": ["test/claude-pty-broker.test.js", "test/claude-driver.test.js"],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T3-node-test.log", "evidence/T3-eslint.log"],
+      "behaviors": {
+        "REQ-001-B01": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-001-B01/REQ-005-B04: createRuntime 以 --session-id 启动一次并返回脱敏快照"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-001-B02": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-001-B02: 正常 exit 转为 stopped，异常 exit 转为 error"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-001-B03": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-001-B03: 启动失败不会留下 active runtime"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-001-B04": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-001-B04/REQ-005-B02: resumeRuntime 使用 --resume 且不使用 --continue，generation 递增", "test/claude-pty-broker.test.js#REQ-001-B04/REQ-005-B02: resumeRuntime 将传入 processGeneration 作为基线并保证递增", "test/claude-pty-broker.test.js#REQ-001-B04/REQ-005-B03: 旧 generation 迟到 data/exit 不污染新 runtime、replay 或 pending"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-001-B05": { "tasks": ["T3"], "tests": ["test/claude-driver.test.js#REQ-001-B05: 连续飞书 prompt 始终写入同一 PTY 且不 spawn kscc --print"], "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"] }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T2"],
+      "tests": ["test/claude-attach.test.js", "test/runtime.test.js"],
+      "evidence": ["evidence/T2-node-test.log", "evidence/T2-eslint.log"],
+      "behaviors": {
+        "REQ-002-B01": { "tasks": ["T2"], "tests": ["test/claude-attach.test.js#REQ-002-B01: attach 原样转发 ANSI/二进制 PTY 输出和键盘字节", "test/cli-claude-attach.test.js#REQ-002-B01/REQ-006-B04: CLI 原样转发 stdin/stdout，关闭时恢复 raw mode"], "evidence": ["evidence/T2-node-test.log"] },
+        "REQ-002-B02": { "tasks": ["T2"], "tests": ["test/claude-attach.test.js#REQ-002-B02: resize 边界校验仅允许合法尺寸进入 broker.resize", "test/cli-claude-attach.test.js#REQ-002-B02: sendResize 发送合法 resize 控制帧并拒绝非法尺寸"], "evidence": ["evidence/T2-node-test.log"] },
+        "REQ-002-B03": { "tasks": ["T2"], "tests": ["test/claude-attach.test.js#REQ-002-B03: detach 不 stop runtime，重连可收到 replay"], "evidence": ["evidence/T2-node-test.log"] },
+        "REQ-002-B04": { "tasks": ["T2"], "tests": ["test/claude-attach.test.js#REQ-002-B04/REQ-006-B01: 仅 loopback 且 token 正确可 attach，token 不进入日志或 agentRef"], "evidence": ["evidence/T2-node-test.log"] },
+        "REQ-002-B05": { "tasks": ["T2"], "tests": ["test/runtime.test.js#REQ-002-B05: openClaudeAttachTerminal 启动 walker claude attach 且 spawn 失败可诊断"], "evidence": ["evidence/T2-node-test.log"] },
+        "REQ-002-B06": { "tasks": ["T2"], "tests": ["test/claude-attach.test.js#REQ-002-B06: 未知或畸形协议消息关闭当前连接且不影响 runtime"], "evidence": ["evidence/T2-node-test.log"] }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T3"],
+      "tests": ["test/claude-driver.test.js"],
+      "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"],
+      "behaviors": {
+        "REQ-003-B01": { "tasks": ["T3"], "tests": ["test/claude-driver.test.js#REQ-003-B01: 飞书 prompt 作为完整不可交错事务写入并只提交一次 Enter"], "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"] },
+        "REQ-003-B02": { "tasks": ["T3"], "tests": ["test/claude-driver.test.js#REQ-003-B02: attach broker 输入半行后飞书 prompt 经真实 attach 路径入队"], "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"] },
+        "REQ-003-B03": { "tasks": ["T3"], "tests": ["test/claude-driver.test.js#REQ-003-B03: 默认队列 5 条，第 6 条明确拒绝"], "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"] },
+        "REQ-003-B04": { "tasks": ["T3"], "tests": ["test/claude-driver.test.js#REQ-003-B04: attach detach/Enter/Ctrl+C 经真实 attach 路径释放 lease 并继续队列"], "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"] },
+        "REQ-003-B05": { "tasks": ["T3"], "tests": ["test/claude-driver.test.js#REQ-003-B05: busy/permission 状态下飞书普通文本不得直接写 PTY"], "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"] },
+        "REQ-003-B06": { "tasks": ["T3"], "tests": ["test/claude-driver.test.js#REQ-003-B06: 空白、超长、非字符串 prompt 稳定拒绝且不写 PTY"], "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"] },
+        "REQ-003-B07": { "tasks": ["T3"], "tests": ["test/claude-driver.test.js#REQ-003-B07: 队列事件驱动 drain，空闲时不使用忙轮询"], "evidence": ["evidence/T3-node-test.log", "evidence/T3-eslint.log"] }
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T4"],
+      "tests": ["test/claude-transcript.test.js"],
+      "evidence": ["evidence/T4-node-test.log", "evidence/T4-eslint.log"],
+      "behaviors": {
+        "REQ-004-B01": { "tasks": ["T4"], "tests": ["test/claude-transcript.test.js#REQ-004-B01: 飞书 prompt 只返回边界之后的 assistant 文本并过滤旧消息和 echo"], "evidence": ["evidence/T4-node-test.log", "evidence/T4-eslint.log"] },
+        "REQ-004-B02": { "tasks": ["T4"], "tests": ["test/claude-transcript.test.js#REQ-004-B02: 本地 TUI 追加 user/assistant JSONL 记录可通过 watcher 形成可路由事件"], "evidence": ["evidence/T4-node-test.log", "evidence/T4-eslint.log"] },
+        "REQ-004-B03": { "tasks": ["T4"], "tests": ["test/claude-transcript.test.js#REQ-004-B03: 缺失文件抛 MISSING，部分行抛 PARTIAL_LINE_TIMEOUT，完整文件无 assistant 抛 TIMEOUT"], "evidence": ["evidence/T4-node-test.log", "evidence/T4-eslint.log"] },
+        "REQ-004-B04": { "tasks": ["T4"], "tests": ["test/claude-transcript.test.js#REQ-004-B04: encodeClaudeProjectPath 保留真实 Claude project 目录前导分隔符", "test/claude-transcript.test.js#REQ-004-B04: 非法 UUID、cwd 不存在、非目录和 symlink workspace 全部 fail closed"], "evidence": ["evidence/T4-node-test.log", "evidence/T4-eslint.log"] },
+        "REQ-004-B05": { "tasks": ["T4"], "tests": ["test/claude-transcript.test.js#REQ-004-B05: 错误 workspace 不扫描其他目录，缺失绑定 UUID 时明确 MISSING", "test/claude-transcript.test.js#REQ-004-B05: 同 cwd 多个 UUID 时只读取绑定 UUID，禁止 latest-mtime 猜测"], "evidence": ["evidence/T4-node-test.log", "evidence/T4-eslint.log"] }
+      }
+    },
+    "REQ-005": {
+      "tasks": ["T1", "T5"],
+      "tests": ["test/claude-pty-broker.test.js", "test/message-dispatcher.test.js"],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T5-node-test.log", "evidence/T5-eslint.log"],
+      "behaviors": {
+        "REQ-005-B01": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-005-B01: stopRuntime/deleteRuntime 幂等并调用 kill"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-005-B02": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-001-B04/REQ-005-B02: resumeRuntime 使用 --resume 且不使用 --continue，generation 递增", "test/claude-pty-broker.test.js#REQ-001-B04/REQ-005-B02: resumeRuntime 将传入 processGeneration 作为基线并保证递增"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-005-B03": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-005-B03: 异常 exit 会失败 pending write/resize，并使后续 subscribe 可观察失败", "test/claude-pty-broker.test.js#REQ-001-B04/REQ-005-B03: 旧 generation 迟到 data/exit 不污染新 runtime、replay 或 pending"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-005-B04": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-001-B01/REQ-005-B04: createRuntime 以 --session-id 启动一次并返回脱敏快照"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-005-B05": { "tasks": ["T5"], "tests": ["test/message-dispatcher.test.js#REQ-005-B05: Claude prompt 后持久化完整 pty-attach agentRef", "test/message-dispatcher.test.js#REQ-005-B05: /attach claude <uuid> 精确 resume 并持久化 pty-attach ref", "test/message-dispatcher.test.js#REQ-005-B05: /attach claude 缺失或非法 UUID fail closed 且不调用 resumeSession", "test/message-dispatcher.test.js#REQ-005-B05: /stop 和 /delete 使用 Claude pty-attach agentRef 调用 driver", "test/message-dispatcher.test.js#REQ-005-B05: Claude pty-attach watch 使用 claudeSessionId/runtimeId 并路由到飞书"], "evidence": ["evidence/T5-node-test.log", "evidence/T5-eslint.log"] }
+      }
+    },
+    "REQ-006": {
+      "tasks": ["T1", "T2"],
+      "tests": ["test/claude-pty-broker.test.js", "test/claude-attach.test.js", "test/cli-claude-attach.test.js", "test/runtime.test.js"],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T2-node-test.log", "evidence/T2-eslint.log"],
+      "behaviors": {
+        "REQ-006-B01": { "tasks": ["T2"], "tests": ["test/claude-attach.test.js#REQ-002-B04/REQ-006-B01: 仅 loopback 且 token 正确可 attach，token 不进入日志或 agentRef"], "evidence": ["evidence/T2-node-test.log"] },
+        "REQ-006-B02": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-006-B02: 生命周期日志包含结构化字段且不记录输入内容或敏感 token"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-006-B03": { "tasks": ["T1"], "tests": ["test/claude-pty-broker.test.js#REQ-006-B03: 输出回放缓冲超过上限后淘汰旧数据且队列有固定上限"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-006-B04": { "tasks": ["T2"], "tests": ["test/cli-claude-attach.test.js#REQ-006-B04: claude attach 缺 runtimeId 返回非零", "test/cli-claude-attach.test.js#REQ-006-B04: resolve 失败返回非零且不连接", "test/cli-claude-attach.test.js#REQ-006-B04: 连接错误或协议错误返回非零", "test/cli-claude-attach.test.js#REQ-002-B01/REQ-006-B04: CLI 原样转发 stdin/stdout，关闭时恢复 raw mode"], "evidence": ["evidence/T2-node-test.log"] },
+        "REQ-006-B05": { "tasks": ["T2"], "tests": ["test/claude-attach.test.js#REQ-002-B04/REQ-006-B01: 仅 loopback 且 token 正确可 attach，token 不进入日志或 agentRef", "test/runtime.test.js#REQ-006-B05: openClaudeAttachTerminal 日志不包含 attach token 或完整 URL"], "evidence": ["evidence/T2-node-test.log", "evidence/T2-eslint.log"] }
+      }
+    },
+    "REQ-007": {
+      "tasks": ["T6"],
+      "tests": ["test/opencode-driver.test.js#OpenCode 定向回归", "test/opencode-tui-bridge.test.js#OpenCode TUI bridge 定向回归", "test/opencode-http-client.test.js#OpenCode HTTP client 定向回归", "test/runtime.test.js#runtime 兼容回归", "test/claude-pty-broker.test.js#Claude PTY 定向回归", "test/claude-attach.test.js#Claude attach 定向回归", "test/cli-claude-attach.test.js#Claude attach CLI 定向回归", "test/claude-driver.test.js#ClaudeDriver PTY prompt 定向回归", "test/claude-transcript.test.js#Claude transcript 定向回归", "test/message-dispatcher.test.js#Dispatcher Claude pty-attach 定向回归", "test/message-dispatcher-platform-event.test.js#Platform event Claude UUID fixture 回归"],
+      "evidence": ["evidence/T6-diff-name-only.log", "evidence/T6-opencode-tests.log", "evidence/T6-claude-tests.log", "evidence/T6-diff-check.log", "evidence/T6-npm-test.log"],
+      "behaviors": {
+        "REQ-007-B01": { "tasks": ["T6"], "tests": ["test/opencode-driver.test.js#OpenCode 定向回归", "test/opencode-tui-bridge.test.js#OpenCode TUI bridge 定向回归", "test/opencode-http-client.test.js#OpenCode HTTP client 定向回归", "test/runtime.test.js#runtime 兼容回归"], "evidence": ["evidence/T6-opencode-tests.log"] },
+        "REQ-007-B02": { "tasks": ["T6"], "tests": ["test/opencode-driver.test.js#OpenCode 专属路径未出现在 diff 清单", "test/opencode-tui-bridge.test.js#OpenCode 专属路径未出现在 diff 清单", "test/opencode-http-client.test.js#OpenCode 专属路径未出现在 diff 清单"], "evidence": ["evidence/T6-diff-name-only.log"] },
+        "REQ-007-B03": { "tasks": ["T6"], "tests": ["test/runtime.test.js#WindowsRuntime.openTerminal 旧语义", "test/claude-pty-broker.test.js#Claude PTY 定向回归", "test/claude-attach.test.js#Claude attach 定向回归", "test/cli-claude-attach.test.js#Claude attach CLI 定向回归", "test/claude-driver.test.js#ClaudeDriver PTY prompt 定向回归", "test/claude-transcript.test.js#Claude transcript 定向回归", "test/message-dispatcher.test.js#Dispatcher Claude pty-attach 定向回归", "test/message-dispatcher-platform-event.test.js#Platform event Claude UUID fixture 回归"], "evidence": ["evidence/T6-opencode-tests.log", "evidence/T6-claude-tests.log"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "targeted_tests": "277 tests passed",
+  "full_tests": "1379 tests passed",
+  "status": "done",
+  "summary": "刷新 stale handoff：T5/REQ-010 已完成且 test-report.md 已更新为最终表述，避免机械校验误判 fail/Transport error 文本；T5 evidence 保持 PASS，定向 277 tests passed，全量 1379 tests passed，traceability 已补 REQ-010 全部 tests/evidence。",
+  "artifacts": [
+    "src/drivers/claude-driver.js",
+    "src/dispatch/message-dispatcher.js",
+    "src/providers/provider-catalog.js",
+    "src/admin/session-admin.js",
+    "test/claude-driver.test.js",
+    "test/message-dispatcher.test.js",
+    "test/provider-catalog.test.js",
+    "test/admin-core-api.test.js",
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.md",
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.log",
+    "specs/2026-07-31-claude-provider/test-report.md",
+    "specs/2026-07-31-claude-provider/traceability.json"
+  ],
+  "task_id": "T5",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c",
+    "tasks/T5.md": "e77f0ad2595991dbc2021faea68f9101d17f6e2ea8e5e612aafa32ef657701e4"
+  },
+  "artifact_fingerprints": {
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.log": "8a8924c372efbc7aa12ced70ebed6af3ee35606f77b94346df16ee4cabc8232c",
+    "specs/2026-07-31-claude-provider/evidence/T5-req010-tests.md": "dea79ead712edd071e00a00d17cbb089b477834c00edde0de9613f24918ffa99",
+    "specs/2026-07-31-claude-provider/test-report.md": "7a68ba2e9d9375f3faf2121d05fa83bc645edb7cbfc750e3395e2f188c54fa95",
+    "specs/2026-07-31-claude-provider/traceability.json": "6a21f7676872ed18bc8fc232b514d2120773254b5eba4c03cfcf65a1ba018842",
+    "src/admin/session-admin.js": "d82abb020d559c98adc5bd3bce5eea2ab6256f971d8853800f35098d1e5733bc",
+    "src/dispatch/message-dispatcher.js": "53bbf406b5214334737c9d21a15912942b73a6496e52398de00b41b444a5e7cd",
+    "src/drivers/claude-driver.js": "9bf169d487c0cc4af9673b2637c89d16e1c2e9d572144915c1bbf5b0097784b2",
+    "src/providers/provider-catalog.js": "1f8f545c4607a3e28e7551715043079e3abfc9d34788cffcf8c60e98ecd7f36d",
+    "test/admin-core-api.test.js": "b954674008927d1507db92dc66195f628532d1fc6ed56baf8aa2754633953bde",
+    "test/claude-driver.test.js": "80962dea2c9ed26b329d8e630282fe64fb23e2256d252e8ece5be703d2b105d8",
+    "test/message-dispatcher.test.js": "a5ca27b0ee394d18443218b9675da25948ae4e79c5a2fdfae19138f3135d0257",
+    "test/provider-catalog.test.js": "d4e84dce70043037176754fe322f7ee42b43745411654ed689f519e77cc22866"
+  },
+  "written_at": "2026-08-03T07:44:40.137Z"
+}

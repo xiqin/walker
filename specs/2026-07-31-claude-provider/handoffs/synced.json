@@ -1,0 +1,26 @@
+{
+  "index_backend": "codegraph",
+  "index_status": "up-to-date",
+  "memory_id": "a58dd3a7",
+  "pipeline_synced": true,
+  "status": "done",
+  "summary": "REQ-010/T5 已收尾同步：状态机已推进到 synced；CodeGraph 通过 loom index 同步并确认 up to date；写入 loom memory 决策 a58dd3a7，记录 Claude/kscc OpenCode 等价体验采用 Walker 层 cli-terminal/window 链路，飞书消息通过同一 claudeSessionId 的后台 --print 复用上下文，且不伪造 OpenCode HTTP/TUI bridge/sqlite/opencodeSessionId 语义。",
+  "artifacts": [
+    "verify-report.md",
+    "progress.md",
+    ".loom/memory/store.json",
+    ".loom/memory/MEMORY.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/MEMORY.md": "239b289745bb96bc510725beee3dac563d334d4800eeac59dbc783de900231ae",
+    ".loom/memory/store.json": "b069b37573293da0c3163d3119f61d7ff5472fa5431cd3494b028d04129fbea8",
+    "verify-report.md": "0c4f751d99046def3bb922842d81a8f3cca56ebf91031d2ce1df9d98222aaed1"
+  },
+  "written_at": "2026-08-03T07:53:04.033Z"
+}

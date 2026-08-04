@@ -1,0 +1,483 @@
+{
+  "version": 1,
+  "feature": "claude-provider",
+  "source": "specs/2026-07-31-claude-provider/spec.md",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "title": "真实注册 Claude Driver",
+      "status": "failing",
+      "types": ["functional", "state", "observable"],
+      "required_categories": ["happy-path", "state-transition", "observability", "forbidden-behavior"],
+      "acceptance": "Claude provider 使用真实 driver 注册，provider/admin/doctor 状态不再显示 stub 未实现，且不影响 OpenCode 默认注册。",
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "启动 bootstrap 后 registry 中存在真实 claude driver。",
+          "status": "failing",
+          "acceptance": "registry.get('claude') 返回非 stub driver，driverRegistered 为 true。",
+          "test_plan": { "strategy": "unit", "inputs": ["构造 bootstrap/app context 并读取 registry/provider 列表"], "expected": ["claude driver 已注册且 _isStub 不为 true"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "state-transition",
+          "description": "claude 从 stub 状态升级为真实注册状态。",
+          "status": "failing",
+          "acceptance": "listAgents/listProviders 对 claude 不再返回 stub driver not implemented。",
+          "test_plan": { "strategy": "unit", "inputs": ["调用 agent-runtime-admin listAgents 与 registry.listProviders"], "expected": ["claude 的 available/registered 信息来自真实 driver 而非 stub reason"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "observability",
+          "description": "provider 状态清楚展示 claude driver 注册与 CLI 健康状态。",
+          "status": "failing",
+          "acceptance": "provider 状态包含 installed/healthy/driverRegistered 等可诊断字段。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake provider health 状态与 registry claude driver"], "expected": ["返回结果包含 driverRegistered=true 和健康摘要"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "forbidden-behavior",
+          "description": "不得移除或降级 opencode driver 注册。",
+          "status": "failing",
+          "acceptance": "opencode 仍为默认 agent 且现有 opencode 测试通过。",
+          "test_plan": { "strategy": "regression", "inputs": ["运行现有 opencode/admin/provider 测试"], "expected": ["opencode 相关断言保持通过"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "title": "Claude CLI 能力探测和版本诊断",
+      "status": "failing",
+      "types": ["functional", "external", "observable", "security"],
+      "required_categories": ["happy-path", "external-failure", "observability", "security"],
+      "acceptance": "ensureReady 基于 claude CLI 探测返回可诊断结果，失败时错误明确且脱敏。",
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "claude --version 成功时 ensureReady 返回 true。",
+          "status": "failing",
+          "acceptance": "fake execFile 返回版本字符串时 driver 标记 ready。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake execFile 返回 2.1.196 (Claude Code)"], "expected": ["ensureReady 返回 true 并记录 version"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "external-failure",
+          "description": "CLI 缺失、超时或非零退出码时返回明确错误。",
+          "status": "failing",
+          "acceptance": "错误消息包含 claude 命令不可用原因，不抛出未处理异常。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake execFile 抛 ENOENT、timeout、非零退出"], "expected": ["ensureReady 返回 false 或抛出诊断错误，消息可读"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "observability",
+          "description": "doctor/provider 状态能展示 Claude 版本和失败摘要。",
+          "status": "failing",
+          "acceptance": "健康检测输出包含 version 或 health.summary。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake providerHealth 检测 claude"], "expected": ["状态中包含版本、healthy 和 problems/suggestions"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "security",
+          "description": "诊断错误不得泄漏 token、secret、api key。",
+          "status": "failing",
+          "acceptance": "错误和日志输出不包含敏感环境值。",
+          "test_plan": { "strategy": "unit", "inputs": ["带 ANTHROPIC_API_KEY 的 fake env 与错误"], "expected": ["输出中不出现真实密钥值"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "title": "会话创建与恢复",
+      "status": "failing",
+      "types": ["functional", "state", "input", "compatibility"],
+      "required_categories": ["happy-path", "invalid-input", "state-transition", "compatibility"],
+      "acceptance": "Claude driver 可创建、恢复和列出 Walker 可管理的 Claude session ref。",
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "happy-path",
+          "description": "createSession 返回包含 claudeSessionId/cwd/provider 的 agentRef。",
+          "status": "failing",
+          "acceptance": "agentRef.provider 为 claude，claudeSessionId 为 UUID 或调用方指定合法 ID。",
+          "test_plan": { "strategy": "unit", "inputs": ["createSession({cwd,title,model})"], "expected": ["返回 claude agentRef 且字段完整"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "state-transition",
+          "description": "resumeSession 保留已有 claudeSessionId 并刷新 updatedAt。",
+          "status": "failing",
+          "acceptance": "恢复后 prompt 使用同一 session id。",
+          "test_plan": { "strategy": "unit", "inputs": ["resumeSession(existingRef) 后调用 prompt"], "expected": ["spawn argv 使用同一 --resume 或 --session-id"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-003-B03",
+          "category": "invalid-input",
+          "description": "缺失或错误 provider 的 agentRef 被拒绝。",
+          "status": "failing",
+          "acceptance": "抛出包含 claude sessionRef 无效的明确错误。",
+          "test_plan": { "strategy": "unit", "inputs": ["resumeSession(null) 或 provider=opencode"], "expected": ["抛出 invalid claude sessionRef 错误"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-003-B04",
+          "category": "compatibility",
+          "description": "Claude sessionRef 字段不与 opencodeSessionId/TUI bridge 语义混用。",
+          "status": "failing",
+          "acceptance": "Claude 使用 claudeSessionId，OpenCode TUI bridge 不接管 Claude session。",
+          "test_plan": { "strategy": "unit", "inputs": ["创建 claude sessionRef 并检查字段"], "expected": ["无 opencodeSessionId/transport=tui-bridge 伪字段"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "title": "Prompt 执行与事件映射",
+      "status": "failing",
+      "types": ["functional", "external", "observable"],
+      "required_categories": ["happy-path", "external-failure", "observability", "compatibility"],
+      "acceptance": "prompt 使用 claude print/stream-json 执行并输出 Walker AgentEvent。",
+      "behaviors": [
+        {
+          "id": "REQ-004-B01",
+          "category": "happy-path",
+          "description": "stream-json 文本输出映射为 TYPE_TEXT 和 TYPE_DONE。",
+          "status": "failing",
+          "acceptance": "fake stdout JSON lines 产生预期 AgentEvent 数组。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake child stdout 输出 text/result JSON lines"], "expected": ["返回 TYPE_TEXT 与 TYPE_DONE"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-004-B02",
+          "category": "compatibility",
+          "description": "未知 Claude JSON 事件被容错处理。",
+          "status": "failing",
+          "acceptance": "未知事件不会使成功输出失败。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake unknown event JSON line"], "expected": ["不抛错，必要时产生 status 事件"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-004-B03",
+          "category": "external-failure",
+          "description": "CLI 非零退出或 stderr 错误转换为诊断错误。",
+          "status": "failing",
+          "acceptance": "prompt 抛出的错误包含退出码和安全摘要。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake child exit code 1 和 stderr"], "expected": ["抛出 Claude prompt failed 诊断错误"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-004-B04",
+          "category": "observability",
+          "description": "prompt 失败和完成状态可用于调试。",
+          "status": "failing",
+          "acceptance": "事件或错误包含 session id、退出码、完成原因等非敏感上下文。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake 成功和失败 prompt"], "expected": ["输出包含可诊断状态且无敏感值"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "title": "模型、agent、权限和工具参数映射",
+      "status": "failing",
+      "types": ["functional", "input", "security"],
+      "required_categories": ["happy-path", "invalid-input", "security", "forbidden-behavior"],
+      "acceptance": "Claude CLI 参数由配置/调用参数安全构造，危险权限默认不传。",
+      "behaviors": [
+        {
+          "id": "REQ-005-B01",
+          "category": "happy-path",
+          "description": "model/fallback/agent/permission/tools/add-dir 参数映射到 argv。",
+          "status": "failing",
+          "acceptance": "argv 包含对应 CLI 参数且顺序稳定。",
+          "test_plan": { "strategy": "unit", "inputs": ["传入 model、fallbackModel、agent、permissionMode、tools、addDir"], "expected": ["spawn argv 包含对应 claude CLI 参数"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-005-B02",
+          "category": "invalid-input",
+          "description": "空字符串、空数组和非法 timeout 不会生成错误 argv。",
+          "status": "failing",
+          "acceptance": "空值被跳过，非法正整数配置被拒绝或回退。",
+          "test_plan": { "strategy": "unit", "inputs": ["空 model、空 tools、CLAUDE_PROMPT_TIMEOUT_MS=abc"], "expected": ["不传空参数，timeout 使用安全默认或报配置错误"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-005-B03",
+          "category": "security",
+          "description": "参数构造不使用 shell 拼接。",
+          "status": "failing",
+          "acceptance": "spawn/execFile 接收 argv 数组，shell 不启用。",
+          "test_plan": { "strategy": "unit", "inputs": ["包含空格和特殊字符的 prompt/tools"], "expected": ["spawn 使用 argv 数组且 options.shell 不为 true"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-005-B04",
+          "category": "forbidden-behavior",
+          "description": "默认不传 dangerously skip permissions。",
+          "status": "failing",
+          "acceptance": "未显式配置时 argv 不包含危险权限跳过参数。",
+          "test_plan": { "strategy": "unit", "inputs": ["默认 driver 配置"], "expected": ["argv 不含 --dangerously-skip-permissions 等危险参数"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "title": "取消、停止与进程清理",
+      "status": "failing",
+      "types": ["functional", "state", "recovery"],
+      "required_categories": ["happy-path", "state-transition", "idempotency", "recovery"],
+      "acceptance": "stop/cancel/AbortSignal 能终止 pending prompt，且不会重复投递完成事件。",
+      "behaviors": [
+        {
+          "id": "REQ-006-B01",
+          "category": "happy-path",
+          "description": "stop 终止当前 session pending 进程。",
+          "status": "failing",
+          "acceptance": "fake child.kill 被调用，pending 状态清理。",
+          "test_plan": { "strategy": "unit", "inputs": ["启动 fake pending prompt 后调用 stop"], "expected": ["child.kill 被调用且 pending map 清理"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-006-B02",
+          "category": "state-transition",
+          "description": "进程自然完成或取消时 pending 状态都离开 running。",
+          "status": "failing",
+          "acceptance": "完成、错误、取消三种路径都清理 pending。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake close code 0、code 1、abort"], "expected": ["pending 状态为空且 promise 正确 resolve/reject"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-006-B03",
+          "category": "idempotency",
+          "description": "重复 stop/delete 不产生未处理异常。",
+          "status": "failing",
+          "acceptance": "第二次调用安全返回。",
+          "test_plan": { "strategy": "unit", "inputs": ["连续两次 stop/delete 同一 session"], "expected": ["无未处理异常，kill 不重复要求成功"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-006-B04",
+          "category": "recovery",
+          "description": "取消后可再次对同一 session 发起 prompt。",
+          "status": "failing",
+          "acceptance": "pending 清理后下一次 prompt 可创建新进程。",
+          "test_plan": { "strategy": "unit", "inputs": ["abort 第一次 prompt 后再次 prompt"], "expected": ["第二次 spawn 正常执行"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "title": "配置和管理端可见性",
+      "status": "failing",
+      "types": ["functional", "write", "observable", "security"],
+      "required_categories": ["happy-path", "invalid-input", "observability", "security", "atomicity"],
+      "acceptance": "Claude 配置进入现有配置摘要、编辑 allowlist 和 provider catalog。",
+      "behaviors": [
+        {
+          "id": "REQ-007-B01",
+          "category": "happy-path",
+          "description": "admin config 暴露 Claude 配置字段。",
+          "status": "failing",
+          "acceptance": "GET /api/admin/config 返回 CLAUDE_* 可编辑字段。",
+          "test_plan": { "strategy": "unit", "inputs": ["调用 buildConfigSummary 或 config route"], "expected": ["返回 CLAUDE_CMD、CLAUDE_MODEL 等字段"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-007-B02",
+          "category": "invalid-input",
+          "description": "数值型 timeout 配置校验为正整数。",
+          "status": "failing",
+          "acceptance": "非法 CLAUDE_PROMPT_TIMEOUT_MS 被拒绝。",
+          "test_plan": { "strategy": "unit", "inputs": ["PATCH CLAUDE_PROMPT_TIMEOUT_MS=0/abc"], "expected": ["返回 BAD_REQUEST 或 validation error"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-007-B03",
+          "category": "observability",
+          "description": "provider catalog 的 configKeys 与 admin 配置一致。",
+          "status": "failing",
+          "acceptance": "claude provider configKeys 包含新增 CLAUDE_* 键。",
+          "test_plan": { "strategy": "unit", "inputs": ["listProviderCatalog() 与 buildConfigSummary()"], "expected": ["Claude 配置键可在两处追踪"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-007-B04",
+          "category": "security",
+          "description": "本次不新增 token/API key 明文字段。",
+          "status": "failing",
+          "acceptance": "新增 CLAUDE_* 字段不包含 secret/token/api key。",
+          "test_plan": { "strategy": "unit", "inputs": ["检查 config schema 与 provider configKeys"], "expected": ["无新增敏感密钥字段"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-007-B05",
+          "category": "atomicity",
+          "description": "配置保存沿用现有 updateDotEnv 原子更新语义。",
+          "status": "failing",
+          "acceptance": "PATCH 多个 CLAUDE_* 字段时要么整体成功写入 allowlist 字段，要么返回错误。",
+          "test_plan": { "strategy": "unit", "inputs": ["PATCH 多个有效/无效 CLAUDE_* 字段"], "expected": ["有效字段写入，非法请求不产生部分不可追踪状态"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-008",
+      "title": "与现有 OpenCode 行为兼容",
+      "status": "failing",
+      "types": ["compatibility", "functional"],
+      "required_categories": ["happy-path", "compatibility", "forbidden-behavior", "performance"],
+      "acceptance": "新增 Claude provider 不破坏 OpenCode 默认路径和现有测试。",
+      "behaviors": [
+        {
+          "id": "REQ-008-B01",
+          "category": "happy-path",
+          "description": "WALKER_DEFAULT_AGENT 可显式选择 claude。",
+          "status": "failing",
+          "acceptance": "当默认 agent 配置为 claude 时 dispatcher 能从 registry 获取 claude driver。",
+          "test_plan": { "strategy": "unit", "inputs": ["WALKER_DEFAULT_AGENT=claude 的 app context/dispatcher"], "expected": ["默认 driver 指向 claude"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-008-B02",
+          "category": "compatibility",
+          "description": "WALKER_DEFAULT_AGENT 默认仍为 opencode。",
+          "status": "failing",
+          "acceptance": "未配置时 dispatcher/default config 仍使用 opencode。",
+          "test_plan": { "strategy": "regression", "inputs": ["未设置 WALKER_DEFAULT_AGENT"], "expected": ["默认值仍为 opencode"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-008-B03",
+          "category": "forbidden-behavior",
+          "description": "不得改写 OpenCode driver 行为来适配 Claude。",
+          "status": "failing",
+          "acceptance": "OpenCode 相关测试全部通过，改动集中在 Claude/配置接入。",
+          "test_plan": { "strategy": "regression", "inputs": ["运行 npm test"], "expected": ["OpenCode 测试无回归"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-008-B04",
+          "category": "performance",
+          "description": "provider 列表/诊断不应触发真实 prompt 或长时间阻塞。",
+          "status": "failing",
+          "acceptance": "doctor 仅做 version/help 级探测并受 timeout 控制。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake provider list/doctor 调用"], "expected": ["不调用 claude prompt，超时受控"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-009",
+      "title": "测试覆盖和资料新鲜度证据",
+      "status": "failing",
+      "types": ["observable", "functional"],
+      "required_categories": ["happy-path", "observability", "forbidden-behavior"],
+      "acceptance": "实现包含可重复测试与 Claude Code 资料基线记录。",
+      "behaviors": [
+        {
+          "id": "REQ-009-B01",
+          "category": "happy-path",
+          "description": "新增 Claude driver 单元测试覆盖主要行为。",
+          "status": "failing",
+          "acceptance": "测试覆盖参数构造、事件映射、错误、取消。",
+          "test_plan": { "strategy": "unit", "inputs": ["test/claude-driver.test.js"], "expected": ["覆盖 create/resume/prompt/stop/config args"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-009-B02",
+          "category": "observability",
+          "description": "test-report 记录 Claude Code 版本/help/npm 元数据基线。",
+          "status": "failing",
+          "acceptance": "报告包含 2.1.196 本机版本和 npm latest/stable。",
+          "test_plan": { "strategy": "documentation", "inputs": ["claude --version、claude --help、npm view 输出"], "expected": ["test-report.md 记录资料来源和失败的官方网页抓取"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-009-B03",
+          "category": "forbidden-behavior",
+          "description": "自动测试不得调用真实 Claude prompt 或产生费用。",
+          "status": "failing",
+          "acceptance": "测试全部使用 fake spawn/execFile。",
+          "test_plan": { "strategy": "review", "inputs": ["测试文件和 test-report"], "expected": ["无真实 claude prompt 调用，只有 fake runtime 或 version/help 探测"], "coverage_target": "behavior" }
+        }
+      ]
+    },
+    {
+      "id": "REQ-010",
+      "title": "Claude/kscc 与 OpenCode 等价 TUI 会话链路",
+      "status": "failing",
+      "types": ["functional", "state", "input", "external", "observable", "security", "recovery", "compatibility", "performance"],
+      "required_categories": ["happy-path", "invalid-input", "state-transition", "idempotency", "external-failure", "observability", "security", "recovery", "compatibility", "performance", "forbidden-behavior"],
+      "acceptance": "Claude provider 在配置 Claude/kscc CLI 后提供与 OpenCode 等价的 Walker 会话体验：/new claude 创建并拉起可见终端窗口，飞书消息进入同一会话，生命周期/watch/状态可诊断，且不破坏 OpenCode 专属链路。",
+      "behaviors": [
+        {
+          "id": "REQ-010-B01",
+          "category": "happy-path",
+          "description": "/new claude <title> 创建 Walker session 后启动 Claude/kscc 交互式终端窗口。",
+          "status": "failing",
+          "acceptance": "MessageDispatcher 创建 claude session 时调用 claude driver 的窗口启动路径；agentRef 记录窗口/进程标识；provider catalog 将 claude TUI/window 能力标记为可用。",
+          "test_plan": { "strategy": "unit + integration", "inputs": ["fake claude driver terminal launcher", "/new claude kscc-test"], "expected": ["session created", "terminal launcher called once with session cwd/title", "agentRef includes claude window metadata", "catalog capabilities.tui=true"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B02",
+          "category": "state-transition",
+          "description": "飞书普通消息路由到当前 Claude session 时复用同一 Claude/kscc 会话上下文，而不是新建无关后台会话。",
+          "status": "failing",
+          "acceptance": "同一 Walker session 的连续 prompt 使用同一 claudeSessionId 或同一可验证 resume 标识；终端窗口和飞书 prompt 的 agentRef 保持一致。",
+          "test_plan": { "strategy": "unit", "inputs": ["创建 claude session 后连续发送两条消息"], "expected": ["两次 prompt 使用相同 claudeSessionId/resume id", "不会生成第二个无关 terminal session"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B03",
+          "category": "invalid-input",
+          "description": "缺失标题、无效 cwd、缺失 Claude/kscc 命令或不支持窗口启动的环境会返回明确错误或可诊断降级。",
+          "status": "failing",
+          "acceptance": "无效输入不产生半创建窗口；错误回复说明 claude/kscc 命令、cwd 或 terminal launcher 不可用，不泄漏敏感环境。",
+          "test_plan": { "strategy": "unit", "inputs": ["cwd 不存在", "CLAUDE_CMD 不存在", "terminal launcher 抛错"], "expected": ["返回可读错误", "session/window 状态不残留 running", "错误消息脱敏"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B04",
+          "category": "idempotency",
+          "description": "对同一 Claude session 重复 ensureWatch/refresh 不应重复拉起多个终端窗口。",
+          "status": "failing",
+          "acceptance": "已存在活动窗口/进程时 refresh 只复用或更新状态；窗口缺失时才按恢复策略重启。",
+          "test_plan": { "strategy": "unit", "inputs": ["同一 session 连续调用 ensureWatch/refresh 三次"], "expected": ["launcher 调用次数受控", "agentRef/window registry 无重复记录"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B05",
+          "category": "external-failure",
+          "description": "Claude/kscc 交互式进程启动失败、提前退出或输出异常时，Walker 能给出可操作诊断。",
+          "status": "failing",
+          "acceptance": "失败状态出现在 provider/session 诊断中；飞书命令回复包含简明原因和建议；不会吞掉 exit code/stderr 摘要。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake terminal process ENOENT", "exit code 1", "stderr contains error"], "expected": ["session status 标记 failed/stopped", "诊断包含 exitCode 和安全 stderr 摘要", "无未处理异常"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B06",
+          "category": "observability",
+          "description": "/current、/list、provider doctor 和 admin 状态展示 Claude session 的 agent、cwd、模型、窗口/watch 状态。",
+          "status": "failing",
+          "acceptance": "状态输出能区分 claude 与 opencode，并能看出 terminal/window 是否 active、stopped 或 unavailable。",
+          "test_plan": { "strategy": "unit + CLI/API", "inputs": ["创建 active/stopped/failed claude sessions", "调用 /current、/list、providers doctor claude、admin sessions"], "expected": ["输出包含 claude agent、cwd、model、window/watch 状态", "不出现 opencodeSessionId 伪字段"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B07",
+          "category": "security",
+          "description": "终端启动和 prompt 路由必须使用 argv 数组与受控环境，不通过 shell 拼接用户标题、cwd 或消息。",
+          "status": "failing",
+          "acceptance": "包含空格和特殊字符的 title/cwd/prompt 不会变成 shell 注入；日志和错误不泄漏 ANTHROPIC_API_KEY 等敏感值。",
+          "test_plan": { "strategy": "unit", "inputs": ["title/cwd/prompt 含引号、&、|、空格", "env 含 ANTHROPIC_API_KEY"], "expected": ["launcher/spawn 使用 argv 或安全终端参数", "options.shell 不因用户输入启用", "输出脱敏"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B08",
+          "category": "recovery",
+          "description": "Walker 重启或窗口关闭后恢复 Claude session 时能复用已有 agentRef 或给出明确重连策略。",
+          "status": "failing",
+          "acceptance": "session-admin/dispatcher 恢复 claude session 后可重新建立窗口/watch；若 Claude/kscc 无法 attach，状态明确提示需重新打开而不是静默失败。",
+          "test_plan": { "strategy": "unit", "inputs": ["持久化 claude agentRef 后重新构造 driver", "模拟窗口已关闭"], "expected": ["resumeSession 保留 claudeSessionId", "refreshWatch 可恢复或返回明确 unavailable", "后续 prompt 行为可预测"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B09",
+          "category": "compatibility",
+          "description": "Claude TUI/window 链路不得复用或污染 OpenCode 专属 opencodeSessionId、TUI bridge watcher、sqlite 会话库语义。",
+          "status": "failing",
+          "acceptance": "Claude agentRef 使用 claudeSessionId/window metadata；OpenCode 测试与现有窗口/watch 行为保持通过。",
+          "test_plan": { "strategy": "regression", "inputs": ["运行 opencode driver/message-dispatcher/admin 相关测试", "检查 claude agentRef"], "expected": ["OpenCode 无回归", "claude agentRef 不伪造 opencodeSessionId", "watch 分支按 provider 能力分发"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B10",
+          "category": "performance",
+          "description": "provider list/doctor、/list 和 refresh 不应因为 Claude TUI 能力而执行真实长 prompt 或无限等待窗口进程。",
+          "status": "failing",
+          "acceptance": "健康检查仍限于 version/help/window capability 探测并受 timeout 控制；列表类命令只读状态，不阻塞等待 Claude 响应。",
+          "test_plan": { "strategy": "unit", "inputs": ["fake slow claude process", "provider list/doctor", "/list"], "expected": ["不调用真实 prompt", "timeout 受控", "列表命令快速返回状态"], "coverage_target": "behavior" }
+        },
+        {
+          "id": "REQ-010-B11",
+          "category": "forbidden-behavior",
+          "description": "不得通过隐藏后台 --print 会话冒充已拉起 TUI 窗口，也不得在 /new 成功但窗口失败时回复完全成功。",
+          "status": "failing",
+          "acceptance": "/new claude 的成功语义必须包含窗口启动成功或明确说明窗口不可用；后台 prompt fallback 必须在状态中可见。",
+          "test_plan": { "strategy": "unit + review", "inputs": ["terminal launcher 失败但 createSession 成功", "仅后台 print 可用"], "expected": ["命令回复区分 created-with-window 与 degraded/no-window", "catalog/admin 不把降级状态展示为完整 TUI"], "coverage_target": "behavior" }
+        }
+      ]
+    }
+  ]
+}

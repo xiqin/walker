@@ -1,0 +1,59 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "实现并修复独立 Claude transcript 模块：基于 realpath canonical cwd 和精确 Claude UUID 解析 JSONL 路径，保留真实 Claude project 目录编码前导分隔符，支持边界后的 assistant 回复读取、本地 TUI JSONL watcher、部分行容错、细分超时诊断和 fail-closed 路径安全。",
+  "modified_files": [
+    "src/drivers/claude-transcript.js",
+    "test/claude-transcript.test.js",
+    "specs/2026-08-03+claude-native-external-tui/traceability.json",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T4-node-test.log",
+    "specs/2026-08-03+claude-native-external-tui/evidence/T4-eslint.log",
+    "specs/2026-08-03+claude-native-external-tui/handoffs/T4.json"
+  ],
+  "exported_interfaces": {
+    "src/drivers/claude-transcript.js": [
+      "resolveClaudeTranscriptPath({ cwd, configDir, claudeSessionId }) -> transcript JSONL path after UUID validation and project path safety checks",
+      "createTranscriptCursor({ cwd, configDir, claudeSessionId }) -> { transcriptPath, cwd, configDir, claudeSessionId, offset }",
+      "readAssistantTextSince(cursor, { timeoutMs, pollIntervalMs }) -> assistant text joined by newline; throws CLAUDE_TRANSCRIPT_MISSING, CLAUDE_TRANSCRIPT_PARTIAL_LINE_TIMEOUT, or CLAUDE_TRANSCRIPT_TIMEOUT with diagnostic fields",
+      "watchClaudeTranscript({ cwd, configDir, claudeSessionId, onEvent, pollIntervalMs, signal }) -> { close, cursor } emitting user/assistant/error events",
+      "parseClaudeJsonlLine(line) -> normalized user/assistant event or null",
+      "encodeClaudeProjectPath(cwd) -> stable Claude project directory encoding preserving leading separators, e.g. /Users/alice/project -> -Users-alice-project"
+    ]
+  },
+  "validation": [
+    {
+      "command": "node --test test/claude-transcript.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T4-node-test.log",
+      "summary": "7 pass / 0 fail; covers REQ-004-B01 through REQ-004-B05 and reviewer fixes for encoding, workspace validation, missing/partial/timeout codes"
+    },
+    {
+      "command": "npx eslint src/drivers/claude-transcript.js test/claude-transcript.test.js",
+      "status": "passed",
+      "evidence": "specs/2026-08-03+claude-native-external-tui/evidence/T4-eslint.log",
+      "summary": "eslint exited 0 with no findings"
+    }
+  ],
+  "red_summary": "TDD red: 初次运行 node --test test/claude-transcript.test.js 失败，原因是 ../src/drivers/claude-transcript 模块不存在。",
+  "requirements_verified": ["REQ-004"],
+  "behaviors_verified": [
+    "REQ-004-B01",
+    "REQ-004-B02",
+    "REQ-004-B03",
+    "REQ-004-B04",
+    "REQ-004-B05"
+  ],
+  "traceability_updated": true,
+  "known_risks": [
+    "watcher 使用短轮询而非 fs.watch；行为可测试且不会因缺失文件或部分行永久死亡，但实时性取决于 pollIntervalMs。",
+    "本任务未接入 ClaudeDriver 或 dispatcher，按边界由 T5 处理集成。"
+  ],
+  "notes": [
+    "Reviewer 修复: encodeClaudeProjectPath 删除前导 '-' 裁剪，POSIX /Users/alice/project 编码为 -Users-alice-project，Windows C:\\Users\\alice\\project 编码为 C--Users-alice-project。",
+    "Reviewer 修复: resolveClaudeTranscriptPath 先校验 cwd 存在且为目录，再使用 fs.realpathSync.native(cwd) 作为 canonical cwd；cwd symlink/alias 与请求路径不一致时 fail closed。",
+    "Reviewer 修复: readAssistantTextSince 按最终读取状态区分 CLAUDE_TRANSCRIPT_MISSING、CLAUDE_TRANSCRIPT_PARTIAL_LINE_TIMEOUT 和 CLAUDE_TRANSCRIPT_TIMEOUT，并附带 transcriptPath、claudeSessionId、offset、status。",
+    "路径解析只读取绑定 claudeSessionId 对应的 <uuid>.jsonl，不扫描同 cwd 目录下其他 session 文件，也不按 mtime 猜测。",
+    "readAssistantTextSince 只处理 cursor offset 之后的完整 JSONL 行，忽略 user、tool、thinking 和 prompt echo。",
+    "watchClaudeTranscript 在文件缺失、部分行和解析错误后继续轮询；后续完整行追加仍会触发事件。"
+  ]
+}

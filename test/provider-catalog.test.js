@@ -50,6 +50,32 @@ test('REQ-001-B01: 已安装 provider 返回安装、版本、capabilities 和�
   assert.deepEqual(result.provider.problems, []);
 });
 
+test('REQ-001-B01 和 REQ-007-B03: Claude catalog 声明真实 CLI driver 能力和配置键', () => {
+  const claude = listProviderCatalog().find((item) => item.id === 'claude');
+
+  assert.equal(claude.driver, 'claude');
+  assert.deepEqual(claude.executableCandidates, ['claude']);
+  assert.deepEqual(claude.versionCommand.args, ['--version']);
+  assert.equal(claude.healthCheck.type, 'command');
+  assert.deepEqual(claude.capabilities, {
+    sessions: true,
+    tui: true,
+    http: false,
+    models: true,
+    permissions: true,
+    window: true,
+  });
+  assert.ok(claude.configKeys.includes('CLAUDE_CMD'));
+  assert.ok(claude.configKeys.includes('CLAUDE_MODEL'));
+  assert.ok(claude.configKeys.includes('CLAUDE_FALLBACK_MODEL'));
+  assert.ok(claude.configKeys.includes('CLAUDE_AGENT'));
+  assert.ok(claude.configKeys.includes('CLAUDE_PERMISSION_MODE'));
+  assert.ok(claude.configKeys.includes('CLAUDE_ALLOWED_TOOLS'));
+  assert.ok(claude.configKeys.includes('CLAUDE_DISALLOWED_TOOLS'));
+  assert.ok(claude.configKeys.includes('CLAUDE_CONFIG_DIR'));
+  assert.ok(claude.configKeys.includes('CLAUDE_PROMPT_TIMEOUT_MS'));
+});
+
 test('REQ-001-B02: 未知 provider 返回明确 NOT_FOUND 且不调用检测依赖', async () => {
   let calls = 0;
   const result = await doctorProvider('unknown', {
@@ -78,6 +104,21 @@ test('REQ-001-B04: 命令缺失、版本失败和健康失败转换为 problems 
   }));
   assert.equal(healthFailed.provider.healthy, false);
   assert.ok(healthFailed.provider.problems.some((item) => item.code === 'HEALTH_CHECK_FAILED'));
+});
+
+test('REQ-007-B03: Claude provider 检测优先使用 CLAUDE_CMD 配置命令', async () => {
+  const result = await doctorProvider('claude', {
+    ...createDetectorOptions({
+      claude: { missing: true },
+      'claude-beta': { path: '/opt/bin/claude-beta', stdout: '2.1.196 (Claude Code)\n', health: true },
+    }),
+    env: { CLAUDE_CMD: 'claude-beta' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.provider.installed, true);
+  assert.equal(result.provider.executablePath, '/opt/bin/claude-beta');
+  assert.equal(result.provider.version, '2.1.196 (Claude Code)');
 });
 
 test('REQ-001-B04: 默认命令解析器使用平台可执行查找命令', async () => {
@@ -189,6 +230,28 @@ test('REQ-001-B04: Windows 默认命令解析器继续使用 where', async () =>
 
     assert.equal(resolved, 'C:\\tools\\opencode.exe');
     assert.deepEqual(calls, [{ command: 'where', args: ['opencode'] }]);
+  } finally {
+    Object.defineProperty(process, 'platform', originalPlatform);
+  }
+});
+
+test('REQ-007-B03: Windows 命令解析器优先使用可直接 spawn 的 exe 路径', async () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+  const calls = [];
+  try {
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    const resolved = await defaultResolveCommand('kscc', {
+      runCommand: (command, args) => {
+        calls.push({ command, args });
+        return Promise.resolve({
+          stdout: 'I:\\nvmNodejs\\nodejs\\kscc\r\nI:\\nvmNodejs\\nodejs\\kscc.cmd\r\nI:\\nvm\\v22.11.0\\node_modules\\@seasun\\kscc\\kscc.exe\r\n',
+          stderr: '',
+        });
+      },
+    });
+
+    assert.equal(resolved, 'I:\\nvm\\v22.11.0\\node_modules\\@seasun\\kscc\\kscc.exe');
+    assert.deepEqual(calls, [{ command: 'where', args: ['kscc'] }]);
   } finally {
     Object.defineProperty(process, 'platform', originalPlatform);
   }

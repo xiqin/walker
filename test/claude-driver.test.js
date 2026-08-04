@@ -1,0 +1,552 @@
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { ClaudeDriver, mapClaudeLine } = require('../src/drivers/claude-driver');
+const { AgentEvent } = require('../src/drivers/agent-driver');
+
+function createFakeBroker() {
+  const calls = { createRuntime: [], resumeRuntime: [], writeInput: [], stopRuntime: [], deleteRuntime: [] };
+  const broker = {
+    calls,
+    createRuntime(options) {
+      calls.createRuntime.push(options);
+      return {
+        runtimeId: options.runtimeId || 'rt_1',
+        claudeSessionId: options.claudeSessionId,
+        processGeneration: 1,
+        status: 'active',
+        cwd: options.cwd,
+        agentRef: {
+          provider: 'claude',
+          transport: 'pty-attach',
+          runtimeId: options.runtimeId || 'rt_1',
+          claudeSessionId: options.claudeSessionId,
+          processGeneration: 1,
+        },
+      };
+    },
+    resumeRuntime(options) {
+      calls.resumeRuntime.push(options);
+      return {
+        runtimeId: options.runtimeId || 'rt_resumed',
+        claudeSessionId: options.claudeSessionId,
+        processGeneration: options.processGeneration ? options.processGeneration + 1 : 1,
+        status: 'active',
+        cwd: options.cwd,
+        agentRef: {
+          provider: 'claude',
+          transport: 'pty-attach',
+          runtimeId: options.runtimeId || 'rt_resumed',
+          claudeSessionId: options.claudeSessionId,
+          processGeneration: options.processGeneration ? options.processGeneration + 1 : 1,
+        },
+      };
+    },
+    getRuntime(runtimeId) {
+      return runtimeId ? {
+        runtimeId,
+        status: 'active',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        cwd: 'H:\\walker',
+      } : null;
+    },
+    writeInput(runtimeId, data, options) {
+      calls.writeInput.push({ runtimeId, data: Buffer.from(data), options });
+      return Promise.resolve();
+    },
+    stopRuntime(runtimeId, reason) {
+      calls.stopRuntime.push({ runtimeId, reason });
+      return { runtimeId, status: 'stopped' };
+    },
+    deleteRuntime(runtimeId, reason) {
+      calls.deleteRuntime.push({ runtimeId, reason });
+      return null;
+    },
+  };
+  return broker;
+}
+
+describe('ClaudeDriver ensureReady', () => {
+  it('使用 claude --version 探测 CLI', async () => {
+    const calls = [];
+    const driver = new ClaudeDriver({
+      claudeCmd: 'claude-test',
+      execFile: async (cmd, args, options) => {
+        calls.push({ cmd, args, options });
+        return { stdout: '2.1.196 (Claude Code)\n', stderr: '' };
+      },
+    });
+
+    const result = await driver.ensureReady();
+
+    assert.equal(result, true);
+    assert.equal(calls[0].cmd, 'claude-test');
+    assert.deepEqual(calls[0].args, ['--version']);
+  });
+
+  it('CLI 不可用时返回脱敏诊断错误', async () => {
+    const driver = new ClaudeDriver({
+      execFile: async () => {
+        const err = new Error('ENOENT token=abc123');
+        err.code = 'ENOENT';
+        throw err;
+      },
+    });
+
+    await assert.rejects(() => driver.ensureReady(), (err) => {
+      assert.equal(err.code, 'ENOENT');
+      assert.match(err.message, /claude cli is not available/i);
+      assert.doesNotMatch(err.message, /abc123/);
+      return true;
+    });
+  });
+});
+
+describe('ClaudeDriver session lifecycle', () => {
+  it('创建和恢复 Claude sessionRef', async () => {
+    const broker = createFakeBroker();
+    const driver = new ClaudeDriver({ cwd: 'H:\\walker', model: 'sonnet', ptyBroker: broker });
+    const ref = await driver.createSession({ title: 't', sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    assert.equal(ref.provider, 'claude');
+    assert.equal(ref.transport, 'pty-attach');
+    assert.equal(ref.claudeSessionId, '11111111-1111-4111-8111-111111111111');
+    assert.equal(ref.runtimeId, 'rt_1');
+    assert.equal(ref.processGeneration, 1);
+    assert.equal(ref.model, 'sonnet');
+
+    const resumed = await driver.resumeSession(ref);
+    assert.equal(resumed.claudeSessionId, ref.claudeSessionId);
+    assert.equal(resumed.runtimeId, 'rt_1');
+    assert.equal(resumed.processGeneration, 2);
+    assert.deepEqual(broker.calls.resumeRuntime[0], {
+      runtimeId: 'rt_1',
+      claudeSessionId: ref.claudeSessionId,
+      cwd: 'H:\\walker',
+      env: driver.env,
+      processGeneration: 1,
+    });
+    assert.ok(resumed.updatedAt);
+  });
+
+  it('resumeSession 从精确 UUID 启动新的 PTY runtime 并打开 attach 窗口', async () => {
+    const broker = createFakeBroker();
+    const calls = [];
+    const driver = new ClaudeDriver({
+      cwd: 'H:\\walker',
+      ptyBroker: broker,
+      attachServer: { createAttachment: (runtimeId) => ({ runtimeId, url: 'ws://127.0.0.1/attach/' + runtimeId + '?token=secret', token: 'secret' }) },
+      openClaudeAttachTerminal: async (runtimeId) => { calls.push(runtimeId); return { windowId: 'win_resume' }; },
+    });
+
+    const resumed = await driver.resumeSession({
+      provider: 'claude',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      runtimeId: 'rt_old',
+      processGeneration: 4,
+      cwd: 'H:\\walker',
+    });
+
+    assert.equal(resumed.transport, 'pty-attach');
+    assert.equal(resumed.runtimeId, 'rt_old');
+    assert.equal(resumed.processGeneration, 5);
+    assert.equal(resumed.terminal.status, 'active');
+    assert.deepEqual(calls, ['rt_old']);
+    assert.deepEqual(broker.calls.resumeRuntime[0].claudeSessionId, '11111111-1111-4111-8111-111111111111');
+  });
+
+  it('默认生成 Claude CLI 可接受的 UUID session id', async () => {
+    const driver = new ClaudeDriver({ cwd: 'H:\\walker', ptyBroker: createFakeBroker() });
+    const ref = await driver.createSession({ title: 't' });
+
+    assert.match(ref.claudeSessionId, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  });
+
+  it('创建 session 时立即创建 Claude PTY runtime 并打开 attach 窗口', async () => {
+    const broker = createFakeBroker();
+    const calls = [];
+    const attachServer = {
+      createAttachment(runtimeId) {
+        calls.push({ type: 'attachment', runtimeId });
+        return { runtimeId, url: 'ws://127.0.0.1:1234/attach/' + runtimeId + '?token=secret', token: 'secret' };
+      },
+    };
+    const driver = new ClaudeDriver({
+      claudeCmd: 'kscc.exe',
+      model: 'glm-5.1',
+      permissionMode: 'default',
+      ptyBroker: broker,
+      attachServer,
+      openClaudeAttachTerminal: async (runtimeId, options) => {
+        calls.push({ type: 'terminal', runtimeId, options });
+        return { pid: 1234, windowId: 'win_1' };
+      },
+    });
+
+    const ref = await driver.createSession({
+      title: 'kscc test & safe',
+      cwd: 'H:\\walker folder',
+      sessionId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    assert.equal(ref.provider, 'claude');
+    assert.equal(ref.transport, 'pty-attach');
+    assert.equal(ref.conversationReady, true);
+    assert.equal(ref.runtimeId, 'rt_1');
+    assert.equal(ref.terminal.status, 'active');
+    assert.deepEqual(broker.calls.createRuntime[0], {
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      cwd: 'H:\\walker folder',
+      env: driver.env,
+      cols: undefined,
+      rows: undefined,
+    });
+    assert.equal(calls[0].type, 'attachment');
+    assert.equal(calls[1].type, 'terminal');
+    assert.equal(calls[1].runtimeId, 'rt_1');
+    assert.equal(calls[1].options.attachUrl, 'ws://127.0.0.1:1234/attach/rt_1?token=secret');
+    assert.equal(calls[1].options.token, 'secret');
+    assert.equal(ref.terminal.attachUrl, undefined);
+    assert.doesNotMatch(JSON.stringify(ref), /secret/);
+    assert.equal(attachServer.broker, driver.attachBroker);
+    assert.equal(driver.isSessionRefActive(ref), true);
+  });
+
+  it('默认创建并启动 loopback attach server 后再打开窗口', async () => {
+    const broker = createFakeBroker();
+    const calls = [];
+    const fakeServer = {
+      start: async () => { calls.push('start'); },
+      createAttachment(runtimeId) {
+        calls.push('attachment:' + runtimeId);
+        return { runtimeId, url: 'ws://127.0.0.1:5000/attach/' + runtimeId + '?token=secret', token: 'secret' };
+      },
+    };
+    const driver = new ClaudeDriver({
+      ptyBroker: broker,
+      attachServerFactory: ({ broker: attachBroker }) => {
+        assert.equal(typeof attachBroker.writeInput, 'function');
+        return fakeServer;
+      },
+      openClaudeAttachTerminal: async (runtimeId) => { calls.push('terminal:' + runtimeId); return { windowId: 'win_1' }; },
+    });
+
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    assert.equal(ref.terminal.status, 'active');
+    assert.deepEqual(calls, ['start', 'attachment:rt_1', 'terminal:rt_1']);
+  });
+
+  it('终端启动失败时保留 PTY runtime 并记录降级状态', async () => {
+    const driver = new ClaudeDriver({
+      ptyBroker: createFakeBroker(),
+      attachServer: { createAttachment: () => ({ runtimeId: 'rt_1', url: 'ws://127.0.0.1:1234/attach/rt_1?token=secret', token: 'secret' }) },
+      openClaudeAttachTerminal: async () => { throw new Error('spawn failed ANTHROPIC_API_KEY=secret123'); },
+    });
+
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    assert.equal(ref.runtimeId, 'rt_1');
+    assert.equal(ref.terminal.status, 'failed');
+    assert.match(ref.terminal.reason, /spawn failed/);
+    assert.doesNotMatch(ref.terminal.reason, /secret123/);
+    assert.equal(driver.isSessionRefActive(ref), false);
+  });
+
+  it('watchSession 幂等复用已有窗口状态', async () => {
+    const driver = new ClaudeDriver({
+      ptyBroker: createFakeBroker(),
+      attachServer: false,
+      openClaudeAttachTerminal: async () => ({ windowId: 'win_once' }),
+    });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    const stop1 = driver.watchSession(ref);
+    const stop2 = driver.watchSession(ref);
+
+    assert.equal(typeof stop1, 'function');
+    assert.equal(typeof stop2, 'function');
+    assert.equal(ref.terminal.status, 'active');
+  });
+
+  it('listModels 返回 CLI alias 与配置模型，不伪造远端目录', async () => {
+    const driver = new ClaudeDriver({ model: 'haiku', fallbackModel: 'opus' });
+    const models = await driver.listModels();
+
+    assert.ok(models.some((m) => m.id === 'sonnet' && m.source === 'claude-cli-alias'));
+    assert.ok(models.some((m) => m.id === 'opus'));
+    assert.ok(models.some((m) => m.id === 'haiku' && m.source === 'config'));
+  });
+});
+
+describe('ClaudeDriver prompt', () => {
+  it('REQ-001-B05: 连续飞书 prompt 始终写入同一 PTY 且不 spawn kscc --print', async () => {
+    const broker = createFakeBroker();
+    const spawnCalls = [];
+    const driver = new ClaudeDriver({
+      claudeCmd: 'claude-test',
+      model: 'sonnet',
+      ptyBroker: broker,
+      spawn: (cmd, args, options) => {
+        if (args && args.includes('--print')) assert.fail('prompt must not spawn --print');
+        spawnCalls.push({ cmd, args, options });
+      },
+    });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111', cwd: 'H:\\walker' });
+
+    const first = await driver.prompt(ref, 'first');
+    const second = await driver.prompt(ref, 'second');
+
+    assert.equal(spawnCalls.length, 0);
+    assert.equal(broker.calls.createRuntime.length, 1);
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.runtimeId), ['rt_1', 'rt_1']);
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.data.toString()), ['first\r', 'second\r']);
+    assert.equal(first[0].type, AgentEvent.TYPE_DONE);
+    assert.equal(second[0].type, AgentEvent.TYPE_DONE);
+  });
+
+  it('飞书 prompt 写入 PTY 后从精确 transcript 返回 Claude 文本', async () => {
+    const broker = createFakeBroker();
+    const transcriptCalls = [];
+    const transcript = {
+      createTranscriptCursor(options) {
+        transcriptCalls.push({ type: 'cursor', options });
+        return { transcriptPath: 'x.jsonl', claudeSessionId: options.claudeSessionId };
+      },
+      readAssistantTextSince(cursor, options) {
+        transcriptCalls.push({ type: 'read', cursor, options });
+        return Promise.resolve('assistant answer');
+      },
+      readAssistantEventsSince(cursor, options) {
+        transcriptCalls.push({ type: 'read-events', cursor, options });
+        return Promise.resolve([{ type: 'assistant', text: 'assistant answer', model: 'claude-sonnet-4-20250514', contextSize: 125, tokenUsage: { inputTokens: 12, outputTokens: 8, cacheReadTokens: 100, cacheWriteTokens: 5, totalTokens: 125 } }]);
+      },
+    };
+    const driver = new ClaudeDriver({ cwd: 'H:\\walker', ptyBroker: broker, transcript });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111', cwd: 'H:\\walker' });
+
+    const events = await driver.prompt(ref, 'question');
+
+    assert.deepEqual(events.map((event) => event.type), [AgentEvent.TYPE_TEXT, AgentEvent.TYPE_DONE]);
+    assert.equal(events[0].data.text, 'assistant answer');
+    assert.equal(events[0].data.model, 'claude-sonnet-4-20250514');
+    assert.equal(events[0].data.contextSize, 125);
+    assert.equal(events[0].data.tokenUsage.totalTokens, 125);
+    assert.equal(events[1].data.reason, 'transcript');
+    assert.equal(events[1].data.model, 'claude-sonnet-4-20250514');
+    assert.equal(events[1].data.contextSize, 125);
+    assert.equal(events[1].data.tokenUsage.totalTokens, 125);
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.data.toString()), ['question\r']);
+    assert.equal(transcriptCalls[0].options.claudeSessionId, ref.claudeSessionId);
+  });
+
+  it('watchSession 将 transcript user/assistant/done 事件转发到 watcher handler', () => {
+    const broker = createFakeBroker();
+    const seen = [];
+    let closed = false;
+    const transcript = {
+      watchClaudeTranscript(options) {
+        options.onEvent({ type: 'user', text: 'local input' });
+        options.onEvent({
+          type: 'assistant',
+          text: 'local answer',
+          model: 'claude-sonnet-4-20250514',
+          contextSize: 125,
+          tokenUsage: { inputTokens: 12, outputTokens: 8, cacheReadTokens: 100, cacheWriteTokens: 5, totalTokens: 125 },
+        });
+        options.onEvent({
+          type: 'done',
+          model: 'claude-sonnet-4-20250514',
+          contextSize: 125,
+          tokenUsage: { inputTokens: 12, outputTokens: 8, cacheReadTokens: 100, cacheWriteTokens: 5, totalTokens: 125 },
+        });
+        return { close: () => { closed = true; } };
+      },
+    };
+    const driver = new ClaudeDriver({ ptyBroker: broker, transcript });
+    const ref = { claudeSessionId: '11111111-1111-4111-8111-111111111111', runtimeId: 'rt_1', cwd: 'H:\\walker', terminal: { status: 'active' } };
+
+    const stop = driver.watchSession(ref, { onEvent: (event) => seen.push(event) });
+    stop();
+
+    assert.deepEqual(seen.map((event) => event.type), [AgentEvent.TYPE_STATUS, AgentEvent.TYPE_TEXT, AgentEvent.TYPE_DONE]);
+    assert.equal(seen[1].data.text, 'local answer');
+    assert.equal(seen[1].data.model, 'claude-sonnet-4-20250514');
+    assert.equal(seen[1].data.contextSize, 125);
+    assert.equal(seen[2].data.reason, 'transcript-watch');
+    assert.equal(seen[2].data.model, 'claude-sonnet-4-20250514');
+    assert.equal(seen[2].data.tokenUsage.totalTokens, 125);
+    assert.equal(closed, true);
+  });
+
+  it('REQ-003-B01: 飞书 prompt 作为完整不可交错事务写入并只提交一次 Enter', async () => {
+    const broker = createFakeBroker();
+    const driver = new ClaudeDriver({ ptyBroker: broker });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    await driver.prompt(ref, 'line1\nline2');
+
+    assert.equal(broker.calls.writeInput.length, 1);
+    assert.equal(broker.calls.writeInput[0].data.toString(), 'line1\nline2\r');
+    assert.equal((broker.calls.writeInput[0].data.toString().match(/\r/g) || []).length, 1);
+    assert.equal(broker.calls.writeInput[0].options.source, 'feishu');
+  });
+
+  it('REQ-003-B02: attach broker 输入半行后飞书 prompt 经真实 attach 路径入队', async () => {
+    const broker = createFakeBroker();
+    const attachServer = {};
+    const driver = new ClaudeDriver({ ptyBroker: broker, attachServer });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    await attachServer.broker.writeInput(ref.runtimeId, Buffer.from('h'), { source: 'attach' });
+    const pending = driver.prompt(ref, 'queued');
+    await Promise.resolve();
+
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.data.toString()), ['h']);
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.options.source), ['attach']);
+
+    await attachServer.broker.writeInput(ref.runtimeId, Buffer.from('\r'), { source: 'attach' });
+    const events = await pending;
+
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.data.toString()), ['h', '\r', 'queued\r']);
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.options.source), ['attach', 'attach', 'feishu']);
+    assert.equal(events[0].type, AgentEvent.TYPE_DONE);
+  });
+
+  it('REQ-003-B03: 默认队列 5 条，第 6 条明确拒绝', async () => {
+    const broker = createFakeBroker();
+    const driver = new ClaudeDriver({ ptyBroker: broker });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+    driver._acquireLocalLease(ref.runtimeId, 'test');
+
+    const queued = [];
+    for (let i = 0; i < 5; i += 1) queued.push(driver.prompt(ref, 'q' + i));
+
+    await assert.rejects(() => driver.prompt(ref, 'q5'), (err) => {
+      assert.equal(err.code, 'CLAUDE_INPUT_QUEUE_FULL');
+      return true;
+    });
+
+    driver._releaseLocalLease(ref.runtimeId, 'test');
+    await Promise.all(queued);
+  });
+
+  it('REQ-003-B04: attach detach/Enter/Ctrl+C 经真实 attach 路径释放 lease 并继续队列', async () => {
+    const broker = createFakeBroker();
+    const attachServer = {};
+    const timers = [];
+    const driver = new ClaudeDriver({
+      ptyBroker: broker,
+      attachServer,
+      localLeaseTimeoutMs: 100,
+      setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
+      clearTimeout: () => {},
+    });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    await attachServer.broker.writeInput(ref.runtimeId, Buffer.from('a'), { source: 'attach' });
+    const ctrlQueued = driver.prompt(ref, 'after-ctrl');
+    await attachServer.broker.writeInput(ref.runtimeId, Buffer.from('\x03'), { source: 'attach' });
+    await ctrlQueued;
+
+    await attachServer.broker.writeInput(ref.runtimeId, Buffer.from('b'), { source: 'attach' });
+    const detachQueued = driver.prompt(ref, 'after-detach');
+    attachServer.broker.detach(ref.runtimeId);
+    await detachQueued;
+
+    await attachServer.broker.writeInput(ref.runtimeId, Buffer.from('c'), { source: 'attach' });
+    const timeoutQueued = driver.prompt(ref, 'after-timeout');
+    timers[timers.length - 1].fn();
+    await timeoutQueued;
+
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.data.toString()), [
+      'a', '\x03', 'after-ctrl\r', 'b', 'after-detach\r', 'c', 'after-timeout\r',
+    ]);
+  });
+
+  it('REQ-003-B05: busy/permission 状态下飞书普通文本不得直接写 PTY', async () => {
+    const broker = createFakeBroker();
+    const driver = new ClaudeDriver({ ptyBroker: broker });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    driver._setRuntimeBusy(ref.runtimeId, true);
+    const pending = driver.prompt(ref, 'queued-busy');
+    await Promise.resolve();
+
+    assert.equal(broker.calls.writeInput.length, 0);
+
+    driver._setRuntimeBusy(ref.runtimeId, false);
+    await pending;
+
+    driver._setPermissionState(ref.runtimeId, true);
+    const permissionPending = driver.prompt(ref, 'queued-permission');
+    await Promise.resolve();
+
+    assert.equal(broker.calls.writeInput.length, 1);
+
+    driver._setPermissionState(ref.runtimeId, false);
+    await permissionPending;
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.data.toString()), ['queued-busy\r', 'queued-permission\r']);
+  });
+
+  it('REQ-003-B06: 空白、超长、非字符串 prompt 稳定拒绝且不写 PTY', async () => {
+    const broker = createFakeBroker();
+    const driver = new ClaudeDriver({ ptyBroker: broker, maxPromptLength: 5 });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    await assert.rejects(() => driver.prompt(ref, 1), { code: 'CLAUDE_PROMPT_INVALID' });
+    await assert.rejects(() => driver.prompt(ref, '   '), { code: 'CLAUDE_PROMPT_EMPTY' });
+    await assert.rejects(() => driver.prompt(ref, '123456'), { code: 'CLAUDE_PROMPT_TOO_LONG' });
+
+    assert.equal(broker.calls.writeInput.length, 0);
+  });
+
+  it('REQ-003-B07: 队列事件驱动 drain，空闲时不使用忙轮询', async () => {
+    const broker = createFakeBroker();
+    let intervalCount = 0;
+    const driver = new ClaudeDriver({
+      ptyBroker: broker,
+      setInterval: () => { intervalCount += 1; throw new Error('busy polling forbidden'); },
+    });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    driver._setRuntimeBusy(ref.runtimeId, true);
+    const pending = driver.prompt(ref, 'queued');
+    await Promise.resolve();
+    driver._setRuntimeBusy(ref.runtimeId, false);
+    await pending;
+
+    assert.equal(intervalCount, 0);
+    assert.equal(broker.calls.writeInput[0].data.toString(), 'queued\r');
+  });
+
+  it('stop 和 delete 幂等调用 broker stopRuntime/deleteRuntime', async () => {
+    const broker = createFakeBroker();
+    const driver = new ClaudeDriver({ ptyBroker: broker });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    await driver.stop(ref);
+    await driver.delete(ref);
+
+    assert.deepEqual(broker.calls.stopRuntime.map((call) => call.runtimeId), ['rt_1', 'rt_1']);
+    assert.deepEqual(broker.calls.deleteRuntime.map((call) => call.runtimeId), ['rt_1']);
+  });
+
+  it('无 pending prompt 时 stop 仍更新终端状态诊断', async () => {
+    const driver = new ClaudeDriver({ ptyBroker: createFakeBroker() });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    await driver.stop(ref);
+
+    assert.equal(ref.terminal.status, 'stopped');
+    assert.equal(driver.isSessionRefActive(ref), false);
+  });
+});
+
+describe('mapClaudeLine', () => {
+  it('映射 reasoning、tool_use、tool_result 和未知事件', () => {
+    assert.equal(mapClaudeLine('{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"plan"}]}}').type, AgentEvent.TYPE_REASONING);
+    assert.equal(mapClaudeLine('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file":"a"}}]}}').type, AgentEvent.TYPE_TOOL_USE);
+    assert.equal(mapClaudeLine('{"type":"assistant","message":{"content":[{"type":"tool_result","content":"ok"}]}}').data.status, 'done');
+    assert.equal(mapClaudeLine('{"type":"new_event"}').type, AgentEvent.TYPE_STATUS);
+  });
+});

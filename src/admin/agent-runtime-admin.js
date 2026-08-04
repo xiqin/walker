@@ -38,8 +38,8 @@ function listAgents(ctx, opts) {
         summary.available = false;
         summary.reason = isStub.message;
       } else {
-        summary.available = false;
-        summary.reason = 'driver not available';
+        summary.available = true;
+        summary.reason = '';
       }
     }
 

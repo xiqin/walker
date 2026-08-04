@@ -1,0 +1,28 @@
+{
+  "task_T5": "done",
+  "targeted_tests": "277 tests passed",
+  "full_tests": "1379 tests passed",
+  "status": "done",
+  "summary": "刷新 stale handoff：executing 阶段完成 T5/REQ-010 后，test-report.md 已最终更新并通过 artifact verification 文本检查；Claude/kscc cli-terminal/window 链路实现与证据不变，T5 done，REQ-010-B01..B11 tests/evidence 已补齐，定向 277 tests passed，全量 1379 tests passed。",
+  "artifacts": [
+    "test-report.md",
+    "traceability.json",
+    "evidence/T5-req010-tests.md",
+    "evidence/T5-req010-tests.log",
+    "evidence/test.log"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "ec2ecff8d0eefb8507bc95a6a185b12a95480ebf6c2e2391b911b8fcd13fd4e2",
+    "spec.md": "ef0acdc090c862ad2a888ad96c83d1b011737ff3ee64ce7813cf74f72e43505c",
+    "tasks/": "d5dc898617bbb56addebc1bd78d99ddde7eeb5146bc1619f493e28d1a9db96aa"
+  },
+  "artifact_fingerprints": {
+    "evidence/T5-req010-tests.log": "8a8924c372efbc7aa12ced70ebed6af3ee35606f77b94346df16ee4cabc8232c",
+    "evidence/T5-req010-tests.md": "dea79ead712edd071e00a00d17cbb089b477834c00edde0de9613f24918ffa99",
+    "evidence/test.log": "9261ee22791bdd930f7ae37068ef5e77063e58b42aaed37a342aad6be090554b",
+    "test-report.md": "7a68ba2e9d9375f3faf2121d05fa83bc645edb7cbfc750e3395e2f188c54fa95"
+  },
+  "written_at": "2026-08-03T07:44:40.164Z"
+}

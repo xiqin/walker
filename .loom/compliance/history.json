@@ -959,5 +959,184 @@
     "violations": [
       "blocker count 0."
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-07-31T09:58:05.419Z",
+    "stage": "executing",
+    "skill": "loom-subagent-driven-development",
+    "passed": false,
+    "violations": [
+      "re-approval required after T3 task scope added src/config/env.js"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-07-31T10:11:32.950Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error; implementation intentionally relies on runtime CLI probing, local `claude --help`, `claude --version`, and npm metadata rather than unverified HTTP/API assumptions."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-07-31T10:14:50.664Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error; implementation intentionally relies on runtime CLI probing, local `claude --help`, `claude --version`, and npm metadata rather than unverified HTTP/API assumptions."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T01:22:05.173Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error; implementation intentionally relies on runtime CLI probing, local `claude --help`, `claude --version`, and npm metadata rather than unverified HTTP/API assumptions."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T06:56:29.172Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "error; implementation intentionally relies on runtime CLI probing, local `claude --help`, `claude --version`, and npm metadata rather than unverified HTTP/API assumptions."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T07:05:01.857Z",
+    "stage": "detail-expansion",
+    "skill": "loom-detail-expansion",
+    "passed": false,
+    "violations": [
+      "re-approval required after REQ-010 changed spec.md and requirements.json"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T07:32:44.915Z",
+    "stage": "executing",
+    "skill": "loom-subagent-driven-development",
+    "passed": false,
+    "violations": [
+      "re-approval required after executing refreshed artifact-analysis and REQ-010 evidence"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T07:34:51.719Z",
+    "stage": "executing",
+    "skill": "loom-subagent-driven-development",
+    "passed": false,
+    "violations": [
+      "refresh stale review-gate approval after REQ-010 changed plan requirements and spec"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T07:44:00.853Z",
+    "stage": "code-review-response",
+    "skill": "code-review-response",
+    "passed": false,
+    "violations": [
+      "refresh approved gate after review-request and artifact-analysis changed"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T07:45:42.712Z",
+    "stage": "executing",
+    "skill": "loom-subagent-driven-development",
+    "passed": false,
+    "violations": [
+      "refresh stale review-gate after artifact-analysis changed"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T07:47:28.573Z",
+    "stage": "code-review-response",
+    "skill": "code-review-response",
+    "passed": false,
+    "violations": [
+      "refresh approved gate after artifact-analysis changed"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T07:50:29.931Z",
+    "stage": "executing",
+    "skill": "loom-subagent-driven-development",
+    "passed": false,
+    "violations": [
+      "refresh review-gate after approved artifact-analysis fingerprint update"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-07-31-claude-provider",
+    "timestamp": "2026-08-03T07:51:53.212Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-03+claude-native-external-tui",
+    "timestamp": "2026-08-03T12:48:53.503Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "errors or warnings |",
+      "fail with evidence `evidence/T6-npm-test.log` |",
+      "fail |",
+      "fail |",
+      "fail-closed behavior are verified. |",
+      "fail-closed, and dispatcher persistence are verified. |",
+      "errors, and no token/prompt/env leakage are verified. |",
+      "fail closed：缺失或非法 Claude UUID 不使用 `--continue` 或最近会话猜测。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-03+claude-native-external-tui",
+    "timestamp": "2026-08-03T12:57:00.572Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "errors or warnings |",
+      "fail with evidence `evidence/T6-npm-test.log` |",
+      "fail |",
+      "fail |",
+      "fail-closed behavior are verified. |",
+      "fail-closed, and dispatcher persistence are verified. |",
+      "errors, and no token/prompt/env leakage are verified. |",
+      "fail closed：缺失或非法 Claude UUID 不使用 `--continue` 或最近会话猜测。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-03+claude-native-external-tui",
+    "timestamp": "2026-08-03T13:03:31.167Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "errors or warnings |",
+      "fail with evidence `evidence/T6-npm-test.log` |",
+      "fail |",
+      "fail |",
+      "fail-closed behavior are verified. |",
+      "fail-closed, and dispatcher persistence are verified. |",
+      "errors, and no token/prompt/env leakage are verified. |",
+      "fail closed：缺失或非法 Claude UUID 不使用 `--continue` 或最近会话猜测。"
+    ]
   }
 ]

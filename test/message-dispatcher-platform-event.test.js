@@ -5,8 +5,9 @@ const { MessageDedup } = require('../src/core/message-dedup');
 const { AgentEvent } = require('../src/drivers/agent-driver');
 const { createEventStore, listEvents } = require('../src/admin/event-store');
 
-function makeDispatcher() {
-  const session = { id: 'wks_1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_1' } };
+function makeDispatcher(overrides) {
+  const opts = overrides || {};
+  const session = opts.session || { id: 'wks_1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_1' } };
   const sessionService = {
     getCurrent: (routeKey) => routeKey === 'feishu:oc_1:root:oc_1' ? session : null,
     getSession: () => session,
@@ -36,7 +37,7 @@ function makeDispatcher() {
   const eventStore = createEventStore({ maxEvents: 100 });
   const dispatcher = new MessageDispatcher({
     sessionService,
-    driverRegistry: { get: () => driver },
+    driverRegistry: { get: (agent) => opts.driverRegistry ? opts.driverRegistry.get(agent) : driver },
     feishuApi,
     dedup: new MessageDedup({ windowMs: 300000 }),
     eventStore,
@@ -67,6 +68,18 @@ test('handlePlatformMessage 接受标准事件并复用 prompt 状态机', async
   assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_1:root:oc_1']);
   assert.equal(mocks.sessionService.getSession().status, 'idle');
   assert.equal(listEvents(mocks.eventStore, { type: 'platform.message_received' }).length, 1);
+});
+
+test('handlePlatformMessage 支持 Claude agentRef 并复用通用 prompt 状态机', async () => {
+  const claudeSessionId = '11111111-1111-4111-8111-111111111111';
+  const claudeSession = { id: 'wks_claude', agent: 'claude', status: 'idle', agentRef: { claudeSessionId, transport: 'cli' } };
+  const mocks = makeDispatcher({ session: claudeSession });
+
+  const result = await mocks.dispatcher.handlePlatformMessage(platformEvent({ messageId: 'om_claude' }));
+
+  assert.equal(result, 'prompted');
+  assert.deepEqual(mocks.driver.promptCalls, [{ agentRef: { claudeSessionId, transport: 'cli' }, text: 'hello' }]);
+  assert.equal(mocks.sessionService.getSession().status, 'idle');
 });
 
 test('handlePlatformMessage 拒绝无效事件且不调用 agent driver', async () => {
