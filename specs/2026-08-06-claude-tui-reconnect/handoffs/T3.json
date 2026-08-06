@@ -1,0 +1,28 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "Adjusted Claude dispatcher reconnect preparation so stale pty refs always defer to driver.resumeSession, critical agentRef persistence must succeed before session.agentRef is updated and before driver.prompt, and persistence failure returns an error card without writing prompt. Added dispatcher tests for resume/update ordering, persistence failure blocking prompt, fallback prompt ref selection, stale terminal active handling, and legacy Claude agentRef fallback compatibility.",
+  "files_changed": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js",
+    "specs/2026-08-06-claude-tui-reconnect/traceability.json",
+    "specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log",
+    "specs/2026-08-06-claude-tui-reconnect/handoffs/T3.json"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/message-dispatcher.test.js\"",
+      "result": "pass",
+      "evidence": "specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log"
+    }
+  ],
+  "behaviors": {
+    "REQ-001-B02": { "tests": ["test/message-dispatcher.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log"] },
+    "REQ-001-B03": { "tests": ["test/message-dispatcher.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log"] },
+    "REQ-001-B05": { "tests": ["test/message-dispatcher.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log"] },
+    "REQ-002-B01": { "tests": ["test/message-dispatcher.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log"] },
+    "REQ-002-B04": { "tests": ["test/message-dispatcher.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log"] },
+    "REQ-005-B02": { "tests": ["test/message-dispatcher.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log"] },
+    "REQ-005-B03": { "tests": ["test/message-dispatcher.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T3-node-test.log"] }
+  }
+}

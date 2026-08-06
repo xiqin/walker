@@ -1,6 +1,22 @@
 {
   "entries": [
     {
+      "id": "6fed72a6",
+      "type": "决策",
+      "content": "Claude TUI 跨 Walker 重启续接采用本地 bridge/sidecar 控制面：旧 runtime 可续接时飞书消息写回同一 runtime；不可用时才回退到 claude --resume 新受控 runtime；Walker stop 只释放 Walker connection，不等同用户 stop/delete。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-08-06T07:00:49.608Z"
+    },
+    {
       "id": "a58dd3a7",
       "type": "决策",
       "content": "Claude/kscc provider 的 OpenCode 等价体验采用 Walker 层 cli-terminal/window 链路：/new claude 通过可注入 openTerminal 拉起可见 Claude/kscc 终端并记录 terminal metadata；飞书普通消息继续通过后台 claude --print --output-format stream-json 向同一 claudeSessionId 发送以复用上下文；不向可见 TUI 进程注入输入，也不伪造 OpenCode HTTP server、TUI bridge、sqlite 或 opencodeSessionId 语义。",

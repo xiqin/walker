@@ -1138,5 +1138,37 @@
       "errors, and no token/prompt/env leakage are verified. |",
       "fail closed：缺失或非法 Claude UUID 不使用 `--continue` 或最近会话猜测。"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-06-claude-tui-reconnect",
+    "timestamp": "2026-08-06T06:46:52.026Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-06-claude-tui-reconnect",
+    "timestamp": "2026-08-06T06:54:20.148Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-06-claude-tui-reconnect",
+    "timestamp": "2026-08-06T06:56:58.428Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-06-claude-tui-reconnect",
+    "timestamp": "2026-08-06T06:59:40.589Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
   }
 ]

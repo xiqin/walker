@@ -1,0 +1,36 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "Implemented Claude driver reconnect/fallback decision path with injectable bridge client, bridge-aware prompt writes, active-state classification, and minimal ClaudePtyBroker bridge lookup/write support without changing stop/delete kill semantics.",
+  "files_changed": [
+    "src/drivers/claude-driver.js",
+    "src/drivers/claude-pty-broker.js",
+    "test/claude-driver.test.js",
+    "test/claude-pty-broker.test.js",
+    "specs/2026-08-06-claude-tui-reconnect/traceability.json",
+    "specs/2026-08-06-claude-tui-reconnect/handoffs/T2.json",
+    "specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/claude-driver.test.js\" \"test/claude-pty-broker.test.js\"",
+      "result": "pass",
+      "evidence": "specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"
+    }
+  ],
+  "behaviors": {
+    "REQ-001-B01": { "tests": ["test/claude-driver.test.js", "test/claude-pty-broker.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-001-B02": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-001-B03": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-001-B05": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-001-B06": { "tests": ["test/claude-driver.test.js", "test/claude-pty-broker.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-002-B01": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-002-B02": { "tests": ["test/claude-driver.test.js", "test/claude-pty-broker.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-002-B03": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-002-B04": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-002-B05": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-005-B01": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-005-B02": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] },
+    "REQ-005-B03": { "tests": ["test/claude-driver.test.js"], "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T2-node-test.log"] }
+  }
+}

@@ -833,11 +833,19 @@ class MessageDispatcher {
       await this._callFeishu('sendErrorCard', [this._replyCtx(event), message], null, { sessionId: session && session.id });
       return { error: 'invalid_claude_session_id', message };
     }
-    if (agentRef.transport === 'pty-attach' && agentRef.runtimeId) return { agentRef };
+    if (agentRef.transport === 'pty-attach' && agentRef.runtimeId) {
+      if (driver && typeof driver.isSessionRefActive === 'function' && driver.isSessionRefActive(agentRef)) return { agentRef };
+    }
     if (!driver || typeof driver.resumeSession !== 'function') return { agentRef };
     const resumed = await driver.resumeSession(agentRef);
+    const persisted = await this._updateCriticalSessionRuntimeField(session.id, 'agentRef', resumed);
+    if (!persisted.ok) {
+      const message = 'Failed to persist Claude runtime state before prompting. Please retry.';
+      logger.warn('claude agentRef update failed before prompt', { sessionId: session && session.id, reason: persisted.error && persisted.error.message });
+      await this._callFeishu('sendErrorCard', [this._replyCtx(event), message], null, { sessionId: session && session.id });
+      return { error: 'claude_agent_ref_update_failed', message };
+    }
     session.agentRef = resumed;
-    this._updateSessionRuntimeField(session.id, 'agentRef', resumed);
     return { agentRef: resumed };
   }
 
@@ -1459,7 +1467,7 @@ class MessageDispatcher {
       const run = async () => {
         if (this._destroyed) return;
         if (promptAtArrival) await promptAtArrival.catch(() => {});
-        await this._capturePromptRuntime(session, null, doneBuffer.concat([agentEvent]), driver, session.agentRef);
+        await this._capturePromptRuntime(session, null, doneBuffer.concat([agentEvent]), driver, session.agentRef, { skipDriverRuntimeLookup: true });
         const pendingProgress = this.sessionWatchProgressPromises.get(session.id);
         const displayEvents = this._coalesceDisplayEvents(doneBuffer, '');
         let text = this._textFromDisplayEvents(displayEvents);
@@ -1688,10 +1696,12 @@ class MessageDispatcher {
     return normalized;
   }
 
-  async _capturePromptRuntime(session, model, events, driver, agentRef) {
+  async _capturePromptRuntime(session, model, events, driver, agentRef, options) {
     if (!session || !session.id) return;
+    const opts = options || {};
     const runtime = this._runtimeFromAgentEvents(events);
-    if ((!this._hasRuntimeTokenValue(runtime.contextSize) || !this._hasRuntimeTokenValue(runtime.tokenUsage))
+    if (!opts.skipDriverRuntimeLookup
+      && (!this._hasRuntimeTokenValue(runtime.contextSize) || !this._hasRuntimeTokenValue(runtime.tokenUsage))
       && driver && typeof driver.getLatestSessionRuntime === 'function') {
       const runtimeRef = agentRef || session.agentRef;
       logger.info('session runtime token missing, reading latest driver runtime', {
@@ -1771,12 +1781,22 @@ class MessageDispatcher {
     return false;
   }
 
-  _updateSessionRuntimeField(sessionId, field, value) {
+  async _updateSessionRuntimeField(sessionId, field, value) {
     if (!this.sessionService || typeof this.sessionService.updateSessionField !== 'function') return;
     try {
-      this.sessionService.updateSessionField(sessionId, field, value);
+      await this.sessionService.updateSessionField(sessionId, field, value);
     } catch (err) {
       logger.debug('failed to update session runtime metadata', { sessionId, field, error: err && err.message });
+    }
+  }
+
+  async _updateCriticalSessionRuntimeField(sessionId, field, value) {
+    if (!this.sessionService || typeof this.sessionService.updateSessionField !== 'function') return { ok: true };
+    try {
+      await this.sessionService.updateSessionField(sessionId, field, value);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err };
     }
   }
 

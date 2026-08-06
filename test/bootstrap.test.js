@@ -374,8 +374,139 @@ describe('createApp', () => {
     };
     const app = createApp(config, deps);
     await app.start();
-    app.stop();
+    await app.stop();
     assert.deepEqual(platformStopped, ['feishu']);
+  });
+
+  it('stop 在关闭 platform 前释放 Claude Walker connection 并关闭 bridge sidecar', async () => {
+    const calls = [];
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'claude', walkerDefaultRuntime: 'windows', walkerDefaultCwd: '',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+    };
+    const deps = {
+      FeishuPlatform: class { start() { return Promise.resolve(); } stop() { calls.push('platform.stop'); } },
+      SessionService: class { constructor() {} recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class { constructor() {} },
+      OpencodeDriver: class { constructor() {} },
+      ClaudeDriver: class {
+        constructor() { this.name = 'claude'; }
+        stopWalkerConnection(reason) { calls.push('claude.stopWalkerConnection:' + reason); }
+        detachAllRuntimes() { throw new Error('detachAllRuntimes should not run during Walker stop'); }
+        stopRuntime() { throw new Error('stopRuntime should not run during Walker stop'); }
+        deleteRuntime() { throw new Error('deleteRuntime should not run during Walker stop'); }
+      },
+      claudeBridge: { stop: () => calls.push('claudeBridge.stop') },
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class {},
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+    const app = createApp(config, deps);
+    await app.start();
+    await app.stop();
+    assert.deepEqual(calls, ['claude.stopWalkerConnection:walker shutdown', 'claudeBridge.stop', 'platform.stop']);
+  });
+
+  it('createApp 将 Claude bridge sidecar 注入生产 Claude driver', () => {
+    const received = [];
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'claude', walkerDefaultRuntime: 'windows', walkerDefaultCwd: '',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    class FakeClaudeBridgeSidecar {
+      constructor(options) { this.options = options; }
+      stopWalkerConnection() {}
+    }
+    const deps = {
+      FeishuPlatform: class { constructor() { this.api = {}; } start() { return Promise.resolve(); } stop() {} },
+      SessionService: class { constructor() {} recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class { constructor() {} },
+      OpencodeDriver: class { constructor() {} },
+      OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
+      ClaudeBridgeSidecar: FakeClaudeBridgeSidecar,
+      ClaudeDriver: class { constructor(options) { received.push(options); } },
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} },
+      createRuntime: () => ({}),
+      MessageDedup: class {},
+      MessageDispatcher: class {},
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+
+    createApp(config, deps);
+
+    assert.equal(received.length, 1);
+    assert.ok(received[0].claudeBridge instanceof FakeClaudeBridgeSidecar);
+    assert.equal(received[0].claudeBridge.options.host, '127.0.0.1');
+  });
+
+  it('重复 stop 不 kill runtime 且不打开独立 claude --resume 终端', async () => {
+    const calls = [];
+    const config = {
+      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
+      walkerDefaultAgent: 'claude', walkerDefaultRuntime: 'windows', walkerDefaultCwd: '',
+      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
+      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
+      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
+      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
+    };
+    const deps = {
+      FeishuPlatform: class { start() { return Promise.resolve(); } stop() { calls.push('platform.stop'); } },
+      SessionService: class { constructor() {} recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
+      JsonStore: class { constructor() {} },
+      OpencodeDriver: class { constructor() {} },
+      ClaudeDriver: class {
+        constructor() { this.name = 'claude'; }
+        stopWalkerConnection(reason) { calls.push('claude.stopWalkerConnection:' + reason); }
+        detachAllRuntimes() { calls.push('claude.detachAllRuntimes'); }
+        stopRuntime() { calls.push('claude.stopRuntime'); }
+        deleteRuntime() { calls.push('claude.deleteRuntime'); }
+      },
+      claudeBridge: { stop: () => calls.push('claudeBridge.stop') },
+      stubCodexDriver: () => ({}),
+      DriverRegistry: class { register() {} },
+      createRuntime: () => ({
+        openTerminal: (_cmd, args) => calls.push('runtime.openTerminal:' + args.join(' ')),
+        kill: () => calls.push('runtime.kill'),
+      }),
+      MessageDedup: class {},
+      MessageDispatcher: class { destroy() { calls.push('dispatcher.destroy'); } },
+      AttachmentService: class {},
+      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
+      createAdminServer: () => null,
+    };
+    const app = createApp(config, deps);
+    await app.start();
+
+    await app.stop();
+    await app.stop();
+
+    assert.deepEqual(calls, [
+      'dispatcher.destroy',
+      'claude.stopWalkerConnection:walker shutdown',
+      'claudeBridge.stop',
+      'platform.stop',
+      'platform.stop',
+    ]);
+    assert.equal(calls.some((call) => call.includes('detachAllRuntimes')), false);
+    assert.equal(calls.some((call) => call.includes('stopRuntime')), false);
+    assert.equal(calls.some((call) => call.includes('deleteRuntime')), false);
+    assert.equal(calls.some((call) => call.includes('openTerminal:--resume')), false);
+    assert.equal(calls.some((call) => call.includes('kill')), false);
   });
 
   it('配置缺失时启动仍创建 app 但飞书连接失败', () => {

@@ -1,0 +1,25 @@
+{
+  "decisions": [
+    "采用 Claude 持久 bridge/sidecar 控制面作为推荐方案",
+    "旧 Claude TUI 仍存在且 runtime/control 面可用时，飞书消息必须进入同一 TUI/runtime",
+    "旧 runtime/control 面不可用时才 fallback 到 claude --resume 创建新受控 runtime",
+    "不采用系统级向旧独立终端注入 stdin 的方案"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确认 Claude TUI 跨 Walker 重启续接需求。推荐方案为新增 Claude 持久 bridge/sidecar 控制面：旧 TUI/control 面可用时重连同一 runtime；不可用时 fallback 到 claude --resume 新受控 runtime。spec.md 与 requirements.json 已生成并通过 detail_expansion_check。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "c592c05020dc1a3a79d4f790ee097f9f9efbe19b5b7b90e22d50f508121d510a"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "fa12060896e3f20b6a8b01d53cae32141de047edd05ebc2ac9ce582cce99aa18",
+    "spec.md": "c592c05020dc1a3a79d4f790ee097f9f9efbe19b5b7b90e22d50f508121d510a"
+  },
+  "written_at": "2026-08-06T05:25:49.678Z"
+}

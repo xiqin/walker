@@ -1,0 +1,43 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "Adjusted Walker shutdown to release only the Claude Walker connection via production ClaudeDriver.stopWalkerConnection/bridge-sidecar semantics, avoiding detachAllRuntimes handoff, user stop/delete, kill, and standalone claude --resume terminal creation. Added bootstrap and driver coverage for shutdown ordering, pending input rejection, bridge delegation, and idempotent repeated stop.",
+  "files_changed": [
+    "src/app/bootstrap.js",
+    "src/drivers/claude-driver.js",
+    "test/bootstrap.test.js",
+    "test/claude-driver.test.js",
+    "specs/2026-08-06-claude-tui-reconnect/traceability.json",
+    "specs/2026-08-06-claude-tui-reconnect/handoffs/T5.json",
+    "specs/2026-08-06-claude-tui-reconnect/evidence/T5-node-test.log"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/bootstrap.test.js\" \"test/claude-driver.test.js\"",
+      "result": "pass",
+      "evidence": "specs/2026-08-06-claude-tui-reconnect/evidence/T5-node-test.log"
+    }
+  ],
+  "behaviors": {
+    "REQ-003-B01": {
+      "tests": ["test/bootstrap.test.js", "test/claude-driver.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T5-node-test.log"]
+    },
+    "REQ-003-B02": {
+      "tests": ["test/bootstrap.test.js", "test/claude-driver.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T5-node-test.log"]
+    },
+    "REQ-003-B03": {
+      "tests": ["test/bootstrap.test.js", "test/claude-driver.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T5-node-test.log"]
+    },
+    "REQ-003-B05": {
+      "tests": ["test/bootstrap.test.js", "test/claude-driver.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T5-node-test.log"]
+    },
+    "REQ-001-B06": {
+      "tests": ["test/bootstrap.test.js", "test/claude-driver.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T5-node-test.log"]
+    }
+  }
+}

@@ -57,6 +57,7 @@ function createBroker(options = {}) {
     ptyFactory,
     idFactory: options.idFactory || (() => 'rt_test_1'),
     logger,
+    bridgeSidecar: options.bridgeSidecar,
     replayLimitBytes: options.replayLimitBytes,
     queueLimit: options.queueLimit,
   });
@@ -109,6 +110,28 @@ test('REQ-001-B04/REQ-005-B02: resumeRuntime 将传入 processGeneration 作为�
     processGeneration: 10,
   });
   assert.equal(persistedBaseline.processGeneration, 11);
+});
+
+test('createRuntime 和 resumeRuntime 将 PTY runtime 注册到 bridge sidecar', () => {
+  const registrations = [];
+  const bridgeSidecar = {
+    registerRuntime(options) {
+      registrations.push(options);
+      return options;
+    },
+  };
+  const { broker } = createBroker({ bridgeSidecar });
+  const created = broker.createRuntime({ claudeSessionId: '22222222-2222-4222-8222-222222222222' });
+  const resumed = broker.resumeRuntime({ runtimeId: created.runtimeId, claudeSessionId: created.claudeSessionId });
+
+  assert.equal(registrations.length, 2);
+  assert.equal(registrations[0].runtimeId, created.runtimeId);
+  assert.equal(registrations[0].claudeSessionId, created.claudeSessionId);
+  assert.equal(registrations[0].status, 'active');
+  assert.equal(typeof registrations[0].runtime.write, 'function');
+  assert.equal(registrations[0].reconnectable, true);
+  assert.equal(registrations[1].runtimeId, resumed.runtimeId);
+  assert.equal(registrations[1].processGeneration, resumed.processGeneration);
 });
 
 test('REQ-001-B04/REQ-005-B03: 旧 generation 迟到 data/exit 不污染新 runtime、replay 或 pending', async () => {
@@ -190,6 +213,24 @@ test('REQ-005-B01: stopRuntime/deleteRuntime 幂等并调用 kill', () => {
   assert.equal(broker.getRuntime(runtime.runtimeId), null);
 });
 
+test('walker 退出时 detachAllRuntimes 释放 broker 状态但不关闭 Claude TUI', () => {
+  const blocker = createDeferred();
+  const { broker, ptyFactory } = createBroker({ ptyOptions: { write: () => blocker.promise } });
+  const runtime = broker.createRuntime({ claudeSessionId: '99999999-9999-4999-8999-999999999999' });
+  const chunks = [];
+  broker.subscribeOutput(runtime.runtimeId, (chunk) => chunks.push(Buffer.from(chunk).toString()), { replay: false });
+  const pending = broker.writeInput(runtime.runtimeId, 'queued', { source: 'test' });
+
+  broker.detachAllRuntimes('walker shutdown');
+
+  assert.equal(ptyFactory.processes[0].kills.length, 0);
+  assert.equal(broker.getRuntime(runtime.runtimeId), null);
+  assert.equal(chunks.length, 0);
+  ptyFactory.processes[0].emit('data', Buffer.from('late-output'));
+  assert.equal(chunks.length, 0);
+  assert.rejects(pending, /walker shutdown/i);
+});
+
 test('REQ-006-B03: 输出回放缓冲超过上限后淘汰旧数据且队列有固定上限', async () => {
   const blocker = createDeferred();
   const { broker, ptyFactory } = createBroker({ replayLimitBytes: 10, queueLimit: 1, ptyOptions: { write: () => blocker.promise } });
@@ -220,4 +261,52 @@ test('REQ-006-B02: 生命周期日志包含结构化字段且不记录输入内�
   assert.ok(logs.some((row) => row.exitReason === 'signal SIGTERM'));
   assert.equal(JSON.stringify(logs).includes('prompt contains secret-token'), false);
   assert.equal(JSON.stringify(logs).includes('secret-token'), false);
+});
+
+test('REQ-001-B06/REQ-002-B02: bridge lookup 可返回可续接 runtime 且不创建第二个 PTY', () => {
+  const bridgeCalls = [];
+  const bridgeSidecar = {
+    getRuntime(runtimeId) {
+      bridgeCalls.push(runtimeId);
+      return {
+        runtimeId,
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        status: 'walker-disconnected',
+        reconnectable: true,
+        processGeneration: 8,
+        connectionState: 'reconnectable',
+      };
+    },
+  };
+  const { broker, ptyFactory } = createBroker({ bridgeSidecar });
+
+  const snapshot = broker.getRuntime('rt_bridge_old');
+
+  assert.equal(snapshot.runtimeId, 'rt_bridge_old');
+  assert.equal(snapshot.transport, 'bridge-sidecar');
+  assert.equal(snapshot.reconnectable, true);
+  assert.equal(snapshot.agentRef.transport, 'bridge-sidecar');
+  assert.deepEqual(bridgeCalls, ['rt_bridge_old']);
+  assert.equal(ptyFactory.calls.length, 0);
+});
+
+test('REQ-001-B01/REQ-002-B02: bridge write 只写可续接 runtime，不可用 runtime 明确拒绝', async () => {
+  const writes = [];
+  const bridgeSidecar = {
+    getRuntime(runtimeId) {
+      if (runtimeId === 'rt_bridge_active') return { runtimeId, claudeSessionId: '11111111-1111-4111-8111-111111111111', status: 'active', reconnectable: true, processGeneration: 2 };
+      if (runtimeId === 'rt_bridge_stale') return { runtimeId, claudeSessionId: '22222222-2222-4222-8222-222222222222', status: 'stopped', reconnectable: false, processGeneration: 2 };
+      return null;
+    },
+    writeInput(runtimeId, data) {
+      writes.push({ runtimeId, data: Buffer.from(data).toString() });
+      return Promise.resolve();
+    },
+  };
+  const { broker } = createBroker({ bridgeSidecar });
+
+  await broker.writeInput('rt_bridge_active', Buffer.from('hello'), { source: 'feishu' });
+
+  assert.deepEqual(writes, [{ runtimeId: 'rt_bridge_active', data: 'hello' }]);
+  assert.throws(() => broker.writeInput('rt_bridge_stale', 'bad', { source: 'feishu' }), /runtime is not active/i);
 });

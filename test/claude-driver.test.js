@@ -4,12 +4,14 @@ const { ClaudeDriver, mapClaudeLine } = require('../src/drivers/claude-driver');
 const { AgentEvent } = require('../src/drivers/agent-driver');
 
 function createFakeBroker() {
-  const calls = { createRuntime: [], resumeRuntime: [], writeInput: [], stopRuntime: [], deleteRuntime: [] };
+  const calls = { createRuntime: [], resumeRuntime: [], writeInput: [], stopRuntime: [], deleteRuntime: [], detachAllRuntimes: [] };
+  const runtimes = new Map();
   const broker = {
     calls,
+    runtimes,
     createRuntime(options) {
       calls.createRuntime.push(options);
-      return {
+      const snapshot = {
         runtimeId: options.runtimeId || 'rt_1',
         claudeSessionId: options.claudeSessionId,
         processGeneration: 1,
@@ -23,10 +25,12 @@ function createFakeBroker() {
           processGeneration: 1,
         },
       };
+      runtimes.set(snapshot.runtimeId, snapshot);
+      return snapshot;
     },
     resumeRuntime(options) {
       calls.resumeRuntime.push(options);
-      return {
+      const snapshot = {
         runtimeId: options.runtimeId || 'rt_resumed',
         claudeSessionId: options.claudeSessionId,
         processGeneration: options.processGeneration ? options.processGeneration + 1 : 1,
@@ -40,14 +44,14 @@ function createFakeBroker() {
           processGeneration: options.processGeneration ? options.processGeneration + 1 : 1,
         },
       };
+      runtimes.set(snapshot.runtimeId, snapshot);
+      return snapshot;
     },
     getRuntime(runtimeId) {
-      return runtimeId ? {
-        runtimeId,
-        status: 'active',
-        claudeSessionId: '11111111-1111-4111-8111-111111111111',
-        cwd: 'H:\\walker',
-      } : null;
+      return runtimes.get(runtimeId) || null;
+    },
+    listRuntimes() {
+      return Array.from(runtimes.values());
     },
     writeInput(runtimeId, data, options) {
       calls.writeInput.push({ runtimeId, data: Buffer.from(data), options });
@@ -59,10 +63,35 @@ function createFakeBroker() {
     },
     deleteRuntime(runtimeId, reason) {
       calls.deleteRuntime.push({ runtimeId, reason });
+      runtimes.delete(runtimeId);
       return null;
+    },
+    detachAllRuntimes(reason) {
+      calls.detachAllRuntimes.push({ reason });
+      runtimes.clear();
     },
   };
   return broker;
+}
+
+function createFakeBridge() {
+  const calls = { getRuntime: [], writeInput: [], stopWalkerConnection: [] };
+  const runtimes = new Map();
+  return {
+    calls,
+    runtimes,
+    getRuntime(runtimeId) {
+      calls.getRuntime.push(runtimeId);
+      return runtimes.get(runtimeId) || null;
+    },
+    writeInput(runtimeId, data) {
+      calls.writeInput.push({ runtimeId, data: Buffer.isBuffer(data) ? Buffer.from(data) : data });
+      return Promise.resolve();
+    },
+    stopWalkerConnection(reason) {
+      calls.stopWalkerConnection.push(reason);
+    },
+  };
 }
 
 describe('ClaudeDriver ensureReady', () => {
@@ -152,6 +181,147 @@ describe('ClaudeDriver session lifecycle', () => {
     assert.equal(resumed.terminal.status, 'active');
     assert.deepEqual(calls, ['rt_old']);
     assert.deepEqual(broker.calls.resumeRuntime[0].claudeSessionId, '11111111-1111-4111-8111-111111111111');
+  });
+
+  it('REQ-001-B01/REQ-001-B02/REQ-001-B06/REQ-005-B01: bridge 可续接时复用旧 runtime 且不打开新 PTY/TUI', async () => {
+    const broker = createFakeBroker();
+    const bridge = createFakeBridge();
+    const terminalCalls = [];
+    bridge.runtimes.set('rt_old_bridge', {
+      runtimeId: 'rt_old_bridge',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      status: 'walker-disconnected',
+      reconnectable: true,
+      processGeneration: 7,
+      cwd: 'H:\\walker',
+      connectionState: 'reconnectable',
+      lastPath: 'reconnected',
+      agentRef: {
+        provider: 'claude',
+        transport: 'bridge-sidecar',
+        runtimeId: 'rt_old_bridge',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        processGeneration: 7,
+      },
+    });
+    const driver = new ClaudeDriver({
+      cwd: 'H:\\walker',
+      ptyBroker: broker,
+      claudeBridge: bridge,
+      openClaudeAttachTerminal: async (runtimeId) => { terminalCalls.push(runtimeId); return { windowId: 'win_new' }; },
+    });
+
+    const resumed = await driver.resumeSession({
+      provider: 'claude',
+      transport: 'bridge-sidecar',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      runtimeId: 'rt_old_bridge',
+      processGeneration: 7,
+      runtimeStatus: 'stale',
+      cwd: 'H:\\walker',
+    });
+    await driver.prompt(resumed, 'after reconnect');
+
+    assert.equal(resumed.runtimeId, 'rt_old_bridge');
+    assert.equal(resumed.transport, 'bridge-sidecar');
+    assert.equal(resumed.runtimeStatus, 'reconnected');
+    assert.equal(resumed.connectionState, 'reconnectable');
+    assert.equal(resumed.runtimePath, 'reconnected');
+    assert.equal(resumed.processGeneration, 7);
+    assert.equal(driver.isSessionRefActive(resumed), true);
+    assert.equal(broker.calls.resumeRuntime.length, 0);
+    assert.equal(broker.calls.createRuntime.length, 0);
+    assert.deepEqual(terminalCalls, []);
+    assert.deepEqual(bridge.calls.writeInput.map((call) => call.runtimeId), ['rt_old_bridge']);
+    assert.equal(bridge.calls.writeInput[0].data.toString(), 'after reconnect\r');
+  });
+
+  it('REQ-001-B03/REQ-001-B05/REQ-002-B01/REQ-002-B03/REQ-002-B04/REQ-005-B02: bridge 不可用时先 fallback 到新 runtime 再写 prompt', async () => {
+    const broker = createFakeBroker();
+    const bridge = createFakeBridge();
+    const terminalCalls = [];
+    bridge.runtimes.set('rt_stale_bridge', {
+      runtimeId: 'rt_stale_bridge',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      status: 'stopped',
+      reconnectable: false,
+      processGeneration: 3,
+      connectionState: 'unavailable',
+      lastPath: 'unavailable',
+    });
+    const driver = new ClaudeDriver({
+      cwd: 'H:\\walker',
+      ptyBroker: broker,
+      claudeBridge: bridge,
+      attachServer: { createAttachment: (runtimeId) => ({ runtimeId, url: 'ws://127.0.0.1/attach/' + runtimeId + '?token=secret', token: 'secret' }) },
+      openClaudeAttachTerminal: async (runtimeId) => { terminalCalls.push(runtimeId); return { windowId: 'win_fallback' }; },
+    });
+
+    assert.equal(driver.isSessionRefActive({ claudeSessionId: '11111111-1111-4111-8111-111111111111', runtimeId: 'rt_stale_bridge', terminal: { status: 'active' } }), false);
+    const resumed = await driver.resumeSession({
+      provider: 'claude',
+      transport: 'bridge-sidecar',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      runtimeId: 'rt_stale_bridge',
+      processGeneration: 3,
+      runtimeStatus: 'stale',
+      cwd: 'H:\\walker',
+    });
+    await driver.prompt(resumed, 'after fallback');
+
+    assert.equal(resumed.runtimeId, 'rt_resumed');
+    assert.equal(resumed.transport, 'pty-attach');
+    assert.equal(resumed.runtimeStatus, 'fallback');
+    assert.equal(resumed.connectionState, 'fallback');
+    assert.equal(resumed.previousRuntimeId, 'rt_stale_bridge');
+    assert.deepEqual(terminalCalls, ['rt_resumed']);
+    assert.equal(broker.calls.resumeRuntime.length, 1);
+    assert.equal(broker.calls.resumeRuntime[0].runtimeId, undefined);
+    assert.deepEqual(bridge.calls.writeInput, []);
+    assert.deepEqual(broker.calls.writeInput.map((call) => call.runtimeId), ['rt_resumed']);
+    assert.equal(broker.calls.writeInput[0].data.toString(), 'after fallback\r');
+  });
+
+  it('REQ-002-B02/REQ-002-B05/REQ-005-B03: lookup 失败不 active，旧格式 ref fallback 且状态脱敏', async () => {
+    const broker = createFakeBroker();
+    const bridge = {
+      getRuntime() { throw new Error('lookup failed API_KEY=secret-value'); },
+      writeInput() { throw new Error('must not write stale runtime'); },
+    };
+    const driver = new ClaudeDriver({
+      cwd: 'H:\\walker',
+      ptyBroker: broker,
+      claudeBridge: bridge,
+      attachServer: false,
+      openClaudeAttachTerminal: async () => ({ windowId: 'win_old_format' }),
+    });
+
+    assert.equal(driver.isSessionRefActive({ claudeSessionId: '11111111-1111-4111-8111-111111111111', runtimeId: 'rt_lookup_fail', terminal: { status: 'active' } }), false);
+    const resumed = await driver.resumeSession({
+      provider: 'claude',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      runtimeId: 'rt_lookup_fail',
+      processGeneration: 2,
+      cwd: 'H:\\walker',
+    });
+
+    assert.equal(resumed.runtimeId, 'rt_resumed');
+    assert.equal(resumed.runtimeStatus, 'fallback');
+    assert.match(resumed.runtimeReason, /lookup failed/);
+    assert.doesNotMatch(JSON.stringify(resumed), /secret-value/);
+  });
+
+  it('stopWalkerConnection 释放 Walker 侧状态但不 detach/kill runtime', async () => {
+    const broker = createFakeBroker();
+    const bridge = createFakeBridge();
+    const driver = new ClaudeDriver({ cwd: 'H:\walker', ptyBroker: broker, claudeBridge: bridge });
+
+    await driver.stopWalkerConnection('walker shutdown');
+
+    assert.deepEqual(bridge.calls.stopWalkerConnection, ['walker shutdown']);
+    assert.deepEqual(broker.calls.detachAllRuntimes, []);
+    assert.deepEqual(broker.calls.stopRuntime, []);
+    assert.deepEqual(broker.calls.deleteRuntime, []);
   });
 
   it('默认生成 Claude CLI 可接受的 UUID session id', async () => {
@@ -266,6 +436,48 @@ describe('ClaudeDriver session lifecycle', () => {
     assert.equal(typeof stop1, 'function');
     assert.equal(typeof stop2, 'function');
     assert.equal(ref.terminal.status, 'active');
+  });
+
+  it('isSessionRefActive 在 broker runtime 丢失时返回 false', async () => {
+    const broker = createFakeBroker();
+    const driver = new ClaudeDriver({
+      ptyBroker: broker,
+      attachServer: false,
+      openClaudeAttachTerminal: async () => ({ windowId: 'win_once' }),
+    });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111' });
+
+    assert.equal(driver.isSessionRefActive(ref), true);
+    broker.runtimes.clear();
+
+    assert.equal(driver.isSessionRefActive(ref), false);
+  });
+
+  it('walker 退出 detach 前将活跃 Claude runtime 交接到独立 resume 终端', async () => {
+    const broker = createFakeBroker();
+    const terminalCalls = [];
+    const driver = new ClaudeDriver({
+      claudeCmd: 'kscc',
+      cwd: 'H:\\walker',
+      ptyBroker: broker,
+      runtime: {
+        openTerminal: async (command, args, options) => {
+          terminalCalls.push({ command, args, options });
+        },
+      },
+    });
+    await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111', cwd: 'H:\\walker' });
+
+    await driver.detachAllRuntimes('walker shutdown');
+
+    assert.deepEqual(terminalCalls.map((call) => ({ command: call.command, args: call.args, cwd: call.options.cwd })), [{
+      command: 'kscc',
+      args: ['--resume', '11111111-1111-4111-8111-111111111111'],
+      cwd: 'H:\\walker',
+    }]);
+    assert.equal(terminalCalls[0].options.env, driver.env);
+    assert.deepEqual(broker.calls.detachAllRuntimes, [{ reason: 'walker shutdown' }]);
+    assert.equal(broker.listRuntimes().length, 0);
   });
 
   it('listModels 返回 CLI alias 与配置模型，不伪造远端目录', async () => {

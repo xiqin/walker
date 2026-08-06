@@ -226,6 +226,265 @@ describe('MessageDispatcher bound route prompt', () => {
     });
   });
 
+  it('Walker 重启后 stale Claude runtimeId 会先 resume 并持久化新 agentRef', async () => {
+    const mocks = makeMocks();
+    const oldRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_old_process',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 1,
+      terminal: { status: 'active', windowId: 'win_old' },
+      conversationReady: true,
+    };
+    const newRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_new_process',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 2,
+      terminal: { status: 'active', windowId: 'win_new' },
+      conversationReady: true,
+    };
+    const session = { id: 'wks_claude_restart', agent: 'claude', status: 'idle', agentRef: oldRef };
+    const updates = [];
+    const resumed = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
+    mocks.driver.isSessionRefActive = () => false;
+    mocks.driver.resumeSession = async (ref) => {
+      resumed.push(ref);
+      return newRef;
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_claude_restart', openId: 'ou_user1', text: '继续',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.deepEqual(resumed, [oldRef]);
+    assert.equal(session.agentRef, newRef);
+    assert.equal(mocks.driver.promptCalls[0].agentRef, newRef);
+    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
+      sessionId: 'wks_claude_restart',
+      field: 'agentRef',
+      value: newRef,
+    });
+  });
+
+  it('Claude stale ref 续接时等待 resume 和持久化完成后才 prompt', async () => {
+    const mocks = makeMocks();
+    const order = [];
+    let releaseUpdate;
+    const updateDone = new Promise((resolve) => { releaseUpdate = resolve; });
+    const oldRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_stale_active',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 1,
+      terminal: { status: 'active', windowId: 'win_stale' },
+      conversationReady: true,
+    };
+    const newRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_reconnected',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 2,
+      terminal: { status: 'active', windowId: 'win_reconnected' },
+      conversationReady: true,
+    };
+    const session = { id: 'wks_claude_order', agent: 'claude', status: 'idle', agentRef: oldRef };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = async (_sessionId, field, value) => {
+      order.push('update:start:' + value.runtimeId);
+      assert.equal(field, 'agentRef');
+      await updateDone;
+      order.push('update:done:' + value.runtimeId);
+    };
+    mocks.driver.isSessionRefActive = (ref) => {
+      order.push('active:' + ref.runtimeId);
+      return false;
+    };
+    mocks.driver.resumeSession = async (ref) => {
+      order.push('resume:' + ref.runtimeId);
+      return newRef;
+    };
+    mocks.driver.prompt = async (ref) => {
+      order.push('prompt:' + ref.runtimeId);
+      return [new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'submitted' })];
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const pending = dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_claude_order', openId: 'ou_user1', text: '继续',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(order, [
+      'active:rt_stale_active',
+      'resume:rt_stale_active',
+      'update:start:rt_reconnected',
+    ]);
+
+    releaseUpdate();
+    const result = await pending;
+
+    assert.equal(result, 'prompted');
+    assert.equal(session.agentRef, newRef);
+    assert.deepEqual(order.slice(0, 5), [
+      'active:rt_stale_active',
+      'resume:rt_stale_active',
+      'update:start:rt_reconnected',
+      'update:done:rt_reconnected',
+      'prompt:rt_reconnected',
+    ]);
+  });
+
+  it('Claude agentRef 持久化失败时不写入 prompt', async () => {
+    const mocks = makeMocks();
+    const oldRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_stale_unpersisted',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 1,
+      terminal: { status: 'active' },
+      conversationReady: true,
+    };
+    const newRef = {
+      provider: 'claude',
+      transport: 'bridge-sidecar',
+      runtimeId: 'rt_reconnected_unpersisted',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 2,
+      runtimeStatus: 'reconnected',
+      conversationReady: true,
+    };
+    const session = { id: 'wks_claude_persist_fail', agent: 'claude', status: 'idle', agentRef: oldRef };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = async () => { throw new Error('disk unavailable'); };
+    mocks.driver.isSessionRefActive = () => false;
+    mocks.driver.resumeSession = async () => newRef;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_claude_persist_fail', openId: 'ou_user1', text: '继续',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'error');
+    assert.equal(session.agentRef, oldRef);
+    assert.equal(mocks.driver.promptCalls.length, 0);
+    assert.equal(mocks.feishuApi.calls.some((call) => call.type === 'sendErrorCard'), true);
+  });
+
+  it('Claude fallback 后 prompt 使用新 ref 且旧 terminal active 不能绕过 driver 判定', async () => {
+    const mocks = makeMocks();
+    const oldRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_old_active_but_dead',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 1,
+      terminal: { status: 'active', windowId: 'win_old' },
+      conversationReady: true,
+    };
+    const fallbackRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_fallback_new',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 2,
+      terminal: { status: 'active', windowId: 'win_new' },
+      conversationReady: true,
+    };
+    const session = { id: 'wks_claude_fallback', agent: 'claude', status: 'idle', agentRef: oldRef };
+    const updates = [];
+    let activeChecks = 0;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
+    mocks.driver.isSessionRefActive = (ref) => {
+      activeChecks += 1;
+      assert.equal(ref, oldRef);
+      return false;
+    };
+    mocks.driver.resumeSession = async (ref) => {
+      assert.equal(ref, oldRef);
+      return fallbackRef;
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_claude_fallback', openId: 'ou_user1', text: '继续',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.equal(activeChecks, 1);
+    assert.equal(session.agentRef, fallbackRef);
+    assert.equal(mocks.driver.promptCalls[0].agentRef, fallbackRef);
+    assert.equal(mocks.driver.promptCalls[0].agentRef.runtimeId, 'rt_fallback_new');
+    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
+      sessionId: 'wks_claude_fallback',
+      field: 'agentRef',
+      value: fallbackRef,
+    });
+  });
+
+  it('Claude 旧格式缺少 bridge 字段但有 claudeSessionId 时可 fallback 恢复', async () => {
+    const mocks = makeMocks();
+    const legacyRef = {
+      provider: 'claude',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      cwd: 'H:\\walker',
+      terminal: { status: 'active' },
+      conversationReady: true,
+    };
+    const fallbackRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_legacy_fallback',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      processGeneration: 1,
+      terminal: { status: 'active', windowId: 'win_legacy' },
+      conversationReady: true,
+    };
+    const session = { id: 'wks_claude_legacy', agent: 'claude', status: 'idle', agentRef: legacyRef };
+    const updates = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
+    mocks.driver.isSessionRefActive = () => { throw new Error('legacy ref should not use active shortcut'); };
+    mocks.driver.resumeSession = async (ref) => {
+      assert.equal(ref, legacyRef);
+      return fallbackRef;
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_claude_legacy', openId: 'ou_user1', text: '继续',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.equal(session.agentRef, fallbackRef);
+    assert.equal(mocks.driver.promptCalls[0].agentRef, fallbackRef);
+    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
+      sessionId: 'wks_claude_legacy',
+      field: 'agentRef',
+      value: fallbackRef,
+    });
+  });
+
   it('_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata', async () => {
     const mocks = makeMocks();
     const sessions = [
@@ -2068,7 +2327,7 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     assert.equal(sends.length, 1);
   });
 
-  it('watch DONE 缺少 usage 时从 driver 最新 runtime 补齐上下文', async () => {
+  it('watch 手工 DONE 缺少 usage 时不等待 driver 最新 runtime 补查', async () => {
     const mocks = makeMocks();
     const session = {
       id: 'wks_watch_runtime1',
@@ -2076,14 +2335,6 @@ describe('MessageDispatcher turn lifecycle commands', () => {
       status: 'idle',
       route: 'feishu:oc_chat1:root:om_root1',
       agentRef: { transport: 'tui-bridge', runtimeId: 'rt_watch1', opencodeSessionId: 'ses_watch_runtime1' },
-    };
-    const tokenUsage = {
-      inputTokens: 500,
-      outputTokens: 20,
-      reasoningTokens: 0,
-      cacheReadTokens: 58000,
-      cacheWriteTokens: 0,
-      totalTokens: 58520,
     };
     let onEvent;
     let runtimeReads = 0;
@@ -2095,11 +2346,7 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     mocks.driver.getLatestSessionRuntime = async (agentRef) => {
       runtimeReads++;
       assert.deepEqual(agentRef, session.agentRef);
-      return {
-        model: { providerID: 'cpa', modelID: 'gpt-5.5' },
-        contextSize: 58520,
-        tokenUsage,
-      };
+      throw new Error('watch manual output should not query driver runtime');
     };
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
 
@@ -2115,11 +2362,12 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     }
 
     assert.ok(send);
-    assert.equal(runtimeReads, 1);
-    assert.equal(session.contextTokens, 58520);
-    assert.deepEqual(session.tokenUsage, tokenUsage);
-    assert.equal(send.runtime.contextSize, 58520);
-    assert.deepEqual(send.runtime.tokenUsage, tokenUsage);
+    assert.equal(runtimeReads, 0);
+    assert.equal(session.contextTokens, undefined);
+    assert.equal(session.tokenUsage, undefined);
+    assert.deepEqual(send.runtime.model, { providerID: 'cpa', modelID: 'gpt-5.5' });
+    assert.equal(send.runtime.contextSize, undefined);
+    assert.equal(send.runtime.tokenUsage, undefined);
   });
 
   it('watch 进度事件实时渲染进度卡片并在 done 时完成', async () => {

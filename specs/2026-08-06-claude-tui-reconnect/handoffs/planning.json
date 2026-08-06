@@ -1,0 +1,52 @@
+{
+  "task_count": 6,
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006"
+  ],
+  "behavior_count": 27,
+  "validators": {
+    "loom_validate_plan": "pass",
+    "loom_analyze_artifacts": "pass"
+  },
+  "dependencies": [
+    "T1 -> T2 -> T3 -> T6",
+    "T1 -> T4 -> T6",
+    "T1 -> T2 -> T5 -> T6"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已完成 Claude TUI 跨 Walker 重启续接的实现计划。产出 plan.md、6 个 task 文件和 traceability.json；任务按 bridge/sidecar 基础、driver 续接、dispatcher 原子路径、attach CLI 重连、shutdown 生命周期、端到端证据拆分。loom_validate_plan 与 loom_analyze_artifacts 均通过，无 blocker。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md",
+    "traceability.json",
+    "artifact-analysis.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "1bfa4b49fecc8826c46184561d3bdc5d7b8970954c20f864176030fd118bedd2",
+    "spec.md": "c592c05020dc1a3a79d4f790ee097f9f9efbe19b5b7b90e22d50f508121d510a",
+    "tasks/": "3bf22ee3d22036058692fa1765b048416b5977136c75b30b76e4577fdfe7589c"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "1bfa4b49fecc8826c46184561d3bdc5d7b8970954c20f864176030fd118bedd2",
+    "tasks/T1.md": "89dbdb59c22e03f8c77354eefb11cb703d8f1c994c150a84a50ee8943f4a674f",
+    "tasks/T2.md": "88b3549a8539ee44f9c026e078628cc99337556b520e849b8a1a9ff32b3182ea",
+    "tasks/T3.md": "85ac746788c52699ec28aa448e442273b1bbfd65e8c84c635786aa60e12fb377",
+    "tasks/T4.md": "27e4261a38284d86a4dd54baa519b6fa9616f9c60c5d44caa714c290d8d5b912",
+    "tasks/T5.md": "f14109793273b4cc9b8a283cab7e723c78106c77bca5bd3e0315e68d77c416c0",
+    "tasks/T6.md": "5c41c5d47e2fe607f66c69af855522e65ee4a731674ec4ee797dc86bbbb74ada"
+  },
+  "written_at": "2026-08-06T05:32:40.741Z"
+}

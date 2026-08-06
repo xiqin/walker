@@ -1,0 +1,11 @@
+{
+  "task_id": "T6",
+  "spec_dir": "H:\\walker\\specs\\2026-08-06-claude-tui-reconnect",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-08-06T06:13:28.266Z",
+  "updated_at": "2026-08-06T06:38:55.000Z",
+  "last_reviewer_result": null,
+  "blocker": null
+}

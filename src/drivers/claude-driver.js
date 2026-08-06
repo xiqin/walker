@@ -51,7 +51,8 @@ class ClaudeDriver extends AgentDriver {
     this.openTerminal = options.openTerminal || bindRuntimeMethod(this.runtime, runtimeOpenTerminal);
     const runtimeOpenClaudeAttachTerminal = this.runtime && this.runtime.openClaudeAttachTerminal;
     this.openClaudeAttachTerminal = options.openClaudeAttachTerminal || bindRuntimeMethod(this.runtime, runtimeOpenClaudeAttachTerminal);
-    this.ptyBroker = options.ptyBroker || new ClaudePtyBroker({ command: this.claudeCmd, cwd: this.cwd, env: this.env, logger: options.logger });
+    this.claudeBridge = options.claudeBridge || options.bridgeSidecar || null;
+    this.ptyBroker = options.ptyBroker || new ClaudePtyBroker({ command: this.claudeCmd, cwd: this.cwd, env: this.env, logger: options.logger, claudeBridge: this.claudeBridge });
     this.transcript = options.transcript === undefined ? (options.ptyBroker ? null : defaultTranscript) : options.transcript;
     this.transcriptTimeoutMs = positiveInteger(options.transcriptTimeoutMs || this.env.CLAUDE_TRANSCRIPT_TIMEOUT_MS, this.promptTimeoutMs);
     this.queueLimit = positiveInteger(options.queueLimit == null ? DEFAULT_QUEUE_LIMIT : options.queueLimit, DEFAULT_QUEUE_LIMIT);
@@ -62,6 +63,7 @@ class ClaudeDriver extends AgentDriver {
     this._pending = new Map();
     this._windows = new Map();
     this._runtimeInputState = new Map();
+    this._runtimeTransports = new Map();
     this.attachBroker = this._createAttachBrokerFacade();
     this.attachServer = this._createAttachServer(options);
     this._lastVersion = null;
@@ -121,6 +123,7 @@ class ClaudeDriver extends AgentDriver {
       updatedAt: now,
     };
     Object.assign(ref, agentRef, { cwd, title: ref.title, model: ref.model, fallbackModel: ref.fallbackModel, agent: ref.agent, permissionMode: ref.permissionMode, createdAt: now, updatedAt: now });
+    this._runtimeTransports.set(ref.runtimeId, ref.transport || 'pty-attach');
     this._getRuntimeInputState(ref.runtimeId);
     ref.terminal = await this._ensureTerminal(ref);
     return ref;
@@ -139,8 +142,30 @@ class ClaudeDriver extends AgentDriver {
       throw createCodedError('resumeSession requires exact Claude UUID', 'CLAUDE_SESSION_INVALID');
     }
     const cwd = sessionRef.cwd || this.cwd;
+    const previousRuntimeId = sessionRef.runtimeId || (sessionRef.agentRef && sessionRef.agentRef.runtimeId);
+    const bridgeRuntime = previousRuntimeId ? this._lookupBridgeRuntime(previousRuntimeId) : null;
+    if (this._isReconnectableRuntime(bridgeRuntime, sessionRef.claudeSessionId)) {
+      const ref = Object.assign({}, sessionRef, bridgeRuntime.agentRef || {}, {
+        provider: 'claude',
+        transport: 'bridge-sidecar',
+        runtimeId: bridgeRuntime.runtimeId,
+        claudeSessionId: bridgeRuntime.claudeSessionId || sessionRef.claudeSessionId,
+        processGeneration: bridgeRuntime.processGeneration || sessionRef.processGeneration,
+        cwd: bridgeRuntime.cwd || cwd,
+        conversationReady: true,
+        runtimeStatus: 'reconnected',
+        connectionState: bridgeRuntime.connectionState || 'reconnectable',
+        runtimePath: bridgeRuntime.lastPath || 'reconnected',
+        updatedAt: new Date().toISOString(),
+      });
+      this._runtimeTransports.set(ref.runtimeId, 'bridge-sidecar');
+      this._getRuntimeInputState(ref.runtimeId);
+      return ref;
+    }
+    const fallbackReason = bridgeRuntime ? (bridgeRuntime.reason || bridgeRuntime.status || 'unavailable') : 'unavailable';
+    const fallbackRuntimeId = this.claudeBridge ? undefined : previousRuntimeId;
     const snapshot = this.ptyBroker.resumeRuntime({
-      runtimeId: sessionRef.runtimeId,
+      runtimeId: fallbackRuntimeId,
       claudeSessionId: sessionRef.claudeSessionId,
       cwd,
       env: this.env,
@@ -154,8 +179,14 @@ class ClaudeDriver extends AgentDriver {
       processGeneration: snapshot.processGeneration,
       cwd,
       conversationReady: true,
+      runtimeStatus: this.claudeBridge ? 'fallback' : undefined,
+      connectionState: this.claudeBridge ? 'fallback' : undefined,
+      runtimePath: this.claudeBridge ? 'fallback' : undefined,
+      runtimeReason: this.claudeBridge ? sanitizeText(fallbackReason) : undefined,
+      previousRuntimeId: this.claudeBridge ? previousRuntimeId : undefined,
       updatedAt: new Date().toISOString(),
     });
+    this._runtimeTransports.set(ref.runtimeId, 'pty-attach');
     this._getRuntimeInputState(ref.runtimeId);
     ref.terminal = await this._ensureTerminal(ref);
     return ref;
@@ -202,6 +233,15 @@ class ClaudeDriver extends AgentDriver {
    */
   isSessionRefActive(sessionRef) {
     if (!sessionRef || !sessionRef.claudeSessionId) return false;
+    const runtimeId = sessionRef.runtimeId || (sessionRef.agentRef && sessionRef.agentRef.runtimeId);
+    const bridgeRuntime = runtimeId ? this._lookupBridgeRuntime(runtimeId) : null;
+    if (this._isReconnectableRuntime(bridgeRuntime, sessionRef.claudeSessionId)) return true;
+    if (sessionRef.transport === 'pty-attach' || runtimeId) {
+      if (!runtimeId || !this.ptyBroker || typeof this.ptyBroker.getRuntime !== 'function') return false;
+      const runtime = this.ptyBroker.getRuntime(runtimeId);
+      if (!runtime || runtime.status !== 'active') return false;
+    }
+    if (bridgeRuntime && !this._isReconnectableRuntime(bridgeRuntime, sessionRef.claudeSessionId)) return false;
     const tracked = this._windows.get(sessionRef.claudeSessionId);
     const terminal = tracked || sessionRef.terminal || {};
     return terminal.status === 'active';
@@ -222,6 +262,9 @@ class ClaudeDriver extends AgentDriver {
     const promptText = this._validatePromptText(text);
     const runtimeId = sessionRef.runtimeId || (sessionRef.agentRef && sessionRef.agentRef.runtimeId);
     if (!runtimeId) throw createCodedError('prompt requires sessionRef with runtimeId', 'CLAUDE_RUNTIME_REQUIRED');
+    if ((sessionRef.transport === 'bridge-sidecar' || this._runtimeTransports.get(runtimeId) === 'bridge-sidecar') && !this.isSessionRefActive(sessionRef)) {
+      throw createCodedError('bridge runtime is unavailable', 'CLAUDE_RUNTIME_UNAVAILABLE');
+    }
     return this._submitPrompt(runtimeId, promptText, options);
   }
 
@@ -268,6 +311,45 @@ class ClaudeDriver extends AgentDriver {
       this._runtimeInputState.delete(runtimeId);
     }
     if (sessionRef && sessionRef.claudeSessionId) this._windows.delete(sessionRef.claudeSessionId);
+  }
+
+  async detachAllRuntimes(reason) {
+    await this._handoffActiveTerminals();
+    for (const [runtimeId, state] of this._runtimeInputState.entries()) {
+      if (state.leaseTimer) this._clearTimeout(state.leaseTimer);
+      this._rejectQueued(runtimeId, createCodedError(reason || 'runtime detached', 'CLAUDE_RUNTIME_DETACHED'));
+    }
+    this._runtimeInputState.clear();
+    this._windows.clear();
+    if (this.ptyBroker && typeof this.ptyBroker.detachAllRuntimes === 'function') {
+      this.ptyBroker.detachAllRuntimes(reason || 'walker shutdown');
+    }
+  }
+
+  async stopWalkerConnection(reason) {
+    const err = createCodedError(reason || 'walker connection stopped', 'CLAUDE_WALKER_CONNECTION_STOPPED');
+    for (const [runtimeId, state] of this._runtimeInputState.entries()) {
+      if (state.leaseTimer) this._clearTimeout(state.leaseTimer);
+      this._rejectQueued(runtimeId, err);
+    }
+    this._runtimeInputState.clear();
+    this._windows.clear();
+    if (this.claudeBridge && typeof this.claudeBridge.stopWalkerConnection === 'function') {
+      await this.claudeBridge.stopWalkerConnection(reason || 'walker shutdown');
+    }
+  }
+
+  async _handoffActiveTerminals() {
+    if (!this.runtime || typeof this.runtime.openTerminal !== 'function') return;
+    if (!this.ptyBroker || typeof this.ptyBroker.listRuntimes !== 'function') return;
+    const runtimes = this.ptyBroker.listRuntimes();
+    await Promise.all(runtimes
+      .filter((runtime) => runtime && runtime.status === 'active' && runtime.claudeSessionId)
+      .map((runtime) => this.runtime.openTerminal(this.claudeCmd, ['--resume', runtime.claudeSessionId], {
+        cwd: runtime.cwd || this.cwd,
+        title: 'claude ' + runtime.claudeSessionId.slice(0, 8),
+        env: this.env,
+      }).catch(() => undefined)));
   }
 
   async _ensureTerminal(sessionRef) {
@@ -325,6 +407,7 @@ class ClaudeDriver extends AgentDriver {
       return options.attachServer;
     }
     if (options.attachServer === false) return null;
+    if (this.claudeBridge) return this.claudeBridge;
     return new ClaudeAttachServer({ broker: this.attachBroker, logger: options.logger });
   }
 
@@ -362,7 +445,11 @@ class ClaudeDriver extends AgentDriver {
   _writePrompt(runtimeId, text) {
     const data = Buffer.from(text + '\r');
     const cursor = this._createPromptCursor(runtimeId);
-    return Promise.resolve(this.ptyBroker.writeInput(runtimeId, data, { source: 'feishu' }))
+    const transport = this._runtimeTransports.get(runtimeId);
+    const input = transport === 'bridge-sidecar' && this.claudeBridge && typeof this.claudeBridge.writeInput === 'function'
+      ? this.claudeBridge.writeInput(runtimeId, data, { source: 'feishu' })
+      : this.ptyBroker.writeInput(runtimeId, data, { source: 'feishu' });
+    return Promise.resolve(input)
       .then(() => this._collectPromptFromTranscript(cursor));
   }
 
@@ -509,6 +596,22 @@ class ClaudeDriver extends AgentDriver {
       const item = state.queue.shift();
       item.reject(err);
     }
+  }
+
+  _lookupBridgeRuntime(runtimeId) {
+    if (!runtimeId || !this.claudeBridge || typeof this.claudeBridge.getRuntime !== 'function') return null;
+    try {
+      return this.claudeBridge.getRuntime(runtimeId);
+    } catch (err) {
+      return { runtimeId, status: 'unavailable', reconnectable: false, reason: sanitizeError(err) };
+    }
+  }
+
+  _isReconnectableRuntime(runtime, claudeSessionId) {
+    if (!runtime || !runtime.runtimeId) return false;
+    if (claudeSessionId && runtime.claudeSessionId && runtime.claudeSessionId !== claudeSessionId) return false;
+    if (runtime.reconnectable === false) return false;
+    return runtime.status === 'active' || runtime.status === 'walker-disconnected' || runtime.connectionState === 'reconnectable';
   }
 
   /**

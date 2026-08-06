@@ -1,0 +1,24 @@
+{
+  "task_id": "T6",
+  "status": "done",
+  "summary": "Added cross-module integration coverage for Claude TUI reconnect across Walker restart, fallback when sidecar runtime is unavailable, Walker stop pending handling, and attach CLI reconnect/security behavior. Completed structured test and verification reports and refreshed traceability for all requirements and behaviors.",
+  "files_changed": [
+    "test/claude-tui-reconnect.integration.test.js",
+    "specs/2026-08-06-claude-tui-reconnect/traceability.json",
+    "specs/2026-08-06-claude-tui-reconnect/test-report.md",
+    "specs/2026-08-06-claude-tui-reconnect/verify-report.md",
+    "specs/2026-08-06-claude-tui-reconnect/handoffs/T6.json",
+    "specs/2026-08-06-claude-tui-reconnect/evidence/T6-node-test.log"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/claude-tui-reconnect.integration.test.js\"",
+      "result": "pass",
+      "evidence": "specs/2026-08-06-claude-tui-reconnect/evidence/T6-node-test.log"
+    }
+  ],
+  "requirements": ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006"],
+  "behavior_count": 27,
+  "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T6-node-test.log"],
+  "breaking_changes": []
+}

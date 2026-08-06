@@ -1,0 +1,73 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1", "T2", "T3", "T5", "T6"],
+      "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-driver.test.js", "test/claude-pty-broker.test.js", "test/message-dispatcher.test.js", "test/bootstrap.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T5-node-test.log", "evidence/T6-node-test.log"],
+      "behaviors": {
+        "REQ-001-B01": { "tasks": ["T1", "T2", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-driver.test.js", "test/claude-pty-broker.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T2-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-001-B02": { "tasks": ["T2", "T3", "T6"], "tests": ["test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-001-B03": { "tasks": ["T2", "T3", "T6"], "tests": ["test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-001-B04": { "tasks": ["T1", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-001-B05": { "tasks": ["T2", "T3", "T6"], "tests": ["test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-001-B06": { "tasks": ["T2", "T5", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-pty-broker.test.js", "test/bootstrap.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T5-node-test.log", "evidence/T6-node-test.log"] }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T2", "T3", "T6"],
+      "tests": ["test/claude-driver.test.js", "test/claude-pty-broker.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"],
+      "behaviors": {
+        "REQ-002-B01": { "tasks": ["T2", "T3", "T6"], "tests": ["test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-002-B02": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-pty-broker.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-002-B03": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-002-B04": { "tasks": ["T2", "T3", "T6"], "tests": ["test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-002-B05": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T6-node-test.log"] }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T1", "T2", "T5", "T6"],
+      "tests": ["test/claude-bridge-sidecar.test.js", "test/bootstrap.test.js", "test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T5-node-test.log", "evidence/T6-node-test.log"],
+      "behaviors": {
+        "REQ-003-B01": { "tasks": ["T5", "T6"], "tests": ["test/bootstrap.test.js", "test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T5-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-003-B02": { "tasks": ["T5", "T6"], "tests": ["test/bootstrap.test.js", "test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T5-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-003-B03": { "tasks": ["T1", "T5", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/bootstrap.test.js", "test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T5-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-003-B04": { "tasks": ["T1", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-003-B05": { "tasks": ["T5", "T6"], "tests": ["test/bootstrap.test.js", "test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T5-node-test.log", "evidence/T6-node-test.log"] }
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T4", "T6"],
+      "tests": ["test/claude-attach-command.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["evidence/T4-node-test.log", "evidence/T6-node-test.log"],
+      "behaviors": {
+        "REQ-004-B01": { "tasks": ["T4", "T6"], "tests": ["test/claude-attach-command.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T4-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-004-B02": { "tasks": ["T4", "T6"], "tests": ["test/claude-attach-command.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T4-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-004-B03": { "tasks": ["T4", "T6"], "tests": ["test/claude-attach-command.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T4-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-004-B04": { "tasks": ["T4", "T6"], "tests": ["test/claude-attach-command.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T4-node-test.log", "evidence/T6-node-test.log"] }
+      }
+    },
+    "REQ-005": {
+      "tasks": ["T1", "T2", "T3", "T6"],
+      "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"],
+      "behaviors": {
+        "REQ-005-B01": { "tasks": ["T1", "T2", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T2-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-005-B02": { "tasks": ["T2", "T3", "T6"], "tests": ["test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-005-B03": { "tasks": ["T2", "T3", "T6"], "tests": ["test/claude-driver.test.js", "test/message-dispatcher.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T2-node-test.log", "evidence/T3-node-test.log", "evidence/T6-node-test.log"] }
+      }
+    },
+    "REQ-006": {
+      "tasks": ["T1", "T4", "T6"],
+      "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-attach-command.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T4-node-test.log", "evidence/T6-node-test.log"],
+      "behaviors": {
+        "REQ-006-B01": { "tasks": ["T1", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-006-B02": { "tasks": ["T1", "T4", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-attach-command.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T4-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-006-B03": { "tasks": ["T1", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T6-node-test.log"] },
+        "REQ-006-B04": { "tasks": ["T1", "T4", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-attach-command.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["evidence/T1-node-test.log", "evidence/T4-node-test.log", "evidence/T6-node-test.log"] }
+      }
+    }
+  }
+}

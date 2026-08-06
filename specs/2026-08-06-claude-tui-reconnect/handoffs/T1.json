@@ -1,0 +1,57 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "Implemented ClaudeBridgeSidecar control-plane foundation with reconnectable runtime registry, safe snapshots, local/token authorization, attachment creation, and pending input rejection on Walker disconnect.",
+  "files_changed": [
+    "src/drivers/claude-bridge-sidecar.js",
+    "test/claude-bridge-sidecar.test.js",
+    "specs/2026-08-06-claude-tui-reconnect/traceability.json",
+    "specs/2026-08-06-claude-tui-reconnect/handoffs/T1.json",
+    "specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/claude-bridge-sidecar.test.js\"",
+      "result": "pass",
+      "evidence": "specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"
+    }
+  ],
+  "behaviors": {
+    "REQ-001-B01": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    },
+    "REQ-001-B04": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    },
+    "REQ-003-B03": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    },
+    "REQ-003-B04": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    },
+    "REQ-005-B01": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    },
+    "REQ-006-B01": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    },
+    "REQ-006-B02": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    },
+    "REQ-006-B03": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    },
+    "REQ-006-B04": {
+      "tests": ["test/claude-bridge-sidecar.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T1-node-test.log"]
+    }
+  }
+}

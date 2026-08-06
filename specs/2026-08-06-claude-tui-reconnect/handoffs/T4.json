@@ -1,0 +1,50 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "Implemented reconnecting Claude attach CLI state machine with repeated endpoint resolution, bounded reconnect window, raw mode cleanup, token-required env resolution, and sanitized unauthorized/invalid-token errors.",
+  "files_changed": [
+    "src/cli/claude-attach-command.js",
+    "test/claude-attach-command.test.js",
+    "specs/2026-08-06-claude-tui-reconnect/traceability.json",
+    "specs/2026-08-06-claude-tui-reconnect/handoffs/T4.json",
+    "specs/2026-08-06-claude-tui-reconnect/evidence/T4-node-test.log"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/claude-attach-command.test.js\"",
+      "result": "pass",
+      "evidence": "specs/2026-08-06-claude-tui-reconnect/evidence/T4-node-test.log"
+    },
+    {
+      "command": "node --test \"test/cli-claude-attach.test.js\"",
+      "result": "pass",
+      "evidence": null
+    }
+  ],
+  "behaviors": {
+    "REQ-004-B01": {
+      "tests": ["test/claude-attach-command.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T4-node-test.log"]
+    },
+    "REQ-004-B02": {
+      "tests": ["test/claude-attach-command.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T4-node-test.log"]
+    },
+    "REQ-004-B03": {
+      "tests": ["test/claude-attach-command.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T4-node-test.log"]
+    },
+    "REQ-004-B04": {
+      "tests": ["test/claude-attach-command.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T4-node-test.log"]
+    },
+    "REQ-006-B02": {
+      "tests": ["test/claude-attach-command.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T4-node-test.log"]
+    },
+    "REQ-006-B04": {
+      "tests": ["test/claude-attach-command.test.js"],
+      "evidence": ["specs/2026-08-06-claude-tui-reconnect/evidence/T4-node-test.log"]
+    }
+  }
+}

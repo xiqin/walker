@@ -24,6 +24,7 @@ const { createHookReceiverRoutes } = require('../opencode-hook/receiver');
 const { createHealthPoller } = require('../opencode-hook/health-poller');
 const { OpencodeTuiBridge } = require('../opencode-tui-bridge/bridge');
 const { createTuiBridgeRoutes } = require('../opencode-tui-bridge/routes');
+const { ClaudeBridgeSidecar } = require('../drivers/claude-bridge-sidecar');
 const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
@@ -56,6 +57,7 @@ function createApp(config, deps) {
   const OpencodeDriverClass = deps.OpencodeDriver || OpencodeDriver;
   const ClaudeDriverClass = deps.ClaudeDriver || ClaudeDriver;
   const OpencodeTuiBridgeClass = deps.OpencodeTuiBridge || OpencodeTuiBridge;
+  const ClaudeBridgeSidecarClass = deps.ClaudeBridgeSidecar || ClaudeBridgeSidecar;
   const stubCodex = deps.stubCodexDriver || stubCodexDriver;
   const DriverRegistryClass = deps.DriverRegistry || DriverRegistry;
   const createRuntimeFn = deps.createRuntime || createRuntime;
@@ -90,6 +92,12 @@ function createApp(config, deps) {
     leaseTimeoutMs: config.opencodeTuiLeaseTimeoutMs ?? 90000,
     heartbeatIntervalMs: config.opencodeTuiHeartbeatIntervalMs ?? 30000,
   });
+  const claudeBridge = deps.claudeBridge || (config.claudeBridgeEnabled === false ? null : new ClaudeBridgeSidecarClass({
+    host: config.claudeBridgeHost || '127.0.0.1',
+    port: config.claudeBridgePort == null ? 0 : config.claudeBridgePort,
+    token: config.claudeBridgeToken,
+    logger: createLogger('claude-bridge-sidecar'),
+  }));
 
   const opencodeDriver = new OpencodeDriverClass({
     serverUrl: config.opencodeServerUrl || 'http://localhost:4096',
@@ -121,6 +129,7 @@ function createApp(config, deps) {
     addDirs: config.claudeAddDirs || config.claudeAddDir,
     configDir: config.claudeConfigDir,
     promptTimeoutMs: config.claudePromptTimeoutMs ?? 120000,
+    claudeBridge,
   });
 
   const registry = new DriverRegistryClass();
@@ -312,7 +321,7 @@ function createApp(config, deps) {
 
   const adminEnabled = config.admin ? config.admin.enabled !== false : true;
   const adminConfig = config.admin || { enabled: true, host: '127.0.0.1', port: 8787, token: '' };
-  const lifecycle = { started: false };
+  const lifecycle = { started: false, walkerConnectionReleased: false };
 
   const healthPoller = createHealthPoller({
     sessionService,
@@ -447,7 +456,24 @@ function createApp(config, deps) {
       }
     }
     lifecycle.started = true;
+    lifecycle.walkerConnectionReleased = false;
     logger.info('walker started successfully');
+  }
+
+  async function releaseClaudeWalkerConnection(reason) {
+    if (!claudeDriver) return;
+    if (typeof claudeDriver.stopWalkerConnection === 'function') {
+      await claudeDriver.stopWalkerConnection(reason);
+      return;
+    }
+    if (claudeDriver.claudeBridge && typeof claudeDriver.claudeBridge.stopWalkerConnection === 'function') {
+      await claudeDriver.claudeBridge.stopWalkerConnection(reason);
+    }
+  }
+
+  async function stopClaudeBridgeSidecar() {
+    if (!claudeBridge || typeof claudeBridge.stop !== 'function') return;
+    await claudeBridge.stop();
   }
 
   /**
@@ -458,10 +484,15 @@ function createApp(config, deps) {
     logger.info('walker stopping');
     lifecycle.started = false;
     healthPoller.stop();
-    if (dispatcher && typeof dispatcher.destroy === 'function') {
-      dispatcher.destroy();
+    if (!lifecycle.walkerConnectionReleased) {
+      lifecycle.walkerConnectionReleased = true;
+      if (dispatcher && typeof dispatcher.destroy === 'function') {
+        dispatcher.destroy();
+      }
+      if (tuiBridge && typeof tuiBridge.close === 'function') tuiBridge.close();
+      await releaseClaudeWalkerConnection('walker shutdown');
+      await stopClaudeBridgeSidecar();
     }
-    if (tuiBridge && typeof tuiBridge.close === 'function') tuiBridge.close();
     await platform.stop();
     logger.info('feishu platform stopped');
     if (adminServer) {

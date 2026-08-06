@@ -16,6 +16,7 @@ class ClaudePtyBroker {
     this.ptyFactory = opts.ptyFactory;
     this.idFactory = opts.idFactory || (() => createId('rt_'));
     this.logger = opts.logger || createLogger('claude-pty-broker');
+    this.bridgeSidecar = opts.bridgeSidecar || opts.claudeBridge || null;
     this.replayLimitBytes = opts.replayLimitBytes == null ? DEFAULT_REPLAY_LIMIT_BYTES : opts.replayLimitBytes;
     this.queueLimit = opts.queueLimit == null ? DEFAULT_QUEUE_LIMIT : opts.queueLimit;
     this.runtimes = new Map();
@@ -28,6 +29,7 @@ class ClaudePtyBroker {
     const record = this._createRecord(runtimeId, opts.claudeSessionId, 1, opts);
     this._spawn(record, ['--session-id', opts.claudeSessionId], opts);
     this.runtimes.set(runtimeId, record);
+    this._registerBridgeRuntime(record);
     this._log('info', 'claude pty runtime created', record, { queueDepth: record.pending.size });
     return this._snapshot(record);
   }
@@ -51,13 +53,19 @@ class ClaudePtyBroker {
     }
     this._spawn(record, ['--resume', record.claudeSessionId], opts);
     this.runtimes.set(runtimeId, record);
+    this._registerBridgeRuntime(record);
     this._log('info', 'claude pty runtime resumed', record, { queueDepth: record.pending.size });
     return this._snapshot(record);
   }
 
   getRuntime(runtimeId) {
     const record = this.runtimes.get(runtimeId);
-    return record ? this._snapshot(record) : null;
+    if (record) return this._snapshot(record);
+    return this._getBridgeRuntime(runtimeId);
+  }
+
+  listRuntimes() {
+    return Array.from(this.runtimes.values()).map((record) => this._snapshot(record));
   }
 
   stopRuntime(runtimeId, reason) {
@@ -80,9 +88,27 @@ class ClaudePtyBroker {
     return null;
   }
 
+  detachAllRuntimes(reason) {
+    const err = new Error(reason || 'runtime detached');
+    for (const record of Array.from(this.runtimes.values())) {
+      this._failPending(record, err);
+      record.subscribers.clear();
+      record.runtime = null;
+      record.stopped = true;
+      record.status = 'detached';
+      this._log('info', 'claude pty runtime detached', record, { queueDepth: record.pending.size, exitReason: reason || 'detached' });
+    }
+    this.runtimes.clear();
+  }
+
   writeInput(runtimeId, data, options) {
     const opts = options || {};
     if (!Buffer.isBuffer(data) && typeof data !== 'string') throw new TypeError('data must be Buffer or string');
+    if (!this.runtimes.has(runtimeId) && this.bridgeSidecar && typeof this.bridgeSidecar.writeInput === 'function') {
+      const bridgeRuntime = this._getBridgeRuntime(runtimeId);
+      if (!this._isBridgeRuntimeActive(bridgeRuntime)) throw new Error('runtime is not active: ' + ((bridgeRuntime && bridgeRuntime.status) || 'missing'));
+      return Promise.resolve(this.bridgeSidecar.writeInput(runtimeId, data, opts));
+    }
     const record = this._requireActive(runtimeId);
     if (record.pending.size >= this.queueLimit) throw new Error('queue limit exceeded');
     const source = opts.source || 'unknown';
@@ -220,6 +246,46 @@ class ClaudePtyBroker {
     if (!record) throw new Error('runtime not found: ' + runtimeId);
     if (record.status !== 'active') throw record.error || new Error('runtime is not active: ' + record.status);
     return record;
+  }
+
+  _getBridgeRuntime(runtimeId) {
+    if (!runtimeId || !this.bridgeSidecar || typeof this.bridgeSidecar.getRuntime !== 'function') return null;
+    let runtime;
+    try {
+      runtime = this.bridgeSidecar.getRuntime(runtimeId);
+    } catch (_) {
+      return null;
+    }
+    if (!runtime) return null;
+    return {
+      ...runtime,
+      transport: 'bridge-sidecar',
+      agentRef: {
+        provider: 'claude',
+        transport: 'bridge-sidecar',
+        runtimeId: runtime.runtimeId,
+        claudeSessionId: runtime.claudeSessionId,
+        processGeneration: runtime.processGeneration,
+      },
+    };
+  }
+
+  _isBridgeRuntimeActive(runtime) {
+    if (!runtime || runtime.reconnectable === false) return false;
+    return runtime.status === 'active' || runtime.status === 'walker-disconnected' || runtime.connectionState === 'reconnectable';
+  }
+
+  _registerBridgeRuntime(record) {
+    if (!this.bridgeSidecar || typeof this.bridgeSidecar.registerRuntime !== 'function') return;
+    this.bridgeSidecar.registerRuntime({
+      runtimeId: record.runtimeId,
+      claudeSessionId: record.claudeSessionId,
+      status: record.status,
+      processGeneration: record.processGeneration,
+      cwd: record.cwd,
+      runtime: record.runtime,
+      reconnectable: true,
+    });
   }
 
   _snapshot(record) {

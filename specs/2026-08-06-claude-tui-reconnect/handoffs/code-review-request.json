@@ -1,0 +1,41 @@
+{
+  "pre_review": {
+    "standards_findings": 0,
+    "spec_findings": 0,
+    "worst": "none",
+    "fixed_point": "HEAD / current uncommitted workspace"
+  },
+  "validation": {
+    "npm_run_lint": "pass",
+    "npm_run_check": "pass (1452 tests, 0 fail)",
+    "loom_verify_artifacts": "pass"
+  },
+  "review_focus": [
+    "sidecar lifecycle boundary",
+    "bridge reconnect/fallback decision",
+    "stop/delete vs stopWalkerConnection separation",
+    "dispatcher persistence-before-prompt ordering",
+    "attach CLI reconnect security",
+    "OpenCode watch manual event regression scope"
+  ],
+  "status": "done",
+  "summary": "已生成代码审查请求。审查请求基于当前工作区相对 HEAD 的未提交变更，完成 Standards + Spec 双轴预审查，未发现 blocker。review-request.md 汇总了 Claude bridge/sidecar、driver reconnect/回退、dispatcher 原子 agentRef 持久化、attach CLI 重连、Walker shutdown 生命周期、OpenCode watch 手工事件回归修复，以及 npm run lint/npm run check/loom_verify_artifacts 的验证证据。",
+  "artifacts": [
+    "review-request.md",
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "1bfa4b49fecc8826c46184561d3bdc5d7b8970954c20f864176030fd118bedd2",
+    "spec.md": "c592c05020dc1a3a79d4f790ee097f9f9efbe19b5b7b90e22d50f508121d510a"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "ceeebe53de39527a0f484f4d14fa80789a1b6d426085536239b56c65248ddca0",
+    "test-report.md": "6140b19400deaf10b16c1e07586e3fd0c067dc7808a0c283f847767eaba0df8d",
+    "verify-report.md": "51b0bff49444dc41442f0b1deead141825810063ef4b0007738fa585743c2cfa"
+  },
+  "written_at": "2026-08-06T06:56:09.848Z"
+}

@@ -1,0 +1,50 @@
+{
+  "verdict": "PASS",
+  "commands": [
+    {
+      "command": "npm run lint",
+      "exit_code": 0,
+      "evidence": "evidence/verification-lint.log",
+      "sha256": "db6966e6df6d07f435b7d49e65cc4ce4a922524d2ca9639d14fd88ed3c4f410e"
+    },
+    {
+      "command": "npm run check",
+      "exit_code": 0,
+      "evidence": "evidence/verification-check.log",
+      "sha256": "742969f77db70d47a5ae9e9d6e986e2a5b596b4520697e143e5df79eacc67df1"
+    },
+    {
+      "command": "loom_verify_artifacts",
+      "exit_code": 0,
+      "evidence": "tool result ok:true"
+    }
+  ],
+  "placeholder_scan": "no unfinished placeholder markers found",
+  "remaining_risks": [
+    "T6 使用 fake PTY/broker 隔离真实 Claude CLI，验证 Walker 内部控制面和消息路径，不启动真实 Claude 进程。",
+    "attach CLI timer 仍使用真实 Date.now，后续若需要完全虚拟 timer 可注入 now()。"
+  ],
+  "status": "done",
+  "summary": "完成 Claude TUI 跨 Walker 重启续接最终验证。loom_verify_artifacts 通过；npm run lint 与 npm run check 均通过并保存 verification evidence；规格产物占位符扫描未命中未完成标记；verify-report.md 已补充 verification 阶段 evidence receipt，且移除了会触发机械占位符扫描的表达式文本。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json",
+    "evidence/verification-lint.log",
+    "evidence/verification-check.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "1bfa4b49fecc8826c46184561d3bdc5d7b8970954c20f864176030fd118bedd2",
+    "spec.md": "c592c05020dc1a3a79d4f790ee097f9f9efbe19b5b7b90e22d50f508121d510a",
+    "test-report.md": "6140b19400deaf10b16c1e07586e3fd0c067dc7808a0c283f847767eaba0df8d"
+  },
+  "artifact_fingerprints": {
+    "evidence/verification-check.log": "742969f77db70d47a5ae9e9d6e986e2a5b596b4520697e143e5df79eacc67df1",
+    "evidence/verification-lint.log": "db6966e6df6d07f435b7d49e65cc4ce4a922524d2ca9639d14fd88ed3c4f410e",
+    "test-report.md": "6140b19400deaf10b16c1e07586e3fd0c067dc7808a0c283f847767eaba0df8d",
+    "verify-report.md": "51b0bff49444dc41442f0b1deead141825810063ef4b0007738fa585743c2cfa"
+  },
+  "written_at": "2026-08-06T06:52:57.882Z"
+}
