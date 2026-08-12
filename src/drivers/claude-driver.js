@@ -9,7 +9,7 @@ const { ClaudePtyBroker, DEFAULT_QUEUE_LIMIT } = require('./claude-pty-broker');
 const defaultTranscript = require('./claude-transcript');
 
 const DEFAULT_MODELS = ['sonnet', 'opus'];
-const SAFE_PERMISSION_MODES = new Set(['default', 'acceptEdits', 'auto', 'dontAsk', 'plan']);
+const SAFE_PERMISSION_MODES = new Set(['acceptEdits', 'auto', 'manual', 'dontAsk', 'plan']);
 const SENSITIVE_KEY_PATTERN = /(token|secret|api[_-]?key|password|credential)/i;
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_MAX_PROMPT_LENGTH = 20000;
@@ -41,11 +41,24 @@ class ClaudeDriver extends AgentDriver {
     this.model = options.model || this.env.CLAUDE_MODEL || '';
     this.fallbackModel = options.fallbackModel || this.env.CLAUDE_FALLBACK_MODEL || '';
     this.agent = options.agent || this.env.CLAUDE_AGENT || '';
-    this.permissionMode = options.permissionMode || this.env.CLAUDE_PERMISSION_MODE || 'default';
+    this.permissionMode = normalizePermissionMode(options.permissionMode || this.env.CLAUDE_PERMISSION_MODE);
+    this.permissionModeMigrated = Boolean(options.permissionModeMigrated || this.env.CLAUDE_PERMISSION_MODE === 'default');
     this.allowedTools = normalizeList(options.allowedTools || this.env.CLAUDE_ALLOWED_TOOLS);
     this.disallowedTools = normalizeList(options.disallowedTools || this.env.CLAUDE_DISALLOWED_TOOLS);
+    this.tools = normalizeList(options.tools || this.env.CLAUDE_TOOLS);
     this.addDirs = normalizeList(options.addDirs || options.addDir || this.env.CLAUDE_ADD_DIRS || this.env.CLAUDE_ADD_DIR);
-    this.configDir = options.configDir || this.env.CLAUDE_CONFIG_DIR || '';
+    this.configDir = options.configDir || options.transcriptConfigDir || this.env.CLAUDE_CONFIG_DIR || '';
+    this.settingsFile = options.settingsFile || options.settings || this.env.CLAUDE_SETTINGS_FILE || '';
+    this.settingSources = normalizeList(options.settingSources || this.env.CLAUDE_SETTING_SOURCES);
+    this.pluginDirs = normalizeList(options.pluginDirs || options.pluginDir || this.env.CLAUDE_PLUGIN_DIRS || this.env.CLAUDE_PLUGIN_DIR);
+    this.agents = normalizeJsonObject(options.agents || this.env.CLAUDE_AGENTS, 'CLAUDE_AGENTS');
+    this.mcpConfigs = normalizeJsonList(options.mcpConfigs || options.mcpConfig || this.env.CLAUDE_MCP_CONFIGS || this.env.CLAUDE_MCP_CONFIG, 'CLAUDE_MCP_CONFIGS');
+    this.strictMcpConfig = normalizeBooleanOption(options.strictMcpConfig, this.env.CLAUDE_STRICT_MCP_CONFIG);
+    this.bare = normalizeBooleanOption(options.bare, this.env.CLAUDE_BARE);
+    this.safeMode = normalizeBooleanOption(options.safeMode, this.env.CLAUDE_SAFE_MODE);
+    this.disableSlashCommands = normalizeBooleanOption(options.disableSlashCommands, this.env.CLAUDE_DISABLE_SLASH_COMMANDS);
+    this.allowBypassPermissions = normalizeBooleanOption(options.allowBypassPermissions, this.env.CLAUDE_ALLOW_BYPASS_PERMISSIONS);
+    this._validateLaunchOptions();
     this.promptTimeoutMs = positiveInteger(options.promptTimeoutMs || this.env.CLAUDE_PROMPT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
     const runtimeOpenTerminal = this.runtime && this.runtime.openTerminal;
     this.openTerminal = options.openTerminal || bindRuntimeMethod(this.runtime, runtimeOpenTerminal);
@@ -64,6 +77,7 @@ class ClaudeDriver extends AgentDriver {
     this._windows = new Map();
     this._runtimeInputState = new Map();
     this._runtimeTransports = new Map();
+    this._resumePromises = new Map();
     this.attachBroker = this._createAttachBrokerFacade();
     this.attachServer = this._createAttachServer(options);
     this._lastVersion = null;
@@ -102,6 +116,7 @@ class ClaudeDriver extends AgentDriver {
       claudeSessionId,
       cwd,
       env: this.env,
+      launchArgs: this._buildTuiLaunchArgs({ mode: 'create', sessionId: claudeSessionId, options }),
       cols: options.cols,
       rows: options.rows,
     });
@@ -117,7 +132,7 @@ class ClaudeDriver extends AgentDriver {
       model: normalizeModel(options.model || this.model),
       fallbackModel: options.fallbackModel || this.fallbackModel || undefined,
       agent: options.agent || this.agent || undefined,
-      permissionMode: options.permissionMode || this.permissionMode || 'default',
+      permissionMode: normalizePermissionMode(options.permissionMode || this.permissionMode),
       conversationReady: true,
       createdAt: now,
       updatedAt: now,
@@ -141,6 +156,14 @@ class ClaudeDriver extends AgentDriver {
     if (!isUuid(sessionRef.claudeSessionId)) {
       throw createCodedError('resumeSession requires exact Claude UUID', 'CLAUDE_SESSION_INVALID');
     }
+    const resumeKey = sessionRef.claudeSessionId + ':' + (sessionRef.runtimeId || (sessionRef.agentRef && sessionRef.agentRef.runtimeId) || 'new');
+    if (this._resumePromises.has(resumeKey)) return this._resumePromises.get(resumeKey);
+    const pending = this._resumeSessionOnce(sessionRef).finally(() => this._resumePromises.delete(resumeKey));
+    this._resumePromises.set(resumeKey, pending);
+    return pending;
+  }
+
+  async _resumeSessionOnce(sessionRef) {
     const cwd = sessionRef.cwd || this.cwd;
     const previousRuntimeId = sessionRef.runtimeId || (sessionRef.agentRef && sessionRef.agentRef.runtimeId);
     const bridgeRuntime = previousRuntimeId ? this._lookupBridgeRuntime(previousRuntimeId) : null;
@@ -169,6 +192,7 @@ class ClaudeDriver extends AgentDriver {
       claudeSessionId: sessionRef.claudeSessionId,
       cwd,
       env: this.env,
+      launchArgs: this._buildTuiLaunchArgs({ mode: 'resume', sessionId: sessionRef.claudeSessionId, options: sessionRef }),
       processGeneration: sessionRef.processGeneration,
     });
     const ref = Object.assign({}, sessionRef, snapshot.agentRef || {}, {
@@ -188,15 +212,27 @@ class ClaudeDriver extends AgentDriver {
     });
     this._runtimeTransports.set(ref.runtimeId, 'pty-attach');
     this._getRuntimeInputState(ref.runtimeId);
-    ref.terminal = await this._ensureTerminal(ref);
     return ref;
   }
 
   /**
-   * Claude CLI 无公开本地目录 API，这里仅返回空可恢复列表。
-   * @returns {Promise<Object[]>} 空会话列表
+   * 列出可纳入的 Claude 历史会话（扫描 <configDir>/projects/<编码cwd>/*.jsonl）。
+   * @param {Object} [options] - { cwd, extraCwds }
+   * @returns {Promise<Array<{id,title,status,cwd,updatedAt}>>} 按 updatedAt 倒序
    */
-  async listSessions() {
+  async listSessions(options) {
+    const opts = options || {};
+    const t = (this.transcript && typeof this.transcript === 'object') ? this.transcript : defaultTranscript;
+    if (!t) return [];
+    const configDir = this.configDir || undefined;
+    if (opts.cwd) {
+      return typeof t.listClaudeSessionsForCwd === 'function' ? t.listClaudeSessionsForCwd({ cwd: opts.cwd, configDir }) : [];
+    }
+    // 无 cwd：扫描全部项目目录（Claude 无服务端 API，历史会话散落在各 cwd 的编码目录下）
+    if (typeof t.listAllClaudeSessions === 'function') {
+      const sessions = t.listAllClaudeSessions({ configDir });
+      return Array.isArray(sessions) ? sessions : [];
+    }
     return [];
   }
 
@@ -240,6 +276,7 @@ class ClaudeDriver extends AgentDriver {
       if (!runtimeId || !this.ptyBroker || typeof this.ptyBroker.getRuntime !== 'function') return false;
       const runtime = this.ptyBroker.getRuntime(runtimeId);
       if (!runtime || runtime.status !== 'active') return false;
+      if (!bridgeRuntime) return true;
     }
     if (bridgeRuntime && !this._isReconnectableRuntime(bridgeRuntime, sessionRef.claudeSessionId)) return false;
     const tracked = this._windows.get(sessionRef.claudeSessionId);
@@ -296,6 +333,14 @@ class ClaudeDriver extends AgentDriver {
    */
   async cancel(sessionRef) {
     await this.stop(sessionRef);
+  }
+
+  async replyPermission() {
+    throw createReplyUnsupportedError('Claude Code TUI does not expose a structured permission reply protocol', 'CLAUDE_PERMISSION_REPLY_UNSUPPORTED');
+  }
+
+  async replyQuestion() {
+    throw createReplyUnsupportedError('Claude Code TUI does not expose a structured question reply protocol', 'CLAUDE_QUESTION_REPLY_UNSUPPORTED');
   }
 
   /**
@@ -496,7 +541,11 @@ class ClaudeDriver extends AgentDriver {
     }
     const runtime = runtimeFromTranscriptEvent(event);
     if (event.type === 'assistant' && event.text) handlers.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: event.text, ...runtime }));
+    if (event.type === 'reasoning' && event.text) handlers.onEvent(new AgentEvent(AgentEvent.TYPE_REASONING, { text: event.text, ...runtime }));
+    if (event.type === 'tool_use') handlers.onEvent(new AgentEvent(AgentEvent.TYPE_TOOL_USE, toolUseDataFromTranscriptEvent(event, runtime)));
+    if (event.type === 'question_asked') handlers.onEvent(new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, questionDataFromTranscriptEvent(event)));
     if (event.type === 'user' && event.text) handlers.onEvent(new AgentEvent(AgentEvent.TYPE_STATUS, { status: 'user-message' }));
+    if (event.type === 'status') handlers.onEvent(new AgentEvent(AgentEvent.TYPE_STATUS, statusDataFromTranscriptEvent(event)));
     if (event.type === 'done') handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'transcript-watch', ...runtime }));
   }
 
@@ -642,33 +691,57 @@ class ClaudeDriver extends AgentDriver {
     const args = ['--print', '--verbose', '--output-format', 'stream-json'];
     if (sessionRef.conversationReady === false) appendSessionArg(args, sessionRef.claudeSessionId);
     else appendResumeArg(args, sessionRef.claudeSessionId);
-    const model = normalizeModel(options.model || sessionRef.model || this.model);
-    const fallbackModel = options.fallbackModel || sessionRef.fallbackModel || this.fallbackModel;
-    const agent = options.agent || sessionRef.agent || this.agent;
-    const permissionMode = options.permissionMode || sessionRef.permissionMode || this.permissionMode;
-    appendOption(args, '--model', model);
-    appendOption(args, '--fallback-model', fallbackModel);
-    appendOption(args, '--agent', agent);
-    if (SAFE_PERMISSION_MODES.has(permissionMode)) appendOption(args, '--permission-mode', permissionMode);
-    for (const dir of normalizeList(options.addDirs || options.addDir || this.addDirs)) appendOption(args, '--add-dir', dir);
-    appendOption(args, '--settings', options.settings || this.configDir);
-    appendCsvOption(args, '--allowed-tools', options.allowedTools || this.allowedTools);
-    appendCsvOption(args, '--disallowed-tools', options.disallowedTools || this.disallowedTools);
+    appendLaunchArgs(args, this._buildCommonLaunchArgs({ sessionRef, options }));
     return args;
   }
 
   _buildTerminalArgs(sessionRef) {
+    return this._buildTuiLaunchArgs({ mode: 'resume', sessionId: sessionRef.claudeSessionId, options: sessionRef });
+  }
+
+  _buildTuiLaunchArgs({ mode, sessionId, options }) {
     const args = [];
-    appendResumeArg(args, sessionRef.claudeSessionId);
-    const model = normalizeModel(sessionRef.model || this.model);
-    appendOption(args, '--model', model);
-    appendOption(args, '--fallback-model', sessionRef.fallbackModel || this.fallbackModel);
-    appendOption(args, '--agent', sessionRef.agent || this.agent);
-    const permissionMode = sessionRef.permissionMode || this.permissionMode;
-    if (SAFE_PERMISSION_MODES.has(permissionMode)) appendOption(args, '--permission-mode', permissionMode);
-    for (const dir of normalizeList(this.addDirs)) appendOption(args, '--add-dir', dir);
-    appendOption(args, '--settings', this.configDir);
+    if (mode === 'create') appendSessionArg(args, sessionId);
+    else appendResumeArg(args, sessionId);
+    appendLaunchArgs(args, this._buildCommonLaunchArgs({ sessionRef: options || {}, options: options || {} }));
     return args;
+  }
+
+  _buildCommonLaunchArgs({ sessionRef, options }) {
+    const opts = options || {};
+    const ref = sessionRef || {};
+    const permissionMode = normalizePermissionMode(opts.permissionMode || ref.permissionMode || this.permissionMode);
+    validatePermissionCombination(permissionMode, {
+      allowBypassPermissions: opts.allowBypassPermissions != null ? opts.allowBypassPermissions : this.allowBypassPermissions,
+      safeMode: opts.safeMode != null ? opts.safeMode : this.safeMode,
+    });
+    const args = [];
+    appendOption(args, '--model', normalizeModel(opts.model || ref.model || this.model));
+    appendOption(args, '--fallback-model', opts.fallbackModel || ref.fallbackModel || this.fallbackModel);
+    appendOption(args, '--agent', opts.agent || ref.agent || this.agent);
+    if (permissionMode) appendOption(args, '--permission-mode', permissionMode);
+    for (const dir of normalizeList(opts.addDirs || opts.addDir || this.addDirs)) appendOption(args, '--add-dir', dir);
+    appendCsvOption(args, '--tools', opts.tools || this.tools);
+    appendCsvOption(args, '--allowed-tools', opts.allowedTools || this.allowedTools);
+    appendCsvOption(args, '--disallowed-tools', opts.disallowedTools || this.disallowedTools);
+    for (const file of normalizeJsonList(opts.mcpConfigs || this.mcpConfigs, 'CLAUDE_MCP_CONFIGS')) appendOption(args, '--mcp-config', file);
+    if (opts.strictMcpConfig != null ? opts.strictMcpConfig : this.strictMcpConfig) args.push('--strict-mcp-config');
+    appendOption(args, '--settings', opts.settingsFile || opts.settings || this.settingsFile);
+    appendCsvOption(args, '--setting-sources', opts.settingSources || this.settingSources);
+    for (const dir of normalizeList(opts.pluginDirs || opts.pluginDir || this.pluginDirs)) appendOption(args, '--plugin-dir', dir);
+    const agents = opts.agents || this.agents;
+    if (agents && Object.keys(agents).length > 0) appendOption(args, '--agents', JSON.stringify(agents));
+    if (opts.bare != null ? opts.bare : this.bare) args.push('--bare');
+    if (opts.safeMode != null ? opts.safeMode : this.safeMode) args.push('--safe-mode');
+    if (opts.disableSlashCommands != null ? opts.disableSlashCommands : this.disableSlashCommands) args.push('--disable-slash-commands');
+    return args;
+  }
+
+  _validateLaunchOptions() {
+    validatePermissionCombination(this.permissionMode, { allowBypassPermissions: this.allowBypassPermissions, safeMode: this.safeMode });
+    if (this.strictMcpConfig && this.mcpConfigs.length === 0) {
+      throw createCodedError('CLAUDE_STRICT_MCP_CONFIG requires CLAUDE_MCP_CONFIGS', 'CLAUDE_MCP_CONFIG_REQUIRED');
+    }
   }
 
   /**
@@ -766,6 +839,56 @@ function normalizeList(value) {
   return items.map((item) => String(item).trim()).filter(Boolean);
 }
 
+function normalizePermissionMode(value) {
+  const text = String(value || '').trim();
+  if (!text || text === 'default') return '';
+  if (!SAFE_PERMISSION_MODES.has(text) && text !== 'bypassPermissions') {
+    throw createCodedError('invalid Claude permission mode', 'CLAUDE_PERMISSION_MODE_INVALID');
+  }
+  return text;
+}
+
+function normalizeJsonObject(value, key) {
+  if (!value) return {};
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  let parsed;
+  try { parsed = JSON.parse(String(value)); } catch (_) { throw createCodedError(key + ' must be a JSON object', 'CLAUDE_JSON_CONFIG_INVALID'); }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw createCodedError(key + ' must be a JSON object', 'CLAUDE_JSON_CONFIG_INVALID');
+  return parsed;
+}
+
+function normalizeJsonList(value, key) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  const text = String(value).trim();
+  if (!text) return [];
+  if (!text.startsWith('[')) return normalizeList(text);
+  let parsed;
+  try { parsed = JSON.parse(text); } catch (_) { throw createCodedError(key + ' must be a JSON string array', 'CLAUDE_JSON_CONFIG_INVALID'); }
+  if (!Array.isArray(parsed)) throw createCodedError(key + ' must be a JSON string array', 'CLAUDE_JSON_CONFIG_INVALID');
+  return parsed.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function normalizeBooleanOption(optionValue, envValue) {
+  const value = optionValue == null ? envValue : optionValue;
+  if (typeof value === 'boolean') return value;
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return false;
+  return text === 'true' || text === '1' || text === 'yes';
+}
+
+function validatePermissionCombination(permissionMode, options) {
+  const opts = options || {};
+  const allowBypassPermissions = normalizeBooleanOption(opts.allowBypassPermissions, undefined);
+  const safeMode = normalizeBooleanOption(opts.safeMode, undefined);
+  if (permissionMode === 'bypassPermissions' && !allowBypassPermissions) {
+    throw createCodedError('CLAUDE_PERMISSION_MODE=bypassPermissions requires CLAUDE_ALLOW_BYPASS_PERMISSIONS=true', 'CLAUDE_BYPASS_PERMISSION_CONFIRMATION_REQUIRED');
+  }
+  if (permissionMode === 'bypassPermissions' && safeMode) {
+    throw createCodedError('CLAUDE_PERMISSION_MODE=bypassPermissions cannot be combined with CLAUDE_SAFE_MODE', 'CLAUDE_PERMISSION_MODE_CONFLICT');
+  }
+}
+
 function createClaudeSessionId() {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return [4, 2, 2, 2, 6].map((bytes) => crypto.randomBytes(bytes).toString('hex')).join('-');
@@ -842,6 +965,49 @@ function appendOption(args, name, value) {
 function appendCsvOption(args, name, value) {
   const items = normalizeList(value);
   if (items.length > 0) args.push(name, items.join(','));
+}
+
+function appendLaunchArgs(args, launchArgs) {
+  for (const arg of launchArgs || []) args.push(arg);
+}
+
+function toolUseDataFromTranscriptEvent(event, runtime) {
+  return {
+    name: event.name || '',
+    input: event.input || undefined,
+    output: event.output || undefined,
+    result: event.result || undefined,
+    status: event.status || undefined,
+    callID: event.callID || undefined,
+    phase: event.phase || undefined,
+    isError: event.isError,
+    orphan: event.orphan,
+    ...runtime,
+  };
+}
+
+function questionDataFromTranscriptEvent(event) {
+  return {
+    requestID: String(event.requestID || ''),
+    sessionID: String(event.sessionID || ''),
+    questions: Array.isArray(event.questions) ? event.questions : [],
+    ...(event.tool ? { tool: event.tool } : {}),
+  };
+}
+
+function statusDataFromTranscriptEvent(event) {
+  return {
+    status: event.status || 'claude-transcript-status',
+    ...(event.diagnostic ? { diagnostic: event.diagnostic } : {}),
+  };
+}
+
+function createReplyUnsupportedError(message, code) {
+  const err = createCodedError(message, code);
+  err.phase = 'preflight';
+  err.sdkInvoked = false;
+  err.retryable = false;
+  return err;
 }
 
 /**

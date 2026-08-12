@@ -1,0 +1,27 @@
+{
+  "decisions": [
+    "采用单一 PTY + 显式无 replay attach",
+    "不采用终端模拟器屏幕快照",
+    "不采用或逆向 Claude Remote Control Bridge",
+    "CLAUDE_CMD=claude 与 CLAUDE_CMD=kscc 遵循相同安全语义"
+  ],
+  "open_questions": [],
+  "requirements": 7,
+  "behaviors": 39,
+  "status": "done",
+  "summary": "用户批准采用改良单一 PTY runtime：保留原生 Claude/kscc TUI 与飞书实时同进程操作；飞书自动恢复仅恢复 runtime、不打开窗口；新建会话最多打开一次初始窗口，后续仅显式 attach；attach 禁止历史 ANSI replay；飞书回复继续来自精确 cwd+UUID transcript；禁止第二个 --print/--resume 进程；不逆向 Remote Control 私有协议，不修改用户 endpoint/认证，不改变 OpenCode。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "1e2c8f3215ab71f2cf51c2ad052f78664c427035936b7af5b6a504987c104cfc",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8"
+  },
+  "written_at": "2026-08-12T09:30:57.520Z"
+}

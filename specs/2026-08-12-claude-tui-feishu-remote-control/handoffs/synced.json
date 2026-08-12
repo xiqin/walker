@@ -1,0 +1,47 @@
+{
+  "graph_backend": "codegraph",
+  "graph_sync": "loom index: Already up to date",
+  "graph_check": "Index is up to date",
+  "index_stats": {
+    "files": 195,
+    "nodes": 2541,
+    "edges": 14265
+  },
+  "memory_added": [
+    {
+      "type": "决策",
+      "id": "8b19fd12",
+      "summary": "Claude/kscc 原生 TUI 与飞书协同时采用单一长期 PTY runtime"
+    },
+    {
+      "type": "踩坑",
+      "id": "051102d8",
+      "summary": "Claude attach 禁历史 replay 需同时覆盖 ClaudeAttachServer 与 ClaudeBridgeSidecar"
+    }
+  ],
+  "business_code_changed_in_synced": false,
+  "status": "done",
+  "summary": "索引与记忆同步完成。CodeGraph 后端启用，loom index 显示 Already up to date，loom index --check 显示 Index is up to date（195 files、2541 nodes、14265 edges）。已记录两条结构化 memory：单一长期 PTY runtime 的架构决策；ClaudeAttachServer 与 ClaudeBridgeSidecar 均需禁历史 replay 的踩坑。MEMORY.md 已由 loom memory export 重新导出。未修改业务代码。",
+  "artifacts": [
+    ".loom/memory/MEMORY.md",
+    ".loom/memory/store.json",
+    "verify-report.md",
+    "review-request.md",
+    "review-feedback.md",
+    "review-response.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/MEMORY.md": "b9fcb4bc99851c00a29f987358ece6faebc5e14aad6317a6e8b1a7d53b9c11ae",
+    ".loom/memory/store.json": "08af1a707eb18edc9113d410cee716df3ac24ac3f6317e9518df71f6453eaad4",
+    "review-request.md": "64eb115fc6012c370857223f4286c9bb90ac1abbc9e9d3aa4fe7b245dbe42979",
+    "review-response.md": "bc44c0cac9898b8a13a484a2f1d908425051218585ae33aca271098cdd8750e7",
+    "verify-report.md": "2216a0440f08b992d7007bd24c26087b91d21c538ebe1a77e93b2da32e2f9937"
+  },
+  "written_at": "2026-08-12T13:20:39.038Z"
+}

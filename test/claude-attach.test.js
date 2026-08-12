@@ -18,6 +18,7 @@ class FakeBroker extends EventEmitter {
     this.detaches = [];
     this.subscribers = new Set();
     this.replay = [Buffer.from('\u001b[31mred\u0000', 'binary')];
+    this.subscribeOptions = [];
   }
 
   getRuntime(runtimeId) {
@@ -36,8 +37,10 @@ class FakeBroker extends EventEmitter {
 
   subscribeOutput(runtimeId, fn, options) {
     assert.equal(runtimeId, 'rt_1');
-    assert.deepEqual(options, { replay: true });
-    for (const chunk of this.replay) fn(chunk);
+    this.subscribeOptions.push(options);
+    if (!options || options.replay !== false) {
+      for (const chunk of this.replay) fn(chunk);
+    }
     this.subscribers.add(fn);
     return () => this.subscribers.delete(fn);
   }
@@ -64,6 +67,20 @@ function waitForClose(ws) {
 
 function waitForMessage(ws) {
   return new Promise((resolve) => ws.once('message', (data) => resolve(Buffer.from(data))));
+}
+
+function assertNoMessage(ws) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.off('message', onMessage);
+      resolve();
+    }, 30);
+    const onMessage = (data) => {
+      clearTimeout(timer);
+      reject(new Error('unexpected websocket message: ' + Buffer.from(data).toString('hex')));
+    };
+    ws.once('message', onMessage);
+  });
 }
 
 async function waitForCondition(fn) {
@@ -94,14 +111,14 @@ async function withServer(fn) {
   }
 }
 
-test('REQ-002-B01: attach 原样转发 ANSI/二进制 PTY 输出和键盘字节', async () => {
+test('REQ-003-B01/REQ-007-B02: attach 只转发连接后的实时 ANSI/二进制 PTY 输出和键盘字节', async () => {
   await withServer(async ({ server, broker }) => {
     const attachment = server.createAttachment('rt_1');
     const ws = new WebSocket(attachment.url);
-    const replay = waitForMessage(ws);
     await waitForOpen(ws);
+    await assertNoMessage(ws);
+    assert.deepEqual(broker.subscribeOptions, [{ replay: false }]);
 
-    assert.deepEqual(await replay, Buffer.from('\u001b[31mred\u0000', 'binary'));
     const live = waitForMessage(ws);
     broker.emitOutput(Buffer.from([0, 255, 27, 91, 65]));
     assert.deepEqual(await live, Buffer.from([0, 255, 27, 91, 65]));
@@ -118,9 +135,8 @@ test('REQ-002-B02: resize 边界校验仅允许合法尺寸进入 broker.resize'
   await withServer(async ({ server, broker }) => {
     const attachment = server.createAttachment('rt_1');
     const ws = new WebSocket(attachment.url);
-    const replay = waitForMessage(ws);
     await waitForOpen(ws);
-    await replay;
+    await assertNoMessage(ws);
 
     ws.send(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
     await waitForCondition(() => broker.resizes.length === 1);
@@ -132,13 +148,12 @@ test('REQ-002-B02: resize 边界校验仅允许合法尺寸进入 broker.resize'
   });
 });
 
-test('REQ-002-B03: detach 不 stop runtime，重连可收到 replay', async () => {
+test('REQ-003-B02/REQ-003-B03: detach 不 stop runtime，重连也不回放历史 replay', async () => {
   await withServer(async ({ server, broker }) => {
     const attachment = server.createAttachment('rt_1');
     const ws1 = new WebSocket(attachment.url);
-    const replay1 = waitForMessage(ws1);
     await waitForOpen(ws1);
-    assert.deepEqual(await replay1, broker.replay[0]);
+    await assertNoMessage(ws1);
     ws1.close();
     await waitForClose(ws1);
     await waitForCondition(() => broker.detaches.length === 1);
@@ -149,10 +164,26 @@ test('REQ-002-B03: detach 不 stop runtime，重连可收到 replay', async () =
     assert.equal(broker.runtime.status, 'active');
 
     const ws2 = new WebSocket(attachment.url);
-    const replay2 = waitForMessage(ws2);
     await waitForOpen(ws2);
-    assert.deepEqual(await replay2, broker.replay[0]);
+    await assertNoMessage(ws2);
+    assert.deepEqual(broker.subscribeOptions, [{ replay: false }, { replay: false }]);
     ws2.close();
+  });
+});
+
+test('REQ-003-B04/REQ-003-B06: replay 参数与大型历史缓冲不能触发历史字节发送', async () => {
+  await withServer(async ({ server, broker }) => {
+    broker.replay = [Buffer.alloc(1024 * 1024, 65)];
+    const attachment = server.createAttachment('rt_1');
+    const ws = new WebSocket(attachment.url + '&replay=true&unknown=value');
+    await waitForOpen(ws);
+    await assertNoMessage(ws);
+    assert.deepEqual(broker.subscribeOptions, [{ replay: false }]);
+
+    const live = waitForMessage(ws);
+    broker.emitOutput('live');
+    assert.deepEqual(await live, Buffer.from('live'));
+    ws.close();
   });
 });
 
@@ -169,9 +200,8 @@ test('REQ-002-B04/REQ-006-B01: 仅 loopback 且 token 正确可 attach，token �
     await waitForClose(rejected);
 
     const ok = new WebSocket(attachment.url);
-    const replay = waitForMessage(ok);
     await waitForOpen(ok);
-    await replay;
+    await assertNoMessage(ok);
     ok.close();
 
     const logText = JSON.stringify(logs);
@@ -183,9 +213,8 @@ test('REQ-002-B06: 未知或畸形协议消息关闭当前连接且不影响 run
   await withServer(async ({ server, broker }) => {
     const attachment = server.createAttachment('rt_1');
     const ws = new WebSocket(attachment.url);
-    const replay = waitForMessage(ws);
     await waitForOpen(ws);
-    await replay;
+    await assertNoMessage(ws);
     ws.send(JSON.stringify({ type: 'unknown' }));
     await waitForClose(ws);
 

@@ -216,7 +216,7 @@ class ClaudeBridgeSidecar {
     });
     unsubscribe = this.subscribeOutput(runtimeId, (chunk) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
-    }, { replay: true });
+    }, { replay: false });
   }
 
   _authorize(options) {

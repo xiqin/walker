@@ -161,7 +161,7 @@ class ClaudeAttachServer {
       try {
         unsubscribe = this.broker.subscribeOutput(runtimeId, (chunk) => {
           if (ws.readyState === WebSocket.OPEN) ws.send(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
-        }, { replay: true });
+        }, { replay: false });
       } catch (err) {
         closeWithError(err.message);
       }

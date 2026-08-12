@@ -1,0 +1,37 @@
+{
+  "covered_behaviors": [
+    "REQ-003-B01",
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-003-B04",
+    "REQ-003-B05",
+    "REQ-003-B06",
+    "REQ-007-B02"
+  ],
+  "validation": [
+    "node --test test/claude-bridge-sidecar.test.js PASS 6/6",
+    "node --test test/claude-attach.test.js test/claude-attach-command.test.js test/cli-claude-attach.test.js PASS 18/18",
+    "npm test PASS 1511/1511"
+  ],
+  "status": "done",
+  "summary": "T1 attach 无历史回放已扩展覆盖标准 ClaudeAttachServer 与 ClaudeBridgeSidecar：两条 attach WebSocket 路径均固定 subscribeOutput(...,{replay:false})，客户端 replay 参数不能覆盖，连接后只转发实时输出；桥接 sidecar 漏点已在 code-review-request 预检中修复并补 test/claude-bridge-sidecar.test.js。",
+  "artifacts": [
+    "src/drivers/claude-attach-server.js",
+    "src/drivers/claude-bridge-sidecar.js",
+    "test/claude-attach.test.js",
+    "test/claude-bridge-sidecar.test.js"
+  ],
+  "task_id": "T1",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8",
+    "tasks/T1.md": "618364f1869e8323b6b74d527032d4cf9fd684966e95e38796063561c4be5323"
+  },
+  "artifact_fingerprints": {
+    "src/drivers/claude-attach-server.js": "bf789afe0b9d365a47ab30bbb0deb00b43255944c375000f7023092fb2ce4106",
+    "src/drivers/claude-bridge-sidecar.js": "d297fb2da75e4e4566224802b1fdcda8338f0593431d99240c0416bd77f671cd",
+    "test/claude-attach.test.js": "1cfe96d1871d318a54cce9f1f8d3d2e63f96334c3f421a30797d35fa539ace59",
+    "test/claude-bridge-sidecar.test.js": "4883e5b8d5dc6f070f5aa12b15a9893f5b9ea7a9446e948eb054e3f02fb5d0a8"
+  },
+  "written_at": "2026-08-12T11:14:25.268Z"
+}

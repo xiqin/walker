@@ -1,0 +1,27 @@
+{
+  "requirements": 7,
+  "behaviors": 39,
+  "expanded_behaviors": [],
+  "blocked_behaviors": [],
+  "validation": {
+    "ok": true,
+    "missing_category": 0,
+    "missing_test_plan": 0,
+    "requires_clarification": 0,
+    "placeholder_descriptions": 0
+  },
+  "status": "done",
+  "summary": "已检查 7 个 REQ、39 个 behavior；所有 required_categories 均有对应行为，每条行为都有具体 description、acceptance 与 test_plan，无 requires-clarification、占位描述或遗漏维度，无需修改已批准 requirements.json。",
+  "artifacts": [
+    "requirements.json"
+  ],
+  "stage": "detail-expansion",
+  "task_id": "detail-expansion",
+  "basis_fingerprints": {
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "1e2c8f3215ab71f2cf51c2ad052f78664c427035936b7af5b6a504987c104cfc"
+  },
+  "written_at": "2026-08-12T09:32:49.155Z"
+}

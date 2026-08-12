@@ -93,6 +93,43 @@ test('REQ-001-B04/REQ-005-B02: resumeRuntime 使用 --resume 且不使用 --cont
   assert.equal(resumed.processGeneration, 2);
 });
 
+test('REQ-001-B01/REQ-002-B01: createRuntime 和 resumeRuntime 使用调用方提供的完整 launchArgs', () => {
+  const { broker, ptyFactory } = createBroker();
+  const created = broker.createRuntime({
+    claudeSessionId: '22222222-2222-4222-8222-222222222222',
+    launchArgs: ['--session-id', '22222222-2222-4222-8222-222222222222', '--model', 'sonnet', '--allowed-tools', 'Read'],
+  });
+  broker.resumeRuntime({
+    runtimeId: created.runtimeId,
+    claudeSessionId: created.claudeSessionId,
+    launchArgs: ['--resume', created.claudeSessionId, '--model', 'sonnet', '--allowed-tools', 'Read'],
+  });
+
+  assert.deepEqual(ptyFactory.calls[0].args, ['--session-id', '22222222-2222-4222-8222-222222222222', '--model', 'sonnet', '--allowed-tools', 'Read']);
+  assert.deepEqual(ptyFactory.calls[1].args, ['--resume', '22222222-2222-4222-8222-222222222222', '--model', 'sonnet', '--allowed-tools', 'Read']);
+  assert.equal(ptyFactory.calls[0].args.includes('--print'), false);
+  assert.equal(ptyFactory.calls[1].args.includes('--continue'), false);
+});
+
+test('REQ-001-B03/REQ-001-B04: resume spawn 失败时保留旧 active runtime', () => {
+  const failOnSecondSpawn = createFakePtyFactory();
+  const originalSpawn = failOnSecondSpawn.spawn.bind(failOnSecondSpawn);
+  failOnSecondSpawn.spawn = (command, args, options) => {
+    if (failOnSecondSpawn.calls.length === 1) throw new Error('ConPTY unavailable token=bad');
+    return originalSpawn(command, args, options);
+  };
+  const { broker, ptyFactory } = createBroker({ ptyFactory: failOnSecondSpawn });
+  const created = broker.createRuntime({ claudeSessionId: '22222222-2222-4222-8222-222222222222' });
+  const oldProc = ptyFactory.processes[0];
+
+  assert.throws(() => broker.resumeRuntime({ runtimeId: created.runtimeId, claudeSessionId: created.claudeSessionId }), /ConPTY unavailable/);
+
+  const snapshot = broker.getRuntime(created.runtimeId);
+  assert.equal(snapshot.status, 'active');
+  assert.equal(snapshot.processGeneration, 1);
+  assert.deepEqual(oldProc.kills, []);
+});
+
 test('REQ-001-B04/REQ-005-B02: resumeRuntime 将传入 processGeneration 作为基线并保证递增', () => {
   const { broker } = createBroker();
   const created = broker.createRuntime({ claudeSessionId: '22222222-2222-4222-8222-222222222222' });

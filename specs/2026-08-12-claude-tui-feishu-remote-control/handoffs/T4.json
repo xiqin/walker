@@ -1,0 +1,27 @@
+{
+  "validation": {
+    "targeted": "T4/OpenCode targeted PASS 179/179",
+    "latest_npm_test": "PASS 1511/1511"
+  },
+  "status": "done",
+  "summary": "T4 仍完成：claude/kscc 参数化与 OpenCode 回归边界通过，验证不使用 --print/--background/--remote-control/stream-json，保留 endpoint/auth 环境，OpenCode 生产路径无行为性修改。code-review-request 预检后 plan.md 更新为纳入 bridge sidecar attach replay 修复；T4 代码/测试事实不变，最新 npm test PASS 1511/1511。",
+  "artifacts": [
+    "test/claude-tool-parity.integration.test.js",
+    "test/claude-attach-command.test.js",
+    "test/cli-claude-attach.test.js",
+    "plan.md"
+  ],
+  "task_id": "T4",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8",
+    "tasks/T4.md": "152883d9507acbd9054dc9b99e58e8cd3ffb30b1e17ea37cfb297fbf3c7cf173"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "test/claude-attach-command.test.js": "399d726691ced2aae0a1585f5fc24ff2593d82577a6ad841085ba1fcb90197b7",
+    "test/claude-tool-parity.integration.test.js": "389c3cd49810137e6252a3e15f108803373eb0d7ad4f83f18c9893177525978a",
+    "test/cli-claude-attach.test.js": "07013db5ff37025c5c0fd29441646750acbbb59844901b88dc30dcaf16a97e05"
+  },
+  "written_at": "2026-08-12T13:10:55.625Z"
+}

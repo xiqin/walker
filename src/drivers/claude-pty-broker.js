@@ -27,7 +27,7 @@ class ClaudePtyBroker {
     const runtimeId = opts.runtimeId || this.idFactory();
     if (this.runtimes.has(runtimeId)) throw new Error('runtime already exists: ' + runtimeId);
     const record = this._createRecord(runtimeId, opts.claudeSessionId, 1, opts);
-    this._spawn(record, ['--session-id', opts.claudeSessionId], opts);
+    this._spawn(record, this._launchArgs(opts, ['--session-id', opts.claudeSessionId]), opts);
     this.runtimes.set(runtimeId, record);
     this._registerBridgeRuntime(record);
     this._log('info', 'claude pty runtime created', record, { queueDepth: record.pending.size });
@@ -40,18 +40,15 @@ class ClaudePtyBroker {
     const existing = this.runtimes.get(runtimeId);
     const baselineGeneration = opts.processGeneration || 0;
     const generation = existing ? Math.max(existing.processGeneration, baselineGeneration) + 1 : (baselineGeneration ? baselineGeneration + 1 : 1);
-    const record = existing || this._createRecord(runtimeId, opts.claudeSessionId, generation, opts);
+    const record = existing ? this._createRecord(runtimeId, opts.claudeSessionId || existing.claudeSessionId, generation, { ...opts, cwd: opts.cwd || existing.cwd }) : this._createRecord(runtimeId, opts.claudeSessionId, generation, opts);
     if (existing) {
-      if (existing.runtime) existing.runtime.kill('SIGTERM');
-      existing.processGeneration = generation;
-      existing.claudeSessionId = opts.claudeSessionId || existing.claudeSessionId;
-      existing.cwd = opts.cwd || existing.cwd;
-      existing.env = { ...this.env, ...(opts.env || {}) };
-      existing.status = 'starting';
-      existing.error = null;
-      existing.stopped = false;
+      record.replay = existing.replay;
+      record.replayBytes = existing.replayBytes;
+      record.subscribers = existing.subscribers;
+      record.pending = existing.pending;
     }
-    this._spawn(record, ['--resume', record.claudeSessionId], opts);
+    this._spawn(record, this._launchArgs(opts, ['--resume', record.claudeSessionId]), opts);
+    if (existing && existing.runtime) existing.runtime.kill('SIGTERM');
     this.runtimes.set(runtimeId, record);
     this._registerBridgeRuntime(record);
     this._log('info', 'claude pty runtime resumed', record, { queueDepth: record.pending.size });
@@ -181,6 +178,10 @@ class ClaudePtyBroker {
       this._log('error', 'claude pty runtime spawn failed', record, { queueDepth: record.pending.size, err });
       throw err;
     }
+  }
+
+  _launchArgs(opts, fallback) {
+    return Array.isArray(opts.launchArgs) && opts.launchArgs.length > 0 ? opts.launchArgs.slice() : fallback;
   }
 
   _handleData(record, chunk) {

@@ -1,0 +1,36 @@
+{
+  "verdict": "PASS",
+  "validation": {
+    "loom_verify_artifacts": "ok:true",
+    "npm_test": "PASS 1511/1511",
+    "convergence": "round 2, behavior coverage 100%, blocker_count 0"
+  },
+  "evidence_receipt": {
+    "command": "loom_verify_artifacts + artifact checks",
+    "exit_code": 0,
+    "file": "evidence/verification.log",
+    "sha256": "41909C2141045EFEE90415D472F66A7681C682006CA3FBCF08BCA39D7BFABE94"
+  },
+  "residual_risks": [],
+  "status": "done",
+  "summary": "Verification 已同步 bridge sidecar 预检修复后的最新证据：verify-report.md 记录 PASS，npm test PASS 1511/1511，loom_verify_artifacts ok:true，traceability 7 REQ/39 behavior tests/evidence 完整，convergence round 2 100% covered，verification.log 当前 sha256 为 41909C2141045EFEE90415D472F66A7681C682006CA3FBCF08BCA39D7BFABE94；verify-report.md receipt 已更新到该哈希。",
+  "artifacts": [
+    "verify-report.md",
+    "evidence/verification.log",
+    "test-report.md",
+    "traceability.json"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8",
+    "test-report.md": "f5427d0975f6804db833350392de30bbda68cd064434fa515241c6a8439719e1"
+  },
+  "artifact_fingerprints": {
+    "evidence/verification.log": "41909c2141045efee90415d472f66a7681c682006ca3fbcf08bca39d7bfabe94",
+    "test-report.md": "f5427d0975f6804db833350392de30bbda68cd064434fa515241c6a8439719e1",
+    "verify-report.md": "2216a0440f08b992d7007bd24c26087b91d21c538ebe1a77e93b2da32e2f9937"
+  },
+  "written_at": "2026-08-12T11:14:25.536Z"
+}

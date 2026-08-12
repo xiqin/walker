@@ -1,0 +1,52 @@
+{
+  "pre_review": {
+    "standards_findings_unresolved": 0,
+    "spec_findings_unresolved": 0,
+    "fixed_during_precheck": [
+      "src/drivers/claude-bridge-sidecar.js attach subscribeOutput replay:false",
+      "test/claude-bridge-sidecar.test.js replay-disabled coverage"
+    ],
+    "validation": [
+      "node --test test/claude-bridge-sidecar.test.js PASS 6/6",
+      "node --test test/claude-attach.test.js test/claude-attach-command.test.js test/cli-claude-attach.test.js PASS 18/18",
+      "npm test PASS 1511/1511",
+      "loom_validate_plan ok:true",
+      "loom tasks --validate PASS",
+      "loom_verify_artifacts ok:true",
+      "loom_converge round 2 ok:true"
+    ]
+  },
+  "review_basis": "current working tree diff against HEAD",
+  "dirty_worktree_note": "workspace contains non-feature concurrent/uncommitted changes; review request separates core feature files from other changes",
+  "status": "done",
+  "summary": "已生成代码审查请求。预审查采用当前工作树相对 HEAD 的本地 diff；Standards 与 Spec 双轴均无未解决 blocker。预检期间发现并修复 bridge sidecar attach replay 漏点，已纳入 T1/plan/traceability/test-report/verify-report/evidence，并复跑 npm test PASS 1511/1511、loom_validate_plan PASS、loom tasks --validate PASS、loom_verify_artifacts PASS、loom_converge round 2 PASS。review-request.md 明确核心功能 diff、并存的非本功能工作区改动、自测证据、审查重点和边界。",
+  "artifacts": [
+    "review-request.md",
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json",
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "handoffs/T1.json",
+    "handoffs/planning.json",
+    "handoffs/executing.json",
+    "handoffs/converge.json",
+    "handoffs/verification.json"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "review-request.md": "64eb115fc6012c370857223f4286c9bb90ac1abbc9e9d3aa4fe7b245dbe42979",
+    "tasks/T1.md": "618364f1869e8323b6b74d527032d4cf9fd684966e95e38796063561c4be5323",
+    "tasks/T2.md": "90d1c8f560074833fa6c16c3fc59ccc0e1db6854502bae0d2e958489131327cc",
+    "test-report.md": "f5427d0975f6804db833350392de30bbda68cd064434fa515241c6a8439719e1",
+    "verify-report.md": "2216a0440f08b992d7007bd24c26087b91d21c538ebe1a77e93b2da32e2f9937"
+  },
+  "written_at": "2026-08-12T11:15:52.031Z"
+}

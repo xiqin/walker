@@ -1,0 +1,25 @@
+{
+  "validation": {
+    "targeted": "node --test test/claude-tui-reconnect.integration.test.js PASS 7/7",
+    "latest_npm_test": "PASS 1511/1511"
+  },
+  "status": "done",
+  "summary": "T3 仍完成：飞书恢复集成闭环覆盖 bridge reconnect、fallback 恢复、并发飞书消息共享一次 resumeRuntime 且不开窗口、agentRef 持久化错误路径零 PTY 写入并发送脱敏错误卡片。code-review-request 预检后 plan.md 更新为纳入 bridge sidecar attach replay 修复；T3 代码/测试事实不变，最新 npm test PASS 1511/1511。",
+  "artifacts": [
+    "test/claude-tui-reconnect.integration.test.js",
+    "src/dispatch/message-dispatcher.js",
+    "plan.md"
+  ],
+  "task_id": "T3",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8",
+    "tasks/T3.md": "fa5c1f9f9852b6a8b4eebcb88a383c9818ba4ea89416dd4174eefa0bea7fc5fb"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "src/dispatch/message-dispatcher.js": "768b17cdc12abc190b5cf7d241f1481144c9aace73d6a73a8839b346df12083a",
+    "test/claude-tui-reconnect.integration.test.js": "11f500c62c67c000f43b6efbe5a76f8578eed0985a1a13fc7576d57772ea58c0"
+  },
+  "written_at": "2026-08-12T13:10:55.608Z"
+}

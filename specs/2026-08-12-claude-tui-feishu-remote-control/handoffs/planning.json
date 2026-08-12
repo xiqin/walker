@@ -1,0 +1,32 @@
+{
+  "validation": [
+    "loom_validate_plan ok:true",
+    "loom tasks --validate: No file conflicts detected across 4 tasks"
+  ],
+  "post_planning_update": "Bridge sidecar attach replay fix folded into T1 ownership and plan interface constraints.",
+  "status": "done",
+  "summary": "规划已同步 code-review-request 预检修复：T1 owns 扩展到 src/drivers/claude-bridge-sidecar.js 与 test/claude-bridge-sidecar.test.js，plan 明确 ClaudeAttachServer 与 ClaudeBridgeSidecar attach 都必须固定 replay:false；T2 reads 移除前置 task 独占文件以满足 loom tasks 机械冲突检测。4 个 task 仍为 T1→T2→T3→T4 串行，7 REQ/39 behavior 映射不变。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "traceability.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8",
+    "tasks/": "fa3a5546785315e89bf2aefa2dd525cc5617d68a176451c1d6a98fafcd062b47"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "tasks/T1.md": "618364f1869e8323b6b74d527032d4cf9fd684966e95e38796063561c4be5323",
+    "tasks/T2.md": "90d1c8f560074833fa6c16c3fc59ccc0e1db6854502bae0d2e958489131327cc",
+    "tasks/T3.md": "fa5c1f9f9852b6a8b4eebcb88a383c9818ba4ea89416dd4174eefa0bea7fc5fb",
+    "tasks/T4.md": "152883d9507acbd9054dc9b99e58e8cd3ffb30b1e17ea37cfb297fbf3c7cf173"
+  },
+  "written_at": "2026-08-12T11:14:25.294Z"
+}

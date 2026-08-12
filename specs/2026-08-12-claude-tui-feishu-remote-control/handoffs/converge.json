@@ -1,0 +1,26 @@
+{
+  "round": 2,
+  "coverage": {
+    "behavior_coverage": "100%",
+    "missing_count": 0,
+    "partial_count": 0,
+    "contradicts_count": 0,
+    "unrequested_count": 0
+  },
+  "blocker_count": 0,
+  "new_tasks": [],
+  "status": "done",
+  "summary": "Converge 已在 bridge sidecar 修复与 traceability 更新后复跑 round 2 并收敛：7 REQ/39 behavior 全部 covered，missing/partial/contradicts/unrequested 均为 0，findings 空，behavior_coverage 100%，blocker_count 0。",
+  "artifacts": [
+    "convergence-report.json",
+    "findings/omission-hunter.json"
+  ],
+  "stage": "converge",
+  "task_id": "converge",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-08-12T11:14:25.510Z"
+}
