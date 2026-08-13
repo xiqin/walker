@@ -68,6 +68,43 @@ function resolveWalkerDataDir(env, homeDir) {
   return value;
 }
 
+function createConfigError(key, message) {
+  return new Error(`${key} ${message}`);
+}
+
+function parseListValue(key, val, defaultVal) {
+  if (val === undefined || val === '') return defaultVal.slice();
+  const text = String(val).trim();
+  if (!text) return defaultVal.slice();
+  if (text.startsWith('[')) {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (_err) {
+      throw createConfigError(key, 'must be valid JSON array');
+    }
+    if (!Array.isArray(parsed)) throw createConfigError(key, 'must be a list');
+    if (!parsed.every((item) => typeof item === 'string')) throw createConfigError(key, 'must contain only strings');
+    return parsed.map((item) => item.trim()).filter(Boolean);
+  }
+  if (text.startsWith('{')) throw createConfigError(key, 'must be a list');
+  return text.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function parseJsonObjectValue(key, val, defaultVal) {
+  if (val === undefined || val === '') return { ...defaultVal };
+  const text = String(val).trim();
+  if (!text) return { ...defaultVal };
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (_err) {
+    throw createConfigError(key, 'must be valid JSON object');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw createConfigError(key, 'must be a JSON object');
+  return parsed;
+}
+
 /**
  * 加载环境配置，从环境变量 / .env 文件读取飞书凭据
  * @param {Object} options - 配置选项
@@ -95,10 +132,19 @@ function loadEnvConfig(options) {
    * @param {boolean} defaultVal - 当值为空时的默认返回值
    * @returns {boolean} 解析后的布尔值
    */
-  function parseBool(val, defaultVal) {
+  function parseBool(val, defaultVal, key) {
     if (val === undefined || val === '') return defaultVal;
     const s = String(val).toLowerCase();
-    return s === 'true' || s === '1' || s === 'yes';
+    if (s === 'true' || s === '1' || s === 'yes') return true;
+    if (s === 'false' || s === '0' || s === 'no') return false;
+    if (key) throw createConfigError(key, 'must be boolean');
+    return false;
+  }
+
+  function parseClaudePermissionMode(val) {
+    const text = val === undefined ? '' : String(val).trim();
+    if (!text || text === 'default') return '';
+    return text;
   }
 
   /**
@@ -148,10 +194,22 @@ function loadEnvConfig(options) {
     claudeModel: env.CLAUDE_MODEL || '',
     claudeFallbackModel: env.CLAUDE_FALLBACK_MODEL || '',
     claudeAgent: env.CLAUDE_AGENT || '',
-    claudePermissionMode: env.CLAUDE_PERMISSION_MODE || 'default',
+    claudePermissionMode: parseClaudePermissionMode(env.CLAUDE_PERMISSION_MODE),
+    claudePermissionModeMigrated: env.CLAUDE_PERMISSION_MODE === 'default',
     claudeAllowedTools: env.CLAUDE_ALLOWED_TOOLS || '',
     claudeDisallowedTools: env.CLAUDE_DISALLOWED_TOOLS || '',
     claudeConfigDir: env.CLAUDE_CONFIG_DIR || '',
+    claudeTools: parseListValue('CLAUDE_TOOLS', env.CLAUDE_TOOLS, []),
+    claudeAgents: parseJsonObjectValue('CLAUDE_AGENTS', env.CLAUDE_AGENTS, {}),
+    claudeMcpConfigs: parseListValue('CLAUDE_MCP_CONFIGS', env.CLAUDE_MCP_CONFIGS, []),
+    claudeStrictMcpConfig: parseBool(env.CLAUDE_STRICT_MCP_CONFIG, false, 'CLAUDE_STRICT_MCP_CONFIG'),
+    claudeSettingsFile: env.CLAUDE_SETTINGS_FILE || '',
+    claudeSettingSources: parseListValue('CLAUDE_SETTING_SOURCES', env.CLAUDE_SETTING_SOURCES, []),
+    claudePluginDirs: parseListValue('CLAUDE_PLUGIN_DIRS', env.CLAUDE_PLUGIN_DIRS, []),
+    claudeBare: parseBool(env.CLAUDE_BARE, false, 'CLAUDE_BARE'),
+    claudeSafeMode: parseBool(env.CLAUDE_SAFE_MODE, false, 'CLAUDE_SAFE_MODE'),
+    claudeDisableSlashCommands: parseBool(env.CLAUDE_DISABLE_SLASH_COMMANDS, false, 'CLAUDE_DISABLE_SLASH_COMMANDS'),
+    claudeAllowBypassPermissions: parseBool(env.CLAUDE_ALLOW_BYPASS_PERMISSIONS, false, 'CLAUDE_ALLOW_BYPASS_PERMISSIONS'),
     claudePromptTimeoutMs: parsePositiveInt(env.CLAUDE_PROMPT_TIMEOUT_MS, 120000),
     feishuProgressStyle: env.FEISHU_PROGRESS_STYLE || 'card',
     feishuReactionEmoji: normalizeEmoji(env.FEISHU_REACTION_EMOJI, 'OnIt'),

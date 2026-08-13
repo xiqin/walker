@@ -93,7 +93,20 @@ function validateEnvValue(key, value) {
       if (!['cancel', 'stop', 'none'].includes(text)) throw new Error(`${key} 值无效`);
       return text;
     case 'claude-permission-mode':
-      if (!['default', 'acceptEdits', 'auto', 'dontAsk', 'plan'].includes(text)) throw new Error(`${key} 值无效`);
+      if (text === 'default') return '';
+      if (!['', 'acceptEdits', 'auto', 'manual', 'dontAsk', 'plan', 'bypassPermissions'].includes(text)) throw new Error(`${key} 值无效`);
+      return text;
+    case 'list':
+      validateListText(key, text);
+      return text;
+    case 'enum-list':
+      validateListText(key, text, ['user', 'project', 'local']);
+      return text;
+    case 'json-list':
+      validateJsonListText(key, text);
+      return text;
+    case 'json-object':
+      validateJsonObjectText(key, text);
       return text;
     case 'url':
       if (text) {
@@ -107,6 +120,42 @@ function validateEnvValue(key, value) {
       return text;
     default:
       return text;
+  }
+}
+
+function validateListText(key, text, allowedValues) {
+  if (!text) return;
+  const items = text.split(',').map((item) => item.trim()).filter(Boolean);
+  if (items.length === 0) throw new Error(`${key} 必须为逗号分隔列表`);
+  if (allowedValues) {
+    const allowed = new Set(allowedValues);
+    if (!items.every((item) => allowed.has(item))) throw new Error(`${key} 值无效`);
+  }
+}
+
+function validateJsonListText(key, text) {
+  if (!text) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (_err) {
+    throw new Error(`${key} 必须为 JSON 字符串数组`);
+  }
+  if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === 'string')) {
+    throw new Error(`${key} 必须为 JSON 字符串数组`);
+  }
+}
+
+function validateJsonObjectText(key, text) {
+  if (!text) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (_err) {
+    throw new Error(`${key} 必须为 JSON object`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`${key} 必须为 JSON object`);
   }
 }
 

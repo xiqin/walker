@@ -62,9 +62,14 @@ test('REQ-001-B01 和 REQ-007-B03: Claude catalog 声明真实 CLI driver 能力
     tui: true,
     http: false,
     models: true,
-    permissions: true,
+    permissions: false,
     window: true,
+    questionReply: false,
   });
+  assert.equal(claude.capabilityStatus.permissions.status, 'degraded');
+  assert.match(claude.capabilityStatus.permissions.reason, /OpenCode allow\/ask\/deny/);
+  assert.equal(claude.capabilityStatus.questionReply.status, 'unsupported');
+  assert.equal(claude.capabilityStatus.models.status, 'supported');
   assert.ok(claude.configKeys.includes('CLAUDE_CMD'));
   assert.ok(claude.configKeys.includes('CLAUDE_MODEL'));
   assert.ok(claude.configKeys.includes('CLAUDE_FALLBACK_MODEL'));
@@ -73,7 +78,39 @@ test('REQ-001-B01 和 REQ-007-B03: Claude catalog 声明真实 CLI driver 能力
   assert.ok(claude.configKeys.includes('CLAUDE_ALLOWED_TOOLS'));
   assert.ok(claude.configKeys.includes('CLAUDE_DISALLOWED_TOOLS'));
   assert.ok(claude.configKeys.includes('CLAUDE_CONFIG_DIR'));
+  assert.ok(claude.configKeys.includes('CLAUDE_TOOLS'));
+  assert.ok(claude.configKeys.includes('CLAUDE_AGENTS'));
+  assert.ok(claude.configKeys.includes('CLAUDE_MCP_CONFIGS'));
+  assert.ok(claude.configKeys.includes('CLAUDE_STRICT_MCP_CONFIG'));
+  assert.ok(claude.configKeys.includes('CLAUDE_SETTINGS_FILE'));
+  assert.ok(claude.configKeys.includes('CLAUDE_SETTING_SOURCES'));
+  assert.ok(claude.configKeys.includes('CLAUDE_PLUGIN_DIRS'));
+  assert.ok(claude.configKeys.includes('CLAUDE_BARE'));
+  assert.ok(claude.configKeys.includes('CLAUDE_SAFE_MODE'));
+  assert.ok(claude.configKeys.includes('CLAUDE_DISABLE_SLASH_COMMANDS'));
+  assert.ok(claude.configKeys.includes('CLAUDE_ALLOW_BYPASS_PERMISSIONS'));
   assert.ok(claude.configKeys.includes('CLAUDE_PROMPT_TIMEOUT_MS'));
+});
+
+test('REQ-005-B05: provider capabilityStatus 区分 supported/degraded/unsupported 且 OpenCode 保持权限支持', () => {
+  const providers = new Map(listProviderCatalog().map((item) => [item.id, item]));
+  const opencode = providers.get('opencode');
+  const claude = providers.get('claude');
+
+  assert.equal(opencode.capabilities.permissions, true);
+  assert.equal(opencode.capabilities.questionReply, true);
+  assert.equal(opencode.capabilityStatus.permissions.status, 'supported');
+  assert.equal(opencode.capabilityStatus.questionReply.status, 'supported');
+  assert.equal(claude.capabilities.permissions, false);
+  assert.equal(claude.capabilities.questionReply, false);
+  assert.equal(claude.capabilityStatus.permissions.status, 'degraded');
+  assert.equal(claude.capabilityStatus.questionReply.status, 'unsupported');
+  for (const provider of providers.values()) {
+    for (const detail of Object.values(provider.capabilityStatus)) {
+      assert.ok(['supported', 'degraded', 'unsupported'].includes(detail.status));
+      assert.equal(typeof detail.reason, 'string');
+    }
+  }
 });
 
 test('REQ-001-B02: 未知 provider 返回明确 NOT_FOUND 且不调用检测依赖', async () => {

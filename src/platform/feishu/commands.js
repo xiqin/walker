@@ -1,7 +1,7 @@
 /** Walker 支持的命令定义表，包含描述和使用方式 */
 const COMMANDS = {
   new: { desc: '创建新会话', usage: '/new [agent] [title] [--cwd <path>]' },
-  attach: { desc: '发现并纳入已有 OpenCode 会话', usage: '/attach' },
+  attach: { desc: '发现并纳入已有会话(OpenCode 或 Claude)', usage: '/attach | /attach claude [session_id]' },
   list: { desc: '列出所有会话', usage: '/list' },
   use: { desc: '绑定当前对话到指定会话', usage: '/use <session_id> | /use off' },
   current: { desc: '查看当前绑定的会话', usage: '/current' },

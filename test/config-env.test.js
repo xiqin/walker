@@ -24,10 +24,22 @@ test('loadEnvConfig 默认值正常', () => {
   assert.equal(config.claudeModel, '');
   assert.equal(config.claudeFallbackModel, '');
   assert.equal(config.claudeAgent, '');
-  assert.equal(config.claudePermissionMode, 'default');
+  assert.equal(config.claudePermissionMode, '');
+  assert.equal(config.claudePermissionModeMigrated, false);
   assert.equal(config.claudeAllowedTools, '');
   assert.equal(config.claudeDisallowedTools, '');
   assert.equal(config.claudeConfigDir, '');
+  assert.deepEqual(config.claudeTools, []);
+  assert.deepEqual(config.claudeAgents, {});
+  assert.deepEqual(config.claudeMcpConfigs, []);
+  assert.equal(config.claudeStrictMcpConfig, false);
+  assert.equal(config.claudeSettingsFile, '');
+  assert.deepEqual(config.claudeSettingSources, []);
+  assert.deepEqual(config.claudePluginDirs, []);
+  assert.equal(config.claudeBare, false);
+  assert.equal(config.claudeSafeMode, false);
+  assert.equal(config.claudeDisableSlashCommands, false);
+  assert.equal(config.claudeAllowBypassPermissions, false);
   assert.equal(config.claudePromptTimeoutMs, 120000);
   assert.equal(config.feishuProgressStyle, 'card');
   assert.equal(config.feishuReactionEmoji, 'OnIt');
@@ -61,6 +73,17 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
     CLAUDE_ALLOWED_TOOLS: 'Read,Grep',
     CLAUDE_DISALLOWED_TOOLS: 'Bash',
     CLAUDE_CONFIG_DIR: 'C:\\claude',
+    CLAUDE_TOOLS: '["Read","Grep"]',
+    CLAUDE_AGENTS: '{"reviewer":{"model":"opus"}}',
+    CLAUDE_MCP_CONFIGS: '["C:/mcp/a.json","C:/mcp/b.json"]',
+    CLAUDE_STRICT_MCP_CONFIG: 'true',
+    CLAUDE_SETTINGS_FILE: 'C:\\claude\\settings.json',
+    CLAUDE_SETTING_SOURCES: 'user,project',
+    CLAUDE_PLUGIN_DIRS: 'C:/plugins/a,C:/plugins/b',
+    CLAUDE_BARE: '1',
+    CLAUDE_SAFE_MODE: 'yes',
+    CLAUDE_DISABLE_SLASH_COMMANDS: 'true',
+    CLAUDE_ALLOW_BYPASS_PERMISSIONS: 'false',
     CLAUDE_PROMPT_TIMEOUT_MS: '45000',
     FEISHU_PROGRESS_STYLE: 'compact',
     FEISHU_REACTION_EMOJI: 'ThumbsUp',
@@ -92,6 +115,17 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
   assert.equal(config.claudeAllowedTools, 'Read,Grep');
   assert.equal(config.claudeDisallowedTools, 'Bash');
   assert.equal(config.claudeConfigDir, 'C:\\claude');
+  assert.deepEqual(config.claudeTools, ['Read', 'Grep']);
+  assert.deepEqual(config.claudeAgents, { reviewer: { model: 'opus' } });
+  assert.deepEqual(config.claudeMcpConfigs, ['C:/mcp/a.json', 'C:/mcp/b.json']);
+  assert.equal(config.claudeStrictMcpConfig, true);
+  assert.equal(config.claudeSettingsFile, 'C:\\claude\\settings.json');
+  assert.deepEqual(config.claudeSettingSources, ['user', 'project']);
+  assert.deepEqual(config.claudePluginDirs, ['C:/plugins/a', 'C:/plugins/b']);
+  assert.equal(config.claudeBare, true);
+  assert.equal(config.claudeSafeMode, true);
+  assert.equal(config.claudeDisableSlashCommands, true);
+  assert.equal(config.claudeAllowBypassPermissions, false);
   assert.equal(config.claudePromptTimeoutMs, 45000);
   assert.equal(config.feishuProgressStyle, 'compact');
   assert.equal(config.feishuReactionEmoji, 'ThumbsUp');
@@ -320,4 +354,41 @@ test('loadEnvConfig lease 为 0 时不校验 heartbeat 与 lease 关系', () => 
   });
   assert.equal(config.opencodeTuiLeaseTimeoutMs, 0);
   assert.equal(config.opencodeTuiHeartbeatIntervalMs, 30000);
+});
+
+test('REQ-006-B02: Claude JSON 配置错误只暴露配置键和值类型', () => {
+  assert.throws(
+    () => loadEnvConfig({ env: { CLAUDE_MCP_CONFIGS: '["C:/safe", "SECRET_RAW_VALUE"' } }),
+    (err) => err.message.includes('CLAUDE_MCP_CONFIGS') && !err.message.includes('SECRET_RAW_VALUE'),
+  );
+  assert.throws(
+    () => loadEnvConfig({ env: { CLAUDE_TOOLS: '{"tool":"Read"}' } }),
+    /CLAUDE_TOOLS must be a list/,
+  );
+  assert.throws(
+    () => loadEnvConfig({ env: { CLAUDE_AGENTS: '["reviewer"]' } }),
+    /CLAUDE_AGENTS must be a JSON object/,
+  );
+});
+
+test('REQ-003-B05/REQ-006-B02: 旧 default 权限模式和非法 Claude 布尔值安全处理', () => {
+  const migrated = loadEnvConfig({ env: { CLAUDE_PERMISSION_MODE: 'default' } });
+  assert.equal(migrated.claudePermissionMode, '');
+  assert.equal(migrated.claudePermissionModeMigrated, true);
+  assert.throws(
+    () => loadEnvConfig({ env: { CLAUDE_SAFE_MODE: 'SECRET_RAW_VALUE' } }),
+    (err) => err.message.includes('CLAUDE_SAFE_MODE') && !err.message.includes('SECRET_RAW_VALUE'),
+  );
+});
+
+test('REQ-006-B05: 旧最小 Claude 配置未使用新增字段仍可加载', () => {
+  const config = loadEnvConfig({ env: { CLAUDE_CMD: 'claude', CLAUDE_ALLOWED_TOOLS: 'Read', CLAUDE_DISALLOWED_TOOLS: 'Bash', CLAUDE_CONFIG_DIR: 'C:/transcripts' } });
+  assert.equal(config.claudeCmd, 'claude');
+  assert.equal(config.claudeAllowedTools, 'Read');
+  assert.equal(config.claudeDisallowedTools, 'Bash');
+  assert.equal(config.claudeConfigDir, 'C:/transcripts');
+  assert.deepEqual(config.claudeTools, []);
+  assert.deepEqual(config.claudeAgents, {});
+  assert.deepEqual(config.claudeMcpConfigs, []);
+  assert.equal(config.claudeSafeMode, false);
 });

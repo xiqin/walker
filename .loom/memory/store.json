@@ -1,6 +1,38 @@
 {
   "entries": [
     {
+      "id": "1efa911d",
+      "type": "决策",
+      "content": "飞书引用回复会话路由采用消息级持久索引：SessionService 维护 platformMessages.feishu，出站飞书消息绑定 sessionId/routeKey/chatId，入站 parentId 命中时一次性投递到映射会话且不切换 route 焦点；未命中保持当前焦点与 thread root fallback。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-08-12T23:41:14.864Z"
+    },
+    {
+      "id": "cd7fb491",
+      "type": "状态",
+      "content": "飞书引用回复会话路由功能已在隔离 worktree H:\\walker\\.worktree\\2026-08-12-feishu-quoted-session-routing 完成实现、验证和人工审查；全量 npm test 1518/1518 通过，spec 账本位于 specs/2026-08-12+feishu-quoted-session-routing。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": null,
+      "confidence": null,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [],
+      "links": {},
+      "created_at": "2026-08-12T23:41:03.943Z"
+    },
+    {
       "id": "051102d8",
       "type": "踩坑",
       "content": "Claude attach 禁历史 replay 需同时覆盖 ClaudeAttachServer 与 ClaudeBridgeSidecar。仅改标准 attach server 会漏掉 ClaudeDriver 使用 bridge sidecar 作为 attach server 的路径，导致历史 TUI 字节仍可能重放；修复为两处 subscribeOutput 都固定 replay:false，并在 T1/plan/traceability/test-report/verify-report 中同步。",
@@ -902,54 +934,6 @@
       ],
       "links": {},
       "created_at": "2026-07-10T05:32:30.692Z"
-    },
-    {
-      "id": "fbc240a0",
-      "type": "状态",
-      "content": "web-admin-console功能开发完成：26条需求(REQ-001~REQ-026)全部实现，461测试通过/0失败，包含AdminServer生命周期、鉴权、核心业务API、文件维护诊断、调试工具、静态SPA、集成验证",
-      "author": "tianxiqin",
-      "tags": [
-        "admin",
-        "status"
-      ],
-      "context": null,
-      "source": "specs/2026-07-10-web-admin-console",
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [
-        "src/admin/"
-      ],
-      "links": {},
-      "created_at": "2026-07-10T05:32:30.692Z"
-    },
-    {
-      "id": "0273eca9",
-      "type": "决策",
-      "content": "飞书长任务超时架构重构：将单一 OPENCODE_PROMPT_TIMEOUT_MS（固定 120 秒总时长）拆分为四个独立超时：OPENCODE_SSE_OPEN_TIMEOUT_MS（建连超时，默认 1000ms）、OPENCODE_PROMPT_REQUEST_TIMEOUT_MS（HTTP 提交超时，默认 30000ms）、OPENCODE_SSE_IDLE_TIMEOUT_MS（SSE 空闲超时，chunk 重置，默认 300000ms）、WALKER_MAX_TURN_TIME_MINS（整轮硬截止，默认 0 关闭）。旧配置仅在新 idle 配置缺失时 fallback。配置解析引入 parseNonNegativeInt 允许 0 表示关闭，构造器统一用 ?? 替代 || 避免把 0 回退为默认值。Dispatcher 为唯一业务硬截止，driver 传输超时不再标记 session error。",
-      "author": "tianxiqin",
-      "tags": [
-        "timeout",
-        "sse",
-        "config",
-        "dispatcher",
-        "feishu"
-      ],
-      "context": "原 120 秒固定超时导致长任务失败后飞书收不到后续消息",
-      "source": "specs/2026-07-16-feishu-long-running-response/spec.md",
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": "synced",
-      "files": [
-        "src/config/env.js",
-        "src/app/bootstrap.js",
-        "src/core/http-helper.js",
-        "src/dispatch/message-dispatcher.js"
-      ],
-      "links": {},
-      "created_at": "2026-07-16T09:50:00.000Z"
     }
   ],
   "sessions": []

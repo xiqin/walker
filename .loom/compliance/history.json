@@ -1170,5 +1170,162 @@
     "skill": "loom-verification-before-completion",
     "passed": true,
     "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-opencode-tool-parity",
+    "timestamp": "2026-08-12T05:53:17.066Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "stale approval requires re-approving spec.md documentation-only change"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-opencode-tool-parity",
+    "timestamp": "2026-08-12T05:55:38.077Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blockers",
+      "blockers | `findings/omission-hunter.json` |",
+      "error atomicity. |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-opencode-tool-parity",
+    "timestamp": "2026-08-12T05:55:50.795Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blockers",
+      "blockers | `findings/omission-hunter.json` |",
+      "error atomicity. |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-opencode-tool-parity",
+    "timestamp": "2026-08-12T05:56:02.507Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blockers",
+      "blockers | `findings/omission-hunter.json` |",
+      "error atomicity. |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-opencode-tool-parity",
+    "timestamp": "2026-08-12T05:56:56.237Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blockers",
+      "blockers | `findings/omission-hunter.json` |",
+      "error atomicity. |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-opencode-tool-parity",
+    "timestamp": "2026-08-12T06:00:09.127Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blockers",
+      "blockers | `findings/omission-hunter.json` |",
+      "error atomicity. |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-opencode-tool-parity",
+    "timestamp": "2026-08-12T06:12:07.079Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blockers",
+      "blockers | `findings/omission-hunter.json` |",
+      "error atomicity. |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-tui-feishu-remote-control",
+    "timestamp": "2026-08-12T11:03:00.203Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker count 0. |",
+      "blocker count 0. |",
+      "errors or warnings. |",
+      "error-path tests; converge classified all REQ-005 behaviors as covered. |",
+      "error redaction tests; converge classified all REQ-006 behaviors as covered. |",
+      "fail` in PASS summaries and notes."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-tui-feishu-remote-control",
+    "timestamp": "2026-08-12T13:11:46.763Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker count 0. |",
+      "blocker count 0. |",
+      "errors or warnings. |",
+      "error-path tests; converge classified all REQ-005 behaviors as covered. |",
+      "error redaction tests; converge classified all REQ-006 behaviors as covered. |",
+      "fail` in PASS summaries and notes."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-tui-feishu-remote-control",
+    "timestamp": "2026-08-12T13:19:00.300Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker count 0. |",
+      "blocker count 0. |",
+      "errors or warnings. |",
+      "error-path tests; converge classified all REQ-005 behaviors as covered. |",
+      "error redaction tests; converge classified all REQ-006 behaviors as covered. |",
+      "fail` in PASS summaries and notes."
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12+feishu-quoted-session-routing",
+    "timestamp": "2026-08-12T16:33:22.500Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "errors/warnings。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12+feishu-quoted-session-routing",
+    "timestamp": "2026-08-12T16:35:49.948Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "errors/warnings。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-08-12+feishu-quoted-session-routing",
+    "timestamp": "2026-08-12T23:40:09.170Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "errors/warnings。"
+    ]
   }
 ]
