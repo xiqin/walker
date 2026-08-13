@@ -147,11 +147,6 @@ class OpencodeTuiBridge {
     const runtime = this.runtimes.get(runtimeId);
     if (!runtime) throw new Error('unknown TUI runtime: ' + runtimeId);
     runtime.lastSeenAt = Date.now();
-    const queueLen = runtime.queue ? runtime.queue.length : 0;
-    if (queueLen > 0 || !runtime._polledOnce) {
-      logger.info('tui poll received', { runtimeId, sessionId, queueLen, acceptedTypes: (data.acceptedTypes || []).join(','), currentSessionId: runtime.currentSessionId, sessionIdMatch: runtime.currentSessionId === sessionId });
-      runtime._polledOnce = true;
-    }
     if (runtime.currentSessionId !== sessionId) return null;
     if (!Array.isArray(data.acceptedTypes)) {
       const delivery = runtime.queue[0] || null;
