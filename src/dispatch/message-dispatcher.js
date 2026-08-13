@@ -151,6 +151,7 @@ class MessageDispatcher {
       messageId: event.messageId,
       chatId: event.chatId,
       rootId: event.rootId || null,
+      parentId: event.parentId || '',
       textLength: event.text ? event.text.length : 0,
     });
 
@@ -159,8 +160,25 @@ class MessageDispatcher {
       return 'duplicate';
     }
 
-    let routeKey = event.routeKey || buildRouteKey(event, this.routeMode);
-    logger.info('message accepted by dedup', { messageId: event.messageId, routeKey });
+    const sourceRouteKey = event.routeKey || buildRouteKey(event, this.routeMode);
+    const target = this._resolveIncomingTarget(event, sourceRouteKey);
+    const routeKey = target.routeKey;
+    const current = target.session;
+    const effectiveEvent = Object.assign({}, event, {
+      routeKey,
+      sessionId: current && current.id,
+      routedBy: target.routedBy,
+      sourceRouteKey,
+      effectiveRouteKey: routeKey,
+    });
+    logger.info('message accepted by dedup', {
+      messageId: event.messageId,
+      routeKey,
+      parentId: event.parentId || '',
+      sourceRouteKey,
+      effectiveRouteKey: routeKey,
+      routedBy: target.routedBy,
+    });
     this._recordAdminMetric('messages');
     this._recordAdminEvent({
       type: 'message.received',
@@ -170,30 +188,17 @@ class MessageDispatcher {
         messageId: event.messageId || '',
         chatId: event.chatId || '',
         rootId: event.rootId || '',
+        parentId: event.parentId || '',
+        sourceRouteKey,
+        effectiveRouteKey: routeKey,
+        routedBy: target.routedBy,
         textLength: event.text ? event.text.length : 0,
       },
     });
 
-    let current = this.sessionService.getCurrent(routeKey);
-    if (!current && this.routeMode === 'thread' && event.rootId && event.chatId) {
-      const fallbackRouteKey = buildRouteKey({ ...event, rootId: '' }, this.routeMode);
-      if (fallbackRouteKey !== routeKey) {
-        const fallbackCurrent = this.sessionService.getCurrent(fallbackRouteKey);
-        if (fallbackCurrent) {
-          logger.info('thread route unbound, falling back to chat root route', {
-            messageId: event.messageId,
-            routeKey,
-            fallbackRouteKey,
-          });
-          routeKey = fallbackRouteKey;
-          current = fallbackCurrent;
-        }
-      }
-    }
-
     if (!current) {
       logger.info('route not bound, sending guide card', { routeKey });
-      this._sendFeishu('sendUnboundGuide', [this._replyCtx(event), routeKey]);
+      this._sendFeishu('sendUnboundGuide', [this._replyCtx(effectiveEvent), routeKey]);
       return 'unbound';
     }
 
@@ -208,36 +213,71 @@ class MessageDispatcher {
     const driver = this.driverRegistry.get(current.agent);
     if (!driver) {
       logger.error('driver not found', { agent: current.agent });
-      this._sendFeishu('sendErrorCard', [this._replyCtx(event), 'Agent driver not found: ' + current.agent]);
+      this._sendFeishu('sendErrorCard', [this._replyCtx(effectiveEvent), 'Agent driver not found: ' + current.agent]);
       return 'error';
     }
 
     let agentRef = current.agentRef;
     if (!hasAgentSessionRef(agentRef)) {
       logger.error('session has no agentRef', { sessionId: current.id });
-      this._sendFeishu('sendErrorCard', [this._replyCtx(event), 'Session has no active agent reference']);
+      this._sendFeishu('sendErrorCard', [this._replyCtx(effectiveEvent), 'Session has no active agent reference']);
       return 'error';
     }
     if (current.agent === 'claude') {
-      const prepared = await this._prepareClaudeAgentRef(current, driver, event);
+      const prepared = await this._prepareClaudeAgentRef(current, driver, effectiveEvent);
       if (prepared.error) return 'error';
       agentRef = prepared.agentRef;
     }
 
     this.sessionService.markRunning(current.id);
-    this._ensureWatch(current, event.chatId);
+    this._ensureWatch(current, effectiveEvent.chatId);
     logger.info('route bound, prompting driver', {
       messageId: event.messageId,
       routeKey,
       sessionId: current.id,
       agent: current.agent,
+      parentId: event.parentId || '',
+      sourceRouteKey,
+      effectiveRouteKey: routeKey,
+      routedBy: target.routedBy,
       agentRefId: getAgentRefId(agentRef),
       opencodeSessionId: agentRef.opencodeSessionId,
       claudeSessionId: agentRef.claudeSessionId,
     });
 
-    const promptEvent = event.routeKey === routeKey ? event : { ...event, routeKey };
-    return this._enqueueRouteLock(routeKey, () => this._enqueuePrompt(current, promptEvent, driver, agentRef));
+    return this._enqueueRouteLock(routeKey, () => this._enqueuePrompt(current, effectiveEvent, driver, agentRef));
+  }
+
+  _resolveIncomingTarget(event, sourceRouteKey) {
+    if (event && event.parentId && this.sessionService && typeof this.sessionService.resolveSessionByPlatformMessage === 'function') {
+      const resolved = this.sessionService.resolveSessionByPlatformMessage('feishu', event.parentId, { chatId: event.chatId });
+      if (resolved && resolved.session) {
+        const routeKey = resolved.routeKey || (typeof this.sessionService.getRouteForSession === 'function'
+          ? this.sessionService.getRouteForSession(resolved.session.id)
+          : '') || sourceRouteKey;
+        return { session: resolved.session, routeKey, routedBy: 'quoted-message' };
+      }
+    }
+
+    const current = this.sessionService.getCurrent(sourceRouteKey);
+    if (current) return { session: current, routeKey: sourceRouteKey, routedBy: 'route-focus' };
+
+    if (this.routeMode === 'thread' && event.rootId && event.chatId) {
+      const fallbackRouteKey = buildRouteKey(Object.assign({}, event, { rootId: '' }), this.routeMode);
+      if (fallbackRouteKey !== sourceRouteKey) {
+        const fallbackCurrent = this.sessionService.getCurrent(fallbackRouteKey);
+        if (fallbackCurrent) {
+          logger.info('thread route unbound, falling back to chat root route', {
+            messageId: event.messageId,
+            routeKey: sourceRouteKey,
+            fallbackRouteKey,
+          });
+          return { session: fallbackCurrent, routeKey: fallbackRouteKey, routedBy: 'thread-root-fallback' };
+        }
+      }
+    }
+
+    return { session: null, routeKey: sourceRouteKey, routedBy: 'unbound' };
   }
 
   async handlePlatformMessage(event) {
@@ -461,15 +501,20 @@ class MessageDispatcher {
       logger.info('skipping duplicate command', { command: cmd.name, messageId: cmd.messageId });
       return { duplicate: true };
     }
+    const effectiveCmd = this._commandUsesSessionTarget(cmd.name) ? this._resolveCommandTarget(cmd) : cmd;
     this._recordAdminMetric('commands');
     this._recordAdminEvent({
       type: 'command.received',
-      routeKey: cmd.routeKey || '',
+      routeKey: effectiveCmd.routeKey || '',
       message: '/' + (cmd.name || ''),
       data: {
         command: cmd.name || '',
         messageId: cmd.messageId || '',
         chatId: cmd.chatId || '',
+        parentId: cmd.parentId || '',
+        sourceRouteKey: effectiveCmd.sourceRouteKey || cmd.routeKey || '',
+        effectiveRouteKey: effectiveCmd.effectiveRouteKey || effectiveCmd.routeKey || '',
+        routedBy: effectiveCmd.routedBy || '',
       },
     });
 
@@ -478,18 +523,18 @@ class MessageDispatcher {
         new: () => this._enqueueRouteLock(cmd.routeKey, () => this._withRouteTouch(cmd.routeKey, () => this._cmdNew(cmd))),
         attach: () => this._enqueueRouteLock(cmd.routeKey, () => this._withRouteTouch(cmd.routeKey, () => this._cmdAttach(cmd))),
         clear: async () => {
-          const preflight = await this._preflightClear(cmd);
+          const preflight = await this._preflightClear(effectiveCmd);
           if (preflight) return preflight;
-          return this._enqueueRouteLock(cmd.routeKey, () => this._withRouteTouch(cmd.routeKey, () => this._cmdClear(cmd)));
+          return this._enqueueRouteLock(effectiveCmd.routeKey, () => this._withRouteTouch(effectiveCmd.routeKey, () => this._cmdClear(effectiveCmd)));
         },
-        model: () => this._withRouteTouch(cmd.routeKey, () => this._cmdModel(cmd)),
-        cancel: () => this._withRouteTouch(cmd.routeKey, () => this._cmdCancel(cmd)),
-        status: () => this._withRouteTouch(cmd.routeKey, () => this._cmdStatus(cmd)),
-        ps: () => this._withRouteTouch(cmd.routeKey, () => this._cmdStatus(cmd)),
-        list: () => this._withRouteTouch(cmd.routeKey, () => this._cmdList(cmd)),
+        model: () => this._withRouteTouch(effectiveCmd.routeKey, () => this._cmdModel(effectiveCmd)),
+        cancel: () => this._withRouteTouch(effectiveCmd.routeKey, () => this._cmdCancel(effectiveCmd)),
+        status: () => this._withRouteTouch(effectiveCmd.routeKey, () => this._cmdStatus(effectiveCmd)),
+        ps: () => this._withRouteTouch(effectiveCmd.routeKey, () => this._cmdStatus(effectiveCmd)),
+        list: () => this._withRouteTouch(effectiveCmd.routeKey, () => this._cmdList(effectiveCmd)),
         use: () => this._withRouteTouch(cmd.routeKey, () => this._cmdUse(cmd)),
-        current: () => this._withRouteTouch(cmd.routeKey, () => this._cmdCurrent(cmd)),
-        stop: () => this._withRouteTouch(cmd.routeKey, () => this._cmdStop(cmd)),
+        current: () => this._withRouteTouch(effectiveCmd.routeKey, () => this._cmdCurrent(effectiveCmd)),
+        stop: () => this._withRouteTouch(effectiveCmd.routeKey, () => this._cmdStop(effectiveCmd)),
         delete: () => this._withRouteTouch(cmd.routeKey, () => this._cmdDelete(cmd)),
         help: () => this._cmdHelp(cmd),
         agents: () => this._cmdAgents(cmd),
@@ -509,9 +554,26 @@ class MessageDispatcher {
     } catch (err) {
       const message = err && err.message ? err.message : String(err);
       logger.error('command handler failed', { command: cmd.name, error: message });
-      await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), message]);
+      const errorCmd = this._commandUsesSessionTarget(cmd.name) ? effectiveCmd : cmd;
+      await this._callFeishu('sendErrorCard', [this._replyCtx(errorCmd), message]);
       return { error: 'command_failed', message };
     }
+  }
+
+  _commandUsesSessionTarget(name) {
+    return ['clear', 'model', 'cancel', 'status', 'ps', 'list', 'current', 'stop'].includes(name);
+  }
+
+  _resolveCommandTarget(cmd) {
+    const sourceRouteKey = cmd.routeKey || '';
+    const target = this._resolveIncomingTarget(cmd, sourceRouteKey);
+    return Object.assign({}, cmd, {
+      routeKey: target.routeKey,
+      sessionId: target.session && target.session.id,
+      routedBy: target.routedBy,
+      sourceRouteKey,
+      effectiveRouteKey: target.routeKey,
+    });
   }
 
   _withRouteTouch(routeKey, fn) {
@@ -856,7 +918,7 @@ class MessageDispatcher {
       targetClaudeSessionId = rest[0] || '';
     }
 
-    if (!targetClaudeSessionId) {
+    if (!targetClaudeSessionId && (!rest.length || rest[0] === '--page' || rest[0] === '--search')) {
       if (typeof driver.ensureReady === 'function') await driver.ensureReady();
       const extraCwds = this._collectKnownSessionCwds();
       const remoteSessions = filterRecentAttachSessions(await driver.listSessions({ extraCwds }), Date.now());
@@ -2094,7 +2156,9 @@ class MessageDispatcher {
     const callArgs = await this._withFeishuRuntime(methodName, args, context);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await fn.apply(this.feishuApi, callArgs);
+        const result = await fn.apply(this.feishuApi, callArgs);
+        this._recordFeishuMessageBindings(methodName, args, result, context);
+        return result;
       } catch (err) {
         const isLast = attempt === maxAttempts;
         if (!isLast) {
@@ -2117,6 +2181,51 @@ class MessageDispatcher {
         return fallback;
       }
     }
+  }
+
+  _recordFeishuMessageBindings(methodName, args, result, context) {
+    const replyCtx = args && args[0] && typeof args[0] === 'object' ? args[0] : null;
+    const sessionId = context && context.sessionId || replyCtx && replyCtx.sessionId;
+    if (!sessionId) return;
+    const messageIds = this._extractFeishuMessageIds(result);
+    if (messageIds.length === 0) return;
+    const routeKey = context && context.routeKey || replyCtx && replyCtx.routeKey || '';
+    const chatId = context && context.chatId || replyCtx && replyCtx.chatId || '';
+    if (!this.sessionService || typeof this.sessionService.recordPlatformMessage !== 'function') return;
+    for (const messageId of messageIds) {
+      try {
+        this.sessionService.recordPlatformMessage('feishu', messageId, {
+          sessionId,
+          routeKey,
+          chatId,
+          kind: methodName,
+        });
+      } catch (err) {
+        logger.warn('feishu message binding record failed', {
+          methodName,
+          sessionId,
+          messageId,
+          error: err && err.message ? err.message : String(err),
+        });
+      }
+    }
+  }
+
+  _extractFeishuMessageIds(value) {
+    if (!value) return [];
+    if (typeof value === 'string') return [value];
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this._extractFeishuMessageIds(item));
+    }
+    if (typeof value !== 'object') return [];
+    const ids = [];
+    for (const key of ['message_id', 'messageId']) {
+      if (typeof value[key] === 'string' && value[key]) ids.push(value[key]);
+    }
+    if (value.data && typeof value.data === 'object') {
+      ids.push(...this._extractFeishuMessageIds(value.data));
+    }
+    return ids;
   }
 
   _markIdleIfActive(sessionId) {
@@ -2155,6 +2264,10 @@ class MessageDispatcher {
       chatId: source && source.chatId,
       routeKey: source && source.routeKey,
       sessionId: source && source.sessionId,
+      parentId: source && source.parentId,
+      sourceRouteKey: source && source.sourceRouteKey,
+      effectiveRouteKey: source && source.effectiveRouteKey,
+      routedBy: source && source.routedBy,
     };
   }
 

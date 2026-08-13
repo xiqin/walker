@@ -100,6 +100,7 @@ class FeishuPlatform {
         messageId: platformEvent.messageId,
         openId: platformEvent.userId,
         rootId: parsed.rootId,
+        parentId: parsed.parentId,
         createTime: parsed.createTime,
         platformEvent,
       });
@@ -114,6 +115,7 @@ class FeishuPlatform {
       messageId: platformEvent.messageId,
       openId: platformEvent.userId,
       rootId: parsed.rootId,
+      parentId: parsed.parentId,
       createTime: parsed.createTime,
       platformEvent,
     });

@@ -16,6 +16,12 @@ function makeMocks() {
     listSessionsInRoute: () => [],
     getRouteCwd: () => '',
     getRouteForSession: () => null,
+    resolveSessionByPlatformMessage: () => null,
+    recordPlatformMessageCalls: [],
+    recordPlatformMessage: (platform, messageId, info) => {
+      sessionService.recordPlatformMessageCalls.push({ platform, messageId, info });
+      return true;
+    },
     touchRouteCalls: [],
     touchRoute: (routeKey) => { sessionService.touchRouteCalls.push(routeKey); },
     markRunning: () => {},
@@ -74,6 +80,24 @@ async function captureUnhandledRejections(action) {
     return { result, unhandled };
   } finally {
     process.off('unhandledRejection', onUnhandled);
+  }
+}
+
+async function captureStderr(action) {
+  const originalWrite = process.stderr.write;
+  let output = '';
+  process.stderr.write = function patchedWrite(chunk, encoding, cb) {
+    output += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+    if (typeof encoding === 'function') encoding();
+    if (typeof cb === 'function') cb();
+    return true;
+  };
+  try {
+    const result = await action();
+    await new Promise((resolve) => setImmediate(resolve));
+    return { result, output };
+  } finally {
+    process.stderr.write = originalWrite;
   }
 }
 
@@ -574,6 +598,295 @@ describe('MessageDispatcher bound route prompt', () => {
 
     assert.equal(attempts, 3);
     assert.equal(result, 'fallback-result');
+  });
+
+  it('quoted feishu reply dispatches to mapped session instead of focused session', async () => {
+    const mocks = makeMocks();
+    const focused = { id: 'wks_focus_b', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus_b' } };
+    const mapped = { id: 'wks_mapped_a', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_mapped_a' } };
+    mocks.sessionService.getCurrent = () => focused;
+    mocks.sessionService.getSession = (id) => id === mapped.id ? mapped : focused;
+    mocks.sessionService.resolveSessionByPlatformMessage = (platform, messageId, options) => {
+      assert.equal(platform, 'feishu');
+      assert.equal(messageId, 'om_parent_a');
+      assert.deepEqual(options, { chatId: 'oc_chat1' });
+      return { session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_a', mapping: { chatId: 'oc_chat1' } };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_child1', openId: 'ou_user1', text: '引用 A',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_b', parentId: 'om_parent_a',
+      routeKey: 'feishu:oc_chat1:root:om_root_b',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.equal(mocks.driver.promptCalls.length, 1);
+    assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_mapped_a');
+  });
+
+  it('quoted feishu reply does not change focused session', async () => {
+    const mocks = makeMocks();
+    const mapped = { id: 'wks_mapped_a', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_mapped_a' } };
+    let setFocusCalls = 0;
+    let bindRouteCalls = 0;
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_focus_b', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus_b' } });
+    mocks.sessionService.getSession = () => mapped;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => ({ session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_a' });
+    mocks.sessionService.setFocus = () => { setFocusCalls += 1; };
+    mocks.sessionService.bindRoute = () => { bindRouteCalls += 1; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_child_focus1', openId: 'ou_user1', text: '引用 A',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_b', parentId: 'om_parent_a',
+      routeKey: 'feishu:oc_chat1:root:om_root_b',
+    });
+
+    assert.equal(setFocusCalls, 0);
+    assert.equal(bindRouteCalls, 0);
+  });
+
+  it('quoted feishu reply uses mapped effective route key', async () => {
+    const mocks = makeMocks();
+    const mapped = { id: 'wks_mapped_route', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_mapped_route' } };
+    mocks.sessionService.getCurrent = () => null;
+    mocks.sessionService.getSession = () => mapped;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => ({ session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_a' });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_child_route1', openId: 'ou_user1', text: '引用 A',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_b', parentId: 'om_parent_a',
+      routeKey: 'feishu:oc_chat1:root:om_root_b',
+    });
+
+    const progress = mocks.feishuApi.calls.find((call) => call.type === 'sendProgressCard');
+    assert.equal(progress.msgId.routeKey, 'feishu:oc_chat1:root:om_root_a');
+    assert.equal(progress.msgId.sessionId, 'wks_mapped_route');
+    assert.equal(progress.msgId.sourceRouteKey, 'feishu:oc_chat1:root:om_root_b');
+    assert.equal(progress.msgId.effectiveRouteKey, 'feishu:oc_chat1:root:om_root_a');
+    assert.equal(progress.msgId.routedBy, 'quoted-message');
+    assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_root_a']);
+  });
+
+  it('quoted feishu reply locks mapped route key', async () => {
+    const mocks = makeMocks();
+    const mapped = { id: 'wks_mapped_lock', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_mapped_lock' } };
+    const locked = [];
+    mocks.sessionService.getCurrent = () => null;
+    mocks.sessionService.getSession = () => mapped;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => ({ session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_a' });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    const original = dispatcher._enqueueRouteLock.bind(dispatcher);
+    dispatcher._enqueueRouteLock = (routeKey, task) => {
+      locked.push(routeKey);
+      return original(routeKey, task);
+    };
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_child_lock1', openId: 'ou_user1', text: '引用 A',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_b', parentId: 'om_parent_a',
+      routeKey: 'feishu:oc_chat1:root:om_root_b',
+    });
+
+    assert.deepEqual(locked, ['feishu:oc_chat1:root:om_root_a']);
+  });
+
+  it('incoming event records quoted routing fields', async () => {
+    const mocks = makeMocks();
+    const eventStore = createEventStore({ now: () => Date.UTC(2026, 7, 12, 10, 0, 0) });
+    const mapped = { id: 'wks_mapped_admin', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_mapped_admin' } };
+    mocks.sessionService.getCurrent = () => null;
+    mocks.sessionService.getSession = () => mapped;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => ({ session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_a' });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', eventStore });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_child_admin1', openId: 'ou_user1', text: '引用 A',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_b', parentId: 'om_parent_a',
+      routeKey: 'feishu:oc_chat1:root:om_root_b',
+    });
+
+    const event = eventStore.events.find((entry) => entry.type === 'message.received');
+    assert.equal(event.routeKey, 'feishu:oc_chat1:root:om_root_a');
+    assert.equal(event.data.parentId, 'om_parent_a');
+    assert.equal(event.data.sourceRouteKey, 'feishu:oc_chat1:root:om_root_b');
+    assert.equal(event.data.effectiveRouteKey, 'feishu:oc_chat1:root:om_root_a');
+    assert.equal(event.data.routedBy, 'quoted-message');
+  });
+
+  it('empty parentId uses focused session', async () => {
+    const mocks = makeMocks();
+    const focused = { id: 'wks_focus_direct', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus_direct' } };
+    let resolveCalls = 0;
+    mocks.sessionService.getCurrent = () => focused;
+    mocks.sessionService.getSession = () => focused;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => { resolveCalls += 1; return null; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_empty_parent1', openId: 'ou_user1', text: '直接回复',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_focus', parentId: '',
+      routeKey: 'feishu:oc_chat1:root:om_root_focus',
+    });
+
+    assert.equal(resolveCalls, 0);
+    assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_focus_direct');
+    const progress = mocks.feishuApi.calls.find((call) => call.type === 'sendProgressCard');
+    assert.equal(progress.msgId.routedBy, 'route-focus');
+  });
+
+  it('direct feishu message dispatches to focused session', async () => {
+    const mocks = makeMocks();
+    const focused = { id: 'wks_focus_direct2', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus_direct2' } };
+    mocks.sessionService.getCurrent = () => focused;
+    mocks.sessionService.getSession = () => focused;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_direct_focus1', openId: 'ou_user1', text: '普通文本',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_focus',
+      routeKey: 'feishu:oc_chat1:root:om_root_focus',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_focus_direct2');
+  });
+
+  it('invalid quoted parent falls back to focused session', async () => {
+    const mocks = makeMocks();
+    const focused = { id: 'wks_focus_invalid', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus_invalid' } };
+    mocks.sessionService.getCurrent = () => focused;
+    mocks.sessionService.getSession = () => focused;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => null;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_invalid_parent1', openId: 'ou_user1', text: '坏引用',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_focus', parentId: 'om_missing',
+      routeKey: 'feishu:oc_chat1:root:om_root_focus',
+    });
+
+    assert.equal(result, 'prompted');
+    assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_focus_invalid');
+  });
+
+  it('quoted parent mapping wins over thread root fallback', async () => {
+    const mocks = makeMocks();
+    const mapped = { id: 'wks_mapped_priority', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_mapped_priority' } };
+    const root = { id: 'wks_root_priority', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_root_priority' } };
+    const getCurrentCalls = [];
+    mocks.sessionService.getCurrent = (routeKey) => {
+      getCurrentCalls.push(routeKey);
+      if (routeKey === 'feishu:oc_chat1:root:oc_chat1') return root;
+      return null;
+    };
+    mocks.sessionService.getSession = () => mapped;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => ({ session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_a' });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_parent_priority1', openId: 'ou_user1', text: '引用优先',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_thread_root1', parentId: 'om_parent_a',
+      routeKey: 'feishu:oc_chat1:root:om_thread_root1',
+    });
+
+    assert.deepEqual(getCurrentCalls, []);
+    assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_mapped_priority');
+  });
+
+  it('quoted feishu reply never calls focus mutation', async () => {
+    const mocks = makeMocks();
+    const mapped = { id: 'wks_mapped_no_focus', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_mapped_no_focus' } };
+    const calls = [];
+    mocks.sessionService.getCurrent = () => null;
+    mocks.sessionService.getSession = () => mapped;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => ({ session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_a' });
+    mocks.sessionService.setFocus = (...args) => calls.push(['setFocus'].concat(args));
+    mocks.sessionService.bindRoute = (...args) => calls.push(['bindRoute'].concat(args));
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_no_focus_mutation1', openId: 'ou_user1', text: '引用',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_b', parentId: 'om_parent_a',
+      routeKey: 'feishu:oc_chat1:root:om_root_b',
+    });
+
+    assert.deepEqual(calls, []);
+  });
+
+  it('_callFeishu records every message id from replyText array result', async () => {
+    const mocks = makeMocks();
+    mocks.feishuApi.replyText = () => [{ message_id: 'om_arr1' }, { data: { messageId: 'om_arr2' } }];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher._callFeishu('replyText', [{ messageId: 'om_parent', chatId: 'oc_chat1', routeKey: 'feishu:oc_chat1:root:om_root1' }, '正文'], null, { sessionId: 'wks_record1' });
+
+    assert.deepEqual(result, [{ message_id: 'om_arr1' }, { data: { messageId: 'om_arr2' } }]);
+    assert.deepEqual(mocks.sessionService.recordPlatformMessageCalls.map((call) => call.messageId), ['om_arr1', 'om_arr2']);
+    assert.deepEqual(mocks.sessionService.recordPlatformMessageCalls[0].info, {
+      sessionId: 'wks_record1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+      chatId: 'oc_chat1',
+      kind: 'replyText',
+    });
+  });
+
+  it('_callFeishu records string and object message id shapes', async () => {
+    const mocks = makeMocks();
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    mocks.feishuApi.replyCard = () => 'om_string1';
+    await dispatcher._callFeishu('replyCard', [{ messageId: 'om_parent', chatId: 'oc_chat1', routeKey: 'route:from-ctx', sessionId: 'wks_record2' }, {}], null);
+    mocks.feishuApi.replyCard = () => ({ data: { message_id: 'om_data_snake' } });
+    await dispatcher._callFeishu('replyCard', [{ messageId: 'om_parent', chatId: 'oc_chat1', routeKey: 'route:from-ctx', sessionId: 'wks_record2' }, {}], null);
+    mocks.feishuApi.replyCard = () => ({ messageId: 'om_camel1' });
+    await dispatcher._callFeishu('replyCard', [{ messageId: 'om_parent', chatId: 'oc_chat1', routeKey: 'route:from-ctx', sessionId: 'wks_record2' }, {}], null);
+
+    assert.deepEqual(mocks.sessionService.recordPlatformMessageCalls.map((call) => call.messageId), ['om_string1', 'om_data_snake', 'om_camel1']);
+    assert.equal(mocks.sessionService.recordPlatformMessageCalls[0].info.sessionId, 'wks_record2');
+  });
+
+  it('_callFeishu returns send result when message binding record fails', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.recordPlatformMessage = () => { throw new Error('state write failed'); };
+    mocks.feishuApi.replyText = () => ({ message_id: 'om_record_fail1' });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher._callFeishu('replyText', [{ messageId: 'om_parent', chatId: 'oc_chat1' }, '正文'], null, { sessionId: 'wks_record_fail1' });
+
+    assert.deepEqual(result, { message_id: 'om_record_fail1' });
+  });
+
+  it('_callFeishu does not record mapping when feishu send fails', async () => {
+    const mocks = makeMocks();
+    let attempts = 0;
+    mocks.feishuApi.replyText = async () => {
+      attempts += 1;
+      throw new Error('send failed');
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher._callFeishu('replyText', [{ messageId: 'om_parent', chatId: 'oc_chat1' }, '正文'], 'fallback', { sessionId: 'wks_send_fail1' });
+
+    assert.equal(result, 'fallback');
+    assert.equal(attempts, 3);
+    assert.deepEqual(mocks.sessionService.recordPlatformMessageCalls, []);
+  });
+
+  it('message binding record failure logs method and session', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.recordPlatformMessage = () => { throw new Error('state write failed'); };
+    mocks.feishuApi.replyText = () => ({ message_id: 'om_record_log1' });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const { output } = await captureStderr(() => dispatcher._callFeishu('replyText', [{ messageId: 'om_parent', chatId: 'oc_chat1' }, '正文'], null, { sessionId: 'wks_record_log1' }));
+
+    assert.match(output, /feishu message binding record failed/);
+    assert.match(output, /replyText/);
+    assert.match(output, /wks_record_log1/);
+    assert.match(output, /om_record_log1/);
   });
 
   it('线程消息未命中时回退到群聊根 route 的焦点 session', async () => {
@@ -2254,6 +2567,102 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     assert.match(reply.text, /Focus: wks_status1/);
     assert.match(reply.text, /opencode/);
     assert.match(reply.text, /ses_status1/);
+  });
+
+  it('quoted /status uses mapped session instead of focused session', async () => {
+    const mocks = makeMocks();
+    const focused = {
+      id: 'wks_status_focus', agent: 'opencode', status: 'idle', cwd: 'H:\\focus',
+      agentRef: { opencodeSessionId: 'ses_status_focus', cwd: 'H:\\focus' },
+    };
+    const mapped = {
+      id: 'wks_status_mapped', agent: 'opencode', status: 'running', cwd: 'H:\\mapped',
+      agentRef: { opencodeSessionId: 'ses_status_mapped', cwd: 'H:\\mapped' },
+    };
+    const getCurrentCalls = [];
+    mocks.sessionService.getCurrent = (routeKey) => {
+      getCurrentCalls.push(routeKey);
+      if (routeKey === 'feishu:oc_chat1:root:om_root_focus') return focused;
+      if (routeKey === 'feishu:oc_chat1:root:om_root_mapped') return mapped;
+      return null;
+    };
+    mocks.sessionService.resolveSessionByPlatformMessage = (platform, messageId, options) => {
+      assert.equal(platform, 'feishu');
+      assert.equal(messageId, 'om_parent_status');
+      assert.deepEqual(options, { chatId: 'oc_chat1' });
+      return { session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_mapped', mapping: { chatId: 'oc_chat1' } };
+    };
+    mocks.sessionService.listSessionsInRoute = (routeKey) => (routeKey === 'feishu:oc_chat1:root:om_root_mapped' ? [mapped] : [focused]);
+    mocks.sessionService.getRouteCwd = (routeKey) => (routeKey === 'feishu:oc_chat1:root:om_root_mapped' ? 'H:\\mapped' : 'H:\\focus');
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    dispatcher.sessionWatchStops.set(mapped.id, () => {});
+    dispatcher.turnStates.set(mapped.id, {
+      token: 1,
+      startedAt: Date.now() - 1200,
+      lastEventAt: Date.now() - 500,
+      cancelled: false,
+    });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'status', args: [],
+      routeKey: 'feishu:oc_chat1:root:om_root_focus',
+      messageId: 'om_status_quoted1', chatId: 'oc_chat1', rootId: 'om_root_focus', parentId: 'om_parent_status',
+    });
+
+    assert.equal(result.sessionId, 'wks_status_mapped');
+    assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:root:om_root_mapped']);
+    assert.equal(getCurrentCalls.includes('feishu:oc_chat1:root:om_root_focus'), false);
+    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
+    assert.equal(reply.msgId.routeKey, 'feishu:oc_chat1:root:om_root_mapped');
+    assert.equal(reply.msgId.sessionId, 'wks_status_mapped');
+    assert.equal(reply.msgId.sourceRouteKey, 'feishu:oc_chat1:root:om_root_focus');
+    assert.equal(reply.msgId.effectiveRouteKey, 'feishu:oc_chat1:root:om_root_mapped');
+    assert.equal(reply.msgId.routedBy, 'quoted-message');
+    assert.match(reply.text, /wks_status_mapped/);
+    assert.doesNotMatch(reply.text, /wks_status_focus/);
+  });
+
+  it('quoted /stop error uses mapped command reply context', async () => {
+    const mocks = makeMocks();
+    const focused = {
+      id: 'wks_stop_focus', agent: 'opencode', status: 'idle',
+      agentRef: { opencodeSessionId: 'ses_stop_focus' },
+    };
+    const mapped = {
+      id: 'wks_stop_mapped', agent: 'opencode', status: 'idle',
+      agentRef: { opencodeSessionId: 'ses_stop_mapped' },
+    };
+    mocks.sessionService.getCurrent = (routeKey) => {
+      if (routeKey === 'feishu:oc_chat1:root:om_root_focus') return focused;
+      if (routeKey === 'feishu:oc_chat1:root:om_root_mapped') return mapped;
+      return null;
+    };
+    mocks.sessionService.getSession = (id) => (id === mapped.id ? mapped : focused);
+    mocks.sessionService.resolveSessionByPlatformMessage = (platform, messageId, options) => {
+      assert.equal(platform, 'feishu');
+      assert.equal(messageId, 'om_parent_stop');
+      assert.deepEqual(options, { chatId: 'oc_chat1' });
+      return { session: mapped, routeKey: 'feishu:oc_chat1:root:om_root_mapped', mapping: { chatId: 'oc_chat1' } };
+    };
+    mocks.driver.stop = async () => { throw new Error('stop failed'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleCommand({
+      type: 'command', name: 'stop', args: [],
+      routeKey: 'feishu:oc_chat1:root:om_root_focus',
+      messageId: 'om_stop_quoted1', chatId: 'oc_chat1', rootId: 'om_root_focus', parentId: 'om_parent_stop',
+    });
+
+    assert.equal(result.error, 'command_failed');
+    assert.equal(result.message, 'stop failed');
+    assert.deepEqual(mocks.sessionService.touchRouteCalls, []);
+    const errorCard = mocks.feishuApi.calls.find(c => c.type === 'sendErrorCard');
+    assert.equal(errorCard.msgId.routeKey, 'feishu:oc_chat1:root:om_root_mapped');
+    assert.equal(errorCard.msgId.sessionId, 'wks_stop_mapped');
+    assert.equal(errorCard.msgId.sourceRouteKey, 'feishu:oc_chat1:root:om_root_focus');
+    assert.equal(errorCard.msgId.effectiveRouteKey, 'feishu:oc_chat1:root:om_root_mapped');
+    assert.equal(errorCard.msgId.routedBy, 'quoted-message');
+    assert.equal(errorCard.message, 'stop failed');
   });
 
   it('/ps 复用 status', async () => {

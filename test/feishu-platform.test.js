@@ -152,6 +152,78 @@ test('REQ-005-B05: FeishuPlatform 空文本和 sender fallback 不静默丢弃',
   assert.equal(messages[0].platformEvent.text, '');
 });
 
+test('REQ-004-B01: text message includes top-level parentId', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const messages = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onMessage: (message) => { messages.push(message); return Promise.resolve(); },
+  });
+
+  await platform._handleMessageEvent({
+    sender: { sender_id: { open_id: 'ou_1' } },
+    message: {
+      message_id: 'om_1',
+      chat_id: 'oc_1',
+      root_id: 'om_root',
+      parent_id: 'om_parent',
+      message_type: 'text',
+      content: JSON.stringify({ text: 'hello' }),
+    },
+  }, 'thread');
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].type, 'text');
+  assert.equal(messages[0].parentId, 'om_parent');
+});
+
+test('REQ-004-B02: command message includes top-level parentId', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const messages = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onMessage: (message) => { messages.push(message); return Promise.resolve(); },
+  });
+
+  await platform._handleMessageEvent({
+    sender: { sender_id: { open_id: 'ou_1' } },
+    message: {
+      message_id: 'om_cmd',
+      chat_id: 'oc_1',
+      parent_id: 'om_parent_cmd',
+      message_type: 'text',
+      content: JSON.stringify({ text: '/status' }),
+    },
+  }, 'thread');
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].type, 'command');
+  assert.equal(messages[0].command.name, 'status');
+  assert.equal(messages[0].parentId, 'om_parent_cmd');
+});
+
+test('REQ-004-B03: message without parent_id still dispatches', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const messages = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onMessage: (message) => { messages.push(message); return Promise.resolve(); },
+  });
+
+  await platform._handleMessageEvent({
+    sender: { sender_id: { open_id: 'ou_1' } },
+    message: {
+      message_id: 'om_no_parent',
+      chat_id: 'oc_1',
+      message_type: 'text',
+      content: JSON.stringify({ text: 'hello without parent' }),
+    },
+  }, 'thread');
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].type, 'text');
+});
+
 test('FeishuPlatform 单条文本消息只产生一次 platform.message_received', async () => {
   const fake = { startResult: Promise.resolve('started') };
   const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
