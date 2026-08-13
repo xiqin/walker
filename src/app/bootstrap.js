@@ -193,6 +193,7 @@ function createApp(config, deps) {
           messageId: event.messageId,
           openId: event.openId,
           rootId: event.rootId,
+          parentId: event.parentId,
           createTime: event.createTime,
           platformEvent: event.platformEvent,
         });

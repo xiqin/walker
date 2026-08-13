@@ -8,7 +8,7 @@ const PROVIDERS = [
     executableCandidates: ['opencode'],
     versionCommand: { args: ['--version'] },
     healthCheck: { type: 'driver' },
-    capabilities: { sessions: true, tui: true, http: true, models: true, permissions: true },
+    capabilities: { sessions: true, tui: true, http: true, models: true, permissions: true, questionReply: true },
     configKeys: ['OPENCODE_CMD', 'OPENCODE_SERVER_URL', 'OPENCODE_SERVER_AUTOSTART', 'OPENCODE_CONFIG_DIR'],
   },
   {
@@ -18,7 +18,11 @@ const PROVIDERS = [
     executableCandidates: ['claude'],
     versionCommand: { args: ['--version'] },
     healthCheck: { type: 'command' },
-    capabilities: { sessions: true, tui: true, http: false, models: true, permissions: true, window: true },
+    capabilities: { sessions: true, tui: true, http: false, models: true, permissions: false, questionReply: false, window: true },
+    capabilityStatus: {
+      permissions: { status: 'degraded', reason: 'Claude Code PTY attach can surface permission prompts but cannot safely reply through stdin.' },
+      questionReply: { status: 'unsupported', reason: 'Claude Code does not expose a stable external question reply API.' },
+    },
     configKeys: [
       'CLAUDE_CMD',
       'CLAUDE_MODEL',
@@ -38,7 +42,7 @@ const PROVIDERS = [
     executableCandidates: ['codex'],
     versionCommand: { args: ['--version'] },
     healthCheck: { type: 'command' },
-    capabilities: { sessions: true, tui: true, http: false, models: false, permissions: false },
+    capabilities: { sessions: true, tui: true, http: false, models: false, permissions: false, questionReply: false },
     configKeys: ['CODEX_HOME'],
   },
   {
@@ -48,7 +52,7 @@ const PROVIDERS = [
     executableCandidates: [],
     versionCommand: null,
     healthCheck: { type: 'builtin' },
-    capabilities: { sessions: false, tui: true, http: false, models: false, permissions: false, commands: true },
+    capabilities: { sessions: false, tui: true, http: false, models: false, permissions: false, questionReply: false, commands: true },
     configKeys: ['SHELL', 'COMSPEC'],
   },
 ];
@@ -65,6 +69,7 @@ function cloneProvider(provider) {
     versionCommand: provider.versionCommand ? { ...provider.versionCommand, args: provider.versionCommand.args.slice() } : null,
     healthCheck: { ...provider.healthCheck },
     capabilities: { ...provider.capabilities },
+    ...(provider.capabilityStatus ? { capabilityStatus: Object.fromEntries(Object.entries(provider.capabilityStatus).map(([key, value]) => [key, { ...value }])) } : {}),
     configKeys: provider.configKeys.slice(),
   };
 }

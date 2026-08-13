@@ -1061,9 +1061,16 @@ describe('createApp', () => {
     const app = createApp(config, deps);
     const platformEvent = { platform: 'feishu', type: 'message', messageId: 'om_cmd', routeKey: 'feishu:oc_1:root:oc_1', userId: 'ou_1', text: '/new', attachments: [], raw: {} };
 
-    await app.platform.options.onMessage({ type: 'command', command: { name: 'new', args: [] }, routeKey: platformEvent.routeKey, platformEvent });
+    await app.platform.options.onMessage({
+      type: 'command',
+      command: { name: 'new', args: [] },
+      routeKey: platformEvent.routeKey,
+      parentId: 'om_parent_cmd',
+      platformEvent,
+    });
 
     assert.equal(commandArg.platformEvent, platformEvent);
+    assert.equal(commandArg.parentId, 'om_parent_cmd');
   });
 
   it('飞书平台 adapter 事件写入 app eventStore', async () => {

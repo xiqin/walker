@@ -62,9 +62,12 @@ test('REQ-001-B01 和 REQ-007-B03: Claude catalog 声明真实 CLI driver 能力
     tui: true,
     http: false,
     models: true,
-    permissions: true,
+    permissions: false,
+    questionReply: false,
     window: true,
   });
+  assert.equal(claude.capabilityStatus.permissions.status, 'degraded');
+  assert.equal(claude.capabilityStatus.questionReply.status, 'unsupported');
   assert.ok(claude.configKeys.includes('CLAUDE_CMD'));
   assert.ok(claude.configKeys.includes('CLAUDE_MODEL'));
   assert.ok(claude.configKeys.includes('CLAUDE_FALLBACK_MODEL'));

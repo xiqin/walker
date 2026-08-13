@@ -834,3 +834,170 @@ test('REQ-008-B04 Route 成员操作具备稳定幂等结果', () => {
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test('recordPlatformMessage creates and updates platform message mapping', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const s1 = service.createSession({ route: 'feishu:route-a:ou_user', agent: 'opencode' });
+  const s2 = service.createSession({ route: 'feishu:route-b:ou_user', agent: 'opencode' });
+
+  assert.equal(service.recordPlatformMessage('feishu', 'om_1', {
+    sessionId: s1.id,
+    routeKey: 'feishu:route-a:ou_user',
+    chatId: 'oc_a',
+    kind: 'root',
+    createdAt: 100,
+  }), true);
+  assert.equal(service.recordPlatformMessage('feishu', 'om_1', {
+    sessionId: s2.id,
+    routeKey: 'feishu:route-b:ou_user',
+    chatId: 'oc_b',
+    kind: 'reply',
+    createdAt: 200,
+  }), true);
+  assert.equal(service.recordPlatformMessage('feishu', '', { sessionId: s1.id }), false);
+  assert.equal(service.recordPlatformMessage('', 'om_invalid', { sessionId: s1.id }), false);
+  assert.equal(service.recordPlatformMessage('feishu', 'om_missing', { sessionId: 'wks_missing' }), false);
+
+  const resolved = new SessionService({ stateStore }).resolveSessionByPlatformMessage('feishu', 'om_1', { chatId: 'oc_b' });
+  assert.equal(resolved.session.id, s2.id);
+  assert.equal(resolved.routeKey, 'feishu:route-b:ou_user');
+  assert.deepEqual(resolved.mapping, {
+    sessionId: s2.id,
+    routeKey: 'feishu:route-b:ou_user',
+    chatId: 'oc_b',
+    kind: 'reply',
+    createdAt: 200,
+  });
+  assert.equal(stateStore.read().platformMessages.feishu.om_missing, undefined);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('recordPlatformMessage prunes oldest platform messages over limit', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const session = service.createSession({ route: 'feishu:prune:ou_user', agent: 'opencode' });
+  stateStore.update((state) => {
+    state.platformMessages.feishu = {};
+    for (let i = 0; i < 5000; i += 1) {
+      state.platformMessages.feishu['om_' + i] = {
+        sessionId: session.id,
+        routeKey: 'feishu:prune:ou_user',
+        chatId: 'oc_prune',
+        kind: 'reply',
+        createdAt: i,
+      };
+    }
+  });
+
+  service.recordPlatformMessage('feishu', 'om_5000', {
+    sessionId: session.id,
+    routeKey: 'feishu:prune:ou_user',
+    chatId: 'oc_prune',
+    kind: 'reply',
+    createdAt: 5000,
+  });
+
+  const messages = stateStore.read().platformMessages.feishu;
+  assert.equal(Object.keys(messages).length, 5000);
+  assert.equal(messages.om_0, undefined);
+  assert.equal(messages.om_1.sessionId, session.id);
+  assert.equal(messages.om_5000.sessionId, session.id);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('deleteSession removes platform message mappings for the session', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const deleted = service.createSession({ route: 'feishu:deleted:ou_user', agent: 'opencode' });
+  const kept = service.createSession({ route: 'feishu:kept:ou_user', agent: 'opencode' });
+  service.recordPlatformMessage('feishu', 'om_deleted', { sessionId: deleted.id, routeKey: 'feishu:deleted:ou_user', chatId: 'oc_a', kind: 'reply' });
+  service.recordPlatformMessage('feishu', 'om_kept', { sessionId: kept.id, routeKey: 'feishu:kept:ou_user', chatId: 'oc_b', kind: 'reply' });
+
+  service.deleteSession(deleted.id);
+
+  const messages = stateStore.read().platformMessages.feishu;
+  assert.equal(messages.om_deleted, undefined);
+  assert.equal(messages.om_kept.sessionId, kept.id);
+  assert.equal(service.resolveSessionByPlatformMessage('feishu', 'om_deleted'), null);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('resolveSessionByPlatformMessage ignores missing or deleted sessions', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const session = service.createSession({ route: 'feishu:resolve:ou_user', agent: 'opencode' });
+  const deleted = service.createSession({ route: 'feishu:resolve-deleted:ou_user', agent: 'opencode' });
+  service.recordPlatformMessage('feishu', 'om_live', { sessionId: session.id, routeKey: 'feishu:resolve:ou_user', chatId: 'oc_live', kind: 'reply' });
+  service.recordPlatformMessage('feishu', 'om_deleted', { sessionId: deleted.id, routeKey: 'feishu:resolve-deleted:ou_user', chatId: 'oc_deleted', kind: 'reply' });
+  service.deleteSession(deleted.id);
+  stateStore.update((state) => {
+    state.platformMessages.feishu.om_missing = {
+      sessionId: 'wks_missing',
+      routeKey: 'feishu:missing:ou_user',
+      chatId: 'oc_missing',
+      kind: 'reply',
+      createdAt: 1,
+    };
+  });
+
+  assert.equal(service.resolveSessionByPlatformMessage('feishu', ''), null);
+  assert.equal(service.resolveSessionByPlatformMessage('feishu', 'om_unknown'), null);
+  assert.equal(service.resolveSessionByPlatformMessage('feishu', 'om_live', { chatId: 'oc_other' }), null);
+  assert.equal(service.resolveSessionByPlatformMessage('feishu', 'om_missing'), null);
+  assert.equal(stateStore.read().platformMessages.feishu.om_missing, undefined);
+  assert.equal(service.resolveSessionByPlatformMessage('feishu', 'om_deleted'), null);
+  assert.equal(service.resolveSessionByPlatformMessage('feishu', 'om_live', { chatId: 'oc_live' }).session.id, session.id);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('resolveSessionByPlatformMessage performs direct lookup without pruning', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  const service = new SessionService({ stateStore });
+  const session = service.createSession({ route: 'feishu:no-prune:ou_user', agent: 'opencode' });
+  stateStore.update((state) => {
+    state.platformMessages.feishu = {};
+    for (let i = 0; i < 5001; i += 1) {
+      state.platformMessages.feishu['om_' + i] = {
+        sessionId: session.id,
+        routeKey: 'feishu:no-prune:ou_user',
+        chatId: 'oc_no_prune',
+        kind: 'reply',
+        createdAt: i,
+      };
+    }
+  });
+
+  assert.equal(service.resolveSessionByPlatformMessage('feishu', 'om_0').session.id, session.id);
+  assert.equal(Object.keys(stateStore.read().platformMessages.feishu).length, 5001);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('recordPlatformMessage initializes platformMessages for legacy state', () => {
+  const { tmpDir, stateStore } = createTempStore();
+  stateStore.update((state) => {
+    state.sessions = { wks_legacy: { id: 'wks_legacy', status: 'idle' } };
+    state.routes = {};
+    delete state.platformMessages;
+  });
+  const service = new SessionService({ stateStore });
+
+  assert.equal(service.recordPlatformMessage('feishu', 'om_legacy', {
+    sessionId: 'wks_legacy',
+    routeKey: 'feishu:legacy:ou_user',
+    chatId: 'oc_legacy',
+    kind: 'reply',
+    createdAt: 10,
+  }), true);
+  const resolved = new SessionService({ stateStore }).resolveSessionByPlatformMessage('feishu', 'om_legacy');
+  assert.equal(resolved.session.id, 'wks_legacy');
+  assert.equal(resolved.mapping.chatId, 'oc_legacy');
+  assert.ok(stateStore.read().platformMessages.feishu);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});

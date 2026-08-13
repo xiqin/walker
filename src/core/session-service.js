@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const logger = createLogger('session-service');
+const PLATFORM_MESSAGE_LIMIT = 5000;
 
 class SessionService {
   constructor({ stateStore, wslPathExists }) {
@@ -14,6 +15,8 @@ class SessionService {
   _ensureState(state) {
     if (!state.sessions) state.sessions = {};
     if (!state.routes) state.routes = {};
+    if (!state.platformMessages) state.platformMessages = {};
+    if (!state.platformMessages.feishu) state.platformMessages.feishu = {};
   }
 
   _normalizeRoute(state) {
@@ -215,6 +218,15 @@ class SessionService {
           route.updatedAt = Date.now();
         }
       }
+      for (const platform of Object.keys(s.platformMessages)) {
+        const messages = s.platformMessages[platform];
+        if (!messages || typeof messages !== 'object') continue;
+        for (const messageId of Object.keys(messages)) {
+          if (messages[messageId] && messages[messageId].sessionId === sessionId) {
+            delete messages[messageId];
+          }
+        }
+      }
     });
 
     logger.info('session deleted', { sessionId });
@@ -233,6 +245,68 @@ class SessionService {
         for (const k of Object.keys(extra)) { session[k] = extra[k]; }
       }
     });
+  }
+
+  recordPlatformMessage(platform, messageId, info) {
+    const details = info || {};
+    if (!platform || typeof platform !== 'string') return false;
+    if (!messageId || typeof messageId !== 'string') return false;
+    if (!details.sessionId || typeof details.sessionId !== 'string') return false;
+
+    let recorded = false;
+    this.stateStore.update((state) => {
+      this._ensureState(state);
+      this._normalizeRoute(state);
+      const session = state.sessions[details.sessionId];
+      if (!session || session.status === 'deleted') return;
+      if (!state.platformMessages[platform]) state.platformMessages[platform] = {};
+      const messages = state.platformMessages[platform];
+      messages[messageId] = {
+        sessionId: details.sessionId,
+        routeKey: details.routeKey || '',
+        chatId: details.chatId || '',
+        kind: details.kind || '',
+        createdAt: typeof details.createdAt === 'number' ? details.createdAt : Date.now(),
+      };
+      this._prunePlatformMessages(messages);
+      recorded = true;
+    });
+    return recorded;
+  }
+
+  resolveSessionByPlatformMessage(platform, messageId, options) {
+    if (!platform || typeof platform !== 'string') return null;
+    if (!messageId || typeof messageId !== 'string') return null;
+
+    const state = this._readNormalized();
+    const messages = state.platformMessages[platform];
+    if (!messages || typeof messages !== 'object') return null;
+    const mapping = messages[messageId];
+    if (!mapping) return null;
+    if (options && options.chatId && mapping.chatId !== options.chatId) return null;
+
+    const session = state.sessions[mapping.sessionId];
+    if (!session || session.status === 'deleted') {
+      this.stateStore.update((current) => {
+        this._ensureState(current);
+        const currentMessages = current.platformMessages[platform];
+        if (currentMessages && currentMessages[messageId] && currentMessages[messageId].sessionId === mapping.sessionId) {
+          delete currentMessages[messageId];
+        }
+      });
+      return null;
+    }
+
+    return { session, routeKey: mapping.routeKey, mapping };
+  }
+
+  _prunePlatformMessages(messages) {
+    const entries = Object.entries(messages);
+    if (entries.length <= PLATFORM_MESSAGE_LIMIT) return;
+    entries
+      .sort((a, b) => (a[1].createdAt || 0) - (b[1].createdAt || 0))
+      .slice(0, entries.length - PLATFORM_MESSAGE_LIMIT)
+      .forEach(([messageId]) => { delete messages[messageId]; });
   }
 
   static UPDATEABLE_FIELDS = ['model', 'agentRef', 'title', 'cwd'];
