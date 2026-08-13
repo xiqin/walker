@@ -1,0 +1,21 @@
+{
+  "branch": "feature/2026-08-12-claude-tui-feishu-remote-control",
+  "post_worktree_plan_update": "bridge sidecar attach replay fix synchronized into plan.md",
+  "latest_npm_test": "PASS 1511/1511",
+  "status": "done",
+  "summary": "git-worktree 阶段隔离策略不变：当前工作区保留既有 dirty 变更并在功能分支 feature/2026-08-12-claude-tui-feishu-remote-control 上实施。后续 code-review-request 预检同步更新了 plan.md/T1/T2 账本以纳入 bridge sidecar attach 禁 replay 修复；该计划变更不改变分支/工作区策略。最新验证已升级为 npm test PASS 1511/1511。",
+  "artifacts": [
+    "progress.md",
+    "plan.md"
+  ],
+  "stage": "git-worktree",
+  "task_id": "git-worktree",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62"
+  },
+  "written_at": "2026-08-12T13:10:55.305Z"
+}

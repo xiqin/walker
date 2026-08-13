@@ -97,7 +97,7 @@ function createRuntime() {
   return runtime;
 }
 
-function createDispatcher(session, driver, updates) {
+function createDispatcher(session, driver, updates, options = {}) {
   const feishuApi = {
     calls: [],
     sendProgressCard: (msgId, sessionId) => { feishuApi.calls.push({ type: 'sendProgressCard', msgId, sessionId }); return 'om_progress'; },
@@ -114,7 +114,11 @@ function createDispatcher(session, driver, updates) {
     markRunning: () => { session.status = 'running'; },
     markIdle: () => { session.status = 'idle'; },
     markError: (_id, message) => { session.status = 'error'; session.errorMessage = message; },
-    updateSessionField: (sessionId, field, value) => { updates.push({ sessionId, field, value }); session[field] = value; },
+    updateSessionField: (sessionId, field, value) => {
+      if (options.updateError) throw options.updateError;
+      updates.push({ sessionId, field, value });
+      session[field] = value;
+    },
   };
   return {
     dispatcher: new MessageDispatcher({
@@ -232,7 +236,7 @@ test('REQ-002/REQ-005: 新 Walker 进程没有旧 in-memory bridge registry 时 
   assert.equal(result, 'prompted');
   assert.equal(broker.calls.resumeRuntime.length, 1);
   assert.equal(broker.calls.resumeRuntime[0].runtimeId, undefined);
-  assert.equal(terminalCalls.length, 1);
+  assert.equal(terminalCalls.length, 0);
   assert.equal(session.agentRef.runtimeId, 'rt_fallback_new');
   assert.equal(session.agentRef.previousRuntimeId, 'rt_old_process_only');
   assert.equal(session.agentRef.runtimeStatus, 'fallback');
@@ -282,7 +286,7 @@ test('REQ-002/REQ-005: sidecar runtime 不可用时 fallback 到新受控 runtim
   assert.equal(broker.calls.resumeRuntime.length, 1);
   assert.equal(broker.calls.resumeRuntime[0].claudeSessionId, CLAUDE_SESSION_ID);
   assert.equal(broker.calls.resumeRuntime[0].runtimeId, undefined);
-  assert.equal(terminalCalls.length, 1);
+  assert.equal(terminalCalls.length, 0);
   assert.equal(session.agentRef.runtimeId, 'rt_fallback_new');
   assert.equal(session.agentRef.runtimeStatus, 'fallback');
   assert.equal(session.agentRef.previousRuntimeId, 'rt_missing_tui');
@@ -292,6 +296,102 @@ test('REQ-002/REQ-005: sidecar runtime 不可用时 fallback 到新受控 runtim
     { runtimeId: 'rt_fallback_new', text: 'fallback message\r' },
   ]);
   assert.doesNotMatch(JSON.stringify(session.agentRef), /bridge-secret-token|API_KEY|Bearer/i);
+});
+
+test('REQ-001-B03/REQ-002-B03: 并发飞书消息恢复同一 Claude UUID 时只创建一个 runtime 且不开窗口', async () => {
+  const bridge = new ClaudeBridgeSidecar({ token: 'bridge-secret-token' });
+  const broker = new RecordingBroker(bridge);
+  const terminalCalls = [];
+  const driver = new ClaudeDriver({
+    cwd: 'H:\\walker',
+    claudeBridge: bridge,
+    ptyBroker: broker,
+    attachServer: false,
+    transcript: null,
+    openClaudeAttachTerminal: async (...args) => { terminalCalls.push(args); return { windowId: 'unexpected-window' }; },
+  });
+  const oldRef = {
+    provider: 'claude',
+    transport: 'pty-attach',
+    runtimeId: 'rt_missing_concurrent',
+    claudeSessionId: CLAUDE_SESSION_ID,
+    processGeneration: 3,
+    terminal: { status: 'detached', windowId: 'old-detached-window' },
+    conversationReady: true,
+    cwd: 'H:\\walker',
+  };
+  const session = { id: 'wks_concurrent_fallback', agent: 'claude', status: 'idle', agentRef: oldRef };
+  const updates = [];
+  const { dispatcher } = createDispatcher(session, driver, updates);
+
+  const [first, second] = await Promise.all([
+    prompt(dispatcher, 'om_concurrent_1', 'first concurrent'),
+    prompt(dispatcher, 'om_concurrent_2', 'second concurrent'),
+  ]);
+
+  assert.deepEqual([first, second], ['prompted', 'prompted']);
+  assert.equal(broker.calls.resumeRuntime.length, 1);
+  assert.equal(broker.calls.resumeRuntime[0].claudeSessionId, CLAUDE_SESSION_ID);
+  assert.equal(terminalCalls.length, 0);
+  assert.equal(session.agentRef.runtimeId, 'rt_fallback_new');
+  assert.deepEqual(broker.calls.writeInput.map((call) => ({ runtimeId: call.runtimeId, text: call.data.toString() })), [
+    { runtimeId: 'rt_fallback_new', text: 'first concurrent\r' },
+    { runtimeId: 'rt_fallback_new', text: 'second concurrent\r' },
+  ]);
+  assert.ok(updates.filter((item) => item.field === 'agentRef').length >= 2);
+  assert.ok(updates.every((item) => item.value.runtimeId === 'rt_fallback_new'));
+});
+
+test('REQ-006-B03/REQ-006-B04: agentRef 持久化失败时不写 PTY 并返回错误卡片', async () => {
+  const bridge = new ClaudeBridgeSidecar({ token: 'bridge-secret-token' });
+  const broker = new RecordingBroker(bridge);
+  const terminalCalls = [];
+  const driver = new ClaudeDriver({
+    cwd: 'H:\\walker',
+    claudeBridge: bridge,
+    ptyBroker: broker,
+    attachServer: false,
+    transcript: null,
+    openClaudeAttachTerminal: async (...args) => { terminalCalls.push(args); return { windowId: 'unexpected-window' }; },
+  });
+  const oldRef = {
+    provider: 'claude',
+    transport: 'pty-attach',
+    runtimeId: 'rt_missing_persist',
+    claudeSessionId: CLAUDE_SESSION_ID,
+    processGeneration: 1,
+    terminal: { status: 'detached', windowId: 'stale-window' },
+    conversationReady: true,
+    cwd: 'H:\\walker',
+  };
+  const session = { id: 'wks_persist_failed', agent: 'claude', status: 'idle', agentRef: oldRef };
+  const updates = [];
+  const { dispatcher, feishuApi } = createDispatcher(session, driver, updates, { updateError: new Error('disk write failed TOKEN=secret') });
+  const stderr = [];
+  const originalWrite = process.stderr.write;
+  process.stderr.write = function write(chunk, ..._args) {
+    stderr.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+    return true;
+  };
+
+  let result;
+  try {
+    result = await prompt(dispatcher, 'om_persist_failed', 'must not be written');
+  } finally {
+    process.stderr.write = originalWrite;
+  }
+
+  assert.equal(result, 'error');
+  assert.equal(broker.calls.resumeRuntime.length, 1);
+  assert.equal(terminalCalls.length, 0);
+  assert.deepEqual(broker.calls.writeInput, []);
+  assert.equal(session.agentRef, oldRef);
+  assert.deepEqual(updates, []);
+  const errorCard = feishuApi.calls.find((call) => call.type === 'sendErrorCard');
+  assert.ok(errorCard);
+  assert.match(errorCard.message, /Failed to persist Claude runtime state before prompting/i);
+  assert.doesNotMatch(JSON.stringify(feishuApi.calls), /TOKEN=secret|disk write failed/);
+  assert.doesNotMatch(stderr.join(''), /TOKEN=secret|disk write failed TOKEN=secret/);
 });
 
 test('REQ-003: Walker stop 只释放 Walker connection，pending 输入被拒绝且 runtime 保持可诊断可续接', async () => {

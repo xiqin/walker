@@ -1,0 +1,386 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "title": "单 runtime 所有权",
+      "status": "failing",
+      "types": ["functional", "state", "concurrent", "recovery"],
+      "required_categories": ["happy-path", "state-transition", "concurrency", "recovery", "forbidden-behavior"],
+      "acceptance": ["每个活动 Walker Claude 会话最多存在一个 Claude/kscc PTY 进程，飞书 prompt 不启动第二进程"],
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "新建 Claude 会话只启动一个长期 PTY runtime，并让飞书与 attach 共享该 runtime",
+          "status": "failing",
+          "acceptance": ["createSession 仅 spawn 一次 Claude/kscc 且返回唯一 runtimeId"],
+          "test_plan": {"strategy": "fake PTY 单元测试", "inputs": ["新建 Claude 会话"], "expected": ["单次 spawn", "agentRef 绑定唯一 runtimeId"]}
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "state-transition",
+          "description": "runtime 生命周期与 attach 窗口在线状态独立维护",
+          "status": "failing",
+          "acceptance": ["无 attach 客户端时活动 PTY 仍被判断为可写"],
+          "test_plan": {"strategy": "状态单元测试", "inputs": ["active runtime 与 detached terminal"], "expected": ["isSessionRefActive 返回 true"]}
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "concurrency",
+          "description": "同一 agentRef 的并发恢复请求只创建一个替代 runtime",
+          "status": "failing",
+          "acceptance": ["并发恢复不会产生两个 --resume 进程"],
+          "test_plan": {"strategy": "并发恢复测试", "inputs": ["两个同时到达的恢复请求"], "expected": ["单次 resumeRuntime", "两个调用获得同一 runtimeId"]}
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "recovery",
+          "description": "失效 runtime 使用绑定的精确 Claude UUID 创建一个新 PTY 并执行 --resume",
+          "status": "failing",
+          "acceptance": ["恢复使用 --resume <uuid>，不使用裸 --continue"],
+          "test_plan": {"strategy": "恢复单元测试", "inputs": ["失效 runtime 与持久化 UUID"], "expected": ["单次 --resume", "新 runtime 可写"]}
+        },
+        {
+          "id": "REQ-001-B05",
+          "category": "forbidden-behavior",
+          "description": "飞书 prompt 禁止启动 --print、background agent 或第二个 --resume 进程",
+          "status": "failing",
+          "acceptance": ["连续飞书 prompt 只写同一 PTY，进程 spawn 计数不增加"],
+          "test_plan": {"strategy": "多轮回归测试", "inputs": ["连续两条飞书 prompt"], "expected": ["PTY 写入两次", "无额外 spawn", "参数不含 --print"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "title": "恢复与窗口解耦",
+      "status": "failing",
+      "types": ["functional", "state", "external", "observable"],
+      "required_categories": ["happy-path", "state-transition", "external-failure", "observability", "forbidden-behavior"],
+      "acceptance": ["飞书触发 runtime 恢复时不打开新终端；仅新建会话或显式 attach 打开窗口"],
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "新建 Claude 会话允许打开一次初始 attach 窗口",
+          "status": "failing",
+          "acceptance": ["createSession 成功后最多调用一次终端启动器"],
+          "test_plan": {"strategy": "driver 单元测试", "inputs": ["新建会话"], "expected": ["初始窗口调用一次"]}
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "state-transition",
+          "description": "resumeSession 只恢复 runtime，不改变 attach 窗口状态",
+          "status": "failing",
+          "acceptance": ["失效 runtime 恢复成功后 terminal launcher 未被调用"],
+          "test_plan": {"strategy": "恢复单元测试", "inputs": ["带 UUID 的失效 agentRef"], "expected": ["runtime active", "窗口调用为零"]}
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "forbidden-behavior",
+          "description": "飞书普通消息路径不得隐式调用 _ensureTerminal 或 openClaudeAttachTerminal",
+          "status": "failing",
+          "acceptance": ["飞书消息恢复并 prompt 后没有新 cmd 进程请求"],
+          "test_plan": {"strategy": "dispatcher-driver 集成测试", "inputs": ["runtime 失效时的飞书消息"], "expected": ["恢复并写 prompt", "无窗口调用"]}
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "external-failure",
+          "description": "显式 attach 窗口启动失败不关闭或重复创建 Claude runtime",
+          "status": "failing",
+          "acceptance": ["窗口错误可诊断且 runtime 保持 active"],
+          "test_plan": {"strategy": "故障注入测试", "inputs": ["terminal launcher 抛错"], "expected": ["错误返回", "runtime 未停止", "无第二进程"]}
+        },
+        {
+          "id": "REQ-002-B05",
+          "category": "observability",
+          "description": "日志区分 runtime 恢复、新建初始窗口和显式 attach",
+          "status": "failing",
+          "acceptance": ["诊断记录包含动作类型与 runtimeId，不含敏感 token"],
+          "test_plan": {"strategy": "日志捕获测试", "inputs": ["恢复、新建、显式 attach"], "expected": ["动作分类正确", "凭据未输出"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "title": "无历史 ANSI 回放",
+      "status": "failing",
+      "types": ["functional", "input", "security", "performance"],
+      "required_categories": ["happy-path", "boundary", "invalid-input", "security", "performance", "forbidden-behavior"],
+      "acceptance": ["新 attach 客户端不接收连接前的 TUI 原始字节，不出现历史欢迎语、输入和状态栏拼接"],
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "happy-path",
+          "description": "attach 成功后只转发连接时刻之后产生的实时 PTY 数据",
+          "status": "failing",
+          "acceptance": ["连接前数据为零，连接后数据原样到达客户端"],
+          "test_plan": {"strategy": "attach server 集成测试", "inputs": ["连接前 ANSI chunk", "连接后 ANSI chunk"], "expected": ["只收到连接后 chunk"]}
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "forbidden-behavior",
+          "description": "用户 attach 禁止订阅 broker replay 缓冲",
+          "status": "failing",
+          "acceptance": ["订阅参数固定为 replay false 或省略 replay"],
+          "test_plan": {"strategy": "broker facade 单元测试", "inputs": ["新 WebSocket attach"], "expected": ["subscribe 未请求历史 replay"]}
+        },
+        {
+          "id": "REQ-003-B03",
+          "category": "boundary",
+          "description": "无历史输出和超大历史缓冲时 attach 行为一致且连接耗时不依赖历史大小",
+          "status": "failing",
+          "acceptance": ["两种情况下都不发送历史数据"],
+          "test_plan": {"strategy": "边界测试", "inputs": ["空 replay", "达到上限的 replay"], "expected": ["初始发送字节均为零"]}
+        },
+        {
+          "id": "REQ-003-B04",
+          "category": "invalid-input",
+          "description": "客户端请求 replay 或发送未知 attach 参数时不能绕过无回放策略",
+          "status": "failing",
+          "acceptance": ["服务端忽略或拒绝 replay 请求，不发送历史 ANSI"],
+          "test_plan": {"strategy": "协议输入测试", "inputs": ["replay=true", "未知参数"], "expected": ["无历史数据", "runtime 不受影响"]}
+        },
+        {
+          "id": "REQ-003-B05",
+          "category": "security",
+          "description": "无效 attach token 无法读取实时或历史 PTY 输出",
+          "status": "failing",
+          "acceptance": ["认证失败连接收到零 PTY 字节"],
+          "test_plan": {"strategy": "attach 认证测试", "inputs": ["缺失 token", "错误 token"], "expected": ["连接拒绝", "无数据泄露"]}
+        },
+        {
+          "id": "REQ-003-B06",
+          "category": "performance",
+          "description": "attach 建立不复制历史 replay 缓冲，内存和发送量与历史长度无关",
+          "status": "failing",
+          "acceptance": ["连接建立阶段历史发送量为 0 字节"],
+          "test_plan": {"strategy": "资源测试", "inputs": ["1 MiB 历史缓冲"], "expected": ["初始网络发送不包含该缓冲"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "title": "飞书输入安全仲裁",
+      "status": "failing",
+      "types": ["input", "state", "concurrent", "performance", "security"],
+      "required_categories": ["happy-path", "invalid-input", "state-transition", "concurrency", "performance", "security", "forbidden-behavior"],
+      "acceptance": ["飞书 prompt 仅在安全输入状态以完整事务写入同一 PTY；本地编辑、权限界面和忙碌状态不被污染"],
+      "behaviors": [
+        {
+          "id": "REQ-004-B01",
+          "category": "happy-path",
+          "description": "安全空闲状态下飞书 prompt 以完整文本加一次 Enter 写入唯一 PTY",
+          "status": "failing",
+          "acceptance": ["写入字节连续且只提交一次"],
+          "test_plan": {"strategy": "输入事务测试", "inputs": ["普通飞书文本"], "expected": ["text + CR 单事务写入"]}
+        },
+        {
+          "id": "REQ-004-B02",
+          "category": "concurrency",
+          "description": "本地 writer lease 持有期间飞书 prompt 排队而不插入编辑行",
+          "status": "failing",
+          "acceptance": ["lease 释放前 PTY 无飞书字节，释放后按 FIFO 写入"],
+          "test_plan": {"strategy": "并发输入测试", "inputs": ["本地半行", "飞书 prompt", "本地提交"], "expected": ["无交错", "提交后消费队列"]}
+        },
+        {
+          "id": "REQ-004-B03",
+          "category": "state-transition",
+          "description": "writer lease 在提交、取消、detach 或超时后释放并继续队列",
+          "status": "failing",
+          "acceptance": ["每种释放路径都不会永久阻塞飞书队列"],
+          "test_plan": {"strategy": "lease 状态测试", "inputs": ["Enter", "Ctrl+C", "detach", "超时"], "expected": ["lease 释放", "队列继续"]}
+        },
+        {
+          "id": "REQ-004-B04",
+          "category": "forbidden-behavior",
+          "description": "权限选择或已知忙碌状态下普通飞书文本不得直接作为 TUI 按键注入",
+          "status": "failing",
+          "acceptance": ["危险状态下 prompt 只排队或明确拒绝"],
+          "test_plan": {"strategy": "危险状态测试", "inputs": ["permission", "busy"], "expected": ["PTY 无普通 prompt 写入"]}
+        },
+        {
+          "id": "REQ-004-B05",
+          "category": "invalid-input",
+          "description": "空白、非字符串和超长 prompt 在进入队列前被拒绝",
+          "status": "failing",
+          "acceptance": ["无效输入不写 PTY 且不占用队列"],
+          "test_plan": {"strategy": "输入校验测试", "inputs": ["空白", "对象", "超长文本"], "expected": ["稳定错误码", "零 PTY 写入"]}
+        },
+        {
+          "id": "REQ-004-B06",
+          "category": "performance",
+          "description": "飞书等待队列有固定上限且不通过忙轮询等待状态变化",
+          "status": "failing",
+          "acceptance": ["队列满时明确拒绝，空闲时无持续轮询"],
+          "test_plan": {"strategy": "队列资源测试", "inputs": ["超过容量的并发 prompt"], "expected": ["容量有界", "溢出被拒绝"]}
+        },
+        {
+          "id": "REQ-004-B07",
+          "category": "security",
+          "description": "输入与队列日志不记录完整飞书 prompt 或敏感内容",
+          "status": "failing",
+          "acceptance": ["日志仅包含来源、长度、队列深度和脱敏标识"],
+          "test_plan": {"strategy": "日志安全测试", "inputs": ["包含 token 的 prompt"], "expected": ["敏感文本不出现在日志"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "title": "精确 transcript 回复",
+      "status": "failing",
+      "types": ["functional", "external", "observable", "security"],
+      "required_categories": ["happy-path", "external-failure", "observability", "security", "forbidden-behavior"],
+      "acceptance": ["飞书回复只来自绑定 cwd 与 Claude UUID 的本轮 JSONL assistant 事件，不从屏幕抓取"],
+      "behaviors": [
+        {
+          "id": "REQ-005-B01",
+          "category": "happy-path",
+          "description": "prompt 写入前创建精确 cursor，并只收集 cursor 后本轮 assistant 文本",
+          "status": "failing",
+          "acceptance": ["旧欢迎语、历史输入和旧 assistant 回复不进入飞书结果"],
+          "test_plan": {"strategy": "transcript fixture 测试", "inputs": ["cursor 前历史与 cursor 后新轮次"], "expected": ["只返回新 assistant 文本"]}
+        },
+        {
+          "id": "REQ-005-B02",
+          "category": "observability",
+          "description": "transcript 收集完成、超时和解析失败均产生统一可诊断事件",
+          "status": "failing",
+          "acceptance": ["状态包含 runtimeId 与脱敏 session 标识"],
+          "test_plan": {"strategy": "事件映射测试", "inputs": ["done", "timeout", "parse error"], "expected": ["统一 AgentEvent 或稳定错误"]}
+        },
+        {
+          "id": "REQ-005-B03",
+          "category": "external-failure",
+          "description": "JSONL 缺失、部分行或写入超时时失败完成且不挂起 prompt",
+          "status": "failing",
+          "acceptance": ["调用在配置超时内结束并返回明确错误"],
+          "test_plan": {"strategy": "transcript 故障测试", "inputs": ["文件缺失", "部分 JSON", "无新事件"], "expected": ["明确失败", "无悬挂 Promise"]}
+        },
+        {
+          "id": "REQ-005-B04",
+          "category": "security",
+          "description": "transcript 路径严格绑定 canonical cwd、配置根目录和合法 UUID",
+          "status": "failing",
+          "acceptance": ["路径越界、非法 UUID 和错误 workspace 均 fail closed"],
+          "test_plan": {"strategy": "路径安全测试", "inputs": ["路径穿越", "非法 UUID", "错误 cwd"], "expected": ["全部拒绝"]}
+        },
+        {
+          "id": "REQ-005-B05",
+          "category": "forbidden-behavior",
+          "description": "禁止按最新 mtime 选择 transcript，也禁止从 ANSI PTY 输出构造飞书回复",
+          "status": "failing",
+          "acceptance": ["同 cwd 多 UUID 时只读取绑定 UUID，PTY 文本不参与回复"],
+          "test_plan": {"strategy": "多会话隔离测试", "inputs": ["两个 UUID transcript", "PTY 历史文本"], "expected": ["只返回绑定 UUID 的事件"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "title": "生命周期与诊断",
+      "status": "failing",
+      "types": ["state", "external", "observable", "recovery", "security"],
+      "required_categories": ["state-transition", "external-failure", "observability", "recovery", "security", "atomicity"],
+      "acceptance": ["attach 失败、PTY 退出、队列拒绝和不可恢复状态均返回明确诊断且不泄露敏感信息"],
+      "behaviors": [
+        {
+          "id": "REQ-006-B01",
+          "category": "state-transition",
+          "description": "PTY 正常或异常退出时 runtime 与 pending prompt 状态一致更新",
+          "status": "failing",
+          "acceptance": ["runtime 不再报告 active，所有等待者完成"],
+          "test_plan": {"strategy": "PTY 生命周期测试", "inputs": ["正常 exit", "非零 exit"], "expected": ["状态正确", "无 pending 悬挂"]}
+        },
+        {
+          "id": "REQ-006-B02",
+          "category": "external-failure",
+          "description": "attach server、窗口启动或 PTY 恢复失败返回稳定错误且不产生半活动资源",
+          "status": "failing",
+          "acceptance": ["错误后资源状态与 agentRef 一致"],
+          "test_plan": {"strategy": "分阶段故障注入", "inputs": ["server fail", "window fail", "resume fail"], "expected": ["稳定错误", "必要资源清理"]}
+        },
+        {
+          "id": "REQ-006-B03",
+          "category": "atomicity",
+          "description": "runtime 恢复成功后才持久化新 runtimeId，失败时保留可诊断非活动状态",
+          "status": "failing",
+          "acceptance": ["持久化引用不指向不存在的 active runtime"],
+          "test_plan": {"strategy": "持久化原子性测试", "inputs": ["恢复成功", "恢复中途失败"], "expected": ["agentRef 与实际资源一致"]}
+        },
+        {
+          "id": "REQ-006-B04",
+          "category": "recovery",
+          "description": "Walker 重启后可按精确 UUID 恢复 runtime，但不自动恢复窗口",
+          "status": "failing",
+          "acceptance": ["恢复后飞书可写，窗口调用为零"],
+          "test_plan": {"strategy": "重启恢复集成测试", "inputs": ["序列化 agentRef"], "expected": ["新 PTY --resume", "无自动窗口"]}
+        },
+        {
+          "id": "REQ-006-B05",
+          "category": "observability",
+          "description": "诊断信息区分 runtime、attach、queue 和 transcript 故障类别",
+          "status": "failing",
+          "acceptance": ["用户提示可操作，日志含稳定错误码"],
+          "test_plan": {"strategy": "错误映射测试", "inputs": ["四类故障"], "expected": ["错误码和提示不混淆"]}
+        },
+        {
+          "id": "REQ-006-B06",
+          "category": "security",
+          "description": "日志和错误消息脱敏 attach token、API key、OAuth token 与敏感环境变量",
+          "status": "failing",
+          "acceptance": ["敏感值不出现在日志、飞书回复或抛出错误中"],
+          "test_plan": {"strategy": "脱敏测试", "inputs": ["包含多类凭据的故障"], "expected": ["所有凭据被替换"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "title": "兼容与回归边界",
+      "status": "failing",
+      "types": ["functional", "external", "security"],
+      "required_categories": ["compatibility", "happy-path", "external-failure", "security", "forbidden-behavior"],
+      "acceptance": ["claude 与 kscc 命令配置均遵循相同行为，OpenCode provider 和既有会话语义不变"],
+      "behaviors": [
+        {
+          "id": "REQ-007-B01",
+          "category": "compatibility",
+          "description": "CLAUDE_CMD 指向 claude 或 kscc 时均使用单 PTY、无自动恢复窗口和无 replay attach",
+          "status": "failing",
+          "acceptance": ["两种命令的 fake CLI 测试结果一致"],
+          "test_plan": {"strategy": "参数化 driver 测试", "inputs": ["claude", "kscc"], "expected": ["相同 runtime 与 attach 语义"]}
+        },
+        {
+          "id": "REQ-007-B02",
+          "category": "happy-path",
+          "description": "现有显式 walker claude attach 命令保持可用并转发实时字节",
+          "status": "failing",
+          "acceptance": ["合法 token 可连接并接收连接后的输出"],
+          "test_plan": {"strategy": "CLI attach 回归测试", "inputs": ["合法 runtimeId 与 token"], "expected": ["连接成功", "实时字节转发"]}
+        },
+        {
+          "id": "REQ-007-B03",
+          "category": "external-failure",
+          "description": "kscc 不支持 Remote Control 或 claude 使用自定义 endpoint 时不影响单 PTY 基础能力",
+          "status": "failing",
+          "acceptance": ["Walker 不尝试 Remote Control，基础 TUI 与飞书路径仍可用"],
+          "test_plan": {"strategy": "环境兼容测试", "inputs": ["kscc 命令", "自定义 ANTHROPIC_BASE_URL"], "expected": ["无 remote-control 参数", "环境不被修改"]}
+        },
+        {
+          "id": "REQ-007-B04",
+          "category": "security",
+          "description": "Walker 不为启用 Remote Control 自动移除或覆盖用户的认证与 endpoint 环境变量",
+          "status": "failing",
+          "acceptance": ["子进程环境保持用户配置，且未记录敏感值"],
+          "test_plan": {"strategy": "spawn 环境测试", "inputs": ["自定义 endpoint 与认证变量"], "expected": ["未篡改", "日志脱敏"]}
+        },
+        {
+          "id": "REQ-007-B05",
+          "category": "forbidden-behavior",
+          "description": "Claude 改动不得进入 OpenCode driver、TUI bridge 或改变 opencodeSessionId 语义",
+          "status": "failing",
+          "acceptance": ["OpenCode 定向测试与全量回归通过，相关源码无非必要修改"],
+          "test_plan": {"strategy": "回归与 diff 审查", "inputs": ["OpenCode 测试集", "最终 diff"], "expected": ["测试通过", "OpenCode 模块无行为变化"]}
+        }
+      ]
+    }
+  ]
+}

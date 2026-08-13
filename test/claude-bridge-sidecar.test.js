@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const test = require('node:test');
+const WebSocket = require('ws');
 
 const { ClaudeBridgeSidecar } = require('../src/drivers/claude-bridge-sidecar');
 
@@ -11,6 +12,7 @@ class FakeRuntime extends EventEmitter {
     super();
     this.inputs = [];
     this.subscribers = new Set();
+    this.subscribeOptions = [];
   }
 
   writeInput(text) {
@@ -18,10 +20,42 @@ class FakeRuntime extends EventEmitter {
     return Promise.resolve({ ok: true });
   }
 
-  subscribeOutput(handler) {
+  subscribeOutput(handler, options) {
+    this.subscribeOptions.push(options);
+    if (!options || options.replay !== false) handler(Buffer.from('historical-tui-bytes'));
     this.subscribers.add(handler);
     return () => this.subscribers.delete(handler);
   }
+
+  emitOutput(chunk) {
+    for (const subscriber of this.subscribers) subscriber(chunk);
+  }
+}
+
+function waitForOpen(ws) {
+  if (ws.readyState === WebSocket.OPEN) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    ws.once('open', resolve);
+    ws.once('error', reject);
+  });
+}
+
+function waitForMessage(ws) {
+  return new Promise((resolve) => ws.once('message', (data) => resolve(Buffer.from(data))));
+}
+
+function assertNoMessage(ws) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.off('message', onMessage);
+      resolve();
+    }, 30);
+    const onMessage = (data) => {
+      clearTimeout(timer);
+      reject(new Error('unexpected websocket message: ' + Buffer.from(data).toString('hex')));
+    };
+    ws.once('message', onMessage);
+  });
 }
 
 function createLogger(logs) {
@@ -129,4 +163,25 @@ test('REQ-006-B02/REQ-006-B03: createAttachment returns credential without leaki
   const snapshot = sidecar.getRuntime('rt-attach');
   assert.equal(JSON.stringify(snapshot.agentRef).includes('attach-token-secret-value'), false);
   assert.equal(JSON.stringify(sidecar.listRuntimes()).includes('attach-token-secret-value'), false);
+});
+
+test('REQ-003-B01/REQ-003-B02: bridge sidecar attach disables historical replay and forwards live output', async () => {
+  const runtime = new FakeRuntime();
+  const sidecar = new ClaudeBridgeSidecar({ token: 'control-token', tokenFactory: () => 'attach-token-secret-value' });
+  await sidecar.start();
+  try {
+    sidecar.registerRuntime({ runtimeId: 'rt-bridge-attach', claudeSessionId: 'claude-attach', runtime });
+    const attachment = sidecar.createAttachment('rt-bridge-attach');
+    const ws = new WebSocket(attachment.url + '&replay=true');
+    await waitForOpen(ws);
+    await assertNoMessage(ws);
+    assert.deepEqual(runtime.subscribeOptions, [{ replay: false }]);
+
+    const live = waitForMessage(ws);
+    runtime.emitOutput(Buffer.from('live-output'));
+    assert.deepEqual(await live, Buffer.from('live-output'));
+    ws.close();
+  } finally {
+    await sidecar.stop();
+  }
 });

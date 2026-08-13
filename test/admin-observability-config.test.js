@@ -226,6 +226,17 @@ test('REQ-007-B01 和 REQ-007-B03: Claude 配置项可见、可编辑且不含 S
     CLAUDE_ALLOWED_TOOLS: 'Read,Grep',
     CLAUDE_DISALLOWED_TOOLS: 'Bash',
     CLAUDE_CONFIG_DIR: 'C:\\claude',
+    CLAUDE_TOOLS: 'Read,Grep',
+    CLAUDE_AGENTS: '{"reviewer":{"model":"opus"}}',
+    CLAUDE_MCP_CONFIGS: '["C:/mcp/a.json"]',
+    CLAUDE_STRICT_MCP_CONFIG: 'true',
+    CLAUDE_SETTINGS_FILE: 'C:/claude/settings.json',
+    CLAUDE_SETTING_SOURCES: 'user,project',
+    CLAUDE_PLUGIN_DIRS: 'C:/plugins',
+    CLAUDE_BARE: 'false',
+    CLAUDE_SAFE_MODE: 'true',
+    CLAUDE_DISABLE_SLASH_COMMANDS: 'true',
+    CLAUDE_ALLOW_BYPASS_PERMISSIONS: 'false',
     CLAUDE_PROMPT_TIMEOUT_MS: '45000',
   });
   const group = summary.groups.find((item) => item.id === 'claude');
@@ -241,11 +252,25 @@ test('REQ-007-B01 和 REQ-007-B03: Claude 配置项可见、可编辑且不含 S
     'CLAUDE_ALLOWED_TOOLS',
     'CLAUDE_DISALLOWED_TOOLS',
     'CLAUDE_CONFIG_DIR',
+    'CLAUDE_TOOLS',
+    'CLAUDE_AGENTS',
+    'CLAUDE_MCP_CONFIGS',
+    'CLAUDE_STRICT_MCP_CONFIG',
+    'CLAUDE_SETTINGS_FILE',
+    'CLAUDE_SETTING_SOURCES',
+    'CLAUDE_PLUGIN_DIRS',
+    'CLAUDE_BARE',
+    'CLAUDE_SAFE_MODE',
+    'CLAUDE_DISABLE_SLASH_COMMANDS',
+    'CLAUDE_ALLOW_BYPASS_PERMISSIONS',
     'CLAUDE_PROMPT_TIMEOUT_MS',
   ].every((key) => summary.editableKeys.includes(key)), true);
   assert.equal(items.get('CLAUDE_CMD').value, 'claude-beta');
   assert.equal(items.get('CLAUDE_MODEL').value, 'sonnet');
   assert.equal(items.get('CLAUDE_PERMISSION_MODE').value, 'plan');
+  assert.deepEqual(items.get('CLAUDE_STRICT_MCP_CONFIG').input, { type: 'boolean', values: ['true', 'false'] });
+  assert.deepEqual(items.get('CLAUDE_SETTING_SOURCES').input, { type: 'list', values: ['user', 'project', 'local'], itemType: 'enum' });
+  assert.deepEqual(items.get('CLAUDE_MCP_CONFIGS').input, { type: 'json-list', itemType: 'string' });
   assert.equal(items.get('CLAUDE_PROMPT_TIMEOUT_MS').value, '45000');
   assert.equal(summary.sensitiveKeys.some((key) => key.startsWith('CLAUDE_')), false);
   assert.equal(group.items.some((item) => item.secret), false);
@@ -315,7 +340,15 @@ test('配置客户端约束覆盖全部可编辑项的专用服务端校验类�
     'route-mode': { type: 'enum', values: ['thread', 'user', 'channel'], labels: { thread: 'thread（按消息线程）', user: 'user（按用户）', channel: 'channel（按群）' } },
     'progress-style': { type: 'enum', values: ['card', 'legacy'], labels: { card: 'card（结构化卡片）', legacy: 'legacy（逐条文本）' } },
     'exit-action': { type: 'enum', values: ['cancel', 'stop', 'none'], labels: { cancel: 'cancel（取消 turn 并移出 route）', none: 'none（仅记录 detached）' } },
-    'claude-permission-mode': { type: 'enum', values: ['default', 'acceptEdits', 'auto', 'dontAsk', 'plan'] },
+    'claude-permission-mode': {
+      type: 'enum',
+      values: ['', 'acceptEdits', 'auto', 'manual', 'dontAsk', 'plan', 'bypassPermissions'],
+      labels: { '': '未指定（省略 --permission-mode）', bypassPermissions: 'bypassPermissions（需另启危险确认）' },
+    },
+    list: { type: 'list', itemType: 'string' },
+    'enum-list': { type: 'list', values: ['user', 'project', 'local'], itemType: 'enum' },
+    'json-list': { type: 'json-list', itemType: 'string' },
+    'json-object': { type: 'json-object' },
     url: { type: 'url', protocols: ['http:', 'https:'], allowEmpty: true },
     'non-empty': { type: 'text', required: true, trim: true, minLength: 1 },
   };
@@ -364,6 +397,11 @@ test('REQ-007-B02 和 REQ-007-B04: Claude 配置编辑校验并保持失败原�
   const result = updateDotEnv(envPath, {
     CLAUDE_CMD: 'claude-beta',
     CLAUDE_PERMISSION_MODE: 'plan',
+    CLAUDE_TOOLS: 'Read,Grep',
+    CLAUDE_AGENTS: '{"reviewer":{"model":"opus"}}',
+    CLAUDE_MCP_CONFIGS: '["C:/mcp/a.json"]',
+    CLAUDE_SETTING_SOURCES: 'user,project',
+    CLAUDE_SAFE_MODE: 'true',
     CLAUDE_PROMPT_TIMEOUT_MS: '45000',
   });
   const raw = fs.readFileSync(envPath, 'utf8');
@@ -371,19 +409,43 @@ test('REQ-007-B02 和 REQ-007-B04: Claude 配置编辑校验并保持失败原�
   assert.deepEqual(result.effectiveValues, {
     CLAUDE_CMD: 'claude-beta',
     CLAUDE_PERMISSION_MODE: 'plan',
+    CLAUDE_TOOLS: 'Read,Grep',
+    CLAUDE_AGENTS: '{"reviewer":{"model":"opus"}}',
+    CLAUDE_MCP_CONFIGS: '["C:/mcp/a.json"]',
+    CLAUDE_SETTING_SOURCES: 'user,project',
+    CLAUDE_SAFE_MODE: 'true',
     CLAUDE_PROMPT_TIMEOUT_MS: '45000',
   });
   assert.match(raw, /^UNKNOWN_KEY=keep/m);
   assert.match(raw, /^CLAUDE_CMD=claude-beta/m);
   assert.match(raw, /^CLAUDE_PERMISSION_MODE=plan/m);
+  assert.match(raw, /^CLAUDE_MCP_CONFIGS="\[\\"C:\/mcp\/a\.json\\"\]"/m);
+  assert.match(raw, /^CLAUDE_SETTING_SOURCES=user,project/m);
+  assert.match(raw, /^CLAUDE_SAFE_MODE=true/m);
   assert.match(raw, /^CLAUDE_PROMPT_TIMEOUT_MS=45000/m);
 
   const before = fs.readFileSync(envPath, 'utf8');
   assert.throws(() => updateDotEnv(envPath, {
-    CLAUDE_PERMISSION_MODE: 'bypassPermissions',
+    CLAUDE_PERMISSION_MODE: 'invalid-mode',
+    CLAUDE_AGENTS: '["reviewer"]',
+    CLAUDE_SETTING_SOURCES: 'user,secret-source',
     CLAUDE_PROMPT_TIMEOUT_MS: '0',
   }), /CLAUDE_PERMISSION_MODE/);
   assert.equal(fs.readFileSync(envPath, 'utf8'), before);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('REQ-006-B04: 新增 Claude 配置任一非法字段导致整组更新失败且不泄露原值', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-claude-config-atomic-'));
+  const envPath = path.join(tmpDir, '.env');
+  const original = 'CLAUDE_TOOLS=Read\nCLAUDE_SAFE_MODE=false\n';
+  fs.writeFileSync(envPath, original, 'utf8');
+
+  assert.throws(() => updateDotEnv(envPath, {
+    CLAUDE_TOOLS: 'Write',
+    CLAUDE_SAFE_MODE: 'not-a-bool-SECRET_RAW_VALUE',
+  }), (err) => err.message.includes('CLAUDE_SAFE_MODE') && !err.message.includes('SECRET_RAW_VALUE'));
+  assert.equal(fs.readFileSync(envPath, 'utf8'), original);
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

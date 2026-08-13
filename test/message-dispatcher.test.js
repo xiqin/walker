@@ -2523,11 +2523,12 @@ describe('MessageDispatcher /attach command', () => {
     assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('Claude session attached')));
   });
 
-  it('REQ-005-B05: /attach claude 缺失或非法 UUID fail closed 且不调用 resumeSession', async () => {
+  it('REQ-005-B05: /attach claude 非法 UUID fail closed 且不调用 resumeSession;无参进入列举', async () => {
     const mocks = makeMocks();
     const resumeCalls = [];
     const claudeDriver = {
       ensureReady: async () => true,
+      listSessions: async () => [],
       resumeSession: async (ref) => { resumeCalls.push(ref); return ref; },
       watchSession: () => () => {},
     };
@@ -2543,32 +2544,21 @@ describe('MessageDispatcher /attach command', () => {
       routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_attach_claude_invalid1', chatId: 'oc_chat1',
     });
 
-    assert.equal(missing.error, 'invalid_claude_session_id');
+    assert.equal(missing.error, undefined, '无参进入列举而非 fail closed');
+    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'sendAttachableSessionList'), '无参列出 Claude 会话卡片');
     assert.equal(invalid.error, 'invalid_claude_session_id');
     assert.deepEqual(resumeCalls, []);
-    assert.equal(mocks.feishuApi.calls.filter((c) => c.type === 'sendErrorCard' && /Claude session id/.test(c.message)).length, 2);
+    assert.equal(mocks.feishuApi.calls.filter((c) => c.type === 'sendErrorCard' && /Claude session id/.test(c.message)).length, 1);
   });
 
-  it('/attach 单个候选时自动纳入 Walker session 并绑定 routeKey', async () => {
+  it('/attach 单个 OpenCode 候选时仍发送混合列表卡片', async () => {
     const mocks = makeMocks();
-    let createOpts;
-    let watched;
     mocks.driver.serverUrl = 'http://localhost:4096';
     mocks.driver.listSessions = async () => [
       { id: 'ses_existing1', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
     ];
     mocks.driver.resumeSession = async (ref) => Object.assign({}, ref, { resumed: true });
-    mocks.driver.watchSession = (_agentRef, handlers) => {
-      watched = handlers;
-      return () => {};
-    };
     mocks.sessionService.listSessions = () => [];
-    mocks.sessionService.createSession = (opts) => {
-      createOpts = opts;
-      return { id: 'wks_attached1', agent: opts.agent, status: 'created', agentRef: opts.agentRef };
-    };
-    let markedIdle = '';
-    mocks.sessionService.markIdle = (sessionId) => { markedIdle = sessionId; };
 
     const dispatcher = new MessageDispatcher({
       sessionService: mocks.sessionService,
@@ -2585,15 +2575,11 @@ describe('MessageDispatcher /attach command', () => {
       messageId: 'om_attach1', chatId: 'oc_chat1',
     });
 
-    assert.equal(result.sessionId, 'wks_attached1');
-    assert.equal(createOpts.route, 'feishu:oc_chat1:om_root1');
-    assert.equal(createOpts.agent, 'opencode');
-    assert.equal(createOpts.agentRef.opencodeSessionId, 'ses_existing1');
-    assert.equal(createOpts.agentRef.serverUrl, 'http://localhost:4096');
-    assert.equal(markedIdle, 'wks_attached1');
-    assert.ok(watched);
-    assert.ok(mocks.feishuApi.calls.some(c => c.type === 'replyText' && c.text.includes('OpenCode session attached')));
-    assert.ok(mocks.feishuApi.calls.every(c => c.type !== 'sendAttachableSessionList'));
+    const cardCall = mocks.feishuApi.calls.find(c => c.type === 'sendAttachableSessionList');
+    assert.equal(result.candidates.length, 1);
+    assert.ok(cardCall);
+    assert.equal(cardCall.options.agent, 'mixed');
+    assert.deepEqual(cardCall.sessions, [{ id: 'ses_existing1', title: 'terminal session', cwd: 'H:\\walker', status: 'idle', agent: 'opencode' }]);
   });
 
   it('/attach 多个候选时发送可纳入列表卡片', async () => {

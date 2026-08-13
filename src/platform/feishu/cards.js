@@ -223,7 +223,13 @@ function renderUnboundRouteCard(routeKey) {
  */
 function renderAttachableSessionCard(sessions, options) {
   const opts = options || {};
+  const agent = opts.agent || 'opencode';
+  const mixed = agent === 'mixed';
+  const agentLabel = mixed ? 'OpenCode / Claude' : agent === 'claude' ? 'Claude' : 'OpenCode';
+  const attachPrefix = agent === 'claude' ? 'cmd:/attach claude' : 'cmd:/attach';
+  const newPrefix = agent === 'claude' ? 'cmd:/new claude' : 'cmd:/new';
   const managedIds = new Set(opts.managedIds || []);
+  const managedClaudeIds = new Set(opts.managedClaudeIds || []);
   const routeKey = opts.routeKey;
   const search = (opts.search || '').trim().toLowerCase();
   const attachable = (sessions || [])
@@ -238,18 +244,18 @@ function renderAttachableSessionCard(sessions, options) {
 
   if (attachable.length === 0) {
     const bodyElements = [
-      { tag: 'markdown', content: '没有发现可纳入的 OpenCode 会话。' },
+      { tag: 'markdown', content: '没有发现可纳入的 ' + agentLabel + ' 会话。' },
     ];
-    bodyElements.push(buildAttachSearchForm(routeKey, search));
+    bodyElements.push(buildAttachSearchForm(routeKey, search, agent));
     bodyElements.push(buildCallbackButton({
       text: '新建会话',
       type: 'primary',
-      value: buildCommandValue('cmd:/new', routeKey),
+      value: buildCommandValue(newPrefix, routeKey),
     }));
     return {
       schema: '2.0',
       config: { update_multi: true, width_mode: 'fill' },
-      header: { title: { tag: 'plain_text', content: '可纳入的 OpenCode 会话' }, template: 'default' },
+      header: { title: { tag: 'plain_text', content: '可纳入的 ' + agentLabel + ' 会话' }, template: 'default' },
       body: { elements: bodyElements },
     };
   }
@@ -265,7 +271,7 @@ function renderAttachableSessionCard(sessions, options) {
   if (opts.crossProject) {
     elements.push({
       tag: 'markdown',
-      content: '以下会话可能来自多个 OpenCode 项目，请核对工作目录后再纳入。',
+      content: '以下会话可能来自多个 ' + agentLabel + ' 项目，请核对工作目录后再纳入。',
     });
   }
   if (totalPages > 1) {
@@ -273,13 +279,16 @@ function renderAttachableSessionCard(sessions, options) {
   }
 
   for (const session of shown) {
-    const managed = managedIds.has(session.id);
-    const title = session.title || ('opencode ' + session.id);
+    const sessionAgent = session.agent === 'claude' || (!mixed && agent === 'claude') ? 'claude' : 'opencode';
+    const sessionLabel = sessionAgent === 'claude' ? 'Claude' : 'OpenCode';
+    const sessionAttachPrefix = sessionAgent === 'claude' ? 'cmd:/attach claude' : 'cmd:/attach';
+    const managed = sessionAgent === 'claude' ? managedClaudeIds.has(session.id) : managedIds.has(session.id);
+    const title = session.title || (sessionAgent + ' ' + session.id);
     const cwdLabel = session.cwd || '(未设置)';
     const status = session.status || 'unknown';
     const timeLabel = session.updatedAt ? formatRelativeTime(session.updatedAt) : '';
     const titlePrefix = managed ? '✓ 已纳入 · ' : '';
-    const metaParts = [cwdLabel, '状态: ' + status];
+    const metaParts = mixed ? [sessionLabel, cwdLabel, '状态: ' + status] : [cwdLabel, '状态: ' + status];
     if (timeLabel) metaParts.push(timeLabel);
     elements.push({
       tag: 'markdown',
@@ -288,19 +297,19 @@ function renderAttachableSessionCard(sessions, options) {
     elements.push(buildCallbackButton({
       text: managed ? '切换到此会话' : '纳入并绑定',
       type: managed ? 'default' : 'primary',
-      value: buildButtonValue('cmd:/attach', session.id, routeKey),
+      value: buildButtonValue(sessionAttachPrefix, session.id, routeKey),
     }));
   }
 
-  elements.push(buildAttachSearchForm(routeKey, search));
+  elements.push(buildAttachSearchForm(routeKey, search, agent));
 
   if (totalPages > 1) {
     const prevAction = search
-      ? 'cmd:/attach --page ' + (page - 1) + ' --search ' + search
-      : 'cmd:/attach --page ' + (page - 1);
+      ? attachPrefix + ' --page ' + (page - 1) + ' --search ' + search
+      : attachPrefix + ' --page ' + (page - 1);
     const nextAction = search
-      ? 'cmd:/attach --page ' + (page + 1) + ' --search ' + search
-      : 'cmd:/attach --page ' + (page + 1);
+      ? attachPrefix + ' --page ' + (page + 1) + ' --search ' + search
+      : attachPrefix + ' --page ' + (page + 1);
     if (page > 1) {
       elements.push(buildCallbackButton({
         text: '上一页',
@@ -320,7 +329,7 @@ function renderAttachableSessionCard(sessions, options) {
   return {
     schema: '2.0',
     config: { update_multi: true, width_mode: 'fill' },
-    header: { title: { tag: 'plain_text', content: 'OpenCode 会话列表 (' + attachable.length + ')' }, template: 'blue' },
+    header: { title: { tag: 'plain_text', content: agentLabel + ' 会话列表 (' + attachable.length + ')' }, template: 'blue' },
     body: { elements },
   };
 }
@@ -331,7 +340,8 @@ function renderAttachableSessionCard(sessions, options) {
  * @param {string} [currentSearch] - 当前搜索关键字，用于回填 input 默认值
  * @returns {Object} 飞书卡片 form 元素
  */
-function buildAttachSearchForm(routeKey, currentSearch) {
+function buildAttachSearchForm(routeKey, currentSearch, agent) {
+  const attachPrefix = agent === 'claude' ? 'cmd:/attach claude' : 'cmd:/attach';
   const formElements = [
     {
       tag: 'input',
@@ -344,7 +354,7 @@ function buildAttachSearchForm(routeKey, currentSearch) {
       text: { tag: 'plain_text', content: '搜索' },
       type: 'primary',
       action_type: 'form_submit',
-      value: buildButtonValue('cmd:/attach', '--search', routeKey),
+      value: buildButtonValue(attachPrefix, '--search', routeKey),
     },
   ];
   if (currentSearch) {

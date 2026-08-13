@@ -115,7 +115,17 @@ class AgentEvent {
   static DATA_SCHEMAS = {
     [EVENT_TYPE_TEXT]: { text: 'string', delta: 'boolean?' },
     [EVENT_TYPE_REASONING]: { text: 'string' },
-    [EVENT_TYPE_TOOL_USE]: { name: 'string', input: 'object?', output: 'string?', status: 'string?' },
+    [EVENT_TYPE_TOOL_USE]: {
+      name: 'string',
+      input: 'object?',
+      output: 'string?',
+      status: 'string?',
+      callID: 'string?',
+      phase: 'string?',
+      result: 'string?',
+      isError: 'boolean?',
+      orphan: 'boolean?',
+    },
     [EVENT_TYPE_ERROR]: { message: 'string' },
     [EVENT_TYPE_STATUS]: { status: 'string' },
     [EVENT_TYPE_DONE]: { reason: 'string?' },

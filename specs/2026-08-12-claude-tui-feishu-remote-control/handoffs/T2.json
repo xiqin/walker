@@ -1,0 +1,28 @@
+{
+  "validation": {
+    "targeted": "node --test test/claude-driver.test.js test/claude-transcript.test.js test/claude-pty-broker.test.js PASS 78/78",
+    "latest_npm_test": "PASS 1511/1511"
+  },
+  "plan_sync": "T2 reads now excludes src/drivers/claude-bridge-sidecar.js because T2 depends on T1",
+  "status": "done",
+  "summary": "T2 仍完成：ClaudeDriver 恢复路径与窗口生命周期解耦，resumeSession 不隐式打开 attach 窗口；isSessionRefActive 对 PTY runtime 仅依据 broker active 状态而非 terminal/window；同一 Claude UUID/runtime 的并发 resume 通过 promise 互斥合并为一次 resumeRuntime。code-review-request 预检后仅同步 tasks/T2.md frontmatter reads，移除前置 T1 独占的 src/drivers/claude-bridge-sidecar.js，以满足 loom tasks 机械冲突检测；T2 代码/行为不变。",
+  "artifacts": [
+    "src/drivers/claude-driver.js",
+    "test/claude-driver.test.js",
+    "tasks/T2.md",
+    "plan.md"
+  ],
+  "task_id": "T2",
+  "basis_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "spec.md": "1919da4d198c7f79dee933530f3727c30c1169e7b59664b9b9c564a73e87fbb8",
+    "tasks/T2.md": "90d1c8f560074833fa6c16c3fc59ccc0e1db6854502bae0d2e958489131327cc"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "e5145c8563fe812c2819ba39be93fe5eaeb1173c471e6d91e79a58e2c13aea62",
+    "src/drivers/claude-driver.js": "c7f69e8a50aa08a4ed43ddc3f5931e9c5162e2d39f7a5a18efd5cd7acec74c03",
+    "tasks/T2.md": "90d1c8f560074833fa6c16c3fc59ccc0e1db6854502bae0d2e958489131327cc",
+    "test/claude-driver.test.js": "5f81db252b1f24c9e8ef3b414751d2ff5c6287df67ccdc251abee798c0dc3ccd"
+  },
+  "written_at": "2026-08-12T13:10:55.586Z"
+}

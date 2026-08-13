@@ -302,8 +302,13 @@ describe('createApp', () => {
       walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
       walkerDataDir: '', opencodeServerUrl: 'http://localhost:4096', opencodeServerAutostart: false,
       opencodeCmd: 'opencode', claudeCmd: 'claude-test', claudeModel: 'sonnet',
-      claudeFallbackModel: 'opus', claudeAgent: 'reviewer', claudePermissionMode: 'plan',
+      claudeFallbackModel: 'opus', claudeAgent: 'reviewer', claudePermissionMode: 'plan', claudePermissionModeMigrated: true,
       claudeAllowedTools: 'Read,Grep', claudeDisallowedTools: 'Bash', claudeConfigDir: 'C:\\claude',
+      claudeTools: ['Read', 'Grep'], claudeAgents: { reviewer: { model: 'opus' } },
+      claudeMcpConfigs: ['C:/mcp/a.json'], claudeStrictMcpConfig: true,
+      claudeSettingsFile: 'C:/claude/settings.json', claudeSettingSources: ['user', 'project'],
+      claudePluginDirs: ['C:/plugins'], claudeBare: true, claudeSafeMode: true,
+      claudeDisableSlashCommands: true, claudeAllowBypassPermissions: false,
       claudePromptTimeoutMs: 45000, walkerWslDistro: 'Ubuntu-24.04',
       feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
     };
@@ -339,9 +344,22 @@ describe('createApp', () => {
     assert.equal(claude.options.fallbackModel, 'opus');
     assert.equal(claude.options.agent, 'reviewer');
     assert.equal(claude.options.permissionMode, 'plan');
+    assert.equal(claude.options.permissionModeMigrated, true);
     assert.equal(claude.options.allowedTools, 'Read,Grep');
     assert.equal(claude.options.disallowedTools, 'Bash');
-    assert.equal(claude.options.configDir, 'C:\\claude');
+    assert.equal(claude.options.configDir, undefined);
+    assert.equal(claude.options.transcriptConfigDir, 'C:\\claude');
+    assert.deepEqual(claude.options.tools, ['Read', 'Grep']);
+    assert.deepEqual(claude.options.agents, { reviewer: { model: 'opus' } });
+    assert.deepEqual(claude.options.mcpConfigs, ['C:/mcp/a.json']);
+    assert.equal(claude.options.strictMcpConfig, true);
+    assert.equal(claude.options.settingsFile, 'C:/claude/settings.json');
+    assert.deepEqual(claude.options.settingSources, ['user', 'project']);
+    assert.deepEqual(claude.options.pluginDirs, ['C:/plugins']);
+    assert.equal(claude.options.bare, true);
+    assert.equal(claude.options.safeMode, true);
+    assert.equal(claude.options.disableSlashCommands, true);
+    assert.equal(claude.options.allowBypassPermissions, false);
     assert.equal(claude.options.promptTimeoutMs, 45000);
   });
 

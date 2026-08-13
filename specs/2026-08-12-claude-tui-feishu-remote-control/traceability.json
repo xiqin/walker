@@ -1,0 +1,92 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T2", "T3"],
+      "tests": ["test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["evidence/executing-test-evidence.md"],
+      "behaviors": {
+        "REQ-001-B01": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-001-B01 createSession starts one long-lived PTY runtime"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-001-B02": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-001-B02 active PTY remains active with detached terminal"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-001-B03": {"tasks": ["T2", "T3"], "tests": ["test/claude-driver.test.js#REQ-001-B03 concurrent resumeSession shares one runtime", "test/claude-tui-reconnect.integration.test.js#REQ-001-B03 concurrent Feishu messages share one resumed runtime"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-001-B04": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-001-B04 resume uses exact Claude UUID with --resume"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-001-B05": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-001-B05 prompts write same PTY without --print or extra spawn"], "evidence": ["evidence/executing-test-evidence.md"]}
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T2", "T3"],
+      "tests": ["test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["evidence/executing-test-evidence.md"],
+      "behaviors": {
+        "REQ-002-B01": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-002-B01 createSession opens at most one initial attach window"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-002-B02": {"tasks": ["T2", "T3"], "tests": ["test/claude-driver.test.js#REQ-002-B02 resumeSession restores runtime without terminal launch", "test/claude-tui-reconnect.integration.test.js#REQ-002-B02 Feishu resume keeps terminal detached"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-002-B03": {"tasks": ["T3"], "tests": ["test/claude-tui-reconnect.integration.test.js#REQ-002-B03 Feishu message resumes without terminal launch"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-002-B04": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-002-B04 terminal launch failure leaves runtime active"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-002-B05": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-002-B05 resume and terminal diagnostics are classified and redacted"], "evidence": ["evidence/executing-test-evidence.md"]}
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T1", "T4"],
+      "tests": ["test/claude-attach.test.js", "test/claude-attach-command.test.js", "test/cli-claude-attach.test.js", "test/claude-tool-parity.integration.test.js", "test/claude-bridge-sidecar.test.js"],
+      "evidence": ["evidence/executing-test-evidence.md"],
+      "behaviors": {
+        "REQ-003-B01": {"tasks": ["T1", "T4"], "tests": ["test/claude-attach.test.js#REQ-003-B01 attach only forwards output emitted after connection", "test/claude-attach-command.test.js#attach command forwards live output without history", "test/claude-tool-parity.integration.test.js#REQ-003-B01 claude and kscc keep live attach semantics", "test/claude-bridge-sidecar.test.js#REQ-003-B01 bridge sidecar attach forwards only live output"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-003-B02": {"tasks": ["T1"], "tests": ["test/claude-attach.test.js#REQ-003-B02 attach subscribes with replay disabled", "test/claude-bridge-sidecar.test.js#REQ-003-B02 bridge sidecar attach subscribes with replay disabled"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-003-B03": {"tasks": ["T1"], "tests": ["test/claude-attach.test.js#REQ-003-B03 reconnect and empty replay do not send history"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-003-B04": {"tasks": ["T1"], "tests": ["test/claude-attach.test.js#REQ-003-B04 replay query and unknown parameters cannot enable history"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-003-B05": {"tasks": ["T1"], "tests": ["test/claude-attach.test.js#REQ-003-B05 invalid attach token receives no output"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-003-B06": {"tasks": ["T1"], "tests": ["test/claude-attach.test.js#REQ-003-B06 large replay is not sent or copied"], "evidence": ["evidence/executing-test-evidence.md"]}
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T2"],
+      "tests": ["test/claude-driver.test.js"],
+      "evidence": ["evidence/executing-test-evidence.md"],
+      "behaviors": {
+        "REQ-004-B01": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-004-B01 prompt writes text plus CR as one transaction"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-004-B02": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-004-B02 writer lease queues Feishu prompt without interleaving"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-004-B03": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-004-B03 lease release drains queued prompts"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-004-B04": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-004-B04 permission and busy states block direct PTY injection"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-004-B05": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-004-B05 blank non-string and oversized prompts are rejected before queueing"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-004-B06": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-004-B06 prompt queue has fixed capacity and event-driven drain"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-004-B07": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-004-B07 prompt and queue logs avoid full prompt text"], "evidence": ["evidence/executing-test-evidence.md"]}
+      }
+    },
+    "REQ-005": {
+      "tasks": ["T2"],
+      "tests": ["test/claude-driver.test.js", "test/claude-transcript.test.js"],
+      "evidence": ["evidence/executing-test-evidence.md"],
+      "behaviors": {
+        "REQ-005-B01": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-005-B01 prompt cursor is created before PTY write", "test/claude-transcript.test.js#REQ-005-B01 cursor filters history and echo"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-005-B02": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-005-B02 transcript completion timeout and parse errors map to stable results", "test/claude-transcript.test.js#REQ-005-B02 assistant events map to text and done"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-005-B03": {"tasks": ["T2"], "tests": ["test/claude-transcript.test.js#REQ-005-B03 missing partial or stalled JSONL fails without hanging"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-005-B04": {"tasks": ["T2"], "tests": ["test/claude-transcript.test.js#REQ-005-B04 transcript path is bound to canonical cwd config root and UUID"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-005-B05": {"tasks": ["T2"], "tests": ["test/claude-transcript.test.js#REQ-005-B05 bound UUID is used instead of latest mtime or ANSI output"], "evidence": ["evidence/executing-test-evidence.md"]}
+      }
+    },
+    "REQ-006": {
+      "tasks": ["T2", "T3"],
+      "tests": ["test/claude-driver.test.js", "test/claude-tui-reconnect.integration.test.js", "test/claude-attach.test.js"],
+      "evidence": ["evidence/executing-test-evidence.md"],
+      "behaviors": {
+        "REQ-006-B01": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-006-B01 PTY exit marks runtime inactive and settles pending prompts", "test/claude-attach.test.js#REQ-006-B01 detach does not stop runtime but stop updates runtime state"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-006-B02": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-006-B02 attach server terminal and resume failures return stable errors without half-active refs"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-006-B03": {"tasks": ["T2", "T3"], "tests": ["test/claude-driver.test.js#REQ-006-B03 restored runtime ref matches active resource", "test/claude-tui-reconnect.integration.test.js#REQ-006-B03 persisted runtime precedes prompt and failure keeps old ref"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-006-B04": {"tasks": ["T2", "T3"], "tests": ["test/claude-driver.test.js#REQ-006-B04 serialized agentRef resumes by UUID without terminal", "test/claude-tui-reconnect.integration.test.js#REQ-006-B04 Walker restart resumes writable runtime with zero window calls"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-006-B05": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-006-B05 diagnostics classify runtime attach queue and transcript failures"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-006-B06": {"tasks": ["T2"], "tests": ["test/claude-driver.test.js#REQ-006-B06 driver errors redact credentials", "test/claude-tui-reconnect.integration.test.js#REQ-006-B06 dispatcher persistence failure log and card are redacted"], "evidence": ["evidence/executing-test-evidence.md"]}
+      }
+    },
+    "REQ-007": {
+      "tasks": ["T1", "T4"],
+      "tests": ["test/claude-tool-parity.integration.test.js", "test/claude-attach-command.test.js", "test/cli-claude-attach.test.js", "test/opencode-driver.test.js", "test/opencode-tui-bridge.test.js", "test/claude-attach.test.js"],
+      "evidence": ["evidence/executing-test-evidence.md"],
+      "behaviors": {
+        "REQ-007-B01": {"tasks": ["T4"], "tests": ["test/claude-tool-parity.integration.test.js#REQ-007-B01 claude and kscc share single PTY semantics"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-007-B02": {"tasks": ["T1", "T4"], "tests": ["test/claude-attach.test.js#REQ-007-B02 explicit attach keeps live byte forwarding", "test/cli-claude-attach.test.js#REQ-007-B02 explicit claude attach remains compatible"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-007-B03": {"tasks": ["T4"], "tests": ["test/claude-tool-parity.integration.test.js#REQ-007-B03 unsupported remote control is never invoked"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-007-B04": {"tasks": ["T4"], "tests": ["test/claude-tool-parity.integration.test.js#REQ-007-B04 custom endpoint and auth environment are preserved"], "evidence": ["evidence/executing-test-evidence.md"]},
+        "REQ-007-B05": {"tasks": ["T4"], "tests": ["test/opencode-driver.test.js#REQ-007-B05 OpenCode driver regression", "test/opencode-tui-bridge.test.js#REQ-007-B05 OpenCode TUI bridge regression", "test/claude-tool-parity.integration.test.js#REQ-007-B05 Claude diff does not alter OpenCode production semantics"], "evidence": ["evidence/executing-test-evidence.md"]}
+      }
+    }
+  }
+}
