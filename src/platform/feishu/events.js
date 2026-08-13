@@ -4,9 +4,10 @@
  * @returns {Object} 标准化的消息事件对象
  */
 function parseMessageEvent(data) {
-  const sender = data.sender || {};
+  const event = data && data.event && typeof data.event === 'object' ? data.event : (data || {});
+  const sender = event.sender || {};
   const senderId = sender.sender_id || {};
-  const msg = data.message || {};
+  const msg = event.message || {};
 
   let text = '';
   if (msg.message_type === 'text' && msg.content) {
@@ -22,8 +23,8 @@ function parseMessageEvent(data) {
   return {
     chatId: msg.chat_id || '',
     messageId: msg.message_id || '',
-    rootId: msg.root_id || '',
-    parentId: msg.parent_id || '',
+    rootId: msg.root_id || msg.rootId || msg.thread_id || msg.threadId || '',
+    parentId: msg.parent_id || msg.parentId || msg.parent_message_id || msg.parentMessageId || msg.quote_message_id || msg.quoteMessageId || '',
     openId: senderId.open_id || senderId.user_id || senderId.union_id || '',
     messageType: msg.message_type || 'text',
     text,

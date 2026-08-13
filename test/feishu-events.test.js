@@ -27,6 +27,33 @@ test('parseMessageEvent 提取文本消息字段', () => {
   assert.equal(parsed.createTime, 1783579441000);
 });
 
+test('parseMessageEvent 支持飞书 SDK event 包装结构中的引用字段', () => {
+  const data = {
+    event: {
+      sender: { sender_id: { open_id: 'ou_123' } },
+      message: {
+        message_id: 'om_msg_wrapped',
+        chat_id: 'oc_chat1',
+        message_type: 'text',
+        content: JSON.stringify({ text: 'wrapped hello' }),
+        root_id: 'om_root_wrapped',
+        parent_id: 'om_parent_wrapped',
+        create_time: '1783579441001',
+      },
+    },
+  };
+
+  const parsed = parseMessageEvent(data);
+
+  assert.equal(parsed.chatId, 'oc_chat1');
+  assert.equal(parsed.messageId, 'om_msg_wrapped');
+  assert.equal(parsed.rootId, 'om_root_wrapped');
+  assert.equal(parsed.parentId, 'om_parent_wrapped');
+  assert.equal(parsed.openId, 'ou_123');
+  assert.equal(parsed.text, 'wrapped hello');
+  assert.equal(parsed.createTime, 1783579441001);
+});
+
 test('parseMessageEvent 清理群聊 mention 前缀命令', () => {
   const data = {
     sender: { sender_id: { open_id: 'ou_123' } },

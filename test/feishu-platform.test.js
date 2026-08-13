@@ -177,6 +177,36 @@ test('REQ-004-B01: text message includes top-level parentId', async () => {
   assert.equal(messages[0].parentId, 'om_parent');
 });
 
+test('REQ-004-B01: SDK event 包装结构中的 parentId 会转发到 dispatcher', async () => {
+  const fake = { startResult: Promise.resolve('started') };
+  const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
+  const messages = [];
+  const platform = createPlatform(FeishuPlatform, {
+    onMessage: (message) => { messages.push(message); return Promise.resolve(); },
+  });
+
+  await platform._handleMessageEvent({
+    event: {
+      sender: { sender_id: { open_id: 'ou_1' } },
+      message: {
+        message_id: 'om_wrapped',
+        chat_id: 'oc_1',
+        root_id: 'om_root_wrapped',
+        parent_id: 'om_parent_wrapped',
+        message_type: 'text',
+        content: JSON.stringify({ text: 'hello wrapped' }),
+      },
+    },
+  }, 'thread');
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].type, 'text');
+  assert.equal(messages[0].messageId, 'om_wrapped');
+  assert.equal(messages[0].rootId, 'om_root_wrapped');
+  assert.equal(messages[0].parentId, 'om_parent_wrapped');
+  assert.equal(messages[0].platformEvent.parentId, 'om_parent_wrapped');
+});
+
 test('REQ-004-B02: command message includes top-level parentId', async () => {
   const fake = { startResult: Promise.resolve('started') };
   const { FeishuPlatform } = loadPlatformWithFakeLark(fake);
