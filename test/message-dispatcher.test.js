@@ -895,7 +895,7 @@ describe('MessageDispatcher bound route prompt', () => {
     assert.ok(mocks.sessionService.recordPlatformMessageCalls.every((call) => call.info.kind === 'replyMarkdown'));
   });
 
-  it('_callFeishu binds feishu reply relationship ids as thread routes', async () => {
+  it('_callFeishu does not bind feishu reply relationship ids as thread routes', async () => {
     const mocks = makeMocks();
     mocks.feishuApi.replyMarkdown = () => ({
       code: 0,
@@ -910,11 +910,7 @@ describe('MessageDispatcher bound route prompt', () => {
 
     await dispatcher._callFeishu('replyMarkdown', [{ messageId: 'om_parent', chatId: 'oc_chat1', routeKey: 'route:rel' }, '正文'], null, { sessionId: 'wks_route_rel1' });
 
-    assert.deepEqual(mocks.sessionService.bindRouteCalls, [
-      { routeKey: 'feishu:oc_chat1:root:om_root_route1', sessionId: 'wks_route_rel1' },
-      { routeKey: 'feishu:oc_chat1:root:om_parent_route1', sessionId: 'wks_route_rel1' },
-      { routeKey: 'feishu:oc_chat1:root:omt_thread_route1', sessionId: 'wks_route_rel1' },
-    ]);
+    assert.deepEqual(mocks.sessionService.bindRouteCalls, []);
   });
 
   it('quoted feishu reply resolves by root id before thread root fallback', async () => {

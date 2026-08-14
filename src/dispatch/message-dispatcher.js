@@ -2223,26 +2223,6 @@ class MessageDispatcher {
         });
       }
     }
-    this._bindFeishuThreadRoutes(result, sessionId, chatId);
-  }
-
-  _bindFeishuThreadRoutes(result, sessionId, chatId) {
-    if (!sessionId || !chatId) return;
-    if (!this.sessionService || typeof this.sessionService.bindRoute !== 'function') return;
-    for (const messageId of this._extractFeishuThreadRouteIds(result)) {
-      const routeKey = buildRouteKey({ chatId, rootId: messageId }, this.routeMode);
-      try {
-        this.sessionService.bindRoute(routeKey, sessionId);
-      } catch (err) {
-        logger.warn('feishu thread route binding failed', {
-          sessionId,
-          chatId,
-          messageId,
-          routeKey,
-          error: err && err.message ? err.message : String(err),
-        });
-      }
-    }
   }
 
   _recordIncomingFeishuMessageBindings(event, sessionId, routeKey) {
@@ -2288,23 +2268,6 @@ class MessageDispatcher {
     }
     if (value.data && typeof value.data === 'object') {
       ids.push(...this._extractFeishuMessageIds(value.data));
-    }
-    return ids;
-  }
-
-  _extractFeishuThreadRouteIds(value) {
-    if (!value || typeof value !== 'object') return [];
-    if (Array.isArray(value)) {
-      return value.flatMap((item) => this._extractFeishuThreadRouteIds(item));
-    }
-    const ids = [];
-    for (const key of ['root_id', 'rootId', 'parent_id', 'parentId', 'thread_id', 'threadId']) {
-      if (typeof value[key] === 'string' && value[key] && !ids.includes(value[key])) ids.push(value[key]);
-    }
-    if (value.data && typeof value.data === 'object') {
-      for (const id of this._extractFeishuThreadRouteIds(value.data)) {
-        if (!ids.includes(id)) ids.push(id);
-      }
     }
     return ids;
   }

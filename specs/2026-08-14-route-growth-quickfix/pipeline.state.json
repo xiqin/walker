@@ -1,0 +1,29 @@
+{
+  "spec_dir": "H:\\walker\\specs\\2026-08-14-route-growth-quickfix",
+  "pipeline_type": "quickfix",
+  "current_stage": "verification",
+  "loom_version": "0.1.2",
+  "started_at": "2026-08-14T09:40:09.161Z",
+  "updated_at": "2026-08-14T09:47:39.439Z",
+  "stage_history": [
+    {
+      "stage": "executing",
+      "entered_at": "2026-08-14T09:40:09.161Z",
+      "exited_at": "2026-08-14T09:42:46.770Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-08-14T09:42:46.770Z",
+      "exited_at": "2026-08-14T09:47:39.439Z",
+      "status": "passed",
+      "terminal": true
+    }
+  ],
+  "metadata": {
+    "completed": true,
+    "completed_stage": "verification",
+    "completed_at": "2026-08-14T09:47:39.439Z"
+  },
+  "current_stage_started_at": "2026-08-14T09:42:46.770Z"
+}

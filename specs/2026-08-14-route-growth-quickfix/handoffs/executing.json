@@ -1,0 +1,22 @@
+{
+  "tests": [
+    "node --test --test-name-pattern=\"does not bind feishu reply relationship ids\" test/message-dispatcher.test.js (修改实现前失败，红灯成立)",
+    "node --test --test-name-pattern=\"records feishu reply relationship ids|does not bind feishu reply relationship ids|quoted feishu reply resolves\" test/message-dispatcher.test.js (3/3 pass)",
+    "node --test test/message-dispatcher.test.js test/message-dispatcher-platform-event.test.js (219/219 pass)",
+    "git diff --check (pass)"
+  ],
+  "status": "done",
+  "summary": "移除飞书发送响应关系 ID 自动绑定正式 Route 的逻辑；保留 message/root/parent/thread ID 的平台消息归属记录，引用回复仍按消息绑定解析 Session。新增回归断言确保不调用 bindRoute。定向红绿测试通过，消息分发相关 219 项测试全部通过。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {},
+  "artifact_fingerprints": {
+    "src/dispatch/message-dispatcher.js": "f1090936a07e190971de769a90a63a5b0589da919400c4b2cc9dd0777d3b7815",
+    "test/message-dispatcher.test.js": "09090e8d5f9fda73cdfb384c914eb1d5d6fa673abe995e8e2cf9aaa5c8998c53"
+  },
+  "written_at": "2026-08-14T09:42:12.898Z"
+}
