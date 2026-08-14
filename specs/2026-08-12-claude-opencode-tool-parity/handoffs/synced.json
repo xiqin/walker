@@ -1,0 +1,28 @@
+{
+  "graph_backend": "unavailable",
+  "graph_sync": "skipped_no_config_or_index",
+  "memory_update": "skipped_no_memory_store",
+  "verification_verdict": "PASS",
+  "business_code_changed_in_synced_stage": false,
+  "remaining_risks": [
+    "工作区仍按用户批准保持 dirty，包含本次 Claude parity 改动和此前既有未提交改动。"
+  ],
+  "status": "done",
+  "summary": "最终同步阶段完成：已确认 verification PASS 证据；仓库不存在 .loom/graph.config.json、.codegraph/ 或 .loom/memory 存储，因此按规则跳过图后端同步与结构化记忆更新；生成 index-sync-report.md；未修改业务代码。",
+  "artifacts": [
+    "index-sync-report.md",
+    "verify-report.md",
+    "review-response.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+  },
+  "artifact_fingerprints": {
+    "review-response.md": "c0777138c500c8f539d52b7f070641be00dd897d414835234171e4f232569d45",
+    "verify-report.md": "434768c6914ce7b7ecf511ce2c1b1c7206ec412599a21ad430a5b20da6920bac"
+  },
+  "written_at": "2026-08-12T06:13:40.283Z"
+}

@@ -1,0 +1,26 @@
+{
+  "expanded_requirements": 5,
+  "expanded_behaviors": 24,
+  "blocked_behaviors": [],
+  "detail_expansion_check": {
+    "ok": true,
+    "missing_category": 0,
+    "missing_test_plan": 0,
+    "requires_clarification": 0,
+    "placeholder_descriptions": 0
+  },
+  "status": "done",
+  "summary": "requirements.json 已覆盖 5 个 REQ、24 个 behavior；所有 required_categories 均有对应 behavior，所有 behavior 均有 test_plan，无 requires-clarification 或占位描述。",
+  "artifacts": [
+    "requirements.json"
+  ],
+  "stage": "detail-expansion",
+  "task_id": "detail-expansion",
+  "basis_fingerprints": {
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "792781ddc61f49b4704b57986fc60ea96d062a387631d9440d985914a867445a"
+  },
+  "written_at": "2026-08-12T15:25:55.083Z"
+}

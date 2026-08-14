@@ -98,6 +98,35 @@ test('handlePlatformMessage 复用 messageId dedup', async () => {
   assert.equal(mocks.driver.promptCalls.length, 1);
 });
 
+test('handlePlatformMessage 保留 threadId 并用于 quoted session 解析', async () => {
+  const mappedSession = { id: 'wks_thread', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_thread' } };
+  const mocks = makeDispatcher({ session: mappedSession });
+  const resolvedIds = [];
+  mocks.sessionService.getCurrent = () => null;
+  mocks.sessionService.getSession = () => mappedSession;
+  mocks.sessionService.resolveSessionByPlatformMessage = (_platform, messageId) => {
+    resolvedIds.push(messageId);
+    return messageId === 'omt_thread_only'
+      ? { session: mappedSession, routeKey: 'feishu:oc_1:root:omt_thread_only' }
+      : null;
+  };
+
+  const result = await mocks.dispatcher.handlePlatformMessage(platformEvent({
+    messageId: 'om_thread_child',
+    routeKey: 'feishu:oc_1:root:omt_thread_only',
+    rootId: '',
+    parentId: '',
+    threadId: 'omt_thread_only',
+  }));
+
+  assert.equal(result, 'prompted');
+  assert.deepEqual(resolvedIds, ['omt_thread_only']);
+  assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_1:root:omt_thread_only']);
+  const progress = mocks.feishuApi.calls.find((call) => call.type === 'sendProgressCard');
+  assert.equal(progress.ctx.routedBy, 'quoted-message');
+  assert.equal(progress.ctx.effectiveRouteKey, 'feishu:oc_1:root:omt_thread_only');
+});
+
 test('handlePlatformMessage 捕获 dispatcher 异常并返回结构化错误', async () => {
   const mocks = makeDispatcher();
   mocks.sessionService.getCurrent = () => { throw new Error('state broken'); };

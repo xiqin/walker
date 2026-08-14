@@ -13,6 +13,7 @@ test('parseMessageEvent 提取文本消息字段', () => {
       content: JSON.stringify({ text: 'hello world' }),
       root_id: 'om_root1',
       parent_id: 'om_parent1',
+      thread_id: 'omt_thread1',
       create_time: '1783579441000',
     },
   };
@@ -20,6 +21,7 @@ test('parseMessageEvent 提取文本消息字段', () => {
   assert.equal(parsed.chatId, 'oc_chat1');
   assert.equal(parsed.messageId, 'om_msg1');
   assert.equal(parsed.rootId, 'om_root1');
+  assert.equal(parsed.threadId, 'omt_thread1');
   assert.equal(parsed.parentId, 'om_parent1');
   assert.equal(parsed.openId, 'ou_123');
   assert.equal(parsed.messageType, 'text');
@@ -38,6 +40,7 @@ test('parseMessageEvent 支持飞书 SDK event 包装结构中的引用字段', 
         content: JSON.stringify({ text: 'wrapped hello' }),
         root_id: 'om_root_wrapped',
         parent_id: 'om_parent_wrapped',
+        thread_id: 'omt_thread_wrapped',
         create_time: '1783579441001',
       },
     },
@@ -48,6 +51,7 @@ test('parseMessageEvent 支持飞书 SDK event 包装结构中的引用字段', 
   assert.equal(parsed.chatId, 'oc_chat1');
   assert.equal(parsed.messageId, 'om_msg_wrapped');
   assert.equal(parsed.rootId, 'om_root_wrapped');
+  assert.equal(parsed.threadId, 'omt_thread_wrapped');
   assert.equal(parsed.parentId, 'om_parent_wrapped');
   assert.equal(parsed.openId, 'ou_123');
   assert.equal(parsed.text, 'wrapped hello');

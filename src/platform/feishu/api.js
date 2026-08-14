@@ -281,6 +281,11 @@ class FeishuApi {
   }
 
   async replyCard(replyCtx, card, runtime) {
+    const result = await this.replyCardResult(replyCtx, card, runtime);
+    return this._messageIdFromResult(result);
+  }
+
+  async replyCardResult(replyCtx, card, runtime) {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
     const cardContent = JSON.stringify(withRuntimeFooterCard(card, runtime));
@@ -314,6 +319,11 @@ class FeishuApi {
       throw new Error('replyCard: no messageId or chatId');
     }
 
+    this._messageIdFromResult(result);
+    return result;
+  }
+
+  _messageIdFromResult(result) {
     const messageId = result && result.data && result.data.message_id;
     if (!messageId) {
       throw new Error('feishu replyCard missing data.message_id: ' + JSON.stringify(result));

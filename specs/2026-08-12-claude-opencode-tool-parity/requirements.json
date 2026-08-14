@@ -1,0 +1,436 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "input", "state", "compatibility"],
+      "required_categories": ["happy-path", "invalid-input", "state-transition", "compatibility", "forbidden-behavior"],
+      "acceptance": ["Claude 长期 TUI 的 create 和 resume 路径使用同一套已校验启动配置，并且每个会话只启动一个 Claude 进程"],
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "create 和 resume 将相同公共配置参数交给 PTY broker，仅会话选择参数不同",
+          "status": "failing",
+          "acceptance": ["参数快照证明 create 使用 --session-id、resume 使用 --resume，其他公共参数一致"],
+          "test_plan": {"strategy": "driver 与 broker 参数单元测试", "inputs": ["完整有效配置的 create 和 resume"], "expected": ["公共参数一致且会话参数准确"]}
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "state-transition",
+          "description": "配置校验或 spawn 失败时不留下 active runtime 或覆盖可用 runtime",
+          "status": "failing",
+          "acceptance": ["故障后 runtime 状态和实际进程一致"],
+          "test_plan": {"strategy": "启动故障注入", "inputs": ["校验失败", "PTY spawn 失败"], "expected": ["无残留 runtime 且错误可诊断"]}
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "forbidden-behavior",
+          "description": "长期 TUI prompt 不得启动 --print 或第二个 Claude 进程",
+          "status": "failing",
+          "acceptance": ["多轮 prompt 的 spawn 次数不增加且参数不含 --print 或 stream-json"],
+          "test_plan": {"strategy": "多轮进程复用回归", "inputs": ["同会话连续 prompt"], "expected": ["复用同一 PTY 且仅 spawn 一次"]}
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "compatibility",
+          "description": "未配置新增选项时保持现有长期 TUI、attach 和 resume 行为",
+          "status": "failing",
+          "acceptance": ["既有 Claude PTY 与重连测试无需改变语义即可通过"],
+          "test_plan": {"strategy": "既有测试回归", "inputs": ["最小 Claude 配置"], "expected": ["启动与恢复行为保持兼容"]}
+        },
+        {
+          "id": "REQ-001-B05",
+          "category": "invalid-input",
+          "description": "未知或类型错误的启动配置在 spawn 前被拒绝",
+          "status": "failing",
+          "acceptance": ["错误指出字段和允许范围且未创建进程"],
+          "test_plan": {"strategy": "配置表驱动测试", "inputs": ["错误类型", "未知枚举", "非法组合"], "expected": ["稳定配置错误且 spawn 为零次"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "input", "external", "security"],
+      "required_categories": ["happy-path", "boundary", "invalid-input", "external-failure", "security", "forbidden-behavior"],
+      "acceptance": ["Claude 原生 tools、agents、MCP、settings、setting sources 和本地 plugins 配置能准确进入长期 TUI 启动参数"],
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "所有支持的多值和 JSON 配置生成顺序稳定的参数数组",
+          "status": "failing",
+          "acceptance": ["参数测试覆盖 tools、allowed/disallowed、agents、MCP、settings、sources 和 plugin dirs"],
+          "test_plan": {"strategy": "参数快照测试", "inputs": ["每类配置单独和组合输入"], "expected": ["CLI flag、值和重复规则准确"]}
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "invalid-input",
+          "description": "agents JSON、setting sources、MCP 和路径输入在 spawn 前完成结构校验",
+          "status": "failing",
+          "acceptance": ["畸形 JSON、非法枚举和不合规路径均被明确拒绝"],
+          "test_plan": {"strategy": "无效配置表驱动测试", "inputs": ["畸形 agents", "未知 source", "目录型 settings"], "expected": ["字段级错误且无 spawn"]}
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "boundary",
+          "description": "未配置、空字符串和显式空工具集合保持可区分语义",
+          "status": "failing",
+          "acceptance": ["未配置不传 flag，显式空集合按 Claude CLI 支持的关闭语义编码"],
+          "test_plan": {"strategy": "空值边界测试", "inputs": ["undefined", "空字符串", "空数组"], "expected": ["参数语义不混淆"]}
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "external-failure",
+          "description": "strict MCP 缺少配置或外部配置不可用时提供可诊断失败",
+          "status": "failing",
+          "acceptance": ["strict 模式不静默回退到非 strict 或默认 MCP"],
+          "test_plan": {"strategy": "MCP 故障测试", "inputs": ["strict 无配置", "不存在的配置路径"], "expected": ["启动前失败或 CLI 错误被分类"]}
+        },
+        {
+          "id": "REQ-002-B05",
+          "category": "security",
+          "description": "参数通过 spawn 数组传递，敏感 JSON 和路径内容不进入普通日志",
+          "status": "failing",
+          "acceptance": ["带 secret 哨兵的配置在日志和持久化状态中无命中"],
+          "test_plan": {"strategy": "日志泄漏扫描", "inputs": ["包含哨兵 secret 的 agents/MCP/settings"], "expected": ["日志仅含参数类别和脱敏摘要"]}
+        },
+        {
+          "id": "REQ-002-B06",
+          "category": "forbidden-behavior",
+          "description": "transcript configDir 不得再被作为 --settings 参数",
+          "status": "failing",
+          "acceptance": ["只配置 configDir 时启动参数不包含 --settings"],
+          "test_plan": {"strategy": "回归参数测试", "inputs": ["仅 configDir"], "expected": ["configDir 只用于 transcript 路径"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["authorization", "security", "input", "compatibility"],
+      "required_categories": ["authorization", "security", "invalid-input", "compatibility", "forbidden-behavior", "observability"],
+      "acceptance": ["Claude permission mode 只使用当前合法枚举，过期 default 安全迁移，危险跳权必须显式双重确认"],
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "authorization",
+          "description": "合法 permission mode 按原值传给 Claude CLI",
+          "status": "failing",
+          "acceptance": ["acceptEdits、auto、bypassPermissions、manual、dontAsk 和 plan 的参数行为有测试"],
+          "test_plan": {"strategy": "权限模式表驱动测试", "inputs": ["全部合法枚举"], "expected": ["每项准确映射或按危险规则拒绝"]}
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "compatibility",
+          "description": "旧值 default 转换为省略 --permission-mode 并产生一次迁移告警",
+          "status": "failing",
+          "acceptance": ["旧环境配置仍可启动但不会把无效值传给 CLI"],
+          "test_plan": {"strategy": "旧配置迁移测试", "inputs": ["permissionMode=default"], "expected": ["无 permission flag 且有脱敏告警"]}
+        },
+        {
+          "id": "REQ-003-B03",
+          "category": "security",
+          "description": "bypassPermissions 需要独立危险确认且不能与 safeMode 组合",
+          "status": "failing",
+          "acceptance": ["缺少确认或组合冲突均 fail closed"],
+          "test_plan": {"strategy": "危险模式组合测试", "inputs": ["无确认 bypass", "safe+bypass", "有确认 bypass"], "expected": ["仅明确允许的组合可启动"]}
+        },
+        {
+          "id": "REQ-003-B04",
+          "category": "invalid-input",
+          "description": "未知 permission mode 不回退到默认值",
+          "status": "failing",
+          "acceptance": ["启动前返回包含允许枚举的稳定错误"],
+          "test_plan": {"strategy": "非法模式测试", "inputs": ["default 以外未知值", "大小写错误"], "expected": ["无 spawn 且错误明确"]}
+        },
+        {
+          "id": "REQ-003-B05",
+          "category": "forbidden-behavior",
+          "description": "Walker 不把 OpenCode allow/ask/deny 规则伪装成完全等价的 Claude 权限规则",
+          "status": "failing",
+          "acceptance": ["capability 和文档明确原生模式及差异"],
+          "test_plan": {"strategy": "能力契约测试", "inputs": ["Claude provider 描述"], "expected": ["无完全同构声明且列出限制"]}
+        },
+        {
+          "id": "REQ-003-B06",
+          "category": "observability",
+          "description": "权限迁移、拒绝和危险模式启用均产生不含敏感值的诊断",
+          "status": "failing",
+          "acceptance": ["日志可区分 migrated、invalid、dangerous-enabled"],
+          "test_plan": {"strategy": "结构化日志测试", "inputs": ["三类权限路径"], "expected": ["诊断类别准确且无 secret"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "status": "failing",
+      "types": ["functional", "observable", "external", "state"],
+      "required_categories": ["happy-path", "observability", "state-transition", "external-failure", "boundary", "compatibility"],
+      "acceptance": ["Claude transcript 中的文本、thinking、tool_use 和 tool_result 被完整解析并以可关联 AgentEvent 输出"],
+      "behaviors": [
+        {
+          "id": "REQ-004-B01",
+          "category": "happy-path",
+          "description": "单条 assistant record 中多个 content block 按原顺序映射为事件",
+          "status": "failing",
+          "acceptance": ["text、thinking 和多个 tool_use 不被合并或丢弃"],
+          "test_plan": {"strategy": "JSONL fixture 测试", "inputs": ["混合 content blocks"], "expected": ["事件类型、内容和顺序准确"]}
+        },
+        {
+          "id": "REQ-004-B02",
+          "category": "state-transition",
+          "description": "tool_use start 与 tool_result 通过 call ID 关联并保留错误状态",
+          "status": "failing",
+          "acceptance": ["相同 call ID 的 start/result 可被消费者关联，is_error 不丢失"],
+          "test_plan": {"strategy": "工具生命周期 fixture", "inputs": ["成功结果", "错误结果", "多个并发 call ID"], "expected": ["关联准确且阶段明确"]}
+        },
+        {
+          "id": "REQ-004-B03",
+          "category": "boundary",
+          "description": "orphan tool_result 被保留并标记，不错误绑定到其他工具",
+          "status": "failing",
+          "acceptance": ["缺失 start 时 watcher 不崩溃且 call ID 原样保留"],
+          "test_plan": {"strategy": "乱序与缺失 fixture", "inputs": ["只有 tool_result", "交错 call ID"], "expected": ["结果标记 orphan 且无错误关联"]}
+        },
+        {
+          "id": "REQ-004-B04",
+          "category": "external-failure",
+          "description": "部分 JSONL 行和未知 block 不终止 watcher，也不丢失同记录已知 block",
+          "status": "failing",
+          "acceptance": ["后续完整写入仍可继续解析"],
+          "test_plan": {"strategy": "增量写入故障测试", "inputs": ["半行 JSON", "未知 block", "后续完整记录"], "expected": ["watcher 连续工作且已知事件完整"]}
+        },
+        {
+          "id": "REQ-004-B05",
+          "category": "observability",
+          "description": "未知 block 产生有界、脱敏且包含原始类型的诊断",
+          "status": "failing",
+          "acceptance": ["诊断不会输出完整工具输入或无限重复刷屏"],
+          "test_plan": {"strategy": "未知事件日志测试", "inputs": ["重复未知 block 和 secret 哨兵"], "expected": ["日志有界且脱敏"]}
+        },
+        {
+          "id": "REQ-004-B06",
+          "category": "compatibility",
+          "description": "纯文本 transcript 的现有回复收集与 watchSession 语义保持不变",
+          "status": "failing",
+          "acceptance": ["现有 Claude transcript 测试继续通过且不重复文本"],
+          "test_plan": {"strategy": "既有 fixture 回归", "inputs": ["纯 user/assistant 文本记录"], "expected": ["回复边界和事件数量不变"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "status": "failing",
+      "types": ["functional", "authorization", "observable", "security"],
+      "required_categories": ["happy-path", "authorization", "observability", "security", "external-failure", "forbidden-behavior"],
+      "acceptance": ["Claude permission、question 和 hook 能力仅按真实数据源暴露，没有结构化回复通路时提供明确降级"],
+      "behaviors": [
+        {
+          "id": "REQ-005-B01",
+          "category": "happy-path",
+          "description": "transcript 真实包含可识别 question 或 hook 信息时映射为既有 AgentEvent",
+          "status": "failing",
+          "acceptance": ["fixture 中的稳定字段被保留且事件不会重复"],
+          "test_plan": {"strategy": "真实形状 fixture 测试", "inputs": ["question 和 hook 记录"], "expected": ["映射到相应事件或状态诊断"]}
+        },
+        {
+          "id": "REQ-005-B02",
+          "category": "authorization",
+          "description": "Claude 无结构化 permission reply 通路时 reply 调用返回稳定 unsupported 错误",
+          "status": "failing",
+          "acceptance": ["调用不会转写为普通 TUI 文本或按键"],
+          "test_plan": {"strategy": "driver capability 测试", "inputs": ["permission reply 请求"], "expected": ["稳定错误码且 PTY 无写入"]}
+        },
+        {
+          "id": "REQ-005-B03",
+          "category": "external-failure",
+          "description": "Claude 无结构化 question reply 通路时 reply/reject 调用明确失败",
+          "status": "failing",
+          "acceptance": ["失败包含 provider 和降级原因，不影响 runtime"],
+          "test_plan": {"strategy": "question API 失败测试", "inputs": ["reply", "reject"], "expected": ["unsupported 且 runtime 保持 active"]}
+        },
+        {
+          "id": "REQ-005-B04",
+          "category": "forbidden-behavior",
+          "description": "不得解析 ANSI 文本猜测权限选项并自动批准或拒绝",
+          "status": "failing",
+          "acceptance": ["实现与测试不存在 ANSI permission 自动应答路径"],
+          "test_plan": {"strategy": "变更范围与输入安全回归", "inputs": ["权限 UI 状态下普通飞书文本"], "expected": ["输入排队或拒绝且无选择按键注入"]}
+        },
+        {
+          "id": "REQ-005-B05",
+          "category": "observability",
+          "description": "provider capability 区分 supported、degraded 和 unsupported 并包含原因",
+          "status": "failing",
+          "acceptance": ["管理面能解释 permission/question 与 OpenCode 的差异"],
+          "test_plan": {"strategy": "provider catalog 契约测试", "inputs": ["Claude 和 OpenCode capability"], "expected": ["Claude 降级明确且 OpenCode 保持支持"]}
+        },
+        {
+          "id": "REQ-005-B06",
+          "category": "security",
+          "description": "question、hook 和 permission 诊断不包含完整 prompt、token 或工具敏感输入",
+          "status": "failing",
+          "acceptance": ["敏感哨兵扫描无命中"],
+          "test_plan": {"strategy": "事件脱敏测试", "inputs": ["含 secret 的原始记录"], "expected": ["事件与日志只保留允许字段"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "status": "failing",
+      "types": ["functional", "input", "observable", "compatibility"],
+      "required_categories": ["happy-path", "invalid-input", "observability", "compatibility", "atomicity"],
+      "acceptance": ["集中配置、bootstrap、ClaudeDriver、provider catalog 和管理面使用一致的 Claude 配置定义与能力状态"],
+      "behaviors": [
+        {
+          "id": "REQ-006-B01",
+          "category": "happy-path",
+          "description": "新增配置从环境与管理配置进入 bootstrap 并准确传给 ClaudeDriver",
+          "status": "failing",
+          "acceptance": ["配置加载和 bootstrap 测试覆盖每个新增字段"],
+          "test_plan": {"strategy": "配置到 driver 集成测试", "inputs": ["完整环境配置"], "expected": ["driver 收到规范化字段"]}
+        },
+        {
+          "id": "REQ-006-B02",
+          "category": "invalid-input",
+          "description": "配置解析错误使用统一错误语义且不被 bootstrap 静默吞掉",
+          "status": "failing",
+          "acceptance": ["错误包含配置键但不包含敏感原值"],
+          "test_plan": {"strategy": "bootstrap 无效配置测试", "inputs": ["非法 JSON", "非法布尔值", "非法枚举"], "expected": ["初始化失败且错误脱敏"]}
+        },
+        {
+          "id": "REQ-006-B03",
+          "category": "observability",
+          "description": "provider catalog 和 admin 输出配置键、合法值、支持状态及限制",
+          "status": "failing",
+          "acceptance": ["管理接口快照与实际 schema 一致"],
+          "test_plan": {"strategy": "catalog/admin 快照测试", "inputs": ["Claude provider 查询"], "expected": ["字段完整且 capability 原因可见"]}
+        },
+        {
+          "id": "REQ-006-B04",
+          "category": "atomicity",
+          "description": "管理配置包含任一非法字段时整组更新失败，不留下部分生效值",
+          "status": "failing",
+          "acceptance": ["失败后读取配置仍为更新前快照"],
+          "test_plan": {"strategy": "管理配置原子性测试", "inputs": ["有效字段和非法字段混合更新"], "expected": ["全部拒绝且状态不变"]}
+        },
+        {
+          "id": "REQ-006-B05",
+          "category": "compatibility",
+          "description": "未使用新增字段的现有部署无需修改即可启动",
+          "status": "failing",
+          "acceptance": ["默认配置与旧最小环境测试通过"],
+          "test_plan": {"strategy": "默认配置回归", "inputs": ["无新增环境变量"], "expected": ["Walker 正常初始化 Claude provider"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "status": "failing",
+      "types": ["compatibility", "state", "concurrent", "recovery"],
+      "required_categories": ["compatibility", "state-transition", "concurrency", "recovery", "forbidden-behavior"],
+      "acceptance": ["本次增强不破坏 Claude 长期 TUI、sidecar 重连、输入仲裁、精确 transcript、历史会话列表和 OpenCode 行为"],
+      "behaviors": [
+        {
+          "id": "REQ-007-B01",
+          "category": "compatibility",
+          "description": "当前 Claude 历史会话列表改动与增强后的 transcript 解析共同工作",
+          "status": "failing",
+          "acceptance": ["cwd 内和全项目 session list 测试保持通过"],
+          "test_plan": {"strategy": "历史列表回归测试", "inputs": ["多 cwd、多 UUID transcript fixtures"], "expected": ["列表排序、元数据和筛选不变"]}
+        },
+        {
+          "id": "REQ-007-B02",
+          "category": "recovery",
+          "description": "Walker 重启优先复用旧 sidecar runtime，不可用时才精确 --resume",
+          "status": "failing",
+          "acceptance": ["新增启动配置在 reused 和 resumed runtime 中保持一致"],
+          "test_plan": {"strategy": "sidecar 重连回归", "inputs": ["旧 runtime 可用和不可用"], "expected": ["分别 reuse 与 resume 且无双进程"]}
+        },
+        {
+          "id": "REQ-007-B03",
+          "category": "concurrency",
+          "description": "新增事件解析不绕过现有本地输入 lease 和飞书 prompt 队列",
+          "status": "failing",
+          "acceptance": ["权限 UI、本地半行和并发 prompt 场景仍不发生字符交错"],
+          "test_plan": {"strategy": "输入仲裁回归", "inputs": ["本地 lease 与飞书 prompt 并发"], "expected": ["排队、提交和释放语义不变"]}
+        },
+        {
+          "id": "REQ-007-B04",
+          "category": "state-transition",
+          "description": "attach、detach、stop 和异常退出状态不因配置或事件增强而改变",
+          "status": "failing",
+          "acceptance": ["生命周期测试覆盖 active、stopped、error 和 reconnect"],
+          "test_plan": {"strategy": "PTY 生命周期回归", "inputs": ["attach/detach/stop/exit"], "expected": ["状态与资源清理符合既有规格"]}
+        },
+        {
+          "id": "REQ-007-B05",
+          "category": "forbidden-behavior",
+          "description": "OpenCode 专属 driver、TUI bridge 和协议生产代码不得为 Claude 对齐而改变语义",
+          "status": "failing",
+          "acceptance": ["OpenCode 测试全绿且无无关专属源码改动"],
+          "test_plan": {"strategy": "OpenCode 回归与 diff 审查", "inputs": ["OpenCode 测试集", "git diff 文件清单"], "expected": ["行为不变且改动范围合理"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-008",
+      "status": "failing",
+      "types": ["observable", "security", "external", "performance", "recovery"],
+      "required_categories": ["observability", "security", "external-failure", "performance", "recovery", "forbidden-behavior"],
+      "acceptance": ["Claude CLI 参数漂移、外部失败和未知事件均可诊断，日志有界且不泄露敏感信息"],
+      "behaviors": [
+        {
+          "id": "REQ-008-B01",
+          "category": "observability",
+          "description": "启动日志记录 Claude 版本、参数类别、create/resume 和能力降级，不记录敏感值",
+          "status": "failing",
+          "acceptance": ["诊断足以定位失效类别且 secret 扫描无命中"],
+          "test_plan": {"strategy": "结构化启动日志测试", "inputs": ["成功、迁移、降级启动"], "expected": ["字段完整且脱敏"]}
+        },
+        {
+          "id": "REQ-008-B02",
+          "category": "external-failure",
+          "description": "Claude CLI 拒绝参数或 MCP 初始化失败时错误包含退出上下文和非敏感摘要",
+          "status": "failing",
+          "acceptance": ["错误可区分 invalid-option、MCP 和普通进程失败"],
+          "test_plan": {"strategy": "子进程错误分类测试", "inputs": ["未知 flag 输出", "MCP 错误", "非零退出"], "expected": ["错误类别稳定且 runtime 清理"]}
+        },
+        {
+          "id": "REQ-008-B03",
+          "category": "performance",
+          "description": "未知 transcript 事件和工具结果不会造成无界缓存或日志洪泛",
+          "status": "failing",
+          "acceptance": ["重复未知事件的内存和诊断数量受固定上限约束"],
+          "test_plan": {"strategy": "高频未知事件测试", "inputs": ["大量重复未知 block"], "expected": ["watcher 持续工作且资源有界"]}
+        },
+        {
+          "id": "REQ-008-B04",
+          "category": "recovery",
+          "description": "单条坏 transcript 记录或单次诊断失败后 watcher 能处理后续有效记录",
+          "status": "failing",
+          "acceptance": ["后续文本和工具事件仍被输出"],
+          "test_plan": {"strategy": "watcher 恢复测试", "inputs": ["坏记录后追加有效记录"], "expected": ["无需重启即可恢复解析"]}
+        },
+        {
+          "id": "REQ-008-B05",
+          "category": "security",
+          "description": "日志、AgentEvent 和持久化状态不包含 attach token、API key、authorization 或完整敏感配置",
+          "status": "failing",
+          "acceptance": ["跨日志、事件和 state 的哨兵扫描无命中"],
+          "test_plan": {"strategy": "端到端敏感信息扫描", "inputs": ["各通路注入不同 secret 哨兵"], "expected": ["所有输出均脱敏"]}
+        },
+        {
+          "id": "REQ-008-B06",
+          "category": "forbidden-behavior",
+          "description": "版本漂移不得通过静默删除用户配置或自动降低安全策略来恢复启动",
+          "status": "failing",
+          "acceptance": ["不支持参数明确失败或告警，权限和 strict MCP 不被静默放宽"],
+          "test_plan": {"strategy": "版本漂移策略测试", "inputs": ["模拟不支持 flag 和 strict MCP 失败"], "expected": ["fail closed 或显式降级，绝不静默放宽"]}
+        }
+      ]
+    }
+  ]
+}

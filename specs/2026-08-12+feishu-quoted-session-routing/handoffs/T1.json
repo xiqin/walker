@@ -1,0 +1,31 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "Implemented persistent platform message mappings in SessionService with record, resolve, prune, legacy initialization, and delete-session cleanup coverage.",
+  "modified_files": [
+    "src/core/session-service.js",
+    "test/session-service.test.js",
+    "specs/2026-08-12+feishu-quoted-session-routing/traceability.json",
+    "specs/2026-08-12+feishu-quoted-session-routing/evidence/T1-session-service.log",
+    "specs/2026-08-12+feishu-quoted-session-routing/handoffs/T1.json"
+  ],
+  "exported_interfaces": [
+    "SessionService.recordPlatformMessage(platform, messageId, info)",
+    "SessionService.resolveSessionByPlatformMessage(platform, messageId, options)"
+  ],
+  "tests": {
+    "command": "node --test test/session-service.test.js",
+    "status": "passed",
+    "summary": "55 tests passed, 0 failed",
+    "evidence": "evidence/T1-session-service.log"
+  },
+  "requirements": ["REQ-003", "REQ-005"],
+  "behavior_ids": [
+    "REQ-003-B06",
+    "REQ-005-B01",
+    "REQ-005-B02",
+    "REQ-005-B03",
+    "REQ-005-B04",
+    "REQ-005-B05"
+  ]
+}

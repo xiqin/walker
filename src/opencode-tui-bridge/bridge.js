@@ -468,6 +468,7 @@ class OpencodeTuiBridge {
     let handlers = this.watchers.get(watchKey(runtimeId, sessionId));
     if (!handlers && runtime.walkerSessionId) {
       const routeKey = this.sessionService.getRouteForSession(runtime.walkerSessionId);
+      this._rebindRuntimeSession(runtime, sessionId);
       this._notifySessionEnrolled(runtime.walkerSessionId, routeKey);
       handlers = this.watchers.get(watchKey(runtimeId, sessionId));
     }
@@ -1101,6 +1102,40 @@ class OpencodeTuiBridge {
       return score(b) - score(a) || (b.updatedAt || 0) - (a.updatedAt || 0);
     });
     return candidates[0] || null;
+  }
+
+  _rebindRuntimeSession(runtime, opencodeSessionId) {
+    if (!runtime || !runtime.walkerSessionId) return;
+    const session = this.sessionService.getSession(runtime.walkerSessionId);
+    const ref = session && session.agentRef;
+    if (!ref || ref.transport !== 'tui-bridge' || ref.runtimeId !== runtime.runtimeId) return;
+    if (ref.opencodeSessionId === opencodeSessionId) return;
+
+    const oldKey = watchKey(runtime.runtimeId, ref.opencodeSessionId);
+    const newKey = watchKey(runtime.runtimeId, opencodeSessionId);
+    const oldHandlers = this.watchers.get(oldKey);
+    const newHandlers = this.watchers.get(newKey);
+    if (oldHandlers && newHandlers && oldHandlers !== newHandlers) {
+      for (const handler of oldHandlers) newHandlers.add(handler);
+      this.watchers.delete(oldKey);
+    } else if (oldHandlers) {
+      this.watchers.set(newKey, oldHandlers);
+      this.watchers.delete(oldKey);
+    }
+
+    runtime.currentSessionId = opencodeSessionId;
+    this.sessionService.updateSessionField(session.id, 'agentRef', {
+      ...ref,
+      opencodeSessionId,
+      transport: 'tui-bridge',
+      runtimeId: runtime.runtimeId,
+    });
+    logger.info('tui runtime session rebound', {
+      runtimeId: runtime.runtimeId,
+      walkerSessionId: session.id,
+      oldOpencodeSessionId: ref.opencodeSessionId,
+      opencodeSessionId,
+    });
   }
 
   _notifySessionEnrolled(sessionId, routeKey) {

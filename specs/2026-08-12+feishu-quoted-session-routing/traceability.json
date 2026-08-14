@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T3"],
+      "tests": [
+        "test/message-dispatcher.test.js::quoted feishu reply dispatches to mapped session instead of focused session",
+        "test/message-dispatcher.test.js::quoted feishu reply does not change focused session",
+        "test/message-dispatcher.test.js::quoted feishu reply uses mapped effective route key",
+        "test/message-dispatcher.test.js::quoted feishu reply locks mapped route key",
+        "test/message-dispatcher.test.js::incoming event records quoted routing fields",
+        "test/message-dispatcher.test.js::empty parentId uses focused session"
+      ],
+      "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"],
+      "behaviors": {
+        "REQ-001-B01": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::quoted feishu reply dispatches to mapped session instead of focused session"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-001-B02": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::quoted feishu reply does not change focused session"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-001-B03": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::quoted feishu reply uses mapped effective route key"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-001-B04": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::quoted feishu reply locks mapped route key"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-001-B05": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::incoming event records quoted routing fields"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-001-B06": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::empty parentId uses focused session"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T3"],
+      "tests": [
+        "test/message-dispatcher.test.js::direct feishu message dispatches to focused session",
+        "test/message-dispatcher.test.js::invalid quoted parent falls back to focused session",
+        "test/message-dispatcher.test.js::quoted parent mapping wins over thread root fallback",
+        "test/message-dispatcher.test.js::quoted feishu reply never calls focus mutation"
+      ],
+      "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"],
+      "behaviors": {
+        "REQ-002-B01": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::direct feishu message dispatches to focused session"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-002-B02": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::invalid quoted parent falls back to focused session"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-002-B03": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::quoted parent mapping wins over thread root fallback"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-002-B04": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::quoted feishu reply never calls focus mutation"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T1", "T3"],
+      "tests": [
+        "test/message-dispatcher.test.js::_callFeishu records every message id from replyText array result",
+        "test/message-dispatcher.test.js::_callFeishu records string and object message id shapes",
+        "test/message-dispatcher.test.js::_callFeishu returns send result when message binding record fails",
+        "test/message-dispatcher.test.js::_callFeishu does not record mapping when feishu send fails",
+        "test/message-dispatcher.test.js::message binding record failure logs method and session"
+      ],
+      "evidence": ["evidence/T3-message-dispatcher.log", "evidence/T1-session-service.log", "evidence/executing-npm-test.log"],
+      "behaviors": {
+        "REQ-003-B01": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::_callFeishu records every message id from replyText array result"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-003-B02": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::_callFeishu records string and object message id shapes"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-003-B03": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::_callFeishu returns send result when message binding record fails"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-003-B04": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::_callFeishu does not record mapping when feishu send fails"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-003-B05": { "tasks": ["T3"], "tests": ["test/message-dispatcher.test.js::message binding record failure logs method and session"], "evidence": ["evidence/T3-message-dispatcher.log", "evidence/executing-npm-test.log"] },
+        "REQ-003-B06": {
+          "tasks": ["T1"],
+          "tests": ["test/session-service.test.js::recordPlatformMessage creates and updates platform message mapping"],
+          "evidence": ["evidence/T1-session-service.log", "evidence/executing-npm-test.log"]
+        }
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T2"],
+      "tests": [
+        "test/feishu-platform.test.js::REQ-004-B01: text message includes top-level parentId",
+        "test/feishu-platform.test.js::REQ-004-B02: command message includes top-level parentId",
+        "test/feishu-platform.test.js::REQ-004-B03: message without parent_id still dispatches"
+      ],
+      "evidence": ["evidence/T2-feishu-platform.log", "evidence/executing-npm-test.log"],
+      "behaviors": {
+        "REQ-004-B01": {
+          "tasks": ["T2"],
+          "tests": ["test/feishu-platform.test.js::REQ-004-B01: text message includes top-level parentId"],
+          "evidence": ["evidence/T2-feishu-platform.log", "evidence/executing-npm-test.log"]
+        },
+        "REQ-004-B02": {
+          "tasks": ["T2"],
+          "tests": ["test/feishu-platform.test.js::REQ-004-B02: command message includes top-level parentId"],
+          "evidence": ["evidence/T2-feishu-platform.log", "evidence/executing-npm-test.log"]
+        },
+        "REQ-004-B03": {
+          "tasks": ["T2"],
+          "tests": ["test/feishu-platform.test.js::REQ-004-B03: message without parent_id still dispatches"],
+          "evidence": ["evidence/T2-feishu-platform.log", "evidence/executing-npm-test.log"]
+        }
+      }
+    },
+    "REQ-005": {
+      "tasks": ["T1"],
+      "tests": [
+        "test/session-service.test.js::recordPlatformMessage prunes oldest platform messages over limit",
+        "test/session-service.test.js::deleteSession removes platform message mappings for the session",
+        "test/session-service.test.js::resolveSessionByPlatformMessage ignores missing or deleted sessions",
+        "test/session-service.test.js::resolveSessionByPlatformMessage performs direct lookup without pruning",
+        "test/session-service.test.js::recordPlatformMessage initializes platformMessages for legacy state"
+      ],
+      "evidence": ["evidence/T1-session-service.log", "evidence/executing-npm-test.log"],
+      "behaviors": {
+        "REQ-005-B01": {
+          "tasks": ["T1"],
+          "tests": ["test/session-service.test.js::recordPlatformMessage prunes oldest platform messages over limit"],
+          "evidence": ["evidence/T1-session-service.log", "evidence/executing-npm-test.log"]
+        },
+        "REQ-005-B02": {
+          "tasks": ["T1"],
+          "tests": ["test/session-service.test.js::deleteSession removes platform message mappings for the session"],
+          "evidence": ["evidence/T1-session-service.log", "evidence/executing-npm-test.log"]
+        },
+        "REQ-005-B03": {
+          "tasks": ["T1"],
+          "tests": ["test/session-service.test.js::resolveSessionByPlatformMessage ignores missing or deleted sessions"],
+          "evidence": ["evidence/T1-session-service.log", "evidence/executing-npm-test.log"]
+        },
+        "REQ-005-B04": {
+          "tasks": ["T1"],
+          "tests": ["test/session-service.test.js::resolveSessionByPlatformMessage performs direct lookup without pruning"],
+          "evidence": ["evidence/T1-session-service.log", "evidence/executing-npm-test.log"]
+        },
+        "REQ-005-B05": {
+          "tasks": ["T1"],
+          "tests": ["test/session-service.test.js::recordPlatformMessage initializes platformMessages for legacy state"],
+          "evidence": ["evidence/T1-session-service.log", "evidence/executing-npm-test.log"]
+        }
+      }
+    }
+  }
+}

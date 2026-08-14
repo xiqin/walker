@@ -1,0 +1,24 @@
+{
+  "round": 1,
+  "status": "done",
+  "coverage": {
+    "behavior_coverage": "100%",
+    "missing_count": 0,
+    "partial_count": 0,
+    "contradicts_count": 0,
+    "unrequested_count": 0
+  },
+  "blocker_count": 0,
+  "summary": "convergence-report.json 第 1 轮已收敛：5 个 REQ、24 个 behavior 全部分类为 covered，无 missing/partial/contradicts/unrequested finding，blocker_count=0。",
+  "artifacts": [
+    "convergence-report.json"
+  ],
+  "stage": "converge",
+  "task_id": "converge",
+  "basis_fingerprints": {
+    "plan.md": "c378e84f2c1b63df3076e0cd510c806780eac979de7713b43e6a2ac818a299fe",
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-08-12T16:24:29.611Z"
+}

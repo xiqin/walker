@@ -1,0 +1,45 @@
+{
+  "verdict": "PASS",
+  "loom_verify_artifacts": "ok",
+  "placeholder_scan": {
+    "spec_artifacts": "pass",
+    "source_and_tests": "pass",
+    "note": "grep only matched a task event name inside evidence log, not a placeholder in authored artifacts"
+  },
+  "npm_test": {
+    "command": "npm test",
+    "workdir": "H:\\walker\\.worktree\\2026-08-12-feishu-quoted-session-routing",
+    "tests": 1518,
+    "pass": 1518,
+    "fail": 0,
+    "evidence": "evidence/executing-npm-test.log",
+    "sha256": "7F099D5164FACDF97288B9BB4E58FA790EDEE27441F0D781F3772740C64083DA"
+  },
+  "residual_risks": [
+    "npm install 阶段 Node engine warning 非本功能引入未处理",
+    "npm install 阶段 3 个 high severity audit findings 非本功能引入未处理",
+    "未连接真实飞书环境做端到端 API 回放"
+  ],
+  "status": "done",
+  "summary": "最终验证完成，verify-report.md 已补齐 Evidence Receipt 并保留 verdict PASS；loom_verify_artifacts 通过；spec 产物占位符扫描无禁用占位符，grep 仅命中 evidence 日志中的任务事件名，属于测试输出误伤；执行阶段 npm test 证据 SHA-256 一致，1518/1518 通过。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json",
+    "convergence-report.json",
+    "evidence/executing-npm-test.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "c378e84f2c1b63df3076e0cd510c806780eac979de7713b43e6a2ac818a299fe",
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b",
+    "test-report.md": "5ddd1f7168d8db680c5b0bab00f5e6bf420f7f25a89084a58dc6057d0dbd883c"
+  },
+  "artifact_fingerprints": {
+    "evidence/executing-npm-test.log": "7f099d5164facdf97288b9bb4e58fa790edee27441f0d781f3772740c64083da",
+    "test-report.md": "5ddd1f7168d8db680c5b0bab00f5e6bf420f7f25a89084a58dc6057d0dbd883c",
+    "verify-report.md": "77269526394faabcb1f04f4836f851a497611fc964d9cbbd14e5a51a13724569"
+  },
+  "written_at": "2026-08-12T16:33:01.257Z"
+}

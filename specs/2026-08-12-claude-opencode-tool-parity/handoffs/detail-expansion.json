@@ -1,0 +1,23 @@
+{
+  "refresh_reason": "spec.md documentation-only rename confirmed by user",
+  "requirements_unchanged": true,
+  "requirements": 8,
+  "behaviors": 45,
+  "status": "done",
+  "summary": "用户重新确认 spec.md 文档级修正后刷新 handoff：requirements.json 仍为 8 个需求、45 条行为义务，required_categories、描述、验收标准与 test_plan 仍全部闭合，无 requires-clarification；验证期 spec.md 术语修正不改变任何 behavior。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "detail-expansion",
+  "task_id": "detail-expansion",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "96a6db0865f817a9dfdc683af625916c05615c79e20274cc8ddefedb32acbf1e",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+  },
+  "written_at": "2026-08-12T05:54:31.181Z"
+}

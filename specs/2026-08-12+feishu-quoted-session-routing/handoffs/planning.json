@@ -1,0 +1,41 @@
+{
+  "tasks": [
+    "T1",
+    "T2",
+    "T3"
+  ],
+  "dependency_order": [
+    "T1/T2",
+    "T3"
+  ],
+  "validation": {
+    "loom_validate_plan": "ok"
+  },
+  "coverage": {
+    "requirements": 5,
+    "behaviors": 24
+  },
+  "status": "done",
+  "summary": "已完成飞书引用回复会话路由实现计划：拆分为 T1 平台消息索引状态、T2 飞书 parentId 透传、T3 dispatcher 引用路由与出站绑定集成。T1 与 T2 可并行，T3 依赖二者；traceability.json 已覆盖 5 个 REQ 和 24 个 behavior，loom_validate_plan 通过。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "traceability.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "c378e84f2c1b63df3076e0cd510c806780eac979de7713b43e6a2ac818a299fe",
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b",
+    "tasks/": "92059d7cec5af74cab2210ec1674b91babde87194aa915452b7ecaaf17a47aef"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "c378e84f2c1b63df3076e0cd510c806780eac979de7713b43e6a2ac818a299fe",
+    "tasks/T1.md": "1616137f5e85cda084e32a6bd3be000296cee0ed40ca725d734d67fd5b152ea5",
+    "tasks/T2.md": "f0da84847893d6c77641f3f86711be38ca575377cb0b29c0a19f5cbb1853121e",
+    "tasks/T3.md": "298e1051b26d50773e58eabfa85e1b483548af341d8b454accefbadd6e959649"
+  },
+  "written_at": "2026-08-12T15:30:21.805Z"
+}

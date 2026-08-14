@@ -10,7 +10,8 @@ function makeMocks() {
     getCurrent: () => null,
     getSession: () => null,
     createSession: () => ({ id: 'wks_new1', agent: 'opencode', status: 'created' }),
-    bindRoute: () => {},
+    bindRouteCalls: [],
+    bindRoute: (routeKey, sessionId) => { sessionService.bindRouteCalls.push({ routeKey, sessionId }); },
     setFocus: () => {},
     removeSessionFromRoute: () => {},
     listSessionsInRoute: () => [],
@@ -719,10 +720,10 @@ describe('MessageDispatcher bound route prompt', () => {
   it('empty parentId uses focused session', async () => {
     const mocks = makeMocks();
     const focused = { id: 'wks_focus_direct', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_focus_direct' } };
-    let resolveCalls = 0;
+    const resolvedIds = [];
     mocks.sessionService.getCurrent = () => focused;
     mocks.sessionService.getSession = () => focused;
-    mocks.sessionService.resolveSessionByPlatformMessage = () => { resolveCalls += 1; return null; };
+    mocks.sessionService.resolveSessionByPlatformMessage = (_platform, messageId) => { resolvedIds.push(messageId); return null; };
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
 
     await dispatcher.handleIncomingMessage({
@@ -731,7 +732,7 @@ describe('MessageDispatcher bound route prompt', () => {
       routeKey: 'feishu:oc_chat1:root:om_root_focus',
     });
 
-    assert.equal(resolveCalls, 0);
+    assert.deepEqual(resolvedIds, ['om_root_focus']);
     assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_focus_direct');
     const progress = mocks.feishuApi.calls.find((call) => call.type === 'sendProgressCard');
     assert.equal(progress.msgId.routedBy, 'route-focus');
@@ -833,6 +834,27 @@ describe('MessageDispatcher bound route prompt', () => {
     });
   });
 
+  it('_callFeishu records sendMarkdown message with positional chat id', async () => {
+    const mocks = makeMocks();
+    mocks.feishuApi.sendMarkdown = () => [{ data: { message_id: 'om_watch_output1' } }];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._callFeishu('sendMarkdown', ['oc_watch_chat1', '后台输出'], null, {
+      sessionId: 'wks_watch_output1',
+    });
+
+    assert.deepEqual(mocks.sessionService.recordPlatformMessageCalls, [{
+      platform: 'feishu',
+      messageId: 'om_watch_output1',
+      info: {
+        sessionId: 'wks_watch_output1',
+        routeKey: '',
+        chatId: 'oc_watch_chat1',
+        kind: 'sendMarkdown',
+      },
+    }]);
+  });
+
   it('_callFeishu records string and object message id shapes', async () => {
     const mocks = makeMocks();
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
@@ -846,6 +868,105 @@ describe('MessageDispatcher bound route prompt', () => {
 
     assert.deepEqual(mocks.sessionService.recordPlatformMessageCalls.map((call) => call.messageId), ['om_string1', 'om_data_snake', 'om_camel1']);
     assert.equal(mocks.sessionService.recordPlatformMessageCalls[0].info.sessionId, 'wks_record2');
+  });
+
+  it('_callFeishu records feishu reply relationship ids from official response', async () => {
+    const mocks = makeMocks();
+    mocks.feishuApi.replyMarkdown = () => ({
+      code: 0,
+      data: {
+        message_id: 'om_reply_rel1',
+        root_id: 'om_root_rel1',
+        parent_id: 'om_parent_rel1',
+        thread_id: 'omt_thread_rel1',
+      },
+    });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._callFeishu('replyMarkdown', [{ messageId: 'om_parent', chatId: 'oc_chat1', routeKey: 'route:rel' }, '正文'], null, { sessionId: 'wks_rel1' });
+
+    assert.deepEqual(mocks.sessionService.recordPlatformMessageCalls.map((call) => call.messageId), [
+      'om_reply_rel1',
+      'om_root_rel1',
+      'om_parent_rel1',
+      'omt_thread_rel1',
+    ]);
+    assert.ok(mocks.sessionService.recordPlatformMessageCalls.every((call) => call.info.sessionId === 'wks_rel1'));
+    assert.ok(mocks.sessionService.recordPlatformMessageCalls.every((call) => call.info.kind === 'replyMarkdown'));
+  });
+
+  it('_callFeishu binds feishu reply relationship ids as thread routes', async () => {
+    const mocks = makeMocks();
+    mocks.feishuApi.replyMarkdown = () => ({
+      code: 0,
+      data: {
+        message_id: 'om_reply_route1',
+        root_id: 'om_root_route1',
+        parent_id: 'om_parent_route1',
+        thread_id: 'omt_thread_route1',
+      },
+    });
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher._callFeishu('replyMarkdown', [{ messageId: 'om_parent', chatId: 'oc_chat1', routeKey: 'route:rel' }, '正文'], null, { sessionId: 'wks_route_rel1' });
+
+    assert.deepEqual(mocks.sessionService.bindRouteCalls, [
+      { routeKey: 'feishu:oc_chat1:root:om_root_route1', sessionId: 'wks_route_rel1' },
+      { routeKey: 'feishu:oc_chat1:root:om_parent_route1', sessionId: 'wks_route_rel1' },
+      { routeKey: 'feishu:oc_chat1:root:omt_thread_route1', sessionId: 'wks_route_rel1' },
+    ]);
+  });
+
+  it('quoted feishu reply resolves by root id before thread root fallback', async () => {
+    const mocks = makeMocks();
+    const mapped = { id: 'wks_mapped_root_rel', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_mapped_root_rel' } };
+    const rootFocus = { id: 'wks_root_focus_rel', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_root_focus_rel' } };
+    const resolvedIds = [];
+    const getCurrentCalls = [];
+    mocks.sessionService.getCurrent = (routeKey) => {
+      getCurrentCalls.push(routeKey);
+      return routeKey === 'feishu:oc_chat1:root:oc_chat1' ? rootFocus : null;
+    };
+    mocks.sessionService.getSession = () => mapped;
+    mocks.sessionService.resolveSessionByPlatformMessage = (_platform, messageId) => {
+      resolvedIds.push(messageId);
+      return messageId === 'om_root_rel_lookup'
+        ? { session: mapped, routeKey: 'feishu:oc_chat1:root:om_original_session' }
+        : null;
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_child_rel_lookup', openId: 'ou_user1', text: '引用 root 关系',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_rel_lookup', parentId: 'om_unknown_parent',
+      routeKey: 'feishu:oc_chat1:root:om_root_rel_lookup',
+    });
+
+    assert.deepEqual(resolvedIds, ['om_unknown_parent', 'om_root_rel_lookup']);
+    assert.deepEqual(getCurrentCalls, []);
+    assert.equal(mocks.driver.promptCalls[0].agentRef.opencodeSessionId, 'ses_mapped_root_rel');
+    const progress = mocks.feishuApi.calls.find((call) => call.type === 'sendProgressCard');
+    assert.equal(progress.msgId.routedBy, 'quoted-message');
+    assert.equal(progress.msgId.effectiveRouteKey, 'feishu:oc_chat1:root:om_original_session');
+  });
+
+  it('incoming feishu message records message root and thread ids for later quotes', async () => {
+    const mocks = makeMocks();
+    const focused = { id: 'wks_incoming_rel', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_incoming_rel' } };
+    mocks.sessionService.getCurrent = () => focused;
+    mocks.sessionService.getSession = () => focused;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_incoming_rel1', openId: 'ou_user1', text: '普通消息',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_incoming_rel1', threadId: 'omt_incoming_rel1', parentId: 'om_external_parent',
+      routeKey: 'feishu:oc_chat1:root:om_root_incoming_rel1',
+    });
+
+    const incomingCalls = mocks.sessionService.recordPlatformMessageCalls.filter((call) => call.info.kind === 'incoming');
+    assert.deepEqual(incomingCalls.map((call) => call.messageId), ['om_incoming_rel1', 'om_root_incoming_rel1', 'omt_incoming_rel1']);
+    assert.ok(incomingCalls.every((call) => call.info.sessionId === 'wks_incoming_rel'));
+    assert.ok(!incomingCalls.some((call) => call.messageId === 'om_external_parent'));
   });
 
   it('_callFeishu returns send result when message binding record fails', async () => {
@@ -1761,6 +1882,53 @@ describe('MessageDispatcher bound route prompt', () => {
     const replies = mocks.feishuApi.calls.filter(c => c.type === 'replyMarkdown');
     assert.equal(replies.length, 1, '最终文本仍应由 _renderEvents 通过 replyMarkdown 发送一次');
     assert.equal(replies[0].text, 'Hello');
+  });
+
+  it('sendProgressCard 完整响应会记录关系字段并用 message_id 更新卡片', async () => {
+    const mocks = makeMocks();
+    mocks.sessionService.getCurrent = () => ({ id: 'wks_card_rel1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_card_rel1', serverUrl: 'http://localhost:4096' } });
+    mocks.driver.prompt = async () => [
+      new AgentEvent(AgentEvent.TYPE_TOOL_USE, { id: 'tool_1', name: 'bash' }),
+      new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'Hello' }),
+      new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }),
+    ];
+    mocks.feishuApi.sendProgressCard = (msgId, sessionId, initialEvent, runtime) => {
+      mocks.feishuApi.calls.push({ type: 'sendProgressCard', msgId, sessionId, initialEvent, runtime });
+      return {
+        code: 0,
+        data: {
+          message_id: 'om_progress_rel1',
+          root_id: 'om_progress_root_rel1',
+          parent_id: 'om_progress_parent_rel1',
+          thread_id: 'omt_progress_thread_rel1',
+        },
+      };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: mocks.sessionService,
+      driverRegistry: mocks.driverRegistry,
+      feishuApi: mocks.feishuApi,
+      dedup: mocks.dedup,
+      routeMode: 'thread',
+      progressStyle: 'card',
+    });
+
+    await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_card_rel_in1', openId: 'ou_user1', text: 'test',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root_card_rel1',
+      routeKey: 'feishu:oc_chat1:root:om_root_card_rel1',
+    });
+
+    const updates = mocks.feishuApi.calls.filter(c => c.type === 'updateProgressCard');
+    assert.ok(updates.length >= 1, '完整响应应被提取为 message_id 后继续更新卡片');
+    assert.ok(updates.every((call) => call.cardId === 'om_progress_rel1'));
+    const sendBindings = mocks.sessionService.recordPlatformMessageCalls.filter((call) => call.info.kind === 'sendProgressCard');
+    assert.deepEqual(sendBindings.map((call) => call.messageId), [
+      'om_progress_rel1',
+      'om_progress_root_rel1',
+      'om_progress_parent_rel1',
+      'omt_progress_thread_rel1',
+    ]);
   });
 
   it('replyText undefined 不标记已送达', async () => {

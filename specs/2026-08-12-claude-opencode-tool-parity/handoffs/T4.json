@@ -1,0 +1,28 @@
+{
+  "refresh_reason": "spec.md documentation-only rename confirmed by user",
+  "task": "T4",
+  "status": "done",
+  "behaviors_updated": 17,
+  "traceability_closed": true,
+  "summary": "用户重新确认 spec.md 文档级修正后刷新 handoff：T4 跨链路集成回归仍覆盖完整配置、多轮 prompt、Claude reply 降级、OpenCode permission reply、sidecar reuse、历史列表、lease/stop 和 OpenCode 方法契约；最终 traceability 已闭合。",
+  "artifacts": [
+    "spec.md",
+    "test/claude-tool-parity.integration.test.js",
+    "evidence/T4-node-test-claude-tool-parity-regression.log",
+    "evidence/T4-git-diff-check.log",
+    "traceability.json"
+  ],
+  "task_id": "T4",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "tasks/T4.md": "0fdb8d601ef5bf3208647a5f55b18791364ea58afafef7239d634808bf8fe607"
+  },
+  "artifact_fingerprints": {
+    "evidence/T4-git-diff-check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "evidence/T4-node-test-claude-tool-parity-regression.log": "9402976a9a68c6d080b5cf4e831b5f76f83ff04122380332e32144229f6b70d4",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "test/claude-tool-parity.integration.test.js": "f7b3250690ae6d19e15fa059d8a3818a75895663e613276f67cb7cacd626d95f"
+  },
+  "written_at": "2026-08-12T05:54:56.921Z"
+}

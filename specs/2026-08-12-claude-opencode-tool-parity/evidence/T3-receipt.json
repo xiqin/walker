@@ -1,0 +1,26 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "commands": [
+    {
+      "command": "node --test test/config-env.test.js test/bootstrap.test.js test/admin-observability-config.test.js test/provider-catalog.test.js",
+      "exit_code": 0,
+      "log": "specs/2026-08-12-claude-opencode-tool-parity/evidence/T3-node-test.log"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "log": "specs/2026-08-12-claude-opencode-tool-parity/evidence/T3-git-diff-check.log"
+    }
+  ],
+  "behaviors": [
+    "REQ-003-B05",
+    "REQ-005-B05",
+    "REQ-006-B01",
+    "REQ-006-B02",
+    "REQ-006-B03",
+    "REQ-006-B04",
+    "REQ-006-B05"
+  ],
+  "notes": "T3 only updated allowed owns files plus T3 evidence, handoff, and T3 behavior traceability."
+}

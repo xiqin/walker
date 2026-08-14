@@ -1,0 +1,27 @@
+{
+  "analysis": {
+    "status": "pass",
+    "blocker_count": 0,
+    "findings_count": 0,
+    "coverage": {
+      "requirement_coverage": "100%",
+      "behavior_coverage": "100%",
+      "required_category_coverage": "0%",
+      "traceability_req_coverage": "100%",
+      "traceability_behavior_coverage": "100%"
+    }
+  },
+  "status": "done",
+  "summary": "artifact-analysis.json 已生成且通过：5 个 REQ 与 24 个 behavior 均完成 task/traceability 映射，无 blocker/error/warning finding。",
+  "artifacts": [
+    "artifact-analysis.json"
+  ],
+  "stage": "analyze-artifacts",
+  "task_id": "analyze-artifacts",
+  "basis_fingerprints": {
+    "plan.md": "c378e84f2c1b63df3076e0cd510c806780eac979de7713b43e6a2ac818a299fe",
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-08-12T15:31:48.687Z"
+}

@@ -1,0 +1,24 @@
+{
+  "refresh_reason": "spec.md documentation-only rename confirmed by user",
+  "decision": "用户允许 main 实施",
+  "dirty_worktree": true,
+  "must_preserve_existing_changes": true,
+  "status": "done",
+  "summary": "用户重新确认 spec.md 文档级修正后刷新 handoff：此前用户已明确允许在当前 dirty main 工作区实施；该决策仍有效，继续保留既有未提交改动，不回退或覆盖。",
+  "artifacts": [
+    "spec.md",
+    "plan.md",
+    "traceability.json"
+  ],
+  "stage": "git-worktree",
+  "task_id": "git-worktree",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+  },
+  "written_at": "2026-08-12T05:54:31.395Z"
+}

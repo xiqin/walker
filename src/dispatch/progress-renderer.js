@@ -65,6 +65,9 @@ class ProgressRenderer {
    */
   async _renderCardProgress(session, event, displayEvents, progressCardId) {
     let cardId = progressCardId || await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id], null, { sessionId: session.id, session });
+    if (cardId && typeof cardId === 'object') {
+      cardId = this.dispatcher._extractFeishuMessageIds(cardId)[0];
+    }
 
     if (!cardId) {
       return;
@@ -79,7 +82,10 @@ class ProgressRenderer {
       const rendered = await this.dispatcher._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null, { sessionId: session.id, session });
       if (rendered !== null) this.dispatcher._recordAdminMetric('cardDeliveries');
       if (rendered && rendered.strategy === 'new_message') {
-        const newCardId = await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id, agentEvent], null, { sessionId: session.id, session });
+        let newCardId = await this.dispatcher._callFeishu('sendProgressCard', [this.dispatcher._replyCtx(event), session.id, agentEvent], null, { sessionId: session.id, session });
+        if (newCardId && typeof newCardId === 'object') {
+          newCardId = this.dispatcher._extractFeishuMessageIds(newCardId)[0];
+        }
         if (newCardId) {
           cardId = newCardId;
           this.dispatcher._recordAdminMetric('cardDeliveries');

@@ -1,0 +1,34 @@
+{
+  "refresh_reason": "spec.md documentation-only rename confirmed by user",
+  "task": "T1",
+  "status": "done",
+  "behaviors_updated": 26,
+  "traceability_closed": true,
+  "summary": "用户重新确认 spec.md 文档级修正后刷新 handoff：T1 实现仍完成 Claude 长期 TUI create/resume launchArgs、权限安全迁移、settings/configDir 分离、unsupported replies、transcript event 接线和 PTY resume 原子性；最终 traceability 已闭合。",
+  "artifacts": [
+    "spec.md",
+    "src/drivers/claude-driver.js",
+    "src/drivers/claude-pty-broker.js",
+    "test/claude-driver.test.js",
+    "test/claude-pty-broker.test.js",
+    "evidence/T1-node-test-claude-driver-pty-broker.log",
+    "evidence/T1-node-test-claude-tui-reconnect.log",
+    "traceability.json"
+  ],
+  "task_id": "T1",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "tasks/T1.md": "322b9a5422327fa46d9b55d87eaca046b3f5848fe8c06cdd067499ff334ea606"
+  },
+  "artifact_fingerprints": {
+    "evidence/T1-node-test-claude-driver-pty-broker.log": "eab09229bdba7dab41ed1a9542053c1ff433cab3cf97a843acc5318fa2b72616",
+    "evidence/T1-node-test-claude-tui-reconnect.log": "0c406499c26142c60163f74d7ee66b69d1bbb2d8cbc29d5373dcacae2c46869f",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "src/drivers/claude-driver.js": "af3828e37f11ac214920510b2d927edbb2dd35a7bbbd0d2b03e8e075411d1704",
+    "src/drivers/claude-pty-broker.js": "dbbcafd7986c7574416f18827f0fed1d581a723034f2e8d2ca591d28b3b17963",
+    "test/claude-driver.test.js": "f35f7a24d7c3e03b2ec103bb166062fb77df5808c6e0292dcc02ae93d8fb7060",
+    "test/claude-pty-broker.test.js": "21da7f0bffbe2df0c2721c5ef5864591be3678676729475655225eb978a74352"
+  },
+  "written_at": "2026-08-12T05:54:56.748Z"
+}

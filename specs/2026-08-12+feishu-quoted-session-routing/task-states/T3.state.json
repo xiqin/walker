@@ -1,0 +1,11 @@
+{
+  "task_id": "T3",
+  "spec_dir": "H:\\walker\\specs\\2026-08-12+feishu-quoted-session-routing",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-08-12T16:06:01.876Z",
+  "updated_at": "2026-08-12T16:16:26.072Z",
+  "last_reviewer_result": null,
+  "blocker": null
+}

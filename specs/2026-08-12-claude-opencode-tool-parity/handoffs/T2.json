@@ -1,0 +1,29 @@
+{
+  "refresh_reason": "spec.md documentation-only rename confirmed by user",
+  "task": "T2",
+  "status": "done",
+  "traceability_closed": true,
+  "summary": "用户重新确认 spec.md 文档级修正后刷新 handoff：T2 事件契约/transcript 实现仍完成 AgentEvent tool_use lifecycle 扩展、多 block transcript 解析、callID/result/orphan、question/hook 脱敏、坏记录恢复，并保留历史会话列表与纯文本语义。",
+  "artifacts": [
+    "spec.md",
+    "src/drivers/agent-driver.js",
+    "src/drivers/claude-transcript.js",
+    "test/claude-transcript.test.js",
+    "evidence/T2-node-test-claude-transcript-opencode-driver.log",
+    "traceability.json"
+  ],
+  "task_id": "T2",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "tasks/T2.md": "a9cc1378be116db653aa2c6da96981d4c40edbb490c7074741a66e56ccc687d9"
+  },
+  "artifact_fingerprints": {
+    "evidence/T2-node-test-claude-transcript-opencode-driver.log": "48af3237d2df3a9740d9dfc27b5fe8fd9d771e003430130077f745a14e7bdf70",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "src/drivers/agent-driver.js": "751faf7b33460276be31ffc08b3f96cb2f6503a9a6fa377715a390260f012ae9",
+    "src/drivers/claude-transcript.js": "1a1a4ab50cee115f08b2aedafe84cabed6c7c70fbab8533f37f8588ce4e3860a",
+    "test/claude-transcript.test.js": "d6e4d1457a58ff81528dabff20a688e0ae07c978f3432740bd178b84c1888c41"
+  },
+  "written_at": "2026-08-12T05:55:18.853Z"
+}

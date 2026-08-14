@@ -1,0 +1,35 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "requirements": ["REQ-004"],
+  "behavior_ids": ["REQ-004-B01", "REQ-004-B02", "REQ-004-B03"],
+  "summary": "FeishuPlatform message payload now exposes parsed parentId on top-level text and command events, with no-parent messages still dispatching normally.",
+  "modified_files": [
+    "src/platform/feishu/platform.js",
+    "test/feishu-platform.test.js",
+    "specs/2026-08-12+feishu-quoted-session-routing/traceability.json",
+    "specs/2026-08-12+feishu-quoted-session-routing/evidence/T2-feishu-platform.log"
+  ],
+  "tests": [
+    {
+      "command": "node --test test/feishu-platform.test.js test/feishu-events.test.js",
+      "workdir": "H:\\walker\\.worktree\\2026-08-12-feishu-quoted-session-routing",
+      "exit_code": 0,
+      "evidence": "evidence/T2-feishu-platform.log"
+    }
+  ],
+  "traceability": {
+    "REQ-004-B01": {
+      "tests": ["test/feishu-platform.test.js::REQ-004-B01: text message includes top-level parentId"],
+      "evidence": ["evidence/T2-feishu-platform.log"]
+    },
+    "REQ-004-B02": {
+      "tests": ["test/feishu-platform.test.js::REQ-004-B02: command message includes top-level parentId"],
+      "evidence": ["evidence/T2-feishu-platform.log"]
+    },
+    "REQ-004-B03": {
+      "tests": ["test/feishu-platform.test.js::REQ-004-B03: message without parent_id still dispatches"],
+      "evidence": ["evidence/T2-feishu-platform.log"]
+    }
+  }
+}

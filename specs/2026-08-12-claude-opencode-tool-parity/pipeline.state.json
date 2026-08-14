@@ -1,0 +1,416 @@
+{
+  "spec_dir": "H:\\walker\\specs\\2026-08-12-claude-opencode-tool-parity",
+  "pipeline_type": "feature",
+  "current_stage": "synced",
+  "loom_version": "0.1.2",
+  "started_at": "2026-08-12T02:47:35.747Z",
+  "updated_at": "2026-08-12T06:14:20.818Z",
+  "stage_history": [
+    {
+      "stage": "brainstorming",
+      "entered_at": "2026-08-12T02:47:35.747Z",
+      "exited_at": "2026-08-12T02:57:19.120Z",
+      "status": "passed"
+    },
+    {
+      "stage": "detail-expansion",
+      "entered_at": "2026-08-12T02:57:19.120Z",
+      "exited_at": "2026-08-12T02:58:21.153Z",
+      "status": "passed"
+    },
+    {
+      "stage": "planning",
+      "entered_at": "2026-08-12T02:58:21.153Z",
+      "exited_at": "2026-08-12T03:07:49.900Z",
+      "status": "passed"
+    },
+    {
+      "stage": "analyze-artifacts",
+      "entered_at": "2026-08-12T03:07:49.900Z",
+      "exited_at": "2026-08-12T03:09:26.687Z",
+      "status": "passed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-08-12T03:09:26.687Z",
+      "exited_at": "2026-08-12T03:11:31.550Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "cea187acf3f8fea323acbcb5c3e4c78bde1d4dd2dc369e775bd32181179210af",
+        "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+        "requirements.json": "96a6db0865f817a9dfdc683af625916c05615c79e20274cc8ddefedb32acbf1e",
+        "spec.md": "8708786aa7e5d0843a81f212015b2f6c02b47c1823196abfc2d8d86b4e733406"
+      },
+      "approved_at": "2026-08-12T03:11:31.549Z"
+    },
+    {
+      "stage": "git-worktree",
+      "entered_at": "2026-08-12T03:11:31.550Z",
+      "exited_at": "2026-08-12T03:13:24.630Z",
+      "status": "passed"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-08-12T03:13:24.630Z",
+      "exited_at": "2026-08-12T04:15:15.050Z",
+      "status": "passed"
+    },
+    {
+      "stage": "converge",
+      "entered_at": "2026-08-12T04:15:15.050Z",
+      "exited_at": "2026-08-12T04:16:21.866Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-08-12T04:16:21.866Z",
+      "exited_at": "2026-08-12T05:53:17.034Z",
+      "status": "failed",
+      "reason": "stale approval requires re-approving spec.md documentation-only change"
+    },
+    {
+      "stage": "failed",
+      "entered_at": "2026-08-12T05:53:17.034Z",
+      "exited_at": "2026-08-12T05:53:27.886Z",
+      "status": "passed",
+      "recovery_from": "failed"
+    },
+    {
+      "stage": "approved",
+      "entered_at": "2026-08-12T05:53:27.886Z",
+      "exited_at": "2026-08-12T05:55:28.908Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "cea187acf3f8fea323acbcb5c3e4c78bde1d4dd2dc369e775bd32181179210af",
+        "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+        "requirements.json": "96a6db0865f817a9dfdc683af625916c05615c79e20274cc8ddefedb32acbf1e",
+        "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+      },
+      "approved_at": "2026-08-12T05:55:28.907Z"
+    },
+    {
+      "stage": "git-worktree",
+      "entered_at": "2026-08-12T05:55:28.908Z",
+      "exited_at": "2026-08-12T05:55:38.039Z",
+      "status": "passed"
+    },
+    {
+      "stage": "executing",
+      "entered_at": "2026-08-12T05:55:38.039Z",
+      "exited_at": "2026-08-12T05:55:50.765Z",
+      "status": "passed"
+    },
+    {
+      "stage": "converge",
+      "entered_at": "2026-08-12T05:55:50.765Z",
+      "exited_at": "2026-08-12T05:56:02.470Z",
+      "status": "passed"
+    },
+    {
+      "stage": "verification",
+      "entered_at": "2026-08-12T05:56:02.470Z",
+      "exited_at": "2026-08-12T05:56:56.189Z",
+      "status": "passed"
+    },
+    {
+      "stage": "code-review-request",
+      "entered_at": "2026-08-12T05:56:56.195Z",
+      "exited_at": "2026-08-12T06:00:09.098Z",
+      "status": "passed"
+    },
+    {
+      "stage": "review-gate",
+      "entered_at": "2026-08-12T06:00:09.098Z",
+      "exited_at": "2026-08-12T06:10:55.797Z",
+      "status": "passed",
+      "approval": "user_confirmed",
+      "approval_fingerprints": {
+        "artifact-analysis.json": "cea187acf3f8fea323acbcb5c3e4c78bde1d4dd2dc369e775bd32181179210af",
+        "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+        "requirements.json": "96a6db0865f817a9dfdc683af625916c05615c79e20274cc8ddefedb32acbf1e",
+        "review-request.md": "046f8cbc0731a0c12f442b9223d27e4bf7b580021532c4ee224389964a815bcd",
+        "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+      },
+      "approved_at": "2026-08-12T06:10:55.796Z"
+    },
+    {
+      "stage": "code-review-response",
+      "entered_at": "2026-08-12T06:10:55.797Z",
+      "exited_at": "2026-08-12T06:12:07.048Z",
+      "status": "passed"
+    },
+    {
+      "stage": "synced",
+      "entered_at": "2026-08-12T06:12:07.048Z",
+      "exited_at": "2026-08-12T06:14:20.818Z",
+      "status": "passed",
+      "terminal": true
+    }
+  ],
+  "metadata": {
+    "completed": true,
+    "completed_stage": "synced",
+    "completed_at": "2026-08-12T06:14:20.818Z"
+  },
+  "dynamic_steps": [
+    {
+      "id": "brainstorming",
+      "skill": "loom-brainstorming",
+      "requires": [],
+      "outputs": [
+        "spec.md",
+        "requirements.json",
+        "handoffs/brainstorming.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "需求头脑风暴，探索 2-3 种实现方案"
+    },
+    {
+      "id": "detail-expansion",
+      "skill": "loom-detail-expansion",
+      "requires": [
+        "spec.md",
+        "requirements.json"
+      ],
+      "outputs": [
+        "requirements.json",
+        "handoffs/detail-expansion.json"
+      ],
+      "validators": [
+        "detail-expansion-pass"
+      ],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": true,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "按 15 维度展开 behavior 强制清单，补齐 test_plan 与 applicability"
+    },
+    {
+      "id": "planning",
+      "skill": "loom-writing-plans",
+      "requires": [
+        "spec.md",
+        "requirements.json"
+      ],
+      "outputs": [
+        "plan.md",
+        "tasks/",
+        "traceability.json",
+        "handoffs/planning.json"
+      ],
+      "validators": [
+        "planning-artifacts"
+      ],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "分层拆解实现计划"
+    },
+    {
+      "id": "analyze-artifacts",
+      "skill": "loom-analyze-artifacts",
+      "requires": [
+        "spec.md",
+        "requirements.json",
+        "plan.md",
+        "tasks/",
+        "traceability.json"
+      ],
+      "outputs": [
+        "handoffs/analyze-artifacts.json"
+      ],
+      "validators": [
+        "artifact-analysis-pass"
+      ],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": true,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "planning 后审批前跨产物一致性只读分析"
+    },
+    {
+      "id": "approved",
+      "skill": null,
+      "requires": [],
+      "outputs": [],
+      "validators": [],
+      "gate": "human-approval",
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "mandatory_for": [],
+      "optional": false,
+      "description": ""
+    },
+    {
+      "id": "git-worktree",
+      "skill": "loom-using-git-worktrees",
+      "requires": [
+        "plan.md",
+        "traceability.json"
+      ],
+      "outputs": [],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "创建隔离 feature 分支"
+    },
+    {
+      "id": "executing",
+      "skill": "loom-subagent-driven-development",
+      "requires": [
+        "plan.md",
+        "tasks/",
+        "traceability.json"
+      ],
+      "outputs": [
+        "test-report.md",
+        "traceability.json",
+        "handoffs/executing.json"
+      ],
+      "validators": [
+        "task-state-closure",
+        "requirement-task-closure"
+      ],
+      "gate_verdict": "test-report.md",
+      "evidence_required": true,
+      "approval_requires": [],
+      "mandatory": true,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "subagent 并行编码执行"
+    },
+    {
+      "id": "converge",
+      "skill": "loom-converge",
+      "requires": [
+        "spec.md",
+        "requirements.json",
+        "plan.md",
+        "tasks/",
+        "traceability.json",
+        "test-report.md"
+      ],
+      "outputs": [
+        "handoffs/converge.json"
+      ],
+      "validators": [
+        "convergence-pass"
+      ],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": true,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "executing 后 verification 前对照意图清单，missing/partial 回流 executing，内部调用 omission-hunter"
+    },
+    {
+      "id": "verification",
+      "skill": "loom-verification-before-completion",
+      "requires": [
+        "test-report.md",
+        "traceability.json"
+      ],
+      "outputs": [
+        "verify-report.md",
+        "handoffs/verification.json"
+      ],
+      "validators": [
+        "verification-artifacts"
+      ],
+      "gate_verdict": "verify-report.md",
+      "evidence_required": true,
+      "approval_requires": [],
+      "mandatory": true,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "spec 覆盖 / 类型一致性 / 编译测试"
+    },
+    {
+      "id": "code-review-request",
+      "skill": "loom-requesting-code-review",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [
+        "review-request.md",
+        "handoffs/code-review-request.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "双轴预审查（Standards + Spec）后生成代码审查请求"
+    },
+    {
+      "id": "review-gate",
+      "skill": null,
+      "requires": [
+        "review-request.md"
+      ],
+      "outputs": [],
+      "validators": [],
+      "gate": "human-approval",
+      "evidence_required": false,
+      "approval_requires": [
+        "review-feedback.md"
+      ],
+      "mandatory": false,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "等待审查者反馈到达后继续（审查请求已发出，人工或外部审查者回看）"
+    },
+    {
+      "id": "code-review-response",
+      "skill": "loom-receiving-code-review",
+      "requires": [
+        "review-request.md",
+        "review-feedback.md"
+      ],
+      "outputs": [
+        "review-response.md",
+        "handoffs/code-review-response.json"
+      ],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "处理审查反馈：BLOCKER 修复 / SUGGESTION 采纳或拒绝 / 讨论项沟通，修复后重跑测试"
+    },
+    {
+      "id": "synced",
+      "skill": "loom-index-update",
+      "requires": [
+        "verify-report.md"
+      ],
+      "outputs": [],
+      "validators": [],
+      "evidence_required": false,
+      "approval_requires": [],
+      "mandatory": false,
+      "mandatory_for": [],
+      "optional": false,
+      "description": "图后端同步与结构化记忆更新"
+    }
+  ],
+  "current_stage_started_at": "2026-08-12T06:12:07.048Z",
+  "failure_reason": "stale approval requires re-approving spec.md documentation-only change"
+}

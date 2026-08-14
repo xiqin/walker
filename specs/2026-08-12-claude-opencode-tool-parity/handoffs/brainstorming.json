@@ -1,0 +1,27 @@
+{
+  "refresh_reason": "spec.md documentation-only rename confirmed by user; placeholder-like legacy task event literal removed from handoff summary",
+  "user_reconfirmed": true,
+  "unchanged": [
+    "solution A",
+    "8 requirements",
+    "45 behaviors",
+    "implementation scope"
+  ],
+  "status": "done",
+  "summary": "用户重新确认 spec.md 文档级修正后刷新 handoff：方案 A 仍保持不变，继续保留长期 Claude TUI/sidecar 单进程架构，补齐启动配置、tools/agents/MCP/settings/plugins、权限安全迁移、transcript 工具事件和 supported/degraded/unsupported 能力诊断；不伪造 OpenCode permission/question reply。验证期仅将 capability matrix 中的旧任务事件名改为 task_list，以避免占位符误判，不改变需求或实现范围。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "96a6db0865f817a9dfdc683af625916c05615c79e20274cc8ddefedb32acbf1e",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e"
+  },
+  "written_at": "2026-08-12T05:56:34.124Z"
+}

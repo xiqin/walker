@@ -242,6 +242,37 @@ describe('OpencodeTuiBridge', () => {
     }
   });
 
+  it('reportEvents 在同 runtime 切换 opencode sessionId 时更新 watcher 并投递', () => {
+    const h = createHarness();
+    try {
+      h.sessionService.createSession({ route: 'feishu:oc_bridge_session_switch:om_root', cwd: 'H:\\walker' });
+      h.sessionService.setRouteCwd('feishu:oc_bridge_session_switch:om_root', 'H:\\walker');
+      const enrolled = h.bridge.register({ runtimeId: 'runtime-session-switch', sessionId: 'ses_old', cwd: 'H:\\walker' });
+      const session = h.sessionService.getSession(enrolled.sessionId);
+      const received = [];
+      const stop = h.bridge.watchSession(session.agentRef, { onEvent: (event) => received.push(event) });
+
+      const result = h.bridge.reportEvents({
+        runtimeId: 'runtime-session-switch',
+        sessionId: 'ses_new',
+        events: [
+          { type: 'text', data: { text: 'switched session delivered' } },
+          { type: 'done', data: { reason: 'idle' } },
+        ],
+      });
+
+      assert.equal(result.delivered, true, '同 runtime 的新 opencode sessionId 事件不应丢弃');
+      assert.deepEqual(received.map((event) => event.type), ['text', 'done']);
+      assert.equal(received[0].data.text, 'switched session delivered');
+      assert.equal(h.sessionService.getSession(enrolled.sessionId).agentRef.opencodeSessionId, 'ses_new');
+      assert.equal(h.bridge.watchers.has('runtime-session-switch:ses_old'), false);
+      assert.equal(h.bridge.watchers.has('runtime-session-switch:ses_new'), true);
+      stop();
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('permission 事件通过 watchSession 分发到飞书（无 deliveryId 路径）', () => {
     const h = createHarness();
     try {

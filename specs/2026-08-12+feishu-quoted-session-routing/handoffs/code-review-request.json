@@ -1,0 +1,49 @@
+{
+  "pre_review": {
+    "fixed_point": "64fa492 feat: stabilize Claude TUI Feishu runtime",
+    "standards_findings": 0,
+    "spec_findings": 0,
+    "worst": "none"
+  },
+  "diff": {
+    "worktree": "H:\\walker\\.worktree\\2026-08-12-feishu-quoted-session-routing",
+    "branch": "feature/2026-08-12-feishu-quoted-session-routing",
+    "status": "uncommitted diff",
+    "files_changed": 9,
+    "insertions": 774,
+    "deletions": 34
+  },
+  "verification": {
+    "verdict": "PASS",
+    "command": "npm test",
+    "tests": 1518,
+    "passed": 1518,
+    "failed": 0,
+    "evidence": "evidence/executing-npm-test.log",
+    "sha256": "7F099D5164FACDF97288B9BB4E58FA790EDEE27441F0D781F3772740C64083DA"
+  },
+  "placeholder_scan": "pass",
+  "residual_risks": [
+    "npm install 阶段 Node engine warning 与 3 个 high severity audit findings 非本功能引入未处理",
+    "未连接真实飞书环境做端到端 API 回放"
+  ],
+  "status": "done",
+  "summary": "已生成 review-request.md：包含 Standards/Spec 双轴预审查（均无发现）、隔离 worktree 未提交 diff 变更统计、主要变更、文件级说明、自测证据、Evidence Receipt、审查重点与剩余风险。review-request.md 占位符扫描通过。",
+  "artifacts": [
+    "review-request.md",
+    "verify-report.md",
+    "test-report.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "c378e84f2c1b63df3076e0cd510c806780eac979de7713b43e6a2ac818a299fe",
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "94e7b7dfdacb398f043865544acc13f45fcecb07c3735339e70df6e03df5c0ec",
+    "test-report.md": "5ddd1f7168d8db680c5b0bab00f5e6bf420f7f25a89084a58dc6057d0dbd883c",
+    "verify-report.md": "77269526394faabcb1f04f4836f851a497611fc964d9cbbd14e5a51a13724569"
+  },
+  "written_at": "2026-08-12T16:35:07.669Z"
+}

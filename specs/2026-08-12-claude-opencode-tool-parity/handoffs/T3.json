@@ -1,0 +1,45 @@
+{
+  "refresh_reason": "spec.md documentation-only rename confirmed by user",
+  "task": "T3",
+  "status": "done",
+  "traceability_closed": true,
+  "summary": "用户重新确认 spec.md 文档级修正后刷新 handoff：T3 配置面仍完成 Claude env/admin/editor/bootstrap/provider 配置，permissionMode 空值省略 flag、旧 default 迁移、transcriptConfigDir 分离、布尔配置 fail-closed 与 capabilityStatus 降级表达；最终 traceability 已闭合。",
+  "artifacts": [
+    "spec.md",
+    ".env.example",
+    "src/config/env.js",
+    "src/app/bootstrap.js",
+    "src/admin/config.js",
+    "src/admin/config-editor.js",
+    "src/providers/provider-catalog.js",
+    "test/config-env.test.js",
+    "test/bootstrap.test.js",
+    "test/admin-observability-config.test.js",
+    "test/provider-catalog.test.js",
+    "evidence/T3-node-test.log",
+    "evidence/T3-git-diff-check.log",
+    "traceability.json"
+  ],
+  "task_id": "T3",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "tasks/T3.md": "03da3cde3e22b3ec41a6c24206f87f3915ca97e4fb4d93730881395df3313983"
+  },
+  "artifact_fingerprints": {
+    ".env.example": "25d6f8278f612cfdfa1ed27e692761eb45ed57a114d67442764054e9f9d90cfd",
+    "evidence/T3-git-diff-check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "evidence/T3-node-test.log": "1d8426246c5d9deb7dd5a7b73d40ea7ae1b74c791f1d18aa4dba582f55c5658f",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "src/admin/config-editor.js": "ea1b9a4c7356857ef1cbd050ea2277883a3e3ea0d52563691db3715ddfea9ee9",
+    "src/admin/config.js": "210acf7168660b7cdcee7fdc613dba0c54cb701fd02e900c34c569a95c875e7b",
+    "src/app/bootstrap.js": "6a49a64979f0616c78c4af3e637e3d18993245229bf9b0d6af0f93b6cf21a8f9",
+    "src/config/env.js": "f5f7d14337a7d608546b643f9fc60a9a6731765f5bde0379321cc78a0d823150",
+    "src/providers/provider-catalog.js": "88e3ee1bf3daa5f6eb4bf2ffe0e4fcbc4c0c0a49f7342d36c9af4f2ba073d0e1",
+    "test/admin-observability-config.test.js": "ba26794e3aad0ddf228f94a270b8c67a04275db94ee478240871594f8cafc747",
+    "test/bootstrap.test.js": "8e2ffafabbfb9395fd3455baba490ced38427589afd2d9a9a329969f90f1eb25",
+    "test/config-env.test.js": "af0bc31c7d544e03108c881a128f7004fd57665c31d17f082cbc1fdfb0a22c68",
+    "test/provider-catalog.test.js": "e0f27d3ea661dc785eb543d49a85addbe5b45b65c3839afa71477f8da1ce5ea5"
+  },
+  "written_at": "2026-08-12T05:54:56.893Z"
+}

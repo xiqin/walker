@@ -299,9 +299,12 @@ function createApp(config, deps) {
   feishuApiTarget.sendProgressCard = async (replyCtx, sessionId, initialEvent, runtime) => {
     const card = new ProgressCard({ sessionId });
     if (initialEvent) card.append(initialEvent);
-    const cardId = await platform.api.replyCard(normalizeReplyCtx(replyCtx), card.render(), runtime);
+    const result = typeof platform.api.replyCardResult === 'function'
+      ? await platform.api.replyCardResult(normalizeReplyCtx(replyCtx), card.render(), runtime)
+      : await platform.api.replyCard(normalizeReplyCtx(replyCtx), card.render(), runtime);
+    const cardId = result && result.data && result.data.message_id || result;
     progressCards.set(cardId, card);
-    return cardId;
+    return result;
   };
   /** 更新进度卡片内容，返回 patch 失败时的策略 */
   feishuApiTarget.updateProgressCard = async (cardId, sessionId, agentEvent, runtime) => {

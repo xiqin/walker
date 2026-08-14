@@ -1,0 +1,25 @@
+{
+  "decisions": [
+    "使用 SessionService 管理 platformMessages.feishu 映射。",
+    "每平台映射容量上限 5000，记录时剪枝。",
+    "引用路由优先于 thread root fallback。",
+    "出站记录失败不得影响发送。"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "已确认采用消息级持久索引方案：飞书出站消息绑定 sessionId/routeKey/chatId；入站 parentId 命中时一次性投递到映射会话；未命中保持当前 route 焦点和 thread fallback；不自动切换焦点。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "792781ddc61f49b4704b57986fc60ea96d062a387631d9440d985914a867445a",
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b"
+  },
+  "written_at": "2026-08-12T15:24:46.301Z"
+}

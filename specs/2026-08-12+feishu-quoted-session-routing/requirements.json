@@ -1,0 +1,492 @@
+{
+  "version": 1,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "title": "引用回复按被引用消息所属会话投递",
+      "status": "failing",
+      "types": [
+        "functional",
+        "input",
+        "state",
+        "concurrency",
+        "observable"
+      ],
+      "required_categories": [
+        "happy-path",
+        "boundary",
+        "invalid-input",
+        "state-transition",
+        "concurrency",
+        "observability"
+      ],
+      "acceptance": "带 parentId 且映射有效的飞书文本消息投递到映射 session，不受当前 route focusSessionId 影响。",
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "parentId 命中飞书消息映射时，普通文本投递到映射 session。",
+          "status": "failing",
+          "acceptance": "焦点为 B、parentId 映射到 A 时，dispatcher 使用 A 调用 prompt 入队。",
+          "test_plan": {
+            "strategy": "dispatcher 单元测试",
+            "inputs": [
+              "route 焦点 B，parentId 映射到 session A 的飞书文本事件"
+            ],
+            "expected": [
+              "入队 session 为 A，event.sessionId 为 A"
+            ]
+          }
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "state-transition",
+          "description": "引用回复投递不会修改 route 的 focusSessionId。",
+          "status": "failing",
+          "acceptance": "引用命中 A 后，原 route 焦点仍保持 B。",
+          "test_plan": {
+            "strategy": "dispatcher 单元测试",
+            "inputs": [
+              "引用命中前后读取相同 route 的 focusSessionId"
+            ],
+            "expected": [
+              "focusSessionId 保持原值 B"
+            ]
+          }
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "boundary",
+          "description": "引用映射提供的 routeKey 优先作为 effectiveRouteKey，缺失时可回退到 session 当前 route 或入站 route。",
+          "status": "failing",
+          "acceptance": "跨 route 引用命中后 route lock 与 prompt event 使用 effectiveRouteKey。",
+          "test_plan": {
+            "strategy": "dispatcher 单元测试",
+            "inputs": [
+              "映射 routeKey 与入站 routeKey 不同的 parentId 事件"
+            ],
+            "expected": [
+              "prompt event.routeKey 与 route lock 使用映射 routeKey"
+            ]
+          }
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "concurrency",
+          "description": "引用命中后按 effectiveRouteKey 加 route lock，同时 prompt queue 继续按 session 串行。",
+          "status": "failing",
+          "acceptance": "_enqueueRouteLock 参数为引用目标 effectiveRouteKey。",
+          "test_plan": {
+            "strategy": "dispatcher spy 测试",
+            "inputs": [
+              "parentId 命中映射 routeKey 的事件"
+            ],
+            "expected": [
+              "_enqueueRouteLock 第一个参数等于 effectiveRouteKey"
+            ]
+          }
+        },
+        {
+          "id": "REQ-001-B05",
+          "category": "observability",
+          "description": "引用命中日志或 admin event 包含 parentId、sourceRouteKey、effectiveRouteKey、routedBy。",
+          "status": "failing",
+          "acceptance": "可从日志/事件中识别 quoted-message 路由决策。",
+          "test_plan": {
+            "strategy": "dispatcher 日志或 admin event 测试",
+            "inputs": [
+              "parentId 命中的入站事件"
+            ],
+            "expected": [
+              "记录字段包含 parentId、sourceRouteKey、effectiveRouteKey、routedBy=quoted-message"
+            ]
+          }
+        },
+        {
+          "id": "REQ-001-B06",
+          "category": "invalid-input",
+          "description": "parentId 为空字符串或非字符串时不得尝试错误投递。",
+          "status": "failing",
+          "acceptance": "空 parentId 按直接回复路径处理。",
+          "test_plan": {
+            "strategy": "dispatcher 单元测试",
+            "inputs": [
+              "parentId 为空的飞书文本事件"
+            ],
+            "expected": [
+              "使用 route-focus 或未绑定路径，不调用引用映射结果"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "title": "直接回复按当前焦点会话投递",
+      "status": "failing",
+      "types": [
+        "functional",
+        "input",
+        "compatibility",
+        "forbidden-behavior"
+      ],
+      "required_categories": [
+        "happy-path",
+        "invalid-input",
+        "compatibility",
+        "forbidden-behavior"
+      ],
+      "acceptance": "无 parentId 或 parentId 无效时保持现有焦点路由与 thread fallback 行为。",
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "没有 parentId 的直接回复投递到当前 route 焦点 session。",
+          "status": "failing",
+          "acceptance": "焦点为 B 时普通文本入队 B。",
+          "test_plan": {
+            "strategy": "dispatcher 单元测试",
+            "inputs": [
+              "无 parentId 且 route 焦点为 B 的文本事件"
+            ],
+            "expected": [
+              "入队 session 为 B"
+            ]
+          }
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "invalid-input",
+          "description": "parentId 未命中、chatId 不一致或映射 session 无效时不使用映射。",
+          "status": "failing",
+          "acceptance": "无效引用安全降级到焦点或未绑定提示。",
+          "test_plan": {
+            "strategy": "dispatcher 与 session-service 单元测试",
+            "inputs": [
+              "未记录 parentId、chatId 不一致映射、deleted session 映射"
+            ],
+            "expected": [
+              "resolve 返回 null，dispatcher 不投递到映射 session"
+            ]
+          }
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "compatibility",
+          "description": "thread 模式 root fallback 保留，但优先级低于有效 parentId 映射。",
+          "status": "failing",
+          "acceptance": "同时存在 rootId fallback 和 parentId 映射时选择 parentId 映射。",
+          "test_plan": {
+            "strategy": "dispatcher 单元测试",
+            "inputs": [
+              "thread 模式，当前 route 无焦点，root fallback 可用且 parentId 映射可用"
+            ],
+            "expected": [
+              "选择 parentId 映射 session"
+            ]
+          }
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "forbidden-behavior",
+          "description": "引用回复不得自动切换任何 route 的 focusSessionId。",
+          "status": "failing",
+          "acceptance": "处理引用后 route focus 未改变。",
+          "test_plan": {
+            "strategy": "dispatcher 单元测试",
+            "inputs": [
+              "引用命中事件和已有 route 焦点"
+            ],
+            "expected": [
+              "处理后焦点值与处理前一致"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "title": "持久记录飞书出站消息到会话映射",
+      "status": "failing",
+      "types": [
+        "write",
+        "state",
+        "external-failure",
+        "observability"
+      ],
+      "required_categories": [
+        "happy-path",
+        "boundary",
+        "state-transition",
+        "external-failure",
+        "atomicity",
+        "observability"
+      ],
+      "acceptance": "所有成功产生新飞书消息且能确定 sessionId 的路径都记录消息映射，记录失败不影响发送。",
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "happy-path",
+          "description": "replyText/replyMarkdown 数组返回中的每个消息 ID 都被记录。",
+          "status": "failing",
+          "acceptance": "数组内所有可识别 message_id 都出现在 platformMessages.feishu。",
+          "test_plan": {
+            "strategy": "dispatcher _callFeishu 单元测试",
+            "inputs": [
+              "replyText 返回包含多个 data.message_id 的数组和 sessionId context"
+            ],
+            "expected": [
+              "recordPlatformMessage 被按每个 messageId 调用"
+            ]
+          }
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "boundary",
+          "description": "支持字符串、data.message_id、data.messageId、message_id、messageId 多种返回形态。",
+          "status": "failing",
+          "acceptance": "每种形态均能提取并记录。",
+          "test_plan": {
+            "strategy": "参数化单元测试",
+            "inputs": [
+              "字符串、数组、嵌套 data 字段和扁平字段响应"
+            ],
+            "expected": [
+              "提取到对应飞书 messageId"
+            ]
+          }
+        },
+        {
+          "id": "REQ-003-B03",
+          "category": "external-failure",
+          "description": "recordPlatformMessage 抛错时发送结果仍返回给调用者。",
+          "status": "failing",
+          "acceptance": "记录失败只产生日志告警，不改变 _callFeishu 返回值。",
+          "test_plan": {
+            "strategy": "dispatcher 单元测试",
+            "inputs": [
+              "mock feishu API 成功，mock recordPlatformMessage 抛错"
+            ],
+            "expected": [
+              "_callFeishu 返回原成功结果"
+            ]
+          }
+        },
+        {
+          "id": "REQ-003-B04",
+          "category": "atomicity",
+          "description": "只有飞书 API 成功返回后才记录映射；发送失败不写入虚假映射。",
+          "status": "failing",
+          "acceptance": "API 失败返回 fallback 时不记录新 messageId。",
+          "test_plan": {
+            "strategy": "dispatcher 失败路径测试",
+            "inputs": [
+              "mock feishu API 连续失败并返回 fallback"
+            ],
+            "expected": [
+              "recordPlatformMessage 未被调用"
+            ]
+          }
+        },
+        {
+          "id": "REQ-003-B05",
+          "category": "observability",
+          "description": "记录失败包含 methodName、sessionId、messageId 上下文日志。",
+          "status": "failing",
+          "acceptance": "记录异常可诊断但不暴露敏感内容。",
+          "test_plan": {
+            "strategy": "日志 mock 或代码审查",
+            "inputs": [
+              "recordPlatformMessage 抛错"
+            ],
+            "expected": [
+              "日志包含 methodName 与 sessionId"
+            ]
+          }
+        },
+        {
+          "id": "REQ-003-B06",
+          "category": "state-transition",
+          "description": "成功记录新 messageId 时创建或更新 platformMessages.feishu 对应条目。",
+          "status": "failing",
+          "acceptance": "同一 messageId 再次记录后状态条目保持最新 session/route/chat/kind。",
+          "test_plan": {
+            "strategy": "session-service 单元测试",
+            "inputs": [
+              "同一平台同一 messageId 两次记录不同 info"
+            ],
+            "expected": [
+              "最终 resolve 返回第二次记录的信息"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "title": "飞书事件透传引用上下文",
+      "status": "failing",
+      "types": [
+        "input",
+        "compatibility"
+      ],
+      "required_categories": [
+        "happy-path",
+        "invalid-input",
+        "compatibility"
+      ],
+      "acceptance": "FeishuPlatform 传给 dispatcher 的 text 和 command 事件都包含顶层 parentId。",
+      "behaviors": [
+        {
+          "id": "REQ-004-B01",
+          "category": "happy-path",
+          "description": "文本事件顶层透传 parentId。",
+          "status": "failing",
+          "acceptance": "onMessage 收到 text event.parentId 等于飞书 msg.parent_id。",
+          "test_plan": {
+            "strategy": "feishu platform 单元测试",
+            "inputs": [
+              "带 msg.parent_id 的 text 消息事件"
+            ],
+            "expected": [
+              "onMessage 参数包含顶层 parentId"
+            ]
+          }
+        },
+        {
+          "id": "REQ-004-B02",
+          "category": "compatibility",
+          "description": "命令事件也透传 parentId，但管理命令仍可保持原 route/focus 语义。",
+          "status": "failing",
+          "acceptance": "onMessage 收到 command event.parentId，现有命令解析不被破坏。",
+          "test_plan": {
+            "strategy": "feishu platform command 单元测试",
+            "inputs": [
+              "带 msg.parent_id 且文本为斜杠命令的事件"
+            ],
+            "expected": [
+              "onMessage 参数 type=command 且包含 parentId"
+            ]
+          }
+        },
+        {
+          "id": "REQ-004-B03",
+          "category": "invalid-input",
+          "description": "飞书事件缺少 parent_id 时顶层 parentId 使用空字符串或等价空值，不破坏现有事件。",
+          "status": "failing",
+          "acceptance": "缺少 parent_id 的事件仍正常进入 dispatcher。",
+          "test_plan": {
+            "strategy": "feishu platform 单元测试",
+            "inputs": [
+              "不含 msg.parent_id 的 text 消息事件"
+            ],
+            "expected": [
+              "onMessage 被调用且不抛异常"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "title": "映射状态有边界并容忍旧数据",
+      "status": "failing",
+      "types": [
+        "state",
+        "performance",
+        "recovery",
+        "forbidden-behavior"
+      ],
+      "required_categories": [
+        "boundary",
+        "state-transition",
+        "performance",
+        "recovery",
+        "forbidden-behavior"
+      ],
+      "acceptance": "每平台映射最多保留 5000 条；无效旧映射不导致异常或错误投递。",
+      "behaviors": [
+        {
+          "id": "REQ-005-B01",
+          "category": "boundary",
+          "description": "每个平台消息映射超过 5000 条时剪枝最旧记录。",
+          "status": "failing",
+          "acceptance": "第 5001 条写入后总数不超过 5000，最旧项被删除。",
+          "test_plan": {
+            "strategy": "session-service 单元测试",
+            "inputs": [
+              "写入 5001 条 feishu 平台消息映射"
+            ],
+            "expected": [
+              "总数为 5000，最旧 messageId 无法解析"
+            ]
+          }
+        },
+        {
+          "id": "REQ-005-B02",
+          "category": "recovery",
+          "description": "删除 session 时清理该 session 的平台消息映射。",
+          "status": "failing",
+          "acceptance": "deleteSession 后相关 messageId resolve 返回 null。",
+          "test_plan": {
+            "strategy": "session-service 单元测试",
+            "inputs": [
+              "创建 session、记录 messageId、deleteSession 后 resolve"
+            ],
+            "expected": [
+              "resolve 返回 null"
+            ]
+          }
+        },
+        {
+          "id": "REQ-005-B03",
+          "category": "forbidden-behavior",
+          "description": "解析到不存在或 deleted session 的旧映射不得投递消息。",
+          "status": "failing",
+          "acceptance": "resolve 返回 null 并可清理脏映射。",
+          "test_plan": {
+            "strategy": "session-service 单元测试",
+            "inputs": [
+              "手工构造指向不存在 session 的 platformMessages 条目"
+            ],
+            "expected": [
+              "resolve 返回 null 且不抛异常"
+            ]
+          }
+        },
+        {
+          "id": "REQ-005-B04",
+          "category": "performance",
+          "description": "剪枝只在记录时执行，避免入站解析路径做全量昂贵扫描。",
+          "status": "failing",
+          "acceptance": "recordPlatformMessage 负责容量控制，resolve 为常量级查找。",
+          "test_plan": {
+            "strategy": "代码审查和单元测试",
+            "inputs": [
+              "查看 resolveSessionByPlatformMessage 实现并运行容量测试"
+            ],
+            "expected": [
+              "resolve 不执行平台全量排序剪枝"
+            ]
+          }
+        },
+        {
+          "id": "REQ-005-B05",
+          "category": "state-transition",
+          "description": "初始化旧 state 时自动补齐 platformMessages 容器。",
+          "status": "failing",
+          "acceptance": "没有 platformMessages 的旧状态也能记录和解析新映射。",
+          "test_plan": {
+            "strategy": "session-service 单元测试",
+            "inputs": [
+              "使用不含 platformMessages 的初始 state 调用 recordPlatformMessage"
+            ],
+            "expected": [
+              "state.platformMessages.feishu 被创建"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

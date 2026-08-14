@@ -1,0 +1,39 @@
+{
+  "refresh_reason": "spec.md documentation-only rename confirmed by user",
+  "tasks_done": [
+    "T1",
+    "T2",
+    "T3",
+    "T4"
+  ],
+  "traceability_closed": {
+    "requirements": 8,
+    "behaviors": 45
+  },
+  "test_report": "PASS",
+  "status": "done",
+  "summary": "用户重新确认 spec.md 文档级修正后刷新 handoff：执行阶段仍完成 T1-T4，traceability 8 REQ/45 behavior 均有 tests/evidence，test-report.md PASS 且含 validator 可识别 Evidence Receipt；最终 npm test 已通过。",
+  "artifacts": [
+    "spec.md",
+    "test-report.md",
+    "traceability.json",
+    "handoffs/T1.json",
+    "handoffs/T2.json",
+    "handoffs/T3.json",
+    "handoffs/T4.json",
+    "evidence/executing-npm-test.log"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "894091a2fb5167d02dc5cf77e7ae1556c552223c23e1f031a4d28864580da20b",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "tasks/": "dabbbf3e8248c8b5396e97e60ee76263f7503ac11f81861e8ad69e4b7dddf0df"
+  },
+  "artifact_fingerprints": {
+    "evidence/executing-npm-test.log": "a9a71a7e1811f0e8de8f120f62fb27e632154e919d211a97d2146aeb1d9e1d56",
+    "spec.md": "6fc106d6794f1d006df6b389580ac4a2aa8dd73b440357763317c74fe950290e",
+    "test-report.md": "626ea727029363bfdfcea1adcc4b95a93babaf2d2977f27037e98808e22f7f55"
+  },
+  "written_at": "2026-08-12T05:54:57.097Z"
+}

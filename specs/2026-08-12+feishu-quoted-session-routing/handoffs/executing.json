@@ -1,0 +1,56 @@
+{
+  "tasks": [
+    "T1",
+    "T2",
+    "T3"
+  ],
+  "task_status": {
+    "T1": "done",
+    "T2": "done",
+    "T3": "done"
+  },
+  "validation": {
+    "loom_verify_artifacts": "ok",
+    "npm_test": {
+      "command": "npm test",
+      "tests": 1518,
+      "pass": 1518,
+      "fail": 0,
+      "evidence": "evidence/executing-npm-test.log",
+      "sha256": "7F099D5164FACDF97288B9BB4E58FA790EDEE27441F0D781F3772740C64083DA"
+    }
+  },
+  "worktree": "H:\\walker\\.worktree\\2026-08-12-feishu-quoted-session-routing",
+  "notes": [
+    "基线阶段用户确认先修复 4 个预存失败；这些修复保留在隔离 worktree 中。",
+    "npm install 存在 EBADENGINE warning 与 3 个 high severity audit findings，非本功能引入，未处理。"
+  ],
+  "status": "done",
+  "summary": "已完成 T1/T2/T3 实现与审查：SessionService 新增平台消息索引、飞书平台层透传 parentId、MessageDispatcher 支持引用回复按映射会话投递并统一记录出站飞书 messageId。T1/T2/T3 定向测试均通过，执行阶段全量 npm test 通过 1518/1518，traceability.json 已补齐 5 个 REQ 与 24 个 behavior 的 tests/evidence。",
+  "artifacts": [
+    "test-report.md",
+    "traceability.json",
+    "handoffs/T1.json",
+    "handoffs/T2.json",
+    "handoffs/T3.json",
+    "evidence/T1-session-service.log",
+    "evidence/T2-feishu-platform.log",
+    "evidence/T3-message-dispatcher.log",
+    "evidence/executing-npm-test.log"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "c378e84f2c1b63df3076e0cd510c806780eac979de7713b43e6a2ac818a299fe",
+    "spec.md": "5cff89efe2830eb6b61bcde637bdae229d4abafd22bf523b102124c9f0d4382b",
+    "tasks/": "92059d7cec5af74cab2210ec1674b91babde87194aa915452b7ecaaf17a47aef"
+  },
+  "artifact_fingerprints": {
+    "evidence/T1-session-service.log": "e654c1427a85c80d54c83f1212d70aa6c34b5d0f3ae9152864ac8a145ac42caf",
+    "evidence/T2-feishu-platform.log": "e4f8e1e25d37dd3c947ecc20e41d3f554fb9e662480f59832b039f07ccc18059",
+    "evidence/T3-message-dispatcher.log": "49bd4565b4f871f8ed562303977197a485c8b096466fb8bf8b25f382a8a2f222",
+    "evidence/executing-npm-test.log": "7f099d5164facdf97288b9bb4e58fa790edee27441f0d781f3772740c64083da",
+    "test-report.md": "5ddd1f7168d8db680c5b0bab00f5e6bf420f7f25a89084a58dc6057d0dbd883c"
+  },
+  "written_at": "2026-08-12T16:22:46.817Z"
+}
