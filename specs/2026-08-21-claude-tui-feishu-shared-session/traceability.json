@@ -1,0 +1,124 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1", "T6"],
+      "tests": ["test/claude-pty-broker.test.js", "test/claude-tui-reconnect.integration.test.js", "test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log", "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"],
+      "behaviors": {
+        "REQ-001-B01": { "tasks": ["T1", "T6"], "tests": ["test/claude-pty-broker.test.js", "test/claude-bridge-sidecar.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-001-B02": { "tasks": ["T1", "T6"], "tests": ["test/claude-pty-broker.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-001-B03": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"] },
+        "REQ-001-B04": { "tasks": ["T1", "T6"], "tests": ["test/claude-pty-broker.test.js", "test/claude-bridge-sidecar.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-001-B05": { "tasks": ["T1", "T6"], "tests": ["test/claude-pty-broker.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-001-B06": { "tasks": ["T1", "T6"], "tests": ["test/claude-pty-broker.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T1", "T6"],
+      "tests": ["test/claude-pty-broker.test.js", "test/claude-bridge-sidecar.test.js", "test/claude-tui-reconnect.integration.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"],
+      "behaviors": {
+        "REQ-002-B01": { "tasks": ["T1", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-pty-broker.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-002-B02": { "tasks": ["T1", "T6"], "tests": ["test/claude-pty-broker.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-002-B03": { "tasks": ["T1", "T6"], "tests": ["test/claude-pty-broker.test.js", "test/claude-tui-reconnect.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-002-B04": { "tasks": ["T1", "T6"], "tests": ["test/claude-bridge-sidecar.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-002-B05": { "tasks": ["T1", "T6"], "tests": ["test/claude-pty-broker.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] },
+        "REQ-002-B06": { "tasks": ["T1", "T6"], "tests": ["test/claude-bridge-sidecar.test.js", "test/claude-pty-broker.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T1-test.log"] }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T4", "T6"],
+      "tests": ["test/integration-feishu-tui-sync.test.js", "test/question-handler.test.js", "test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js", "test/provider-catalog.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log", "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"],
+      "behaviors": {
+        "REQ-003-B01": { "tasks": ["T4", "T6"], "tests": ["test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-003-B02": { "tasks": ["T4", "T6"], "tests": ["test/integration-feishu-tui-sync.test.js", "test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-003-B03": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js", "test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-003-B04": { "tasks": ["T4", "T6"], "tests": ["test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-003-B05": { "tasks": ["T4", "T6"], "tests": ["test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] }
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T3", "T6"],
+      "tests": ["test/claude-transcript.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"],
+      "behaviors": {
+        "REQ-004-B01": { "tasks": ["T3", "T6"], "tests": ["test/claude-transcript.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"] },
+        "REQ-004-B02": { "tasks": ["T3", "T6"], "tests": ["test/claude-transcript.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"] },
+        "REQ-004-B03": { "tasks": ["T3", "T6"], "tests": ["test/claude-transcript.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"] },
+        "REQ-004-B04": { "tasks": ["T3", "T6"], "tests": ["test/claude-transcript.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"] },
+        "REQ-004-B05": { "tasks": ["T3", "T6"], "tests": ["test/claude-transcript.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"] }
+      }
+    },
+    "REQ-005": {
+      "tasks": ["T2", "T4", "T6"],
+      "tests": ["test/question-handler.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"],
+      "behaviors": {
+        "REQ-005-B01": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js", "test/provider-catalog.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"] },
+        "REQ-005-B02": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-005-B03": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-005-B04": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"] },
+        "REQ-005-B05": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js", "test/provider-catalog.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"] },
+        "REQ-005-B06": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"] }
+      }
+    },
+    "REQ-006": {
+      "tasks": ["T3", "T4", "T6"],
+      "tests": ["test/question-handler.test.js", "test/integration-feishu-tui-sync.test.js", "test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js", "test/claude-transcript.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log", "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log", "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"],
+      "behaviors": {
+        "REQ-006-B01": { "tasks": ["T3", "T6"], "tests": ["test/claude-transcript.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"] },
+        "REQ-006-B02": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-006-B03": { "tasks": ["T3", "T6"], "tests": ["test/claude-transcript.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"] },
+        "REQ-006-B04": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-006-B05": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] }
+      }
+    },
+    "REQ-007": {
+      "tasks": ["T2", "T4", "T6"],
+      "tests": ["test/question-handler.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"],
+      "behaviors": {
+        "REQ-007-B01": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"] },
+        "REQ-007-B02": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"] },
+        "REQ-007-B03": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-007-B04": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-007-B05": { "tasks": ["T2", "T6"], "tests": ["test/claude-driver.test.js", "test/claude-tool-parity.integration.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"] }
+      }
+    },
+    "REQ-008": {
+      "tasks": ["T5", "T6"],
+      "tests": ["test/message-dispatcher.test.js", "test/progress-card.test.js", "test/integration-feishu-tui-sync.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T5-test.log"],
+      "behaviors": {
+        "REQ-008-B01": { "tasks": ["T5", "T6"], "tests": ["test/message-dispatcher.test.js", "test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T5-test.log"] },
+        "REQ-008-B02": { "tasks": ["T5", "T6"], "tests": ["test/message-dispatcher.test.js", "test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T5-test.log"] },
+        "REQ-008-B03": { "tasks": ["T5", "T6"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T5-test.log"] },
+        "REQ-008-B04": { "tasks": ["T5", "T6"], "tests": ["test/message-dispatcher.test.js", "test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T5-test.log"] }
+      }
+    },
+    "REQ-009": {
+      "tasks": ["T4", "T6"],
+      "tests": ["test/question-handler.test.js", "test/integration-feishu-tui-sync.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log", "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T6-test.log"],
+      "behaviors": {
+        "REQ-009-B01": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js", "test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-009-B02": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-009-B03": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] }
+      }
+    },
+    "REQ-010": {
+      "tasks": ["T3", "T4", "T6"],
+      "tests": ["test/question-handler.test.js", "test/integration-feishu-tui-sync.test.js", "test/claude-transcript.test.js"],
+      "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log", "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"],
+      "behaviors": {
+        "REQ-010-B01": { "tasks": ["T3", "T6"], "tests": ["test/claude-transcript.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"] },
+        "REQ-010-B02": { "tasks": ["T4", "T6"], "tests": ["test/integration-feishu-tui-sync.test.js", "test/question-handler.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-010-B03": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js", "test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-010-B04": { "tasks": ["T4", "T6"], "tests": ["test/question-handler.test.js", "test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] },
+        "REQ-010-B05": { "tasks": ["T4", "T6"], "tests": ["test/integration-feishu-tui-sync.test.js"], "evidence": ["specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"] }
+      }
+    }
+  }
+}

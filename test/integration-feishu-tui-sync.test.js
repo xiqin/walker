@@ -160,6 +160,155 @@ describe('飞书-TUI 双向链路集成测试', () => {
       assert.equal(tuiReply.chatId, chatId, '回复应发送到正确的 chatId');
     });
 
+    it('watch 收到空 message 的 upstream_error 仍回传可读错误到飞书', async () => {
+      const chatId = 'oc_chat_upstream_error';
+      const rootId = 'om_root_upstream_error';
+      const cwd = process.cwd();
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const agentRef = { opencodeSessionId: 'ses_upstream_error_1', serverUrl: 'http://localhost:4096', cwd };
+
+      ctx.sessionService.createSession({ route: routeKey, agent: 'opencode', cwd, agentRef });
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const driver = makeStubDriver();
+      const driverRegistry = { get: () => driver };
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry,
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      await dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_upstream_error_1',
+        chatId,
+        rootId,
+        text: 'trigger upstream error',
+      });
+
+      const handlers = driver.getWatchHandlers();
+      assert.ok(handlers, 'watchSession 应已注册 handlers');
+
+      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_ERROR, { message: '', type: 'upstream_error' }));
+      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+
+      const errorReply = await waitForCall(feishuApi, (call) => {
+        return call.type === 'sendMarkdown' && call.chatId === chatId && /upstream_error/.test(call.text || '');
+      });
+      assert.match(errorReply.text, /OpenCode.*upstream_error|upstream_error.*OpenCode/);
+    });
+
+    it('Claude watch 收到 question_asked 时推送原生问题卡片到飞书', async () => {
+      const chatId = 'oc_chat_claude_question';
+      const rootId = 'om_root_claude_question';
+      const cwd = process.cwd();
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const agentRef = { claudeSessionId: '11111111-1111-4111-8111-111111111111', cwd };
+
+      ctx.sessionService.createSession({ route: routeKey, agent: 'claude', cwd, agentRef });
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const driver = makeStubDriver();
+      const driverRegistry = { get: () => driver };
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry,
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      await dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_claude_question_1',
+        chatId,
+        rootId,
+        text: 'trigger claude question',
+      });
+
+      const handlers = driver.getWatchHandlers();
+      assert.ok(handlers, 'watchSession 应已注册 handlers');
+
+      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
+        requestID: 'claude_req_1',
+        sessionID: '11111111-1111-4111-8111-111111111111',
+        questions: [{ question: '允许执行 Bash？', header: 'Bash', options: [] }],
+        tool: { name: 'Bash' },
+      }));
+
+      const questionCard = await waitForCall(feishuApi, (call) => {
+        return call.type === 'replyCard'
+          && call.replyCtx && call.replyCtx.chatId === chatId
+          && JSON.stringify(call.card).includes('允许执行 Bash');
+      });
+      assert.equal(questionCard.replyCtx.chatId, chatId);
+    });
+
+    it('route 仅有 cwd 时自动绑定唯一 Claude 会话并推送问题卡片', async () => {
+      const chatId = 'oc_chat_claude_autobind';
+      const rootId = 'om_root_claude_autobind';
+      const cwd = process.cwd();
+      const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
+      const claudeSessionId = '11111111-1111-4111-8111-222222222222';
+
+      ctx.sessionService.setRouteCwd(routeKey, cwd);
+
+      const driver = makeStubDriver({ promptEvents: [new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })] });
+      driver.listSessions = async (options) => [{
+        id: claudeSessionId,
+        cwd: options && options.cwd || cwd,
+        title: 'local claude',
+        updatedAt: Date.now(),
+      }];
+      driver.resumeSession = async (ref) => ({
+        claudeSessionId: ref.claudeSessionId,
+        cwd: ref.cwd,
+        transport: 'pty-attach',
+        runtimeId: 'rt_claude_autobind',
+      });
+      const driverRegistry = { get: (name) => name === 'claude' ? driver : null };
+
+      dispatcher = new MessageDispatcher({
+        sessionService: ctx.sessionService,
+        driverRegistry,
+        feishuApi,
+        dedup: new MessageDedup({ windowMs: 300000 }),
+        routeMode: 'thread',
+      });
+
+      const result = await dispatcher.handleIncomingMessage({
+        messageId: 'om_msg_claude_autobind_1',
+        chatId,
+        rootId,
+        text: 'hello claude',
+      });
+
+      assert.equal(result, 'prompted', '应自动绑定 Claude 会话后继续处理 prompt');
+      const current = ctx.sessionService.getCurrent(routeKey);
+      assert.ok(current, 'route 应有当前 session');
+      assert.equal(current.agent, 'claude');
+      assert.equal(current.agentRef.claudeSessionId, claudeSessionId);
+
+      const handlers = driver.getWatchHandlers();
+      assert.ok(handlers, '自动绑定后应启动 Claude watch');
+
+      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
+        requestID: 'claude_req_autobind',
+        sessionID: claudeSessionId,
+        questions: [{ question: '允许执行 Bash？', header: 'Bash', options: [] }],
+        tool: { name: 'Bash' },
+      }));
+
+      const questionCard = await waitForCall(feishuApi, (call) => {
+        return call.type === 'replyCard'
+          && call.replyCtx && call.replyCtx.chatId === chatId
+          && JSON.stringify(call.card).includes('允许执行 Bash');
+      });
+      assert.equal(questionCard.replyCtx.chatId, chatId);
+    });
+
     it('thread route 无绑定 → 回退到同群根 route → prompt 和 watch 均正常', async () => {
       const chatId = 'oc_chat_fallback';
       const rootId = 'om_root_fallback';

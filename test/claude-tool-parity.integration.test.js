@@ -241,7 +241,7 @@ describe('Claude/OpenCode tool parity integration', () => {
     assert.doesNotMatch(JSON.stringify(ref), /SECRET_SENTINEL/);
   });
 
-  it('REQ-003-B05/REQ-003-B06/REQ-005-B04/REQ-005-B05/REQ-005-B06: Claude 能力降级明确且 reply 不写 PTY，OpenCode 保持支持', async () => {
+  it('REQ-003-B05/REQ-003-B06/REQ-005-B04/REQ-005-B05/REQ-005-B06: Claude 能力降级明确且 question reply 受控写入 PTY，OpenCode 保持支持', async () => {
     const broker = createFakeBroker();
     const claudeDriver = new ClaudeDriver({ ptyBroker: broker });
     const providers = new Map(listProviderCatalog().map((provider) => [provider.id, provider]));
@@ -263,19 +263,16 @@ describe('Claude/OpenCode tool parity integration', () => {
       assert.equal(err.sdkInvoked, false);
       return true;
     });
-    await assert.rejects(() => claudeDriver.replyQuestion({ runtimeId: 'rt_1' }, 'q_1', [['yes']]), (err) => {
-      assert.equal(err.code, 'CLAUDE_QUESTION_REPLY_UNSUPPORTED');
-      assert.equal(err.phase, 'preflight');
-      assert.equal(err.sdkInvoked, false);
-      return true;
-    });
+    await claudeDriver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111', cwd: 'H:\\walker' });
+    await claudeDriver.replyQuestion({ runtimeId: 'rt_1', claudeSessionId: '11111111-1111-4111-8111-111111111111', transport: 'pty-attach' }, 'q_1', [['yes']]);
     await opencodeDriver.replyPermission({ opencodeSessionId: 'ses_1' }, 'perm_1', 'allow', false);
 
-    assert.equal(broker.calls.writeInput.length, 0);
+    assert.equal(broker.calls.writeInput.length, 1);
+    assert.match(broker.calls.writeInput[0].data.toString('utf8'), /AskUserQuestion q_1/);
     assert.equal(providers.get('claude').capabilities.permissions, false);
-    assert.equal(providers.get('claude').capabilities.questionReply, false);
+    assert.equal(providers.get('claude').capabilities.questionReply, true);
     assert.equal(providers.get('claude').capabilityStatus.permissions.status, 'degraded');
-    assert.equal(providers.get('claude').capabilityStatus.questionReply.status, 'unsupported');
+    assert.equal(providers.get('claude').capabilityStatus.questionReply.status, 'degraded');
     assert.equal(providers.get('opencode').capabilities.permissions, true);
     assert.equal(providers.get('opencode').capabilities.questionReply, true);
     assert.equal(opencodeHttpCalls.length, 1);

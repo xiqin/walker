@@ -1,0 +1,26 @@
+{
+  "analysis_ok": true,
+  "status": "done",
+  "blocker_count": 0,
+  "findings_count": 0,
+  "coverage": {
+    "requirement_coverage": "100%",
+    "behavior_coverage": "100%",
+    "required_category_coverage": "0%",
+    "traceability_req_coverage": "100%",
+    "traceability_behavior_coverage": "100%"
+  },
+  "note": "required_category_coverage returned 0% with no findings; preserve for review but do not block because loom_analyze_artifacts returned ok=true.",
+  "summary": "跨产物一致性分析通过：spec.md、requirements.json、plan.md、tasks/T1.md..T6.md 与 traceability.json 无 blocker/error/warning findings；REQ 与 behavior task 映射覆盖均为 100%，traceability REQ/behavior 覆盖均为 100%。报告中的 required_category_coverage 为 0% 但 findings 为空且 ok=true，作为工具报告异常值记录，不阻断进入审批门。",
+  "artifacts": [
+    "artifact-analysis.json"
+  ],
+  "stage": "analyze-artifacts",
+  "task_id": "analyze-artifacts",
+  "basis_fingerprints": {
+    "plan.md": "01e394d8c8e882528563ffe07bca8c617b9501757bf1bbff683730a7c988a24d",
+    "spec.md": "855eb79a30013fe6035b26bab9d5817ffdc156bf33f12ba626d5e187f434b2c0"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-08-21T08:01:21.473Z"
+}

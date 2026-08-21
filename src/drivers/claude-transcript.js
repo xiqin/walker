@@ -3,6 +3,9 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { createLogger } = require('../core/logger');
+
+const logger = createLogger('claude-transcript');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_DIAGNOSTIC_EVENTS = 8;
@@ -262,6 +265,39 @@ function mapToolUse(part, meta, state) {
   };
 }
 
+function mapAskUserQuestionToolUse(part, meta, record) {
+  const input = part.input && typeof part.input === 'object' && !Array.isArray(part.input) ? part.input : {};
+  const sourceQuestions = Array.isArray(input.questions) && input.questions.length > 0
+    ? input.questions
+    : [{ question: input.question || input.title || input.message || 'Claude question', header: input.header || part.name || 'question', options: [] }];
+  const questions = sourceQuestions.map((question) => {
+    const source = question && typeof question === 'object' ? question : {};
+    const options = Array.isArray(source.options) ? source.options.map((option) => {
+      const item = option && typeof option === 'object' ? option : {};
+      return {
+        label: sanitizeText(item.label || item.value || '').slice(0, 120),
+        description: sanitizeText(item.description || '').slice(0, 200),
+      };
+    }) : [];
+    return {
+      question: sanitizeText(source.question || source.title || source.message || 'Claude question').slice(0, 200),
+      header: sanitizeText(source.header || source.tool_name || source.tool || part.name || 'question').slice(0, 120),
+      options,
+      ...(source.multiple === true || source.multiSelect === true ? { multiple: true } : {}),
+      ...(source.custom === false ? { custom: false } : source.custom === true ? { custom: true } : {}),
+    };
+  });
+  const requestID = sanitizeText(part.id || part.tool_use_id || record.promptId || record.uuid || 'unknown').slice(0, 120);
+  const sessionID = sanitizeText(record.session_id || record.sessionID || record.sessionId || meta.sessionID || 'unknown').slice(0, 120);
+  return {
+    type: 'question_asked',
+    requestID,
+    sessionID,
+    questions,
+    tool: { name: sanitizeText(part.name || 'AskUserQuestion').slice(0, 120) },
+  };
+}
+
 function mapToolResult(part, meta, state) {
   const callID = typeof part.tool_use_id === 'string' && part.tool_use_id ? part.tool_use_id : (typeof part.id === 'string' && part.id ? part.id : undefined);
   const seen = !!(callID && state && state.seenToolUseIds && state.seenToolUseIds.has(callID));
@@ -286,6 +322,7 @@ function mapContentBlock(part, meta, state, record) {
   if ((part.type === 'thinking' || part.type === 'reasoning') && (typeof part.thinking === 'string' || typeof part.text === 'string')) {
     return { type: 'reasoning', text: part.thinking || part.text, ...meta };
   }
+  if (part.type === 'tool_use' && (part.name === 'AskUserQuestion' || part.name === 'ask_user_question')) return mapAskUserQuestionToolUse(part, meta, record);
   if (part.type === 'tool_use') return mapToolUse(part, meta, state);
   if (part.type === 'tool_result') return mapToolResult(part, meta, state);
   const events = [];
@@ -296,15 +333,34 @@ function mapContentBlock(part, meta, state, record) {
 function mapQuestionRecord(record) {
   const requestID = sanitizeText(record.request_id || record.requestID || record.id || 'unknown').slice(0, 120);
   const sessionID = sanitizeText(record.session_id || record.sessionID || record.sessionId || 'unknown').slice(0, 120);
-  const questionText = sanitizeText(record.question || record.title || record.message || 'Claude question').slice(0, 200);
-  const header = sanitizeText(record.header || record.tool_name || record.tool || record.type || 'question').slice(0, 120);
+  const sourceQuestions = Array.isArray(record.questions) && record.questions.length > 0
+    ? record.questions
+    : [{ question: record.question || record.title || record.message || 'Claude question', header: record.header || record.tool_name || record.tool || record.type || 'question', options: [] }];
+  const questions = sourceQuestions.map((question) => {
+    const source = question && typeof question === 'object' ? question : {};
+    const options = Array.isArray(source.options) ? source.options.map((option) => {
+      const item = option && typeof option === 'object' ? option : {};
+      return {
+        label: sanitizeText(item.label || item.value || '').slice(0, 120),
+        description: sanitizeText(item.description || '').slice(0, 200),
+      };
+    }) : [];
+    return {
+      question: sanitizeText(source.question || source.title || source.message || 'Claude question').slice(0, 200),
+      header: sanitizeText(source.header || source.tool_name || source.tool || record.tool_name || record.type || 'question').slice(0, 120),
+      options,
+      ...(source.multiple === true ? { multiple: true } : {}),
+      ...(source.custom === false ? { custom: false } : source.custom === true ? { custom: true } : {}),
+    };
+  });
   const event = {
     type: 'question_asked',
     requestID,
     sessionID,
-    questions: [{ question: questionText, header, options: [] }],
+    questions,
   };
-  if (record.tool_name || record.tool) event.tool = { name: sanitizeText(record.tool_name || record.tool).slice(0, 120) };
+  const toolName = record.tool_name || (record.tool && typeof record.tool === 'object' ? record.tool.name : record.tool);
+  if (toolName) event.tool = { name: sanitizeText(toolName).slice(0, 120) };
   return event;
 }
 
@@ -330,7 +386,7 @@ function parseClaudeJsonlLineEvents(line, options) {
   const message = record.message && typeof record.message === 'object' ? record.message : record;
   const role = message.role || record.type;
   const meta = eventMeta(record);
-  if (record.type === 'question' || record.type === 'permission_request') return [mapQuestionRecord(record)];
+  if (record.type === 'question' || record.type === 'question_asked' || record.type === 'permission_request') return [mapQuestionRecord(record)];
   if (record.type === 'hook' || record.hook_event_name || record.hookEventName) return [mapHookRecord(record)];
 
   const events = [];
@@ -379,7 +435,7 @@ function readCompleteLines(cursor) {
     fs.readSync(fd, buf, 0, length, cursor.offset);
     const lastNewline = buf.lastIndexOf(10);
     if (lastNewline === -1) {
-      return { events: [], nextOffset: cursor.offset, status: 'partial', partial: true };
+      return { events: [], nextOffset: cursor.offset, status: 'partial', partial: true, pendingBytes: length };
     }
 
     const complete = buf.subarray(0, lastNewline + 1).toString('utf8');
@@ -391,7 +447,8 @@ function readCompleteLines(cursor) {
         if (event) events.push(event);
       }
     }
-    return { events, nextOffset: cursor.offset + Buffer.byteLength(complete), status: partial ? 'partial' : 'complete', partial };
+    const nextOffset = cursor.offset + Buffer.byteLength(complete);
+    return { events, nextOffset, status: partial ? 'partial' : 'complete', partial, pendingBytes: partial ? stat.size - nextOffset : 0 };
   } finally {
     fs.closeSync(fd);
   }
@@ -439,14 +496,41 @@ function watchClaudeTranscript(options) {
   const cursor = createTranscriptCursor(options);
   const pollIntervalMs = options.pollIntervalMs || 100;
   const onEvent = typeof options.onEvent === 'function' ? options.onEvent : () => {};
+  const log = options.logger || logger;
+  const partialLogDelayMs = options.partialLogDelayMs == null ? 2000 : options.partialLogDelayMs;
   let closed = false;
   let timer = null;
+  let partialSince = 0;
+  let partialLoggedOffset = null;
 
   function emitAvailable() {
     if (closed) return;
     try {
       const result = readCompleteLines(cursor);
       cursor.offset = result.nextOffset;
+      if (result.partial && result.pendingBytes > 0) {
+        if (!partialSince) partialSince = Date.now();
+        if (partialLogDelayMs >= 0 && Date.now() - partialSince >= partialLogDelayMs && partialLoggedOffset !== cursor.offset) {
+          partialLoggedOffset = cursor.offset;
+          log.info('claude transcript partial line pending', {
+            claudeSessionId: cursor.claudeSessionId,
+            transcriptPath: cursor.transcriptPath,
+            offset: cursor.offset,
+            pendingBytes: result.pendingBytes,
+          });
+        }
+      } else {
+        partialSince = 0;
+        partialLoggedOffset = null;
+      }
+      if (result.events.length > 0) {
+        log.info('claude transcript watch events read', {
+          claudeSessionId: cursor.claudeSessionId,
+          transcriptPath: cursor.transcriptPath,
+          eventTypes: result.events.map(event => event && event.type).filter(Boolean),
+          eventCount: result.events.length,
+        });
+      }
       for (const event of result.events) {
         onEvent({
           ...event,
@@ -466,6 +550,12 @@ function watchClaudeTranscript(options) {
         }
       }
     } catch (err) {
+      log.warn('claude transcript watch failed', {
+        claudeSessionId: cursor.claudeSessionId,
+        transcriptPath: cursor.transcriptPath,
+        error: err && err.message,
+        code: err && err.code,
+      });
       onEvent({ type: 'error', error: err, claudeSessionId: cursor.claudeSessionId, transcriptPath: cursor.transcriptPath });
     }
     if (!closed) timer = setTimeout(emitAvailable, pollIntervalMs);

@@ -1,0 +1,44 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "实现 Claude AskUserQuestion hook 直接映射、transcript fallback source 标识、tool_result ACK 字段、稳定 dedupeKey/repeated 标识与事件/日志脱敏。未发送飞书卡片，未写入 PTY。",
+  "artifacts": [
+    "src/drivers/claude-transcript.js",
+    "test/claude-transcript.test.js",
+    "specs/2026-08-21-claude-tui-feishu-shared-session/traceability.json",
+    "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "mapClaudeAskUserQuestionHookPayload",
+      "file": "src/drivers/claude-transcript.js",
+      "description": "将 Claude PreToolUse/AskUserQuestion hook payload 直接归一化为 question_asked event，供后续 T4 不等待 transcript 轮询消费。"
+    },
+    {
+      "name": "parseClaudeJsonlLineEvents",
+      "file": "src/drivers/claude-transcript.js",
+      "description": "继续映射 external transcript text/tool/question，并为 AskUserQuestion fallback 和 tool_result ACK 增加 source/toolUseId/requestID/sessionID/dedupeKey/repeated。"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-004", "REQ-006", "REQ-010"],
+  "behaviors_verified": [
+    "REQ-004-B01",
+    "REQ-004-B02",
+    "REQ-004-B03",
+    "REQ-004-B04",
+    "REQ-004-B05",
+    "REQ-006-B01",
+    "REQ-006-B03",
+    "REQ-010-B01"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/claude-transcript.test.js\"",
+      "status": "pass",
+      "summary": "33 tests passed, 0 failed",
+      "evidence": "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T3-test.log"
+    }
+  ],
+  "traceability_updated": true
+}

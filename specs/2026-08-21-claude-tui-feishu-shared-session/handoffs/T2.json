@@ -1,0 +1,47 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "Implemented Claude driver question reply guardrails: replies only write to the original walker-managed writable runtime, matching option answers emit TUI key sequences, unmatched structured options fail closed, write/runtime failures are classified, and a short question input lease prevents attach input interleaving.",
+  "artifacts": [
+    "src/drivers/claude-driver.js",
+    "src/providers/provider-catalog.js",
+    "test/claude-driver.test.js",
+    "test/claude-tool-parity.integration.test.js",
+    "test/provider-catalog.test.js",
+    "specs/2026-08-21-claude-tui-feishu-shared-session/traceability.json",
+    "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"
+  ],
+  "exported_interfaces": [
+    {
+      "name": "ClaudeDriver.replyQuestion",
+      "path": "src/drivers/claude-driver.js",
+      "signature": "replyQuestion(agentRef, requestID, answers, options): writes one atomic Feishu question reply key sequence to the original writable walker-managed runtime or throws coded errors"
+    },
+    {
+      "name": "Claude question input lease",
+      "path": "src/drivers/claude-driver.js",
+      "signature": "_acquireQuestionInputLease(runtimeId, source, timeoutMs), _assertQuestionLeaseActive(runtimeId, lease), _releaseQuestionInputLease(runtimeId, lease)"
+    }
+  ],
+  "breaking_changes": [],
+  "requirements_verified": ["REQ-001", "REQ-005", "REQ-007"],
+  "behaviors_verified": [
+    "REQ-001-B03",
+    "REQ-005-B01",
+    "REQ-005-B04",
+    "REQ-005-B05",
+    "REQ-005-B06",
+    "REQ-007-B01",
+    "REQ-007-B02",
+    "REQ-007-B05"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/claude-driver.test.js\" \"test/claude-tool-parity.integration.test.js\" \"test/provider-catalog.test.js\"",
+      "result": "pass",
+      "summary": "67 tests passed, 0 failed",
+      "evidence": "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T2-test.log"
+    }
+  ],
+  "traceability_updated": true
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "OpenCode regression protection completed. Added targeted MessageDispatcher tests for OpenCode agentRef without Claude owner/inputWritable fields and empty upstream_error propagation; updated existing Claude assertions to match current managed/read-only contracts without changing production code.",
+  "artifacts": [
+    "test/message-dispatcher.test.js",
+    "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T5-test.log",
+    "specs/2026-08-21-claude-tui-feishu-shared-session/traceability.json"
+  ],
+  "exported_interfaces": [],
+  "breaking_changes": [],
+  "requirements_verified": [
+    "REQ-008"
+  ],
+  "behaviors_verified": [
+    "REQ-008-B01",
+    "REQ-008-B02",
+    "REQ-008-B03",
+    "REQ-008-B04"
+  ],
+  "tests": [
+    {
+      "command": "node --test \"test/message-dispatcher.test.js\" \"test/progress-card.test.js\" \"test/integration-feishu-tui-sync.test.js\"",
+      "status": "passed",
+      "summary": "291 tests passed, 0 failed",
+      "evidence": "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T5-test.log"
+    }
+  ],
+  "traceability_updated": true
+}

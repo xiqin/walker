@@ -1,0 +1,88 @@
+{
+  "task_count": 6,
+  "task_order": [
+    "T1",
+    "T2",
+    "T3",
+    "T4",
+    "T5",
+    "T6"
+  ],
+  "dependencies": {
+    "T1": [],
+    "T2": [
+      "T1"
+    ],
+    "T3": [
+      "T1"
+    ],
+    "T4": [
+      "T1",
+      "T2",
+      "T3"
+    ],
+    "T5": [
+      "T4"
+    ],
+    "T6": [
+      "T1",
+      "T2",
+      "T3",
+      "T4",
+      "T5"
+    ]
+  },
+  "mapped_requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006",
+    "REQ-007",
+    "REQ-008",
+    "REQ-009",
+    "REQ-010"
+  ],
+  "mapped_behaviors": 50,
+  "validation": {
+    "loom_validate_plan": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "key_boundaries": [
+    "外部裸 Claude 仅 external-readonly，不允许飞书写入或 resume 伪装成功",
+    "T4 是唯一集中修改 MessageDispatcher/QuestionHandler 状态机的任务",
+    "T5 专门保护 OpenCode bridge/question/permission/upstream_error 不回归",
+    "T6 只做证据闭环，不新增生产行为"
+  ],
+  "status": "done",
+  "summary": "已将 Walker 托管 Claude TUI 与飞书共享会话拆解为 6 个串行任务：T1 runtime/attach 基座，T2 Claude driver 答案写入与输入仲裁，T3 AskUserQuestion hook/transcript 与 tool_result 事件归一化，T4 飞书 route/QuestionHandler 状态机/只读降级，T5 OpenCode 不回归保护，T6 验证与 traceability 证据闭环。已生成 plan.md、tasks/T1.md..T6.md、traceability.json；50 个 behavior 均映射到至少一个 task；loom_validate_plan 通过。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "tasks/T4.md",
+    "tasks/T5.md",
+    "tasks/T6.md",
+    "traceability.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "01e394d8c8e882528563ffe07bca8c617b9501757bf1bbff683730a7c988a24d",
+    "spec.md": "855eb79a30013fe6035b26bab9d5817ffdc156bf33f12ba626d5e187f434b2c0",
+    "tasks/": "584212213aa390d8e853c370882e1e8c40a57996155b051f063656ca76a65780"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "01e394d8c8e882528563ffe07bca8c617b9501757bf1bbff683730a7c988a24d",
+    "tasks/T1.md": "2d3916f64a283b5e536b93e287aa9945c99e866fef853e220ba23aae05a2e850",
+    "tasks/T2.md": "a521208ee4d90b65b18685a6b841b366b37dd6e669170450c410368f3c2ff564",
+    "tasks/T3.md": "7ea481de032d2664eefa4eb255baba41eb39ac80602725072290b93a1415c8a5",
+    "tasks/T4.md": "7e00d3f49ae9f431ced74e83d3dd9128eb257c614ec58a31e3e036226d78652f",
+    "tasks/T5.md": "ab380913eb42a99e836d8cda970675b8a5a1810358efb7b0de2a5bfb206b4080",
+    "tasks/T6.md": "2278c067cebe41d8728c339ecc4e336a9ad977dc7c6feef237c65bfb418b03c6"
+  },
+  "written_at": "2026-08-21T07:59:02.401Z"
+}

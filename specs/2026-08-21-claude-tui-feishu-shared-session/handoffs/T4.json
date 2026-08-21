@@ -1,0 +1,64 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "Implemented Claude route ownership handling, external-readonly downgrade, Feishu question awaiting ACK state machine, local-first handling, late answer protection, timeout classification, and structured redacted logs.",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "src/dispatch/question-handler.js",
+    "test/question-handler.test.js",
+    "test/integration-feishu-tui-sync.test.js",
+    "specs/2026-08-21-claude-tui-feishu-shared-session/traceability.json",
+    "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"
+  ],
+  "exported_interfaces": {
+    "message_dispatcher": [
+      "Claude /new sessions are persisted with agentRef.owner=walker-managed and inputWritable=true.",
+      "Auto-bound or /attach Claude transcript sessions are persisted as agentRef.owner=external-readonly and inputWritable=false without resumeSession.",
+      "External-readonly Claude sessions can watch transcript events but prompt/stop/delete write paths do not call resume/write/stop/delete.",
+      "Watched Claude tool_use result events with requestID/toolUseId/dedupeKey are routed to QuestionHandler.handleToolResult."
+    ],
+    "question_handler": [
+      "Stored question request includes requestID, toolUseId, questions, routeKey, chatId, owner, inputWritable, source, dedupeKey and card ids.",
+      "Claude answer submission transitions collecting/submitting to awaiting_tool_result after driver.replyQuestion(..., { questions }).",
+      "QuestionHandler.handleToolResult(session, chatId, event) transitions awaiting_tool_result to answered, or collecting to answered_elsewhere.",
+      "QuestionHandler.expireAwaitingToolResults() marks stale awaiting requests as unconfirmed_timeout.",
+      "Terminal answered/answered_elsewhere/unconfirmed_timeout states ignore late Feishu answers and do not call replyQuestion."
+    ]
+  },
+  "breaking_changes": [],
+  "requirements_verified": [
+    "REQ-003",
+    "REQ-005",
+    "REQ-006",
+    "REQ-007",
+    "REQ-009",
+    "REQ-010"
+  ],
+  "behaviors_verified": [
+    "REQ-003-B01",
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-003-B04",
+    "REQ-003-B05",
+    "REQ-005-B02",
+    "REQ-005-B03",
+    "REQ-006-B02",
+    "REQ-006-B04",
+    "REQ-006-B05",
+    "REQ-007-B03",
+    "REQ-007-B04",
+    "REQ-009-B01",
+    "REQ-009-B02",
+    "REQ-009-B03",
+    "REQ-010-B02",
+    "REQ-010-B03",
+    "REQ-010-B04",
+    "REQ-010-B05"
+  ],
+  "tests": {
+    "command": "node --test \"test/question-handler.test.js\" \"test/integration-feishu-tui-sync.test.js\"",
+    "result": "pass: 70 tests, 0 failures",
+    "evidence": "specs/2026-08-21-claude-tui-feishu-shared-session/evidence/T4-test.log"
+  },
+  "traceability_updated": true
+}

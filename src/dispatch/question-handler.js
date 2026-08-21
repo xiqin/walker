@@ -19,9 +19,17 @@ class QuestionHandler {
     this.requests = new Map();
   }
 
-  /** 生成请求状态键，序列化 agentRef 并拼接 requestID。 */
+  /** 生成请求状态键，仅使用不会随运行时重连刷新的会话标识。 */
   _key(agentRef, requestID) {
-    return JSON.stringify(agentRef || {}) + ':' + String(requestID || '');
+    const ref = agentRef && typeof agentRef === 'object' ? agentRef : {};
+    let stableId = '';
+    if (ref.opencodeSessionId) stableId = 'opencode:' + ref.opencodeSessionId;
+    else if (ref.claudeSessionId) stableId = 'claude:' + ref.claudeSessionId;
+    else if (ref.sessionId) stableId = 'session:' + ref.sessionId;
+    else if (ref.id) stableId = 'id:' + ref.id;
+    else if (ref.runtimeId) stableId = 'runtime:' + ref.runtimeId;
+    else stableId = 'ref:' + JSON.stringify(ref || {});
+    return String(stableId || '') + ':' + String(requestID || '');
   }
 
   /** 组装飞书卡片 builder 所需的上下文选项。 */
@@ -67,9 +75,24 @@ class QuestionHandler {
     this.pruneStates();
     const data = agentEvent && agentEvent.data;
     if (!data || !data.requestID || !data.sessionID || !Array.isArray(data.questions) || data.questions.length === 0 || !session || !session.agentRef) {
-      logger.warn('invalid native question asked event');
+      logger.warn('invalid native question asked event', {
+        hasData: Boolean(data),
+        requestID: data && data.requestID,
+        sessionID: data && data.sessionID,
+        questionCount: data && Array.isArray(data.questions) ? data.questions.length : 0,
+        walkerSessionId: session && session.id,
+        hasAgentRef: Boolean(session && session.agentRef),
+      });
       return { error: 'invalid_request' };
     }
+    logger.info('native question asked received', {
+      requestID: data.requestID,
+      sessionID: data.sessionID,
+      questionCount: data.questions.length,
+      walkerSessionId: session.id,
+      routeKey,
+      chatId,
+    });
     const key = this._key(session.agentRef, data.requestID);
     let request = this.requests.get(key);
     if (!request) {
@@ -105,6 +128,13 @@ class QuestionHandler {
 
   /** 发送 asked 事件中的全部卡片，每题只直接尝试两次。 */
   async _sendCards(request) {
+    logger.info('native question cards sending', {
+      requestID: request.requestID,
+      questionCount: request.questions.length,
+      walkerSessionId: request.walkerSessionId,
+      routeKey: request.routeKey,
+      chatId: request.chatId,
+    });
     for (let index = 0; index < request.questions.length; index++) {
       if (request.status !== 'sending_cards') return { status: request.status };
       const question = request.questions[index] || {};
@@ -143,6 +173,13 @@ class QuestionHandler {
       }
     }
     if (request.status !== 'sending_cards') return { status: request.status };
+    logger.info('native question cards sent', {
+      requestID: request.requestID,
+      questionCount: request.questions.length,
+      walkerSessionId: request.walkerSessionId,
+      routeKey: request.routeKey,
+      chatId: request.chatId,
+    });
     request.status = 'collecting';
     return { status: request.status };
   }
@@ -314,6 +351,7 @@ class QuestionHandler {
       await this._expired(cmd, parsed);
       return { error: 'expired' };
     }
+    request.agentRef = session.agentRef;
     if (request.walkerSessionId !== walkerSessionId || request.routeKey !== cmd.routeKey || request.cards[parsed.index] !== cmd.messageId) {
       logger.warn('native question answer rejected: callback mismatch', { requestID: parsed.requestID, index: parsed.index, walkerSessionId, expectedWalkerSessionId: request.walkerSessionId, routeKey: cmd.routeKey, expectedRouteKey: request.routeKey, messageId: cmd.messageId, expectedMessageId: request.cards[parsed.index] });
       await this._patchOne(request, parsed.index, 'expired');
@@ -388,14 +426,27 @@ class QuestionHandler {
     }
     try {
       if (request.status !== 'submitting') return { status: request.status };
-      await driver.replyQuestion(request.agentRef, request.requestID, request.answers);
+      if (request.agent === 'claude') await driver.replyQuestion(request.agentRef, request.requestID, request.answers, { questions: request.questions });
+      else await driver.replyQuestion(request.agentRef, request.requestID, request.answers);
       if (request.status !== 'submitting') return { status: request.status };
       this._terminal(request, 'replied');
       await this._patchAll(request, 'replied');
       return { status: request.status };
     } catch (err) {
       if (request.status !== 'submitting') return { status: request.status };
-      if (err && err.code === 'QUESTION_REPLY_UNSUPPORTED') {
+      const code = err && err.code;
+      logger.warn('native question submit failed', {
+        requestID: request.requestID,
+        walkerSessionId: request.walkerSessionId,
+        agent: request.agent,
+        error: err && err.message,
+        code,
+        sdkInvoked: err && err.sdkInvoked,
+        safeToRetry: err && err.safeToRetry,
+      });
+      if (code === 'QUESTION_REPLY_UNSUPPORTED'
+        || code === 'CLAUDE_QUESTION_REPLY_UNSUPPORTED'
+        || code === 'CLAUDE_QUESTION_RUNTIME_UNAVAILABLE') {
         this._terminal(request, 'feishu_unavailable');
         await this._patchAll(request, 'feishu_unavailable');
       } else if (err && err.safeToRetry === true && err.sdkInvoked === false) {

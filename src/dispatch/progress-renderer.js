@@ -228,17 +228,28 @@ class ProgressRenderer {
   }
 
   /**
-   * 从显示事件列表中提取所有文本事件内容并拼接
+   * 从显示事件列表中提取可直接推送给用户的文本内容并拼接
    * @param {AgentEvent[]} displayEvents - 显示事件列表
    * @returns {string} 拼接后的纯文本
    */
   _textFromDisplayEvents(displayEvents) {
     return (displayEvents || [])
-      .filter((event) => event.type === AgentEvent.TYPE_TEXT)
-      .map((event) => event.data && event.data.text)
+      .map((event) => this._userTextFromEvent(event))
       .filter(Boolean)
       .join('\n')
       .trim();
+  }
+
+  _userTextFromEvent(event) {
+    if (!event) return '';
+    if (event.type === AgentEvent.TYPE_TEXT) return event.data && event.data.text || '';
+    if (event.type !== AgentEvent.TYPE_ERROR) return '';
+    const data = event.data || {};
+    const message = data.message || data.error && (data.error.message || data.error) || event.message || event.error;
+    const errorType = data.type || data.code || event.errorType || event.code || '';
+    if (message) return 'OpenCode error: ' + message;
+    if (errorType) return 'OpenCode error: ' + errorType;
+    return 'OpenCode error: unknown error';
   }
 
   /**

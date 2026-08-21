@@ -161,7 +161,15 @@ class MessageDispatcher {
     }
 
     const sourceRouteKey = event.routeKey || buildRouteKey(event, this.routeMode);
-    const target = this._resolveIncomingTarget(event, sourceRouteKey);
+    let target = this._resolveIncomingTarget(event, sourceRouteKey);
+    if (!target.session) {
+      let autoBound = await this._tryAutoBindClaudeRoute(target.routeKey, event);
+      if (!autoBound && this.routeMode === 'thread' && event.rootId && event.chatId) {
+        const fallbackRouteKey = buildRouteKey(Object.assign({}, event, { rootId: '' }), this.routeMode);
+        if (fallbackRouteKey !== target.routeKey) autoBound = await this._tryAutoBindClaudeRoute(fallbackRouteKey, event);
+      }
+      if (autoBound && autoBound.session) target = autoBound;
+    }
     const routeKey = target.routeKey;
     const current = target.session;
     const effectiveEvent = Object.assign({}, event, {
@@ -281,6 +289,56 @@ class MessageDispatcher {
     }
 
     return { session: null, routeKey: sourceRouteKey, routedBy: 'unbound' };
+  }
+
+  async _tryAutoBindClaudeRoute(routeKey, event) {
+    if (!routeKey || !this.sessionService || typeof this.sessionService.getRouteCwd !== 'function') return null;
+    const routeCwd = this.sessionService.getRouteCwd(routeKey);
+    if (!routeCwd) return null;
+    const driver = this.driverRegistry && this.driverRegistry.get('claude');
+    if (!driver || typeof driver.listSessions !== 'function' || typeof driver.resumeSession !== 'function') return null;
+    try {
+      if (typeof driver.ensureReady === 'function') await driver.ensureReady();
+      const remoteSessions = filterRecentAttachSessions(await driver.listSessions({ cwd: routeCwd }), Date.now());
+      const managedIds = this._managedClaudeSessionIds();
+      const candidates = remoteSessions.filter((session) => session && session.id && !managedIds.has(session.id));
+      if (candidates.length !== 1) {
+        logger.info('claude route autobind skipped', {
+          routeKey,
+          messageId: event && event.messageId,
+          candidateCount: candidates.length,
+        });
+        return null;
+      }
+      const remoteSession = candidates[0];
+      if (!isUuid(remoteSession.id)) return null;
+      const agentRef = await driver.resumeSession({
+        claudeSessionId: remoteSession.id,
+        cwd: remoteSession.cwd || routeCwd,
+      });
+      const session = this.sessionService.createSession({
+        route: routeKey,
+        agent: 'claude',
+        title: remoteSession.title || ('claude ' + String(remoteSession.id).slice(0, 12)),
+        runtime: this.runtimeType,
+        cwd: agentRef.cwd || remoteSession.cwd || routeCwd,
+        agentRef,
+      });
+      this.sessionService.markIdle(session.id);
+      logger.info('claude route autobound by cwd', {
+        routeKey,
+        sessionId: session.id,
+        claudeSessionId: remoteSession.id,
+      });
+      return { session, routeKey, routedBy: 'claude-cwd-autobind' };
+    } catch (err) {
+      logger.warn('claude route autobind failed', {
+        routeKey,
+        messageId: event && event.messageId,
+        error: err && err.message ? err.message : String(err),
+      });
+      return null;
+    }
   }
 
   _incomingFeishuLookupIds(event) {
@@ -1742,6 +1800,13 @@ class MessageDispatcher {
       return this._handlePermissionRepliedEvent(session, chatId, agentEvent);
     }
     if (agentEvent.type === AgentEvent.TYPE_QUESTION_ASKED) {
+      logger.info('watched session question asked', {
+        sessionId: session.id,
+        chatId,
+        routeKey: this.sessionService.getRouteForSession(session.id),
+        requestID: agentEvent.data && agentEvent.data.requestID,
+        questionCount: agentEvent.data && Array.isArray(agentEvent.data.questions) ? agentEvent.data.questions.length : 0,
+      });
       this.questionHandler.handleAsked(session, chatId, this.sessionService.getRouteForSession(session.id), agentEvent);
       return;
     }

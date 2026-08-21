@@ -139,6 +139,86 @@ test('REQ-004-B02: 本地 TUI 的最终 assistant JSONL 记录形成文本和完
   assert.equal(events[3].contextSize, 125);
 });
 
+test('Claude transcript watcher 读到 question_asked 时产生日志并派发事件', async () => {
+  const { cwd, configDir } = makeSandbox();
+  const file = transcriptPath(configDir, cwd);
+  const events = [];
+  const logs = [];
+  const watcher = watchClaudeTranscript({
+    cwd,
+    configDir,
+    claudeSessionId: UUID_A,
+    pollIntervalMs: 10,
+    logger: { info: (message, data) => logs.push({ level: 'info', message, data }), warn: (message, data) => logs.push({ level: 'warn', message, data }) },
+    onEvent: event => events.push(event),
+  });
+  appendJsonLine(file, {
+    type: 'question_asked',
+    requestID: 'req-watch-1',
+    sessionID: UUID_A,
+    questions: [{ question: '允许执行 Bash？', header: 'Bash', options: [] }],
+    tool: { name: 'Bash' },
+  });
+
+  await waitFor(() => events.some(event => event.type === 'question_asked'), { message: 'watcher did not emit question_asked' });
+  watcher.close();
+
+  assert.ok(logs.some(log => log.message === 'claude transcript watch events read'
+    && log.data.eventTypes.includes('question_asked')
+    && log.data.claudeSessionId === UUID_A));
+});
+
+test('Claude transcript watcher 遇到未完整落盘的 AskUserQuestion 时记录 pending 且等待换行后派发', async () => {
+  const { cwd, configDir } = makeSandbox();
+  const file = transcriptPath(configDir, cwd);
+  const events = [];
+  const logs = [];
+  const line = JSON.stringify({
+    type: 'assistant',
+    sessionId: UUID_A,
+    message: {
+      role: 'assistant',
+      content: [{
+        type: 'tool_use',
+        id: 'call_pending_question',
+        name: 'AskUserQuestion',
+        input: {
+          questions: [{
+            question: '你希望我做什么？',
+            header: '下一步',
+            options: [{ label: '运行测试', description: '运行相关测试' }],
+          }],
+          prompt: 'SECRET=abc',
+        },
+      }],
+    },
+  });
+  const watcher = watchClaudeTranscript({
+    cwd,
+    configDir,
+    claudeSessionId: UUID_A,
+    pollIntervalMs: 10,
+    partialLogDelayMs: 0,
+    logger: { info: (message, data) => logs.push({ level: 'info', message, data }), warn: (message, data) => logs.push({ level: 'warn', message, data }) },
+    onEvent: event => events.push(event),
+  });
+
+  fs.appendFileSync(file, line);
+  await waitFor(() => logs.some(log => log.message === 'claude transcript partial line pending'), { message: 'watcher did not log pending partial transcript line' });
+  assert.equal(events.some(event => event.type === 'question_asked'), false);
+
+  fs.appendFileSync(file, '\n');
+  await waitFor(() => events.some(event => event.type === 'question_asked'), { message: 'watcher did not emit question after line completed' });
+  watcher.close();
+
+  const pendingLog = logs.find(log => log.message === 'claude transcript partial line pending');
+  assert.equal(pendingLog.data.claudeSessionId, UUID_A);
+  assert.equal(pendingLog.data.offset, 0);
+  assert.ok(pendingLog.data.pendingBytes > 0);
+  assert.equal(JSON.stringify(logs).includes('SECRET=abc'), false);
+  assert.equal(events.find(event => event.type === 'question_asked').requestID, 'call_pending_question');
+});
+
 test('REQ-004-B01: 单条 assistant 多 content block 按 text/reasoning/tool_use 原顺序输出', () => {
   const events = parseClaudeJsonlLineEvents(JSON.stringify({
     type: 'assistant',
@@ -257,6 +337,68 @@ test('REQ-005-B01/REQ-005-B06: question/hook 只映射稳定脱敏字段且不�
   assert.deepEqual(hook[0].diagnostic.tool, { name: 'Read' });
   assert.equal(JSON.stringify(question.concat(hook)).includes('SECRET=abc'), false);
   assert.equal(JSON.stringify(question.concat(hook)).includes('secret.txt'), false);
+});
+
+test('Claude transcript question_asked 记录映射为可推送的原生问题事件', () => {
+  const events = parseClaudeJsonlLineEvents(JSON.stringify({
+    type: 'question_asked',
+    requestID: 'req-asked-1',
+    sessionID: 'sess-asked-1',
+    questions: [{ question: '允许执行 Bash？', header: 'Bash', options: [] }],
+    tool: { name: 'Bash' },
+    prompt: '完整 prompt SECRET=abc',
+  }));
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'question_asked');
+  assert.equal(events[0].requestID, 'req-asked-1');
+  assert.equal(events[0].sessionID, 'sess-asked-1');
+  assert.deepEqual(events[0].questions, [{ question: '允许执行 Bash？', header: 'Bash', options: [] }]);
+  assert.deepEqual(events[0].tool, { name: 'Bash' });
+  assert.equal(JSON.stringify(events).includes('SECRET=abc'), false);
+});
+
+test('Claude AskUserQuestion tool_use 映射为可推送的原生问题事件', () => {
+  const events = parseClaudeJsonlLineEvents(JSON.stringify({
+    type: 'assistant',
+    sessionId: UUID_A,
+    prompt: '完整 prompt SECRET=abc',
+    message: {
+      role: 'assistant',
+      content: [{
+        type: 'tool_use',
+        id: 'call_58016f6d090a42ec92282c09',
+        name: 'AskUserQuestion',
+        input: {
+          prompt: '完整 input prompt SECRET=abc',
+          questions: [{
+            header: '下一步',
+            multiSelect: false,
+            options: [
+              { label: '检查并解释改动', description: '查看未提交改动，解释这些改动在做什么' },
+              { label: '运行测试验证', description: '运行相关测试，确认当前改动是否通过' },
+            ],
+            question: '你接下来希望我帮你做什么？',
+          }],
+        },
+      }],
+    },
+  }));
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'question_asked');
+  assert.equal(events[0].requestID, 'call_58016f6d090a42ec92282c09');
+  assert.equal(events[0].sessionID, UUID_A);
+  assert.deepEqual(events[0].questions, [{
+    question: '你接下来希望我帮你做什么？',
+    header: '下一步',
+    options: [
+      { label: '检查并解释改动', description: '查看未提交改动，解释这些改动在做什么' },
+      { label: '运行测试验证', description: '运行相关测试，确认当前改动是否通过' },
+    ],
+  }]);
+  assert.deepEqual(events[0].tool, { name: 'AskUserQuestion' });
+  assert.equal(JSON.stringify(events).includes('SECRET=abc'), false);
 });
 
 test('AgentEvent tool_use schema: 新 lifecycle 字段可选且旧字段兼容', () => {

@@ -1,0 +1,26 @@
+{
+  "expanded_requirements": 10,
+  "expanded_behaviors": 50,
+  "blocked_behaviors": [],
+  "check": {
+    "ok": true,
+    "missing_category": 0,
+    "missing_test_plan": 0,
+    "requires_clarification": 0,
+    "placeholder_descriptions": 0
+  },
+  "status": "done",
+  "summary": "requirements.json 已完成行为义务展开并通过 detail expansion 校验：10 个 REQ、50 个 behavior，所有 required_categories 均有对应 behavior，所有 behavior 均有结构化 test_plan，无 requires-clarification 或占位描述。",
+  "artifacts": [
+    "requirements.json"
+  ],
+  "stage": "detail-expansion",
+  "task_id": "detail-expansion",
+  "basis_fingerprints": {
+    "spec.md": "855eb79a30013fe6035b26bab9d5817ffdc156bf33f12ba626d5e187f434b2c0"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "f26c4b82eba6cc1d528ad80fe30bcb8b433d00749378746925a6c72407d17075"
+  },
+  "written_at": "2026-08-21T07:52:08.220Z"
+}

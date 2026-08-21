@@ -64,11 +64,11 @@ test('REQ-001-B01 和 REQ-007-B03: Claude catalog 声明真实 CLI driver 能力
     models: true,
     permissions: false,
     window: true,
-    questionReply: false,
+    questionReply: true,
   });
   assert.equal(claude.capabilityStatus.permissions.status, 'degraded');
   assert.match(claude.capabilityStatus.permissions.reason, /OpenCode allow\/ask\/deny/);
-  assert.equal(claude.capabilityStatus.questionReply.status, 'unsupported');
+  assert.equal(claude.capabilityStatus.questionReply.status, 'degraded');
   assert.equal(claude.capabilityStatus.models.status, 'supported');
   assert.ok(claude.configKeys.includes('CLAUDE_CMD'));
   assert.ok(claude.configKeys.includes('CLAUDE_MODEL'));
@@ -102,9 +102,9 @@ test('REQ-005-B05: provider capabilityStatus 区分 supported/degraded/unsupport
   assert.equal(opencode.capabilityStatus.permissions.status, 'supported');
   assert.equal(opencode.capabilityStatus.questionReply.status, 'supported');
   assert.equal(claude.capabilities.permissions, false);
-  assert.equal(claude.capabilities.questionReply, false);
+  assert.equal(claude.capabilities.questionReply, true);
   assert.equal(claude.capabilityStatus.permissions.status, 'degraded');
-  assert.equal(claude.capabilityStatus.questionReply.status, 'unsupported');
+  assert.equal(claude.capabilityStatus.questionReply.status, 'degraded');
   for (const provider of providers.values()) {
     for (const detail of Object.values(provider.capabilityStatus)) {
       assert.ok(['supported', 'degraded', 'unsupported'].includes(detail.status));

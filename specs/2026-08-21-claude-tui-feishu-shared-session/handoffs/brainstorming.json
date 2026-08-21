@@ -1,0 +1,31 @@
+{
+  "decisions": [
+    "选定方案 A：Walker 托管 Claude TUI PTY，而非 headless stream-json 或接管外部裸 Claude。",
+    "外部裸 Claude 只能观察和提示，不允许飞书回答，不允许 resume 新进程伪装成功。",
+    "OpenCode 功能不回归是 P0 需求 REQ-008。"
+  ],
+  "self_check": {
+    "detail_expansion_check": "passed",
+    "requirements": 10,
+    "behaviors": 50
+  },
+  "open_questions": [
+    "用户审查 spec.md 和 requirements.json 后确认是否进入 detail-expansion。"
+  ],
+  "status": "done",
+  "summary": "已确认采用 Walker 托管 Claude TUI PTY 方案：Walker 从启动时持有 Claude runtime 输入输出句柄，本地 attach 与飞书写同一 runtime；hook 优先捕获 AskUserQuestion，transcript fallback；飞书答案写回同一托管 runtime 后必须等待真实 tool_result ACK；外部裸 Claude 仅 external-readonly；OpenCode bridge 与 question/permission/upstream_error 行为列为强制不变量。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "855eb79a30013fe6035b26bab9d5817ffdc156bf33f12ba626d5e187f434b2c0"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "f26c4b82eba6cc1d528ad80fe30bcb8b433d00749378746925a6c72407d17075",
+    "spec.md": "855eb79a30013fe6035b26bab9d5817ffdc156bf33f12ba626d5e187f434b2c0"
+  },
+  "written_at": "2026-08-21T07:42:16.653Z"
+}

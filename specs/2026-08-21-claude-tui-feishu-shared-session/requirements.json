@@ -1,0 +1,144 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "state", "write", "recovery", "observable"],
+      "required_categories": ["happy-path", "state-transition", "forbidden-behavior", "recovery", "observability", "atomicity"],
+      "acceptance": ["Walker 创建 Claude TUI runtime 后持有 runtimeId、claudeSessionId、PTY 输入输出句柄，并能区分 walker-managed 与 external-readonly。", "回答当前问题时不得通过 resume 创建第二个 Claude 进程。"],
+      "behaviors": [
+        { "id": "REQ-001-B01", "category": "happy-path", "description": "Walker 启动 Claude TUI 后创建可写的 walker-managed runtime。", "status": "failing", "acceptance": ["createSession/createRuntime 返回 inputWritable=true 的 agentRef，并可写入同一 runtime。"], "test_plan": { "strategy": "unit", "inputs": ["ClaudeDriver.createSession", "fake ClaudePtyBroker.createRuntime"], "expected": ["agentRef.owner 为 walker-managed", "agentRef.inputWritable 为 true", "broker 有 active runtime"] } },
+        { "id": "REQ-001-B02", "category": "state-transition", "description": "runtime 从 starting 转 active 后才能接受本地或飞书输入。", "status": "failing", "acceptance": ["active 前输入被拒绝或排队，active 后写入成功。"], "test_plan": { "strategy": "unit", "inputs": ["starting runtime", "active runtime", "writeInput"], "expected": ["状态转换可观测", "非 active 状态不误写"] } },
+        { "id": "REQ-001-B03", "category": "forbidden-behavior", "description": "飞书回答当前问题时不得 resume 新 Claude 进程来伪装成功。", "status": "failing", "acceptance": ["原 runtime 不可写时 replyQuestion 返回明确不可用，resumeRuntime 未被调用。"], "test_plan": { "strategy": "unit", "inputs": ["stale agentRef", "replyQuestion"], "expected": ["抛 CLAUDE_QUESTION_RUNTIME_UNAVAILABLE", "resumeRuntime 调用次数为 0"] } },
+        { "id": "REQ-001-B04", "category": "recovery", "description": "托管 runtime 异常退出后标记为 stopped/error，并保留可诊断状态。", "status": "failing", "acceptance": ["runtime exit 后 pending 输入失败且 session 不误标可写。"], "test_plan": { "strategy": "unit", "inputs": ["runtime exit event", "pending write"], "expected": ["状态为 stopped/error", "pending promise reject", "inputWritable=false"] } },
+        { "id": "REQ-001-B05", "category": "observability", "description": "runtime 创建、恢复、不可写、停止均有结构化日志。", "status": "failing", "acceptance": ["日志字段包含 runtimeId、claudeSessionId、owner、status，且不泄漏 prompt。"], "test_plan": { "strategy": "unit", "inputs": ["logger stub", "runtime lifecycle events"], "expected": ["日志包含必要标识", "日志不包含 SECRET/token"] } },
+        { "id": "REQ-001-B06", "category": "atomicity", "description": "runtime 归属与可写能力更新必须作为同一次 session 状态更新生效。", "status": "failing", "acceptance": ["session.agentRef 不会出现 owner 已更新但 runtimeId/inputWritable 旧值的中间状态。"], "test_plan": { "strategy": "unit", "inputs": ["sessionService update", "agentRef ownership fields"], "expected": ["字段同批更新", "读取 current session 得到一致状态"] } }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "input", "state", "concurrent", "recovery"],
+      "required_categories": ["happy-path", "state-transition", "concurrency", "recovery", "boundary", "invalid-input"],
+      "acceptance": ["本地 attach 能订阅 replay 和实时输出。", "本地 detach 后 Claude runtime 可继续运行，重新 attach 仍连接同一 runtime。"],
+      "behaviors": [
+        { "id": "REQ-002-B01", "category": "happy-path", "description": "本地 attach 客户端连接托管 runtime 后收到 replay 并可写入输入。", "status": "failing", "acceptance": ["subscribeOutput replay 与 writeInput 共用同一 runtime。"], "test_plan": { "strategy": "integration", "inputs": ["托管 runtime", "attach client", "replay chunk", "typed input"], "expected": ["客户端收到 replay", "输入写入同一 runtime"] } },
+        { "id": "REQ-002-B02", "category": "state-transition", "description": "attach/detach 只改变客户端连接状态，不改变 Claude runtime 会话归属。", "status": "failing", "acceptance": ["detach 后 session route 与 runtimeId 不变。"], "test_plan": { "strategy": "unit", "inputs": ["attach", "detach", "sessionService current"], "expected": ["runtimeId 不变", "route focus 不丢失"] } },
+        { "id": "REQ-002-B03", "category": "concurrency", "description": "多个输出订阅者接收同一 runtime 输出且互不阻塞。", "status": "failing", "acceptance": ["本地 attach 与飞书 watcher 同时订阅不会丢输出。"], "test_plan": { "strategy": "unit", "inputs": ["two subscribers", "output chunks"], "expected": ["两个订阅者都收到完整 chunk", "取消一个订阅者不影响另一个"] } },
+        { "id": "REQ-002-B04", "category": "recovery", "description": "attach 客户端断开不会终止 Claude runtime，后续可重新 attach。", "status": "failing", "acceptance": ["detach 后 runtime status 仍 active 或 reconnectable。"], "test_plan": { "strategy": "integration", "inputs": ["attach", "detach", "re-attach"], "expected": ["runtime 未停止", "重新 attach 收到后续输出"] } },
+        { "id": "REQ-002-B05", "category": "boundary", "description": "replay 缓冲区按字节上限裁剪，attach 不返回无限历史。", "status": "failing", "acceptance": ["超过 replayLimitBytes 时只返回最新窗口。"], "test_plan": { "strategy": "unit", "inputs": ["大量 output", "replayLimitBytes"], "expected": ["replayBytes 不超过上限", "最新输出保留"] } },
+        { "id": "REQ-002-B06", "category": "invalid-input", "description": "attach 不存在或不可写 runtime 时返回明确错误。", "status": "failing", "acceptance": ["不存在 runtime 不创建新进程且返回 runtime_not_found。"], "test_plan": { "strategy": "unit", "inputs": ["missing runtimeId", "attach/write request"], "expected": ["返回明确错误", "createRuntime/resumeRuntime 未调用"] } }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["functional", "state", "compatibility", "observable"],
+      "required_categories": ["happy-path", "compatibility", "forbidden-behavior", "observability", "state-transition"],
+      "acceptance": ["飞书 route 能绑定 walker-managed Claude session。", "外部裸 Claude 只能 external-readonly，不允许飞书回答。"],
+      "behaviors": [
+        { "id": "REQ-003-B01", "category": "happy-path", "description": "飞书 /new claude 或 cwd route 绑定时优先创建或复用 Walker 托管 Claude runtime。", "status": "failing", "acceptance": ["route current session 为 agent=claude 且 owner=walker-managed。"], "test_plan": { "strategy": "integration", "inputs": ["/new claude", "route cwd"], "expected": ["session owner=walker-managed", "watch 启动", "runtime 可写"] } },
+        { "id": "REQ-003-B02", "category": "compatibility", "description": "已有 transcript 自动发现仍能关联外部 Claude 但标记只读。", "status": "failing", "acceptance": ["外部会话能显示输出和问题，但 inputWritable=false。"], "test_plan": { "strategy": "integration", "inputs": ["external transcript session", "cwd route"], "expected": ["owner=external-readonly", "不影响 transcript watch"] } },
+        { "id": "REQ-003-B03", "category": "forbidden-behavior", "description": "自动发现的外部裸 Claude 不得被标记为可写。", "status": "failing", "acceptance": ["external-readonly 会话提交答案时返回本地回答提示。"], "test_plan": { "strategy": "unit", "inputs": ["external agentRef", "handleAnswer"], "expected": ["不调用 writeInput", "卡片提示只读"] } },
+        { "id": "REQ-003-B04", "category": "observability", "description": "route 绑定和只读降级有明确日志。", "status": "failing", "acceptance": ["日志包含 routeKey、cwd、owner、reason。"], "test_plan": { "strategy": "unit", "inputs": ["logger stub", "managed bind", "external readonly bind"], "expected": ["日志字段完整", "reason 可诊断"] } },
+        { "id": "REQ-003-B05", "category": "state-transition", "description": "route 从无 Claude session 到托管 session 的焦点切换保持一致。", "status": "failing", "acceptance": ["setFocus 后 getCurrent 返回新托管 Claude session。"], "test_plan": { "strategy": "integration", "inputs": ["empty route", "managed Claude enrollment"], "expected": ["focusSessionId 更新", "current session 与 runtime 匹配"] } }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "status": "failing",
+      "types": ["functional", "external", "performance", "observable", "security"],
+      "required_categories": ["happy-path", "external-failure", "performance", "observability", "security"],
+      "acceptance": ["AskUserQuestion 出现后优先由 hook 在 2 秒内触发飞书卡片发送。", "hook 不可用时 transcript fallback 仍能发送卡片但标注来源。"],
+      "behaviors": [
+        { "id": "REQ-004-B01", "category": "happy-path", "description": "PreToolUse/hook 捕获 AskUserQuestion 并转为标准 question event。", "status": "failing", "acceptance": ["toolUseId、questions、options 被映射且飞书 replyCard 被调用。"], "test_plan": { "strategy": "integration", "inputs": ["AskUserQuestion hook payload"], "expected": ["AgentEvent.TYPE_QUESTION_ASKED", "replyCard called"] } },
+        { "id": "REQ-004-B02", "category": "external-failure", "description": "hook 不可用或丢失时 transcript fallback 仍能产生问题事件。", "status": "failing", "acceptance": ["transcript AskUserQuestion tool_use 仍映射并发送卡片。"], "test_plan": { "strategy": "unit", "inputs": ["transcript AskUserQuestion JSONL", "hook disabled"], "expected": ["source=transcript", "question event emitted"] } },
+        { "id": "REQ-004-B03", "category": "performance", "description": "hook 事件到飞书发卡延迟不超过 2 秒。", "status": "failing", "acceptance": ["处理路径不等待 transcript 轮询。"], "test_plan": { "strategy": "unit", "inputs": ["fake clock", "hook event"], "expected": ["replyCard 在 2000ms 内调用"] } },
+        { "id": "REQ-004-B04", "category": "observability", "description": "问题事件来源、requestID/toolUseId 和发卡结果有日志。", "status": "failing", "acceptance": ["日志可区分 hook 与 transcript fallback。"], "test_plan": { "strategy": "unit", "inputs": ["logger stub", "hook event", "fallback event"], "expected": ["日志包含 source、toolUseId、status"] } },
+        { "id": "REQ-004-B05", "category": "security", "description": "问题事件日志与卡片只包含稳定问题字段并脱敏 secret。", "status": "failing", "acceptance": ["prompt/token/SECRET 不出现在 event JSON 和日志中。"], "test_plan": { "strategy": "unit", "inputs": ["payload with SECRET/token"], "expected": ["输出不含原始敏感值", "必要字段保留"] } }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "status": "failing",
+      "types": ["functional", "input", "write", "state", "external"],
+      "required_categories": ["happy-path", "invalid-input", "state-transition", "external-failure", "forbidden-behavior", "atomicity"],
+      "acceptance": ["飞书答案只写入产生问题的同一可写 runtime。", "无法可靠写入时明确失败，不误报 replied。"],
+      "behaviors": [
+        { "id": "REQ-005-B01", "category": "happy-path", "description": "单选答案匹配 options 时生成正确 TUI 输入并写入同一 runtime。", "status": "failing", "acceptance": ["选择第 N 项写入对应方向键/确认序列，runtimeId 与 question runtime 一致。"], "test_plan": { "strategy": "unit", "inputs": ["single choice question", "selected answer", "managed runtime"], "expected": ["writeInput 收到键序列", "source=feishu-question-reply"] } },
+        { "id": "REQ-005-B02", "category": "invalid-input", "description": "飞书提交的答案不匹配 options 或问题已过期时拒绝提交。", "status": "failing", "acceptance": ["无效 option/custom 组合不会写入 PTY。"], "test_plan": { "strategy": "unit", "inputs": ["invalid option", "expired request"], "expected": ["返回 invalid/expired", "writeInput 未调用"] } },
+        { "id": "REQ-005-B03", "category": "state-transition", "description": "飞书答案提交后进入 awaiting_tool_result 而不是立即终态成功。", "status": "failing", "acceptance": ["提交成功写入后卡片显示等待确认。"], "test_plan": { "strategy": "unit", "inputs": ["valid answer", "no tool_result yet"], "expected": ["status=awaiting_tool_result", "未标 replied"] } },
+        { "id": "REQ-005-B04", "category": "external-failure", "description": "PTY 写入失败或 runtime 断开时用户看到明确失败状态。", "status": "failing", "acceptance": ["底层 writeInput 错误被分类为 runtime_unavailable 或 failed。"], "test_plan": { "strategy": "unit", "inputs": ["writeInput throws", "runtime status stopped"], "expected": ["卡片 patch 为失败", "日志含 error/code"] } },
+        { "id": "REQ-005-B05", "category": "forbidden-behavior", "description": "runtime 不可写时不得 resume 新进程。", "status": "failing", "acceptance": ["resumeRuntime 调用次数为 0，状态为 feishu_unavailable 或 runtime_unavailable。"], "test_plan": { "strategy": "unit", "inputs": ["missing runtime", "replyQuestion"], "expected": ["不调用 resumeRuntime", "不误报 replied"] } },
+        { "id": "REQ-005-B06", "category": "atomicity", "description": "一个问题答案的完整输入序列作为原子写入，不被其他输入插入。", "status": "failing", "acceptance": ["输入仲裁器保证键序列连续写入。"], "test_plan": { "strategy": "unit", "inputs": ["question key sequence", "concurrent local input"], "expected": ["序列连续", "本地输入排队或拒绝"] } }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "status": "failing",
+      "types": ["functional", "state", "idempotent", "observable"],
+      "required_categories": ["state-transition", "idempotency", "boundary", "observability", "happy-path"],
+      "acceptance": ["飞书答案提交后必须等待匹配 tool_result 才最终成功。", "重复或迟到事件不会反转已确认终态。"],
+      "behaviors": [
+        { "id": "REQ-006-B01", "category": "happy-path", "description": "匹配 toolUseId 的 tool_result 到达后确认飞书答案成功。", "status": "failing", "acceptance": ["卡片从 awaiting_tool_result 转为 answered。"], "test_plan": { "strategy": "unit", "inputs": ["awaiting request", "matching tool_result"], "expected": ["status=answered", "confirmedAt 设置"] } },
+        { "id": "REQ-006-B02", "category": "state-transition", "description": "提交答案后状态进入 awaiting_tool_result，匹配 tool_result 后进入 answered。", "status": "failing", "acceptance": ["未收到 tool_result 时卡片不是最终 replied。"], "test_plan": { "strategy": "unit", "inputs": ["valid answer", "no result", "matching result"], "expected": ["submitting -> awaiting_tool_result -> answered"] } },
+        { "id": "REQ-006-B03", "category": "idempotency", "description": "重复 question、重复 answer、重复 tool_result 不产生重复卡片或重复终态副作用。", "status": "failing", "acceptance": ["同一 toolUseId 事件多次处理结果一致。"], "test_plan": { "strategy": "unit", "inputs": ["duplicate events"], "expected": ["replyCard/patchCard 调用次数受控", "终态不反转"] } },
+        { "id": "REQ-006-B04", "category": "boundary", "description": "tool_result 超时未到达时进入等待或失败提示，不误报成功。", "status": "failing", "acceptance": ["超过配置阈值后卡片显示未确认。"], "test_plan": { "strategy": "unit", "inputs": ["fake clock", "awaiting request"], "expected": ["超时状态明确", "用户可重试或本地回答"] } },
+        { "id": "REQ-006-B05", "category": "observability", "description": "等待、确认、超时均有可诊断日志。", "status": "failing", "acceptance": ["日志包含 requestID/toolUseId/status/elapsedMs。"], "test_plan": { "strategy": "unit", "inputs": ["logger stub", "state transitions"], "expected": ["每次转换有结构化日志"] } }
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "status": "failing",
+      "types": ["input", "concurrent", "state", "atomicity"],
+      "required_categories": ["concurrency", "atomicity", "state-transition", "forbidden-behavior", "invalid-input"],
+      "acceptance": ["本地输入和飞书输入不会交错破坏 TUI 问题界面。", "本地和飞书同时回答时只能有一个确认获胜。"],
+      "behaviors": [
+        { "id": "REQ-007-B01", "category": "concurrency", "description": "飞书问题答案提交期间获得短租约，避免与本地按键交错。", "status": "failing", "acceptance": ["租约期间其他来源输入被排队或拒绝。"], "test_plan": { "strategy": "unit", "inputs": ["feishu lease", "local input"], "expected": ["local input 不插入键序列中间"] } },
+        { "id": "REQ-007-B02", "category": "atomicity", "description": "一个问题的完整键序列作为原子输入写入。", "status": "failing", "acceptance": ["键序列不会被其他输入插入。"], "test_plan": { "strategy": "unit", "inputs": ["multi-byte key sequence", "concurrent write"], "expected": ["写入顺序严格"] } },
+        { "id": "REQ-007-B03", "category": "state-transition", "description": "本地先回答产生 tool_result 时飞书请求转为 answered_elsewhere。", "status": "failing", "acceptance": ["飞书卡片显示已在本地回答。"], "test_plan": { "strategy": "unit", "inputs": ["collecting request", "local tool_result"], "expected": ["status=answered_elsewhere", "后续飞书提交被拒绝"] } },
+        { "id": "REQ-007-B04", "category": "forbidden-behavior", "description": "迟到答案不得覆盖已经由另一端确认的 tool_result。", "status": "failing", "acceptance": ["answered 后再次提交返回 answered_elsewhere 或 expired。"], "test_plan": { "strategy": "unit", "inputs": ["answered request", "late answer"], "expected": ["不写入 PTY", "状态不反转"] } },
+        { "id": "REQ-007-B05", "category": "invalid-input", "description": "输入租约过期或来源不匹配时拒绝写入。", "status": "failing", "acceptance": ["过期 lease 不允许继续写键序列。"], "test_plan": { "strategy": "unit", "inputs": ["expired lease", "write request"], "expected": ["返回 lease_expired", "writeInput 未调用"] } }
+      ]
+    },
+    {
+      "id": "REQ-008",
+      "status": "failing",
+      "types": ["compatibility", "functional", "recovery"],
+      "required_categories": ["compatibility", "forbidden-behavior", "recovery", "happy-path"],
+      "acceptance": ["OpenCode bridge 注册、route 绑定、Feishu 出站、question/permission reply、upstream_error 推送测试全部保持通过。", "Claude 改造不得改变 OpenCode driver 和 opencode-tui-bridge 协议。"],
+      "behaviors": [
+        { "id": "REQ-008-B01", "category": "happy-path", "description": "OpenCode 原有飞书入站、watch 出站和 question reply 主流程保持通过。", "status": "failing", "acceptance": ["现有 OpenCode 集成测试全绿。"], "test_plan": { "strategy": "regression", "inputs": ["integration-feishu-tui-sync", "message-dispatcher"], "expected": ["OpenCode 相关测试通过"] } },
+        { "id": "REQ-008-B02", "category": "compatibility", "description": "OpenCode TUI bridge register 行为保持不变。", "status": "failing", "acceptance": ["opencode bridge/session route 测试保持通过。"], "test_plan": { "strategy": "regression", "inputs": ["opencode-tui-bridge tests"], "expected": ["register 仍按 cwd 绑定 route", "agentRef 不要求 Claude 字段"] } },
+        { "id": "REQ-008-B03", "category": "forbidden-behavior", "description": "Claude 专用字段 owner/inputWritable 不得要求 OpenCode agentRef 支持。", "status": "failing", "acceptance": ["OpenCode question reply 仍使用 opencodeSessionId 稳定键。"], "test_plan": { "strategy": "unit", "inputs": ["OpenCode agentRef", "QuestionHandler._key", "handleAnswer"], "expected": ["不依赖 owner/inputWritable", "replyQuestion 参数契约不变"] } },
+        { "id": "REQ-008-B04", "category": "recovery", "description": "OpenCode upstream_error 空 message 仍可推送飞书。", "status": "failing", "acceptance": ["upstream_error 集成测试保持通过。"], "test_plan": { "strategy": "regression", "inputs": ["TYPE_ERROR message empty type upstream_error"], "expected": ["sendMarkdown 包含 OpenCode error 与 upstream_error"] } }
+      ]
+    },
+    {
+      "id": "REQ-009",
+      "status": "failing",
+      "types": ["observable", "security", "external"],
+      "required_categories": ["observability", "security", "external-failure"],
+      "acceptance": ["所有跨边界失败均有结构化日志。", "日志不记录完整 prompt、secret、token 或敏感答案上下文。"],
+      "behaviors": [
+        { "id": "REQ-009-B01", "category": "observability", "description": "runtime、question、answer、ACK、降级路径都有日志。", "status": "failing", "acceptance": ["日志字段完整且可定位断点。"], "test_plan": { "strategy": "unit", "inputs": ["logger stub", "runtime/question/answer events"], "expected": ["每类事件有 message 与关键 ids"] } },
+        { "id": "REQ-009-B02", "category": "security", "description": "日志与事件脱敏 sensitive 值。", "status": "failing", "acceptance": ["SECRET/token 不出现在日志和事件 JSON 中。"], "test_plan": { "strategy": "unit", "inputs": ["payload with SECRET=abc and token"], "expected": ["输出不含原值", "必要上下文保留"] } },
+        { "id": "REQ-009-B03", "category": "external-failure", "description": "飞书 API、hook、transcript、PTY 写入失败均分类清楚。", "status": "failing", "acceptance": ["不同错误进入不同用户可理解状态。"], "test_plan": { "strategy": "unit", "inputs": ["replyCard failure", "hook failure", "writeInput failure"], "expected": ["状态分类明确", "日志含 error/code"] } }
+      ]
+    },
+    {
+      "id": "REQ-010",
+      "status": "failing",
+      "types": ["compatibility", "state", "observable", "recovery"],
+      "required_categories": ["compatibility", "state-transition", "observability", "forbidden-behavior", "recovery"],
+      "acceptance": ["外部裸 Claude transcript 观察继续可用。", "系统明确提示只读或 degraded，不自动接管或停止外部进程。"],
+      "behaviors": [
+        { "id": "REQ-010-B01", "category": "compatibility", "description": "已有 transcript watcher 仍能观察外部 Claude 输出和问题。", "status": "failing", "acceptance": ["claude-transcript 测试保持通过。"], "test_plan": { "strategy": "regression", "inputs": ["external transcript JSONL"], "expected": ["text/tool/question 仍映射", "watcher 可运行"] } },
+        { "id": "REQ-010-B02", "category": "state-transition", "description": "外部裸 Claude 自动关联时 session 状态转为 external-readonly。", "status": "failing", "acceptance": ["agentRef owner=external-readonly 且 inputWritable=false。"], "test_plan": { "strategy": "integration", "inputs": ["cwd route", "external Claude candidate"], "expected": ["session 状态只读", "不启动托管 runtime"] } },
+        { "id": "REQ-010-B03", "category": "observability", "description": "用户能从卡片或日志看到该会话只读并需要托管启动。", "status": "failing", "acceptance": ["只读卡片/文本包含托管启动提示。"], "test_plan": { "strategy": "integration", "inputs": ["external-readonly question", "Feishu answer attempt"], "expected": ["提示本地回答或托管启动", "日志含 readonly reason"] } },
+        { "id": "REQ-010-B04", "category": "forbidden-behavior", "description": "外部裸 Claude 不被自动停止、接管或 resume 成可写会话。", "status": "failing", "acceptance": ["external-readonly 不调用 stopRuntime/resumeRuntime/writeInput。"], "test_plan": { "strategy": "unit", "inputs": ["external-readonly agentRef", "answer submit"], "expected": ["write/resume/stop 均未调用", "返回 readonly"] } },
+        { "id": "REQ-010-B05", "category": "recovery", "description": "用户改用 Walker 托管启动后可从只读观察迁移到可写托管会话。", "status": "failing", "acceptance": ["同 cwd 新托管会话可成为 route focus，旧只读会话不被删除。"], "test_plan": { "strategy": "integration", "inputs": ["external-readonly route", "new managed Claude"], "expected": ["focus 切到 managed", "旧会话保留只读历史"] } }
+      ]
+    }
+  ]
+}

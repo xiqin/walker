@@ -74,6 +74,22 @@ describe('QuestionHandler', () => {
     assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [agentRef, 'req_option', [['B']]]);
   });
 
+  it('答案提交使用稳定会话键，agentRef 运行时字段刷新后不误判请求过期', async () => {
+    const { handler, session, calls } = makeFixture();
+    await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_ref_refresh'));
+    session.agentRef = {
+      transport: 'tui-bridge',
+      runtimeId: 'runtime_2',
+      opencodeSessionId: 'ses_1',
+      updatedAt: '2026-08-20T09:55:00.000Z',
+    };
+
+    const result = await handler.handleAnswer(command('req_ref_refresh:0', '--form', { question_selected: 'option_0' }));
+
+    assert.equal(result.status, 'replied');
+    assert.deepEqual(calls.filter((call) => call.type === 'replyQuestion')[0].args, [session.agentRef, 'req_ref_refresh', [['A']]]);
+  });
+
   it('单选飞书表单支持提交自定义答案并在终态卡展示最终选择', async () => {
     const { handler, session, calls, agentRef } = makeFixture();
     await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_single_custom', [
@@ -217,6 +233,35 @@ describe('QuestionHandler', () => {
     await handler.handleRejected(session, 'oc_chat_1', new AgentEvent(AgentEvent.TYPE_QUESTION_REJECTED, { requestID: 'req_7', sessionID: 'ses_1' }));
     assert.equal(request.status, 'replied');
     assert.equal(calls.filter((call) => call.type === 'patchCard').at(-1).card.header.title.content, '问题已处理');
+  });
+
+  it('Claude 协议不支持错误降级为飞书不可用而不是 unknown', async () => {
+    const { handler, session, driver } = makeFixture();
+    driver.replyQuestion = async () => { throw Object.assign(new Error('unsupported'), { code: 'CLAUDE_QUESTION_REPLY_UNSUPPORTED' }); };
+    await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_claude_unsupported'));
+    const result = await handler.handleAnswer(command('req_claude_unsupported:0', '--form', { question_selected: 'option_0' }));
+    const request = handler.requests.get(handler._key(session.agentRef, 'req_claude_unsupported'));
+    assert.equal(result.status, 'feishu_unavailable');
+    assert.equal(request.status, 'feishu_unavailable');
+  });
+
+  it('Claude 原提问 runtime 不可用时降级到本地 TUI 而不是误报 replied', async () => {
+    const { handler, session, driver } = makeFixture();
+    driver.replyQuestion = async () => {
+      throw Object.assign(new Error('original runtime unavailable'), {
+        code: 'CLAUDE_QUESTION_RUNTIME_UNAVAILABLE',
+        phase: 'preflight',
+        sdkInvoked: false,
+        retryable: false,
+      });
+    };
+    await handler.handleAsked(session, 'oc_chat_1', 'route_1', asked('req_claude_runtime_missing'));
+
+    const result = await handler.handleAnswer(command('req_claude_runtime_missing:0', '--form', { question_selected: 'option_0' }));
+    const request = handler.requests.get(handler._key(session.agentRef, 'req_claude_runtime_missing'));
+
+    assert.equal(result.status, 'feishu_unavailable');
+    assert.equal(request.status, 'feishu_unavailable');
   });
 
   it('卡片 patch 失败时向原 chatId 补发一次文本且不改变终态', async () => {

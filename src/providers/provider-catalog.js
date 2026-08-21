@@ -26,7 +26,7 @@ const PROVIDERS = [
     executableCandidates: ['claude'],
     versionCommand: { args: ['--version'] },
     healthCheck: { type: 'command' },
-    capabilities: { sessions: true, tui: true, http: false, models: true, permissions: false, window: true, questionReply: false },
+    capabilities: { sessions: true, tui: true, http: false, models: true, permissions: false, window: true, questionReply: true },
     capabilityStatus: {
       sessions: { status: 'supported', reason: 'Claude CLI driver supports session lifecycle through TUI/PTY' },
       tui: { status: 'supported', reason: 'Claude runs through native terminal/TUI integration' },
@@ -34,7 +34,7 @@ const PROVIDERS = [
       models: { status: 'supported', reason: 'Model and fallback model can be configured for Claude CLI' },
       permissions: { status: 'degraded', reason: 'Claude native tools and permission modes are not isomorphic with OpenCode allow/ask/deny rules' },
       window: { status: 'supported', reason: 'Claude TUI window attach is available' },
-      questionReply: { status: 'unsupported', reason: 'Claude question reply events are not exposed as OpenCode-compatible replies' },
+      questionReply: { status: 'degraded', reason: 'Claude question replies are delivered as controlled TUI input because Claude Code does not expose an OpenCode-compatible reply API' },
     },
     configKeys: [
       'CLAUDE_CMD',

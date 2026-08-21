@@ -1,0 +1,14 @@
+{
+  "stage": "analyze-artifacts",
+  "status": "pass",
+  "coverage": {
+    "requirement_coverage": "100%",
+    "behavior_coverage": "100%",
+    "required_category_coverage": "0%",
+    "traceability_req_coverage": "100%",
+    "traceability_behavior_coverage": "100%"
+  },
+  "findings": [],
+  "blocker_count": 0,
+  "created_at": "2026-08-21T08:02:26.890Z"
+}

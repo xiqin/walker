@@ -7,6 +7,9 @@ const { AgentDriver, AgentEvent } = require('./agent-driver');
 const { ClaudeAttachServer } = require('./claude-attach-server');
 const { ClaudePtyBroker, DEFAULT_QUEUE_LIMIT } = require('./claude-pty-broker');
 const defaultTranscript = require('./claude-transcript');
+const { createLogger } = require('../core/logger');
+
+const logger = createLogger('claude-driver');
 
 const DEFAULT_MODELS = ['sonnet', 'opus'];
 const SAFE_PERMISSION_MODES = new Set(['acceptEdits', 'auto', 'manual', 'dontAsk', 'plan']);
@@ -71,6 +74,7 @@ class ClaudeDriver extends AgentDriver {
     this.queueLimit = positiveInteger(options.queueLimit == null ? DEFAULT_QUEUE_LIMIT : options.queueLimit, DEFAULT_QUEUE_LIMIT);
     this.maxPromptLength = positiveInteger(options.maxPromptLength == null ? DEFAULT_MAX_PROMPT_LENGTH : options.maxPromptLength, DEFAULT_MAX_PROMPT_LENGTH);
     this.localLeaseTimeoutMs = positiveInteger(options.localLeaseTimeoutMs == null ? DEFAULT_LOCAL_LEASE_TIMEOUT_MS : options.localLeaseTimeoutMs, DEFAULT_LOCAL_LEASE_TIMEOUT_MS);
+    this.logger = options.logger || logger;
     this._setTimeout = options.setTimeout || setTimeout;
     this._clearTimeout = options.clearTimeout || clearTimeout;
     this._pending = new Map();
@@ -253,6 +257,7 @@ class ClaudeDriver extends AgentDriver {
         cwd: sessionRef.cwd || this.cwd,
         configDir: this.configDir || undefined,
         claudeSessionId: sessionRef.claudeSessionId,
+        logger: this.logger,
         onEvent: (event) => this._handleTranscriptEvent(event, handlers),
       });
       return () => watcher.close();
@@ -339,8 +344,51 @@ class ClaudeDriver extends AgentDriver {
     throw createReplyUnsupportedError('Claude Code TUI does not expose a structured permission reply protocol', 'CLAUDE_PERMISSION_REPLY_UNSUPPORTED');
   }
 
-  async replyQuestion() {
-    throw createReplyUnsupportedError('Claude Code TUI does not expose a structured question reply protocol', 'CLAUDE_QUESTION_REPLY_UNSUPPORTED');
+  async replyQuestion(agentRef, requestID, answers, options) {
+    if (!agentRef || !agentRef.runtimeId || !agentRef.claudeSessionId) {
+      throw createCodedError('Claude question replies require agentRef with runtimeId and claudeSessionId', 'CLAUDE_INVALID_SESSION_REF');
+    }
+    if (!requestID) throw createCodedError('Claude question replies require requestID', 'CLAUDE_QUESTION_REPLY_INVALID');
+    const ref = agentRef;
+    if (!this._isRuntimeWritableForQuestionReply(ref)) {
+      const err = createCodedError(
+        'The Claude runtime that opened this question is no longer connected; refusing to resume a different TUI for the reply',
+        'CLAUDE_QUESTION_RUNTIME_UNAVAILABLE',
+      );
+      err.phase = 'preflight';
+      err.sdkInvoked = false;
+      err.retryable = false;
+      throw err;
+    }
+    const input = formatQuestionReplyInput(requestID, answers, options && options.questions);
+    const data = Buffer.from(input);
+    const transport = ref.transport || this._runtimeTransports.get(ref.runtimeId);
+    const write = transport === 'bridge-sidecar' && this.claudeBridge && typeof this.claudeBridge.writeInput === 'function'
+      ? this.claudeBridge.writeInput(ref.runtimeId, data, { source: 'feishu-question-reply' })
+      : this.ptyBroker.writeInput(ref.runtimeId, data, { source: 'feishu-question-reply' });
+    await Promise.resolve(write);
+    this.logger.info('claude question reply written to tui', {
+      runtimeId: ref.runtimeId,
+      claudeSessionId: ref.claudeSessionId,
+      requestID: String(requestID),
+      answerCount: Array.isArray(answers) ? answers.length : 0,
+    });
+  }
+
+  _isRuntimeWritableForQuestionReply(agentRef) {
+    if (!agentRef || !agentRef.runtimeId) return false;
+    let runtime = null;
+    try {
+      runtime = this.ptyBroker && typeof this.ptyBroker.getRuntime === 'function' ? this.ptyBroker.getRuntime(agentRef.runtimeId) : null;
+    } catch (_) {
+      runtime = null;
+    }
+    if (!runtime) return false;
+    if (runtime.status === 'active') return true;
+    if ((agentRef.transport || runtime.transport) === 'bridge-sidecar') {
+      return runtime.status === 'walker-disconnected' || runtime.connectionState === 'reconnectable';
+    }
+    return false;
   }
 
   /**
@@ -536,6 +584,7 @@ class ClaudeDriver extends AgentDriver {
   _handleTranscriptEvent(event, handlers) {
     if (!handlers || typeof handlers.onEvent !== 'function') return;
     if (!event || event.type === 'error') {
+      if (event && event.error) this.logger.warn('claude transcript event error', { error: event.error.message, code: event.error.code, claudeSessionId: event.claudeSessionId });
       if (event && event.error && typeof handlers.onError === 'function') handlers.onError(event.error);
       return;
     }
@@ -543,7 +592,14 @@ class ClaudeDriver extends AgentDriver {
     if (event.type === 'assistant' && event.text) handlers.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, { text: event.text, ...runtime }));
     if (event.type === 'reasoning' && event.text) handlers.onEvent(new AgentEvent(AgentEvent.TYPE_REASONING, { text: event.text, ...runtime }));
     if (event.type === 'tool_use') handlers.onEvent(new AgentEvent(AgentEvent.TYPE_TOOL_USE, toolUseDataFromTranscriptEvent(event, runtime)));
-    if (event.type === 'question_asked') handlers.onEvent(new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, questionDataFromTranscriptEvent(event)));
+    if (event.type === 'question_asked') {
+      this.logger.info('claude transcript question event forwarded', {
+        claudeSessionId: event.claudeSessionId || event.sessionID || event.session_id,
+        requestID: event.requestID || event.request_id,
+        questionCount: Array.isArray(event.questions) ? event.questions.length : 0,
+      });
+      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, questionDataFromTranscriptEvent(event)));
+    }
     if (event.type === 'user' && event.text) handlers.onEvent(new AgentEvent(AgentEvent.TYPE_STATUS, { status: 'user-message' }));
     if (event.type === 'status') handlers.onEvent(new AgentEvent(AgentEvent.TYPE_STATUS, statusDataFromTranscriptEvent(event)));
     if (event.type === 'done') handlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'transcript-watch', ...runtime }));
@@ -1068,7 +1124,7 @@ function mapClaudeMessage(raw) {
   if (!Array.isArray(content)) return [];
   const events = [];
   for (const part of content) {
-    const event = mapClaudePart(part);
+    const event = mapClaudePart(part, raw);
     if (event) events.push(event);
   }
   return events;
@@ -1079,13 +1135,14 @@ function mapClaudeMessage(raw) {
  * @param {Object} part - Claude content part
  * @returns {AgentEvent|null} 统一事件
  */
-function mapClaudePart(part) {
+function mapClaudePart(part, raw) {
   if (!part) return null;
   if (part.type === 'text' && part.text) return new AgentEvent(AgentEvent.TYPE_TEXT, { text: part.text });
   if ((part.type === 'thinking' || part.type === 'reasoning') && (part.text || part.thinking)) {
     return new AgentEvent(AgentEvent.TYPE_REASONING, { text: part.text || part.thinking });
   }
   if (part.type === 'tool_use') {
+    if (part.name === 'AskUserQuestion' || part.name === 'ask_user_question') return mapStreamQuestionPart(part, raw);
     return new AgentEvent(AgentEvent.TYPE_TOOL_USE, { name: part.name || '', input: part.input || {}, status: 'pending' });
   }
   if (part.type === 'tool_result') {
@@ -1103,6 +1160,82 @@ function stringifyOutput(value) {
   if (typeof value === 'string') return value;
   if (value == null) return '';
   try { return JSON.stringify(value); } catch (_) { return String(value); }
+}
+
+function mapStreamQuestionPart(part, raw) {
+  const input = part.input && typeof part.input === 'object' ? part.input : {};
+  const sourceQuestions = Array.isArray(input.questions) && input.questions.length > 0 ? input.questions : [{ question: input.question || input.prompt || 'Claude question' }];
+  const questions = sourceQuestions.map((source) => {
+    const q = source && typeof source === 'object' ? source : { question: source };
+    const mapped = {
+      question: sanitizeText(q.question || q.title || q.message || 'Claude question').slice(0, 200),
+      header: sanitizeText(q.header || part.name || 'question').slice(0, 120),
+      options: Array.isArray(q.options) ? q.options.map((item) => {
+        const option = item && typeof item === 'object' ? item : { label: item };
+        return {
+          label: sanitizeText(option.label || option.value || '').slice(0, 120),
+          description: sanitizeText(option.description || '').slice(0, 200),
+        };
+      }) : [],
+    };
+    if (q.multiple === true || q.multiSelect === true) mapped.multiple = true;
+    if (q.custom === false) mapped.custom = false;
+    if (q.custom === true) mapped.custom = true;
+    return mapped;
+  });
+  return new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
+    requestID: sanitizeText(part.id || raw && (raw.request_id || raw.uuid) || '').slice(0, 120),
+    sessionID: sanitizeText(raw && (raw.session_id || raw.sessionId || raw.sessionID) || '').slice(0, 120),
+    questions,
+    tool: { name: sanitizeText(part.name || 'AskUserQuestion').slice(0, 120) },
+  });
+}
+
+function formatQuestionReplyInput(requestID, answers, questions) {
+  const navigation = formatQuestionReplyNavigation(answers, questions);
+  if (navigation) return navigation;
+  return formatQuestionReplyText(requestID, answers) + '\r';
+}
+
+function formatQuestionReplyNavigation(answers, questions) {
+  if (!Array.isArray(answers) || !Array.isArray(questions) || !answers.length || answers.length !== questions.length) return '';
+  let input = '';
+  for (let questionIndex = 0; questionIndex < questions.length; questionIndex++) {
+    const question = questions[questionIndex] || {};
+    const options = Array.isArray(question.options) ? question.options : [];
+    const row = Array.isArray(answers[questionIndex]) ? answers[questionIndex] : [];
+    if (!options.length || !row.length) return '';
+    const indexes = [];
+    for (const answer of row) {
+      const index = options.findIndex((option) => String(option && (option.label || option.value || '')).trim() === String(answer || '').trim());
+      if (index < 0) return '';
+      indexes.push(index);
+    }
+    if (question.multiple === true) {
+      let cursor = 0;
+      for (const index of Array.from(new Set(indexes)).sort((a, b) => a - b)) {
+        input += '\x1b[B'.repeat(Math.max(0, index - cursor)) + ' ';
+        cursor = index;
+      }
+      input += '\r';
+    } else {
+      if (indexes.length !== 1) return '';
+      input += '\x1b[B'.repeat(indexes[0]) + '\r';
+    }
+  }
+  return input;
+}
+
+function formatQuestionReplyText(requestID, answers) {
+  const rows = Array.isArray(answers) ? answers : [];
+  const lines = ['Your questions have been answered from Feishu for AskUserQuestion ' + sanitizeText(requestID) + ':'];
+  rows.forEach((row, index) => {
+    const values = Array.isArray(row) ? row : [row];
+    const text = values.map((value) => sanitizeText(value)).filter(Boolean).join(', ');
+    lines.push(String(index + 1) + '. ' + (text || '(empty)'));
+  });
+  if (lines.length === 1) lines.push('1. (empty)');
+  return lines.join('\n');
 }
 
 /**

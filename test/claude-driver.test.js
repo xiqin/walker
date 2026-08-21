@@ -590,9 +590,10 @@ describe('ClaudeDriver session lifecycle', () => {
     }), { code: 'CLAUDE_PERMISSION_MODE_CONFLICT' });
   });
 
-  it('REQ-005-B02/REQ-005-B03: Claude permission/question reply 明确 unsupported 且不写 PTY', async () => {
+  it('REQ-005-B02/REQ-005-B03: Claude permission 明确 unsupported，question reply 受控写入 PTY', async () => {
     const broker = createFakeBroker();
     const driver = new ClaudeDriver({ ptyBroker: broker });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111', cwd: 'H:\\walker' });
 
     await assert.rejects(() => driver.replyPermission({}, 'perm_1', 'allow'), (err) => {
       assert.equal(err.code, 'CLAUDE_PERMISSION_REPLY_UNSUPPORTED');
@@ -600,12 +601,61 @@ describe('ClaudeDriver session lifecycle', () => {
       assert.equal(err.sdkInvoked, false);
       return true;
     });
-    await assert.rejects(() => driver.replyQuestion({}, 'q_1', [['yes']]), (err) => {
-      assert.equal(err.code, 'CLAUDE_QUESTION_REPLY_UNSUPPORTED');
-      assert.equal(err.phase, 'preflight');
-      assert.equal(err.sdkInvoked, false);
-      return true;
+    await driver.replyQuestion(ref, 'q_1', [['yes'], ['custom answer']]);
+    assert.equal(broker.calls.writeInput.length, 1);
+    assert.equal(broker.calls.writeInput[0].runtimeId, ref.runtimeId);
+    assert.equal(broker.calls.writeInput[0].options.source, 'feishu-question-reply');
+    const written = broker.calls.writeInput[0].data.toString('utf8');
+    assert.match(written, /AskUserQuestion q_1/);
+    assert.match(written, /1\. yes/);
+    assert.match(written, /2\. custom answer/);
+    assert.equal(written.endsWith('\r'), true);
+  });
+
+  it('question reply 匹配预设选项时写入 TUI 选择键序列', async () => {
+    const broker = createFakeBroker();
+    const driver = new ClaudeDriver({ ptyBroker: broker });
+    const ref = await driver.createSession({ sessionId: '11111111-1111-4111-8111-111111111111', cwd: 'H:\\walker' });
+
+    await driver.replyQuestion(ref, 'q_1', [['比例项太弱']], {
+      questions: [{
+        question: 'PID 超调原因？',
+        options: [
+          { label: '积分项导致超调' },
+          { label: '比例项太弱' },
+          { label: '微分项放大噪声' },
+        ],
+      }],
     });
+
+    assert.equal(broker.calls.writeInput.length, 1);
+    assert.equal(broker.calls.writeInput[0].options.source, 'feishu-question-reply');
+    assert.equal(broker.calls.writeInput[0].data.toString('utf8'), '\x1b[B\r');
+  });
+
+  it('question reply 在原 runtime 丢失时拒绝提交且不创建重复 Claude 进程', async () => {
+    const broker = createFakeBroker();
+    broker.writeInput = function (runtimeId, data, options) {
+      if (!broker.runtimes.has(runtimeId)) throw new Error('runtime not found: ' + runtimeId);
+      broker.calls.writeInput.push({ runtimeId, data: Buffer.from(data), options });
+      return Promise.resolve();
+    };
+    const driver = new ClaudeDriver({ ptyBroker: broker });
+    const staleRef = {
+      provider: 'claude',
+      transport: 'pty-attach',
+      runtimeId: 'rt_missing',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      cwd: 'H:\\walker',
+      processGeneration: 1,
+    };
+
+    await assert.rejects(
+      () => driver.replyQuestion(staleRef, 'q_restore', [['报错']]),
+      { code: 'CLAUDE_QUESTION_RUNTIME_UNAVAILABLE' },
+    );
+
+    assert.equal(broker.calls.resumeRuntime.length, 0);
     assert.equal(broker.calls.writeInput.length, 0);
   });
 
@@ -722,8 +772,11 @@ describe('ClaudeDriver prompt', () => {
   it('REQ-004-B01/REQ-004-B02/REQ-005-B01/REQ-008-B02: watchSession 转发 reasoning、tool、question 和脱敏诊断事件', () => {
     const broker = createFakeBroker();
     const seen = [];
+    const logs = [];
+    let transcriptLogger = null;
     const transcript = {
       watchClaudeTranscript(options) {
+        transcriptLogger = options.logger;
         options.onEvent({ type: 'reasoning', text: 'plan', model: 'claude-sonnet-4-20250514' });
         options.onEvent({ type: 'tool_use', name: 'Read', input: { file: 'a' }, callID: 'toolu_1', phase: 'start', status: 'pending' });
         options.onEvent({ type: 'tool_use', name: 'Read', result: 'ok', output: 'ok', callID: 'toolu_1', phase: 'result', status: 'done', isError: false, orphan: false });
@@ -732,7 +785,8 @@ describe('ClaudeDriver prompt', () => {
         return { close: () => {} };
       },
     };
-    const driver = new ClaudeDriver({ ptyBroker: broker, transcript });
+    const logger = { info: (message, data) => logs.push({ level: 'info', message, data }), warn: (message, data) => logs.push({ level: 'warn', message, data }) };
+    const driver = new ClaudeDriver({ ptyBroker: broker, transcript, logger });
     const ref = { claudeSessionId: '11111111-1111-4111-8111-111111111111', runtimeId: 'rt_1', cwd: 'H:\\walker', terminal: { status: 'active' } };
 
     driver.watchSession(ref, { onEvent: (event) => seen.push(event) })();
@@ -752,6 +806,10 @@ describe('ClaudeDriver prompt', () => {
     assert.equal(seen[3].data.requestID, 'q_1');
     assert.equal(seen[3].data.tool.name, 'Bash');
     assert.equal(seen[4].data.diagnostic.kind, 'bad-json');
+    assert.equal(transcriptLogger, logger);
+    assert.ok(logs.some(log => log.message === 'claude transcript question event forwarded'
+      && log.data.requestID === 'q_1'
+      && log.data.questionCount === 1));
   });
 
   it('REQ-003-B01: 飞书 prompt 作为完整不可交错事务写入并只提交一次 Enter', async () => {
@@ -973,5 +1031,36 @@ describe('mapClaudeLine', () => {
     assert.equal(mapClaudeLine('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file":"a"}}]}}').type, AgentEvent.TYPE_TOOL_USE);
     assert.equal(mapClaudeLine('{"type":"assistant","message":{"content":[{"type":"tool_result","content":"ok"}]}}').data.status, 'done');
     assert.equal(mapClaudeLine('{"type":"new_event"}').type, AgentEvent.TYPE_STATUS);
+  });
+
+  it('stream-json AskUserQuestion tool_use 映射为原生问题事件', () => {
+    const line = JSON.stringify({
+      type: 'assistant',
+      session_id: '11111111-1111-4111-8111-111111111111',
+      message: {
+        content: [{
+          type: 'tool_use',
+          id: 'call_stream_question',
+          name: 'AskUserQuestion',
+          input: {
+            prompt: 'SECRET=abc',
+            questions: [{
+              header: '下一步',
+              question: '你要选择什么？',
+              multiSelect: true,
+              options: [{ label: 'A', description: '说明 SECRET=abc' }],
+            }],
+          },
+        }],
+      },
+    });
+    const event = mapClaudeLine(line);
+    assert.equal(event.type, AgentEvent.TYPE_QUESTION_ASKED);
+    assert.equal(event.data.requestID, 'call_stream_question');
+    assert.equal(event.data.sessionID, '11111111-1111-4111-8111-111111111111');
+    assert.equal(event.data.questions[0].question, '你要选择什么？');
+    assert.equal(event.data.questions[0].multiple, true);
+    assert.equal(event.data.questions[0].options[0].description, '说明 SECRET=[redacted]');
+    assert.doesNotMatch(JSON.stringify(event.data), /SECRET=abc/);
   });
 });
