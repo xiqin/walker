@@ -1848,6 +1848,46 @@ describe('OpencodeTuiBridge replyQuestion', () => {
     }
   });
 
+  it('会话重绑后旧 session 的 poll 仍能取到 permission_reply，且不拿走 prompt', async () => {
+    const h = setupReplyHarness({ bridgeProtocolVersion: 5 });
+    try {
+      const prompt = h.bridge.prompt(h.tuiSession.agentRef, 'keep queued');
+      const runtime = h.bridge.runtimes.get('runtime-reply');
+      runtime.currentSessionId = 'ses_rebound';
+      const reboundRef = Object.assign({}, h.tuiSession.agentRef, { opencodeSessionId: 'ses_rebound' });
+      const replyPromise = h.bridge.replyPermission(reboundRef, 'perm_rebind', 'always', true);
+
+      const missed = h.bridge.poll({
+        runtimeId: 'runtime-reply',
+        sessionId: 'ses_reply',
+        acceptedTypes: ['prompt', 'clear', 'question_reply', 'permission_reply'],
+      });
+      assert.equal(missed.type, 'permission_reply');
+      assert.equal(missed.sessionId, 'ses_rebound');
+      assert.equal(missed.permissionId, 'perm_rebind');
+      assert.equal(missed.response, 'always');
+      assert.equal(runtime.queue[0].type, 'prompt');
+
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: missed.sessionId, deliveryId: missed.deliveryId, deliveryState: 'accepted',
+      });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: missed.sessionId, deliveryId: missed.deliveryId, events: [],
+      });
+      await replyPromise;
+
+      runtime.currentSessionId = 'ses_reply';
+      const parent = h.bridge.poll({ runtimeId: 'runtime-reply', sessionId: 'ses_reply' });
+      assert.equal(parent.type, 'prompt');
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-reply', sessionId: 'ses_reply', deliveryId: parent.deliveryId, events: [],
+      });
+      await prompt;
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('protocol 低于 5 时拒绝 permission reply 且不入队', async () => {
     const h = setupReplyHarness({ bridgeProtocolVersion: 4 });
     try {

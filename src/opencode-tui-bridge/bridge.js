@@ -147,7 +147,10 @@ class OpencodeTuiBridge {
     const runtime = this.runtimes.get(runtimeId);
     if (!runtime) throw new Error('unknown TUI runtime: ' + runtimeId);
     runtime.lastSeenAt = Date.now();
-    if (runtime.currentSessionId !== sessionId) return null;
+    // 会话重绑后插件可能仍在旧 session 上 poll，权限/问题回复必须继续投递，否则飞书点击会一直挂起。
+    if (runtime.currentSessionId !== sessionId) {
+      return this._pollControlReply(runtime, runtimeId, sessionId, data.acceptedTypes);
+    }
     if (!Array.isArray(data.acceptedTypes)) {
       const delivery = runtime.queue[0] || null;
       if (delivery && delivery.type === DELIVERY_TYPE_QUESTION_REPLY
@@ -166,6 +169,31 @@ class OpencodeTuiBridge {
     if (index < 0) return null;
     const delivery = runtime.queue.splice(index, 1)[0];
     if (isControlReplyDelivery(delivery.type)) this._startControlAcceptedTimer(delivery);
+    return delivery;
+  }
+
+  _pollControlReply(runtime, runtimeId, sessionId, acceptedTypes) {
+    const accepted = Array.isArray(acceptedTypes) ? new Set(acceptedTypes) : null;
+    const index = runtime.queue.findIndex((delivery) => {
+      if (!isControlReplyDelivery(delivery.type)) return false;
+      if (accepted && !accepted.has(delivery.type)) return false;
+      if (delivery.type === DELIVERY_TYPE_QUESTION_REPLY
+        && this._activeQuestionDeliveries.has(questionDeliveryKey(runtimeId, delivery.sessionId))) {
+        return false;
+      }
+      return true;
+    });
+    if (index < 0) return null;
+    const delivery = runtime.queue.splice(index, 1)[0];
+    logger.info('tui control reply delivered across session change', {
+      runtimeId,
+      pollSessionId: sessionId,
+      currentSessionId: runtime.currentSessionId,
+      deliverySessionId: delivery.sessionId,
+      type: delivery.type,
+      deliveryId: delivery.deliveryId,
+    });
+    this._startControlAcceptedTimer(delivery);
     return delivery;
   }
 

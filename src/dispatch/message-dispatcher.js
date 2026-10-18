@@ -567,7 +567,8 @@ class MessageDispatcher {
     const isListPage = cmd.name === 'list' && cmd.args && cmd.args[0] === '--page';
     const isAttachPage = cmd.name === 'attach' && cmd.args && (cmd.args[0] === '--page' || (cmd.args[0] === 'claude' && cmd.args[1] === '--page'));
     const isAttachSearch = cmd.name === 'attach' && cmd.args && (cmd.args[0] === '--search' || (cmd.args[0] === 'claude' && cmd.args[1] === '--search'));
-    if (cmd.name !== 'answer' && !isModelPage && !isListPage && !isAttachPage && !isAttachSearch && dedupKey && this.dedup.isDuplicate(dedupKey)) {
+    // permit 与 answer 一样来自卡片回调，messageId 固定；失败可重试，不能按卡片消息去重后静默丢弃。
+    if (cmd.name !== 'answer' && cmd.name !== 'permit' && !isModelPage && !isListPage && !isAttachPage && !isAttachSearch && dedupKey && this.dedup.isDuplicate(dedupKey)) {
       logger.info('skipping duplicate command', { command: cmd.name, messageId: cmd.messageId });
       return { duplicate: true };
     }

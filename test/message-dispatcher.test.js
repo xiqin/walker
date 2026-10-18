@@ -5564,6 +5564,26 @@ describe('MessageDispatcher permission handling', () => {
     assert.equal(result.error, 'invalid_response');
   });
 
+  it('同一权限卡片重复点击 /permit 不被去重', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } };
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:root:oc_chat1';
+    let replyCalls = 0;
+    mocks.driver.replyPermission = async () => { replyCalls += 1; };
+    const dispatcher = new MessageDispatcher(mocks);
+    const cmd = {
+      type: 'command', name: 'permit', args: ['perm_abc', 'always', 'wks_p1'],
+      routeKey: 'feishu:oc_chat1:root:oc_chat1', messageId: 'om_perm_card', chatId: 'oc_chat1',
+    };
+    const first = await dispatcher.handleCommand(cmd);
+    const second = await dispatcher.handleCommand(cmd);
+    assert.equal(first.replied, 'perm_abc');
+    assert.equal(second.replied, 'perm_abc');
+    assert.equal(replyCalls, 2);
+    assert.equal(second.duplicate, undefined);
+  });
+
   it('/permit replyPermission 失败提示权限不存在', async () => {
     const mocks = makeMocks();
     mocks.sessionService.getCurrent = () => ({ id: 'wks_p1', agent: 'opencode', status: 'running', agentRef: { opencodeSessionId: 'ses_p1' } });
