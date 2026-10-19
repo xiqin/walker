@@ -1,0 +1,21 @@
+{
+  "branch": "feature/2026-10-19-opencode-v2-cli-plugin-fixes",
+  "worktree": "current",
+  "reason": "uncommitted changes must be preserved",
+  "baseline": "node --test related plugin/installer tests 72 pass",
+  "status": "done",
+  "summary": "未创建独立工作树：main 上有未提交的 HTTP/SSE 改动，干净 worktree 会丢失它们。已在当前目录创建 feature/2026-10-19-opencode-v2-cli-plugin-fixes，改动原样保留。相关基线测试 72/72 通过。",
+  "artifacts": [
+    "plan.md"
+  ],
+  "stage": "git-worktree",
+  "task_id": "git-worktree",
+  "basis_fingerprints": {
+    "plan.md": "ad3702b763008a105063aaa903bf9bf73ae2147f2c0c49a5365ce73b74ba2d02",
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "ad3702b763008a105063aaa903bf9bf73ae2147f2c0c49a5365ce73b74ba2d02"
+  },
+  "written_at": "2026-10-19T02:18:35.436Z"
+}

@@ -1,0 +1,53 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "已修复桥接只上报本轮回复、按可见字段回填表单，并让安装器原子注册严格 V2 入口与独立 V1 入口。定向测试 95 项通过，未提交 Git，未推进整条流水线。真实 OpenCode CLI 加载仍由 T2 验证。",
+  "files_changed": [
+    "src/opencode-hook/plugin-template.js",
+    "src/opencode-hook/installer.js",
+    "test/opencode-v2-cli-plugin.test.js",
+    "test/opencode-hook-installer.test.js",
+    "test/opencode-plugin-template.test.js",
+    "test/integration-feishu-question.test.js",
+    "specs/2026-10-19-opencode-v2-cli-plugin-fixes/red-evidence.md",
+    "specs/2026-10-19-opencode-v2-cli-plugin-fixes/traceability.json",
+    "specs/2026-10-19-opencode-v2-cli-plugin-fixes/evidence/T1-node-test.log",
+    "specs/2026-10-19-opencode-v2-cli-plugin-fixes/handoffs/T1.json"
+  ],
+  "tests": [
+    {
+      "command": "node --test test/opencode-v2-cli-plugin.test.js test/opencode-hook-installer.test.js test/opencode-plugin-template.test.js test/integration-feishu-question.test.js",
+      "result": "pass",
+      "summary": "tests 95, pass 95, fail 0, exit 0",
+      "evidence": "evidence/T1-node-test.log"
+    }
+  ],
+  "behaviors": {
+    "REQ-001-B01": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-001-B02": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-001-B03": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-001-B04": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-001-B05": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-002-B01": { "tests": ["test/opencode-v2-cli-plugin.test.js", "test/opencode-plugin-template.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-002-B02": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-002-B03": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-002-B04": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-003-B01": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-003-B02": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-003-B03": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-003-B04": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-004-B01": { "tests": ["test/opencode-hook-installer.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-004-B02": { "tests": ["test/opencode-hook-installer.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-004-B03": { "tests": ["test/opencode-hook-installer.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-004-B04": { "tests": ["test/opencode-hook-installer.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-004-B05": { "tests": ["test/opencode-hook-installer.test.js", "test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-005-B01": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-005-B02": { "tests": ["test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+    "REQ-005-B03": { "tests": ["test/opencode-hook-installer.test.js", "test/opencode-v2-cli-plugin.test.js"], "evidence": ["evidence/T1-node-test.log"] }
+  },
+  "risks": [
+    "真实 OpenCode V2 CLI 加载探针仍属于 T2，本任务只在临时目录模拟 Plugin.define。",
+    "失败的 ESM 导入会被 Node 按 URL 缓存；恢复测试使用查询参数重新导入，不代表真实 CLI 进程内热重载。",
+    "npm run lint 与 npm run check 由 T2 负责，本任务未运行全量检查。"
+  ]
+}

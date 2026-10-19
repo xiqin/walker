@@ -1,0 +1,24 @@
+{
+  "decisions": [
+    "V2 入口严格使用 @opencode/plugin/tui，V1 使用独立入口并复用桥接协议",
+    "不提交、不回退现有 HTTP/SSE 改动",
+    "真实飞书往返如环境不足必须明确标记未验证"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "用户已确认六项需求的双入口兼容方案：V2 严格导入、V1 独立入口；覆盖最终回复竞态、表单错位、XDG/配置保护、日志脱敏和真实加载验证。非法 plugins 的 red-capable 复现命令已运行并失败；现有工作树未提交改动必须保留。requirements.json 已在行为细化阶段追加结构化测试计划与 4 项行为，原决策未变。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "dc638ba56f11786a81d3493de32c3cbd590a1ac7232f6cb27ceb16d76dd9dc94",
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3"
+  },
+  "written_at": "2026-10-19T02:02:06.462Z"
+}

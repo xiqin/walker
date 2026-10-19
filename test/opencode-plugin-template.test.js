@@ -78,23 +78,24 @@ describe('plugin-template v5 protocol', () => {
     assert.ok(src.includes('if (!result || !result.error) return result'));
   });
 
-  it('executeDelivery 中 accepted 上报在 promptAsync 之前', () => {
-    const src = getPluginSource(8787, 'token123', 30000);
-    const acceptedIdx = src.indexOf("'accepted'");
-    const promptAsyncIdx = src.indexOf('promptAsync');
-    assert.ok(acceptedIdx > 0, 'accepted 上报应存在');
-    assert.ok(promptAsyncIdx > 0, 'promptAsync 调用应存在');
-    assert.ok(acceptedIdx < promptAsyncIdx, 'accepted 应在 promptAsync 之前');
-  });
-
-  it('startHeartbeat 在 promptAsync 成功后调用', () => {
+  it('executeDelivery 中 accepted 上报在 prompt 之前', () => {
     const src = getPluginSource(8787, 'token123', 30000);
     const executeDeliveryIdx = src.indexOf('async function executeDelivery(');
-    const promptAsyncIdx = src.indexOf('promptAsync', executeDeliveryIdx);
-    const startHeartbeatCallIdx = src.indexOf('startHeartbeat(sessionId, delivery.deliveryId)', promptAsyncIdx);
-    assert.ok(promptAsyncIdx > 0);
-    assert.ok(startHeartbeatCallIdx > 0);
-    assert.ok(startHeartbeatCallIdx > promptAsyncIdx, 'startHeartbeat 应在 promptAsync 之后');
+    const acceptedIdx = src.indexOf("'accepted'", executeDeliveryIdx);
+    const submitIdx = src.indexOf('submitPrompt(', executeDeliveryIdx);
+    const promptAsyncIdx = src.indexOf('promptAsync');
+    assert.ok(acceptedIdx > executeDeliveryIdx, 'accepted 上报应存在');
+    assert.ok(submitIdx > acceptedIdx, 'accepted 应在 submitPrompt 之前');
+    assert.ok(promptAsyncIdx > 0, 'V1 promptAsync 回退应存在');
+  });
+
+  it('startHeartbeat 在 prompt 成功后调用', () => {
+    const src = getPluginSource(8787, 'token123', 30000);
+    const executeDeliveryIdx = src.indexOf('async function executeDelivery(');
+    const submitIdx = src.indexOf('submitPrompt(', executeDeliveryIdx);
+    const startHeartbeatCallIdx = src.indexOf('startHeartbeat(sessionId, delivery.deliveryId)', submitIdx);
+    assert.ok(submitIdx > executeDeliveryIdx);
+    assert.ok(startHeartbeatCallIdx > submitIdx, 'startHeartbeat 应在 submitPrompt 之后');
   });
 
   it('session.idle 中 report 带 final', () => {
@@ -106,8 +107,9 @@ describe('plugin-template v5 protocol', () => {
 
   it('session.error 中 report 带 final', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    const errorIdx = src.indexOf("'session.error'");
+    const errorIdx = src.indexOf('async function handleSessionError(');
     const finalAfterError = src.indexOf("'final'", errorIdx);
+    assert.ok(src.includes("onPluginEvent('session.error'"));
     assert.ok(finalAfterError > errorIdx, 'session.error 处理中应有 final 上报');
   });
 
@@ -130,9 +132,11 @@ describe('plugin-template v5 protocol', () => {
     }
   });
 
-  it('bridge version 注释保持为 15', () => {
+  it('bridge version 注释保持为 18', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    assert.ok(src.includes('// Walker TUI bridge version: 15'));
+    assert.ok(src.includes('// Walker TUI bridge version: 18'));
+    assert.equal(src.includes('@opencode/plugin/tui'), false);
+    assert.equal(src.includes('define(plugin)'), false);
   });
 
   it('默认 heartbeat 间隔为 30000ms', () => {

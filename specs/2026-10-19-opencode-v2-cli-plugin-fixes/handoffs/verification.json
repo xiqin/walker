@@ -1,0 +1,26 @@
+{
+  "status": "done",
+  "summary": "完成前验证通过。两份报告均含 PASS、日志哈希和排除规格目录后的 git tree/diff 哈希。真实飞书往返仍未验证。未提交。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md",
+    "evidence/T2-check.log",
+    "evidence/T2-lint.log",
+    "evidence/T2-node-test.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "ad3702b763008a105063aaa903bf9bf73ae2147f2c0c49a5365ce73b74ba2d02",
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3",
+    "test-report.md": "c6e9461c35268fda0513dd2769e5c05156cbed34e19c2250a2214f10dab9fb04"
+  },
+  "artifact_fingerprints": {
+    "evidence/T2-check.log": "22b8e35fb970f42fbdd7e93a7dc8307d1097d850931a60ceba5e19ef45d30d5e",
+    "evidence/T2-lint.log": "db109dbf42d030a230ebfd971b09c768893f1ad272205ccec27be0d2cc393a32",
+    "evidence/T2-node-test.log": "b12b15cfee93dd43b96823969d7eb93e354220acca18861f90b8963bb0aa4713",
+    "test-report.md": "c6e9461c35268fda0513dd2769e5c05156cbed34e19c2250a2214f10dab9fb04",
+    "verify-report.md": "fd4b203211a963e971b518ce38aeea2e6a05f46cb797253ebadd948555a05724"
+  },
+  "written_at": "2026-10-19T06:10:59.176Z"
+}

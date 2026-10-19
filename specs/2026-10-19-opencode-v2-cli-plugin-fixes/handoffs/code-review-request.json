@@ -1,0 +1,20 @@
+{
+  "status": "done",
+  "summary": "已生成审查请求。固定点为 HEAD 到本次插件文件。Standards 与 Spec 无 blocker，遗漏审查 25 项通过。变更未提交。真实飞书往返仍未验证。",
+  "artifacts": [
+    "review-request.md",
+    "verify-report.md",
+    "findings/omission-hunter.json"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "ad3702b763008a105063aaa903bf9bf73ae2147f2c0c49a5365ce73b74ba2d02",
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "684aa755d0f620d564d3d9affb62157590a0d05cd7f7cdf44e8f5fa2c8cde990",
+    "verify-report.md": "fd4b203211a963e971b518ce38aeea2e6a05f46cb797253ebadd948555a05724"
+  },
+  "written_at": "2026-10-19T06:14:30.015Z"
+}

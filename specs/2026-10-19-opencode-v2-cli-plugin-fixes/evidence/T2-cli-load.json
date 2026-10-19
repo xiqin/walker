@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "stage": "loaded",
+  "proof": "cli-setup-log",
+  "command": "I:\\nvmNodejs\\nodejs\\node_modules\\@opencode\\cli\\bin\\opencode.exe --standalone --print-logs --log-level trace",
+  "version": "opencode v2.0.32",
+  "versionExitCode": 0,
+  "cliExitCode": 1,
+  "timeoutMs": 15000,
+  "configDir": "C:\\Users\\tianxiqin\\AppData\\Local\\Temp\\walker-v2-cli-probe-PyOq9m\\xdg\\opencode",
+  "installedPath": "C:\\Users\\tianxiqin\\AppData\\Local\\Temp\\walker-v2-cli-probe-PyOq9m\\xdg\\opencode\\walker-tui-plugin\\tui.js",
+  "registeredPlugins": [
+    "file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin"
+  ],
+  "bridgeRequests": [],
+  "evidence": [
+    "timestamp=2026-10-19T04:13:25.125Z level=DEBUG run=54ab9a23 message=\"plugin operation started\" component=plugin id=3 stage=read reconciliation=1 target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin entrypoint=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin/tui.js role=cli",
+    "timestamp=2026-10-19T04:13:25.170Z level=DEBUG run=54ab9a23 message=\"plugin operation completed\" component=plugin id=3 stage=read durationMs=45 reconciliation=1 target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin entrypoint=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin/tui.js role=cli",
+    "timestamp=2026-10-19T04:13:25.177Z level=DEBUG run=54ab9a23 message=\"plugin operation started\" component=plugin id=16 stage=setup plugin=walker-tui-bridge target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin role=cli",
+    "timestamp=2026-10-19T04:13:25.178Z level=DEBUG run=54ab9a23 message=\"plugin operation completed\" component=plugin id=16 stage=setup durationMs=1 plugin=walker-tui-bridge target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin role=cli",
+    "timestamp=2026-10-19T04:13:25.179Z level=INFO run=54ab9a23 message=\"plugin reconciliation completed\" component=plugin id=1 durationMs=123 plugins=13 role=cli",
+    "timestamp=2026-10-19T04:13:25.230Z level=DEBUG run=54ab9a23 message=\"plugin operation started\" component=plugin id=19 stage=read reconciliation=2 target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin entrypoint=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin/tui.js role=cli",
+    "timestamp=2026-10-19T04:13:25.232Z level=DEBUG run=54ab9a23 message=\"plugin operation completed\" component=plugin id=19 stage=read durationMs=2 reconciliation=2 target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin entrypoint=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin/tui.js role=cli",
+    "timestamp=2026-10-19T04:13:25.232Z level=INFO run=54ab9a23 message=\"plugin reconciliation completed\" component=plugin id=2 durationMs=21 plugins=13 role=cli",
+    "timestamp=2026-10-19T04:13:25.249Z level=DEBUG run=54ab9a23 message=\"plugin operation started\" component=plugin id=22 stage=read reconciliation=3 target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin entrypoint=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin/tui.js role=cli",
+    "timestamp=2026-10-19T04:13:25.250Z level=DEBUG run=54ab9a23 message=\"plugin operation completed\" component=plugin id=22 stage=read durationMs=1 reconciliation=3 target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin entrypoint=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin/tui.js role=cli",
+    "timestamp=2026-10-19T04:13:25.251Z level=INFO run=54ab9a23 message=\"plugin reconciliation completed\" component=plugin id=3 durationMs=18 plugins=13 role=cli",
+    "timestamp=2026-10-19T04:13:25.255Z level=DEBUG run=54ab9a23 message=\"plugin operation started\" component=plugin id=25 stage=read reconciliation=4 target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin entrypoint=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin/tui.js role=cli",
+    "timestamp=2026-10-19T04:13:25.256Z level=DEBUG run=54ab9a23 message=\"plugin operation completed\" component=plugin id=25 stage=read durationMs=1 reconciliation=4 target=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin entrypoint=file:///C:/Users/tianxiqin/AppData/Local/Temp/walker-v2-cli-probe-PyOq9m/xdg/opencode/walker-tui-plugin/tui.js role=cli",
+    "timestamp=2026-10-19T04:13:25.256Z level=INFO run=54ab9a23 message=\"plugin reconciliation completed\" component=plugin id=4 durationMs=5 plugins=13 role=cli"
+  ],
+  "feishuRoundtrip": "未验证",
+  "note": "入口 setup 已执行；隔离启动没有会话，因此未观察到 register/poll"
+}

@@ -4,17 +4,18 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+const { pathToFileURL } = require('url');
 const { installHookPlugin } = require('../src/opencode-hook/installer');
-const { getPluginSource } = require('../src/opencode-hook/plugin-template');
+const { getPluginSource, getV2PluginEntrySource, getV1PluginEntrySource, getV2PackageManifest } = require('../src/opencode-hook/plugin-template');
 
 function createTempConfigDir() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-hook-cfg-'));
   return { tmpDir };
 }
 
-test('installHookPlugin 写入 TUI plugin 并注册到 tui.json', () => {
+test('installHookPlugin 写入 TUI plugin 并注册到 cli.json', () => {
   const { tmpDir } = createTempConfigDir();
-  const targetPath = path.join(tmpDir, 'walker-tui-plugin.js');
+  const targetPath = path.join(tmpDir, 'walker-tui-plugin', 'tui.js');
 
   const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
 
@@ -23,30 +24,51 @@ test('installHookPlugin 写入 TUI plugin 并注册到 tui.json', () => {
   assert.ok(fs.existsSync(targetPath));
 
   const content = fs.readFileSync(targetPath, 'utf8');
-  assert.ok(content.length > 0);
+  const bridge = fs.readFileSync(path.join(tmpDir, 'walker-tui-bridge.js'), 'utf8');
+  const v1 = fs.readFileSync(path.join(tmpDir, 'walker-tui-plugin-v1.js'), 'utf8');
   assert.ok(content.includes('export default'));
-  assert.ok(content.includes('api.route.current'));
-  assert.ok(content.includes('api.client.session.promptAsync'));
+  assert.ok(content.includes('Plugin.define'));
+  assert.equal(content.includes('try'), false);
+  assert.ok(bridge.includes('api.route.current'));
+  assert.ok(bridge.includes('api.client.session.promptAsync'));
+  assert.ok(bridge.includes('Walker TUI bridge version: 18'));
+  assert.equal(v1.includes('@opencode/plugin/tui'), false);
+  assert.ok(v1.includes('return setup(api)'));
 
-  const tuiConfig = JSON.parse(fs.readFileSync(path.join(tmpDir, 'tui.json'), 'utf8'));
-  assert.equal(tuiConfig.plugin.length, 1);
-  assert.ok(tuiConfig.plugin[0].startsWith('file:'));
+  const cliConfig = JSON.parse(fs.readFileSync(path.join(tmpDir, 'cli.json'), 'utf8'));
+  assert.equal(cliConfig.$schema, 'https://opencode.ai/v2/cli.json');
+  assert.equal(cliConfig.plugins.length, 1);
+  assert.ok(cliConfig.plugins[0].startsWith('file:'));
+  assert.equal(fs.existsSync(path.join(tmpDir, 'tui.json')), false);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 test('已存在当前版本 plugin 且内容匹配时不覆盖', () => {
   const { tmpDir } = createTempConfigDir();
-  const targetPath = path.join(tmpDir, 'walker-tui-plugin.js');
-
-  const source = getPluginSource(8787);
-  fs.writeFileSync(targetPath, source, 'utf8');
+  const pluginDir = path.join(tmpDir, 'walker-tui-plugin');
+  fs.mkdirSync(pluginDir);
+  const targetPath = path.join(pluginDir, 'tui.js');
+  const bridgePath = path.join(tmpDir, 'walker-tui-bridge.js');
+  const v1Path = path.join(tmpDir, 'walker-tui-plugin-v1.js');
+  fs.writeFileSync(bridgePath, getPluginSource(8787), 'utf8');
+  fs.writeFileSync(targetPath, getV2PluginEntrySource('../walker-tui-bridge.js'), 'utf8');
+  fs.writeFileSync(path.join(pluginDir, 'package.json'), getV2PackageManifest(), 'utf8');
+  fs.writeFileSync(v1Path, getV1PluginEntrySource(), 'utf8');
+  const configPath = path.join(tmpDir, 'cli.json');
+  const configText = JSON.stringify({
+    $schema: 'https://opencode.ai/v2/cli.json',
+    diffs: { wrap: 'word' },
+    plugins: [pathToFileURL(pluginDir).href],
+  }, null, 2) + '\n';
+  fs.writeFileSync(configPath, configText, 'utf8');
 
   const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
 
   assert.equal(result.installed, false);
   assert.equal(result.reason, 'already_exists');
-  assert.equal(fs.readFileSync(targetPath, 'utf8'), source);
+  assert.equal(fs.readFileSync(targetPath, 'utf8'), getV2PluginEntrySource('../walker-tui-bridge.js'));
+  assert.equal(fs.readFileSync(configPath, 'utf8'), configText);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -60,8 +82,8 @@ test('已存在旧版 TUI plugin 即使端口匹配也会升级', () => {
   const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
 
   assert.equal(result.installed, true);
-  const content = fs.readFileSync(targetPath, 'utf8');
-  assert.ok(content.includes('Walker TUI bridge version: 15'));
+  const content = fs.readFileSync(path.join(tmpDir, 'walker-tui-bridge.js'), 'utf8');
+  assert.ok(content.includes('Walker TUI bridge version: 18'));
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -70,11 +92,13 @@ test('已存在 plugin 但端口不匹配时重新安装', () => {
   const { tmpDir } = createTempConfigDir();
   const targetPath = path.join(tmpDir, 'walker-tui-plugin.js');
 
-  fs.writeFileSync(targetPath, '// existing plugin with localhost:9000\n', 'utf8');
+  const originalPlugin = '// existing plugin with localhost:9000\n';
+  fs.writeFileSync(targetPath, originalPlugin, 'utf8');
 
   const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
 
   assert.equal(result.installed, true);
+  assert.equal(fs.readFileSync(targetPath, 'utf8'), originalPlugin);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -95,11 +119,13 @@ test('enabled=false 时不安装', () => {
 test('未传入 opencodeConfigDir 时使用默认 ~/.config/opencode 路径', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-home-'));
   const origHomedir = os.homedir;
+  const origXdg = process.env.XDG_CONFIG_HOME;
   os.homedir = () => tmpHome;
+  delete process.env.XDG_CONFIG_HOME;
 
   try {
     const expectedDir = path.join(tmpHome, '.config', 'opencode');
-    const expectedPath = path.join(expectedDir, 'walker-tui-plugin.js');
+    const expectedPath = path.join(expectedDir, 'walker-tui-plugin', 'tui.js');
 
     const result = installHookPlugin({ walkerPort: 8787, enabled: true });
 
@@ -110,6 +136,8 @@ test('未传入 opencodeConfigDir 时使用默认 ~/.config/opencode 路径', ()
     fs.rmSync(tmpHome, { recursive: true, force: true });
   } finally {
     os.homedir = origHomedir;
+    if (origXdg == null) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = origXdg;
   }
 });
 
@@ -123,14 +151,14 @@ test('getPluginSource 返回 embedded TUI bridge plugin 内容', () => {
   assert.ok(source.includes('/opencode/tui-bridge/register'));
   assert.ok(source.includes('/opencode/tui-bridge/poll'));
   assert.ok(source.includes('/opencode/tui-bridge/events'));
-  assert.ok(source.includes('Walker TUI bridge version: 15'));
+  assert.ok(source.includes('Walker TUI bridge version: 18'));
   assert.ok(source.includes('body.assistantMessageId = assistantMessageId'));
   assert.ok(source.includes('bridgeProtocolVersion: 5'));
   assert.ok(source.includes('api.route.current'));
   assert.ok(source.includes('api.client.session.promptAsync'));
-  assert.ok(source.includes("api.event.on('permission.asked'"));
-  assert.ok(source.includes("api.event.on('permission.updated'"));
-  assert.ok(source.includes("api.event.on('permission.replied'"));
+  assert.ok(source.includes("onPluginEvent('permission.asked'"));
+  assert.ok(source.includes("onPluginEvent('permission.updated'"));
+  assert.ok(source.includes("onPluginEvent('permission.replied'"));
 });
 
 test('getPluginSource 不同 walkerPort 生成不同内容', () => {
@@ -150,8 +178,9 @@ test('installHookPlugin 传入 heartbeatIntervalMs 透传到生成模板', () =>
   const { tmpDir } = createTempConfigDir();
   const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true, heartbeatIntervalMs: 45000 });
   assert.equal(result.installed, true);
-  const content = fs.readFileSync(result.path, 'utf8');
+  const content = fs.readFileSync(path.join(tmpDir, 'walker-tui-bridge.js'), 'utf8');
   assert.ok(content.includes('45000'));
+  assert.equal(fs.readFileSync(result.path, 'utf8').includes('45000'), false);
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -163,30 +192,42 @@ test('getPluginSource 不再依赖 embedded TUI 的占位 serverUrl', () => {
 
 test('getPluginSource 在 session idle 时回传当前 TUI 的最终事件', () => {
   const source = getPluginSource(8787);
-  assert.ok(source.includes("api.event.on('session.idle'"));
+  assert.ok(source.includes("onPluginEvent('session.idle'"));
   assert.ok(source.includes('deliveryId'));
 });
 
-test('getPluginSource 使用 OpenCode 加载器要求的默认 TUI plugin 导出', () => {
+test('getPluginSource 使用 OpenCode V2 CLI plugin 导出', () => {
   const source = getPluginSource(8787);
-  assert.ok(source.includes('export default'), 'plugin 应提供默认导出对象');
+  const v2 = getV2PluginEntrySource();
+  const v1 = getV1PluginEntrySource();
+  assert.ok(source.includes('export default'), '桥接应提供默认可加载对象');
+  assert.ok(source.includes('export { setup }'), '桥接应导出可直接加载的 setup');
+  assert.equal(source.includes('@opencode/plugin/tui'), false, '共享桥接不得导入 V2 包');
+  assert.equal(source.includes('define(plugin)'), false, '共享桥接不得回退伪 Plugin.define');
+  assert.ok(v2.startsWith("import { Plugin } from '@opencode/plugin/tui';\n"), 'V2 入口必须以真实导入开头');
+  assert.ok(v2.includes("import { setup } from './walker-tui-bridge.js';"));
+  assert.ok(v2.includes('Plugin.define'), 'V2 入口应通过 Plugin.define 注册');
+  assert.equal(v2.includes('try'), false);
+  assert.ok(v1.includes('return setup(api)'), 'V1 入口应调用同一 setup');
+  assert.equal(v1.includes('@opencode/plugin/tui'), false);
   assert.ok(source.includes("id: 'walker-tui-bridge'"), 'plugin 应提供稳定 id');
-  assert.ok(source.includes('tui'), 'plugin 应提供 tui entrypoint');
+  assert.ok(source.includes('tui: setup'), '桥接应保留 tui 别名');
   assert.ok(!source.includes('module.exports'), 'plugin 不应使用 CommonJS module.exports');
 });
 
-test('installHookPlugin 合并 tui.json，不覆盖用户配置或重复插件项', () => {
+test('installHookPlugin 合并 cli.json，不覆盖用户配置或重复插件项', () => {
   const { tmpDir } = createTempConfigDir();
-  const configPath = path.join(tmpDir, 'tui.json');
-  fs.writeFileSync(configPath, JSON.stringify({ theme: 'custom', plugin: ['npm:existing-plugin'] }, null, 2), 'utf8');
+  const configPath = path.join(tmpDir, 'cli.json');
+  fs.writeFileSync(configPath, JSON.stringify({ diffs: { wrap: 'word' }, plugins: ['npm:existing-plugin'] }, null, 2), 'utf8');
 
   installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
   installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
 
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  assert.equal(config.theme, 'custom');
-  assert.equal(config.plugin.filter((entry) => entry === 'npm:existing-plugin').length, 1);
-  assert.equal(config.plugin.filter((entry) => entry.includes('walker-tui-plugin.js')).length, 1);
+  assert.equal(config.diffs.wrap, 'word');
+  assert.equal(config.$schema, 'https://opencode.ai/v2/cli.json');
+  assert.equal(config.plugins.filter((entry) => entry === 'npm:existing-plugin').length, 1);
+  assert.equal(config.plugins.filter((entry) => entry === pathToFileURL(path.join(tmpDir, 'walker-tui-plugin')).href).length, 1);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -215,6 +256,7 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
   const handlers = new Map();
   const promptCalls = [];
   let assistantPartReads = 0;
+  let releaseReply = false;
   let dispose;
   let deliveryReturned = false;
   const originalFetch = global.fetch;
@@ -243,7 +285,7 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
       state: {
         path: { directory: 'H:\\walker' },
         session: {
-          messages: () => [{
+          messages: () => (releaseReply ? [{
             id: 'msg_assistant',
             role: 'assistant',
             providerID: 'cpa',
@@ -261,7 +303,7 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
               reasoning: 0,
               cache: { read: 0, write: 0 },
             },
-          }],
+          }] : []),
           status: () => ({ type: 'idle' }),
         },
         part: (messageId) => {
@@ -293,6 +335,7 @@ test('生成的 TUI plugin 在当前 embedded session 内执行 prompt 并回传
     assert.equal(registration.body.sessionId, 'ses_embedded');
     assert.equal(registration.body.bridgeProtocolVersion, 5, '实际 register 请求必须声明 protocol v5');
     assert.equal(requests[0].options.headers.Authorization, 'Bearer token-test');
+    releaseReply = true;
 
     await handlers.get('session.idle')({ properties: { sessionID: 'ses_embedded' } });
     const eventRequest = requests.find((request) => request.url.endsWith('/events') && request.body.events && request.body.events.length > 0);
@@ -446,6 +489,7 @@ test('生成的 TUI plugin 在 route 滞后时跟随根会话创建和 TUI 会�
   const navigateCalls = [];
   let dispose;
   let newSessionDeliveryReturned = false;
+  let releaseReply = false;
   const originalFetch = global.fetch;
 
   global.fetch = async (url, options) => {
@@ -474,7 +518,7 @@ test('生成的 TUI plugin 在 route 滞后时跟随根会话创建和 TUI 会�
       state: {
         path: { directory: 'H:\\walker' },
         session: {
-          messages: () => [{ id: 'msg_new', role: 'assistant' }],
+          messages: () => (releaseReply ? [{ id: 'msg_new', role: 'assistant', time: { completed: 1 } }] : []),
           status: () => ({ type: 'idle' }),
         },
         part: () => [{ type: 'text', text: '新会话回复' }],
@@ -501,6 +545,7 @@ test('生成的 TUI plugin 在 route 滞后时跟随根会话创建和 TUI 会�
     assert.ok(requests.some((request) => request.url.endsWith('/register') && request.body.sessionId === 'ses_new'));
     assert.ok(requests.some((request) => request.url.endsWith('/poll') && request.body.sessionId === 'ses_new'));
 
+    releaseReply = true;
     await handlers.get('session.idle')({ properties: { sessionID: 'ses_new' } });
     const eventRequest = requests.find((request) => request.url.endsWith('/events'));
     assert.equal(eventRequest.body.sessionId, 'ses_new');
@@ -1821,6 +1866,7 @@ test('父 prompt leased 且 session busy 时控制 delivery 独立 heartbeat 和
   let sessionBusy = false;
   let pollCount = 0;
   let resolveQuestionReply;
+  let releaseReply = false;
   const originalFetch = global.fetch;
 
   global.fetch = async (url, options) => {
@@ -1853,7 +1899,7 @@ test('父 prompt leased 且 session busy 时控制 delivery 独立 heartbeat 和
         path: { directory: 'H:\\walker' },
         session: {
           status: () => ({ type: sessionBusy ? 'busy' : 'idle' }),
-          messages: () => [{ id: 'msg_nested', role: 'assistant' }],
+          messages: () => (releaseReply ? [{ id: 'msg_nested', role: 'assistant', time: { completed: 1 } }] : []),
         },
         part: () => [{ type: 'text', text: '父 prompt 完成' }],
       },
@@ -1872,6 +1918,7 @@ test('父 prompt leased 且 session busy 时控制 delivery 独立 heartbeat 和
       return heartbeatIds.has('del_parent') && heartbeatIds.has('del_control');
     });
 
+    releaseReply = true;
     await handlers.get('session.idle')({ properties: { sessionID: 'ses_nested' } });
     await handlers.get('session.error')({ properties: { sessionID: 'ses_nested', error: { message: '父会话稍后错误' } } });
     const parentFinal = requests.find((request) => request.url.endsWith('/events') && request.body.deliveryId === 'del_parent' && request.body.deliveryState === 'final');
@@ -2089,3 +2136,307 @@ async function waitFor(predicate, timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }
+
+function withIsolatedConfigEnv(env, fn) {
+  const originalHomedir = os.homedir;
+  const originalXdg = process.env.XDG_CONFIG_HOME;
+  const originalHome = process.env.HOME;
+  const originalUserProfile = process.env.USERPROFILE;
+  os.homedir = () => env.home;
+  if (env.xdg == null) delete process.env.XDG_CONFIG_HOME;
+  else process.env.XDG_CONFIG_HOME = env.xdg;
+  process.env.HOME = env.home;
+  process.env.USERPROFILE = env.home;
+  try {
+    return fn();
+  } finally {
+    os.homedir = originalHomedir;
+    if (originalXdg == null) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = originalXdg;
+    if (originalHome == null) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    if (originalUserProfile == null) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = originalUserProfile;
+  }
+}
+
+function captureStderr(fn) {
+  const chunks = [];
+  const original = process.stderr.write;
+  process.stderr.write = (chunk, encoding, callback) => {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+    return original.call(process.stderr, chunk, encoding, callback);
+  };
+  try {
+    return { result: fn(), text: chunks.join('') };
+  } finally {
+    process.stderr.write = original;
+  }
+}
+
+function listTree(dir) {
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...listTree(full));
+    else out.push(full);
+  }
+  return out;
+}
+
+test('配置目录按显式目录、XDG、HOME 优先级选择', () => {
+  const explicit = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-explicit-'));
+  const xdg = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-xdg-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-home-priority-'));
+  const decoyXdg = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-xdg-decoy-'));
+  const decoyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-home-decoy-'));
+  try {
+    const explicitResult = withIsolatedConfigEnv({ xdg: decoyXdg, home: decoyHome }, () => {
+      return installHookPlugin({ opencodeConfigDir: explicit, walkerPort: 8787, enabled: true });
+    });
+    assert.equal(explicitResult.path, path.join(explicit, 'walker-tui-plugin', 'tui.js'));
+    assert.equal(fs.existsSync(path.join(explicit, 'cli.json')), true);
+    assert.equal(fs.existsSync(path.join(explicit, 'package.json')), false);
+    assert.equal(fs.existsSync(path.join(decoyXdg, 'opencode', 'cli.json')), false);
+    assert.equal(fs.existsSync(path.join(decoyHome, '.config', 'opencode', 'cli.json')), false);
+
+    const xdgResult = withIsolatedConfigEnv({ xdg, home: decoyHome }, () => {
+      return installHookPlugin({ walkerPort: 8787, enabled: true });
+    });
+    assert.equal(xdgResult.path, path.join(xdg, 'opencode', 'walker-tui-plugin', 'tui.js'));
+    assert.equal(fs.existsSync(path.join(xdg, 'opencode', 'cli.json')), true);
+    assert.equal(fs.existsSync(path.join(decoyHome, '.config', 'opencode', 'cli.json')), false);
+
+    const homeResult = withIsolatedConfigEnv({ home }, () => {
+      return installHookPlugin({ walkerPort: 8787, enabled: true });
+    });
+    assert.equal(homeResult.path, path.join(home, '.config', 'opencode', 'walker-tui-plugin', 'tui.js'));
+    assert.equal(fs.existsSync(path.join(home, '.config', 'opencode', 'cli.json')), true);
+    assert.equal(fs.existsSync(path.join(xdg, 'opencode', 'walker-tui-plugin', 'tui.js')), true);
+  } finally {
+    fs.rmSync(explicit, { recursive: true, force: true });
+    fs.rmSync(xdg, { recursive: true, force: true });
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(decoyXdg, { recursive: true, force: true });
+    fs.rmSync(decoyHome, { recursive: true, force: true });
+  }
+});
+
+test('旧的裸 JS 入口换成包目录，同名非 Walker 文件不删除', () => {
+  const { tmpDir } = createTempConfigDir();
+  const legacyPath = path.join(tmpDir, 'walker-tui-plugin.js');
+  const foreignPath = path.join(tmpDir, 'third-party.js');
+  const legacySource = getV2PluginEntrySource();
+  fs.writeFileSync(legacyPath, legacySource, 'utf8');
+  fs.writeFileSync(foreignPath, '// third-party plugin keep me\n', 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'cli.json'), JSON.stringify({
+    theme: 'keep',
+    plugins: [pathToFileURL(legacyPath).href, pathToFileURL(foreignPath).href],
+  }, null, 2) + '\n', 'utf8');
+
+  const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
+
+  const pluginDir = path.join(tmpDir, 'walker-tui-plugin');
+  const cli = JSON.parse(fs.readFileSync(path.join(tmpDir, 'cli.json'), 'utf8'));
+  assert.equal(result.path, path.join(pluginDir, 'tui.js'));
+  assert.equal(fs.existsSync(legacyPath), false);
+  assert.equal(fs.readFileSync(foreignPath, 'utf8'), '// third-party plugin keep me\n');
+  assert.equal(fs.existsSync(path.join(tmpDir, 'package.json')), false);
+  assert.match(fs.readFileSync(result.path, 'utf8'), /import \{ setup \} from '\.\.\/walker-tui-bridge\.js'/);
+  assert.equal(fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8'), getV2PackageManifest());
+  assert.equal(cli.theme, 'keep');
+  assert.deepEqual(cli.plugins, [pathToFileURL(foreignPath).href, pathToFileURL(pluginDir).href]);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('plugins 不是数组时拒绝写入并保持原文件', () => {
+  for (const plugins of [{ url: 'kept' }, 'walker-tui-plugin.js', null]) {
+    const { tmpDir } = createTempConfigDir();
+    const configPath = path.join(tmpDir, 'cli.json');
+    const pluginPath = path.join(tmpDir, 'walker-tui-plugin.js');
+    const originalConfig = JSON.stringify({ plugins, theme: 'keep' }, null, 2) + '\n';
+    const originalPlugin = '// third-party same name\n';
+    fs.writeFileSync(configPath, originalConfig, 'utf8');
+    fs.writeFileSync(pluginPath, originalPlugin, 'utf8');
+
+    const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
+
+    assert.equal(result.installed, false);
+    assert.equal(result.reason, 'error');
+    assert.match(result.error, /plugins must be an array/);
+    assert.equal(fs.readFileSync(configPath, 'utf8'), originalConfig);
+    assert.equal(fs.readFileSync(pluginPath, 'utf8'), originalPlugin);
+    assert.equal(fs.existsSync(path.join(tmpDir, 'walker-tui-bridge.js')), false);
+    assert.equal(fs.existsSync(path.join(tmpDir, 'walker-tui-plugin-v1.js')), false);
+    assert.equal(fs.readdirSync(tmpDir).some((name) => name.includes('.tmp')), false);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('改名失败时回滚已写文件并保留原配置', () => {
+  const { tmpDir } = createTempConfigDir();
+  const configPath = path.join(tmpDir, 'cli.json');
+  const v2Path = path.join(tmpDir, 'walker-tui-plugin.js');
+  const originalConfig = JSON.stringify({ plugins: ['npm:third-party'], theme: 'keep' }, null, 2) + '\n';
+  const originalPlugin = '// Walker TUI bridge version: 3\nold-entry\n';
+  fs.writeFileSync(configPath, originalConfig, 'utf8');
+  fs.writeFileSync(v2Path, originalPlugin, 'utf8');
+  const originalRename = fs.renameSync;
+  fs.renameSync = function patchedRename(from, to) {
+    if (String(from).endsWith('.tmp') && String(to) === configPath) {
+      const error = new Error('rename failed');
+      error.code = 'EPERM';
+      throw error;
+    }
+    return originalRename.call(fs, from, to);
+  };
+  try {
+    const result = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
+    assert.equal(result.installed, false);
+    assert.equal(result.reason, 'error');
+    assert.match(result.error, /rename failed/);
+    assert.equal(fs.readFileSync(configPath, 'utf8'), originalConfig);
+    assert.equal(fs.readFileSync(v2Path, 'utf8'), originalPlugin);
+    assert.equal(fs.existsSync(path.join(tmpDir, 'walker-tui-bridge.js')), false);
+    assert.equal(fs.existsSync(path.join(tmpDir, 'walker-tui-plugin-v1.js')), false);
+    assert.equal(fs.readdirSync(tmpDir).some((name) => name.includes('.tmp') || name.endsWith('.bak')), false);
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.deepEqual(config.plugins, ['npm:third-party']);
+    assert.equal(config.theme, 'keep');
+  } finally {
+    fs.renameSync = originalRename;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('连续安装两次不重复注册且不改无关字段', () => {
+  const { tmpDir } = createTempConfigDir();
+  const configPath = path.join(tmpDir, 'cli.json');
+  fs.writeFileSync(configPath, JSON.stringify({
+    theme: 'custom',
+    diffs: { wrap: 'word' },
+    server: { port: 4096 },
+    plugins: ['npm:other-plugin'],
+  }, null, 2) + '\n', 'utf8');
+
+  const first = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
+  const afterFirst = fs.readFileSync(configPath, 'utf8');
+  const second = installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
+  const parsed = JSON.parse(afterFirst);
+
+  assert.equal(first.installed, true);
+  assert.equal(second.installed, false);
+  assert.equal(second.reason, 'already_exists');
+  assert.equal(fs.readFileSync(configPath, 'utf8'), afterFirst);
+  assert.equal(parsed.theme, 'custom');
+  assert.equal(parsed.diffs.wrap, 'word');
+  assert.equal(parsed.server.port, 4096);
+  assert.equal(parsed.plugins.filter((entry) => entry === 'npm:other-plugin').length, 1);
+  assert.equal(parsed.plugins.filter((entry) => entry === pathToFileURL(path.join(tmpDir, 'walker-tui-plugin')).href).length, 1);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('同名非 Walker 路径保留，可识别旧入口迁到 V1', () => {
+  const { tmpDir } = createTempConfigDir();
+  const otherDir = path.join(tmpDir, 'other');
+  fs.mkdirSync(otherDir);
+  const foreignPath = path.join(otherDir, 'walker-tui-plugin.js');
+  const foreignText = '// third-party plugin keep me\n';
+  fs.writeFileSync(foreignPath, foreignText, 'utf8');
+  const oldWalker = path.join(tmpDir, 'legacy-walker.js');
+  fs.writeFileSync(oldWalker, '// Walker TUI bridge version: 3\n', 'utf8');
+  const foreignUrl = pathToFileURL(foreignPath).href;
+  const oldUrl = pathToFileURL(oldWalker).href;
+  fs.writeFileSync(path.join(tmpDir, 'cli.json'), JSON.stringify({
+    editor: 'vim',
+    plugins: [foreignUrl, 'npm:keep-me'],
+  }, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'tui.json'), JSON.stringify({
+    theme: 'custom',
+    plugin: [oldUrl, foreignUrl, 'other-plugin'],
+  }, null, 2) + '\n', 'utf8');
+
+  installHookPlugin({ opencodeConfigDir: tmpDir, walkerPort: 8787, enabled: true });
+
+  assert.equal(fs.readFileSync(foreignPath, 'utf8'), foreignText);
+  const cli = JSON.parse(fs.readFileSync(path.join(tmpDir, 'cli.json'), 'utf8'));
+  const v2Url = pathToFileURL(path.join(tmpDir, 'walker-tui-plugin')).href;
+  const v1Url = pathToFileURL(path.join(tmpDir, 'walker-tui-plugin-v1.js')).href;
+  assert.equal(cli.editor, 'vim');
+  assert.equal(cli.plugins.includes(foreignUrl), true);
+  assert.equal(cli.plugins.includes('npm:keep-me'), true);
+  assert.equal(cli.plugins.filter((entry) => entry === v2Url).length, 1);
+  assert.equal(cli.plugins.includes(v1Url), false);
+  const tui = JSON.parse(fs.readFileSync(path.join(tmpDir, 'tui.json'), 'utf8'));
+  assert.equal(tui.theme, 'custom');
+  assert.equal(tui.plugin.includes(oldUrl), false);
+  assert.equal(tui.plugin.includes(foreignUrl), true);
+  assert.equal(tui.plugin.includes('other-plugin'), true);
+  assert.equal(tui.plugin.filter((entry) => entry === v1Url).length, 1);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('安装成功和失败都不把令牌或密码写入日志、返回值和可编辑配置', () => {
+  const token = 'WALKER_TOKEN_SENTINEL_9f3a';
+  const password = 'FEISHU_PASSWORD_SENTINEL_7c2b';
+  const { tmpDir } = createTempConfigDir();
+  const failDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-hook-secret-'));
+  const originalSecret = process.env.FEISHU_APP_SECRET;
+  const originalRename = fs.renameSync;
+  process.env.FEISHU_APP_SECRET = password;
+  try {
+    const success = captureStderr(() => installHookPlugin({
+      opencodeConfigDir: tmpDir,
+      walkerPort: 8787,
+      enabled: true,
+      walkerToken: token,
+      feishuPassword: password,
+    }));
+    const successText = JSON.stringify(success.result) + success.text;
+    assert.equal(successText.includes(token), false);
+    assert.equal(successText.includes(password), false);
+    const files = listTree(tmpDir);
+    const bridge = fs.readFileSync(path.join(tmpDir, 'walker-tui-bridge.js'), 'utf8');
+    assert.equal(bridge.includes(token), true);
+    assert.equal(bridge.includes(password), false);
+    for (const file of files) {
+      const content = fs.readFileSync(file, 'utf8');
+      assert.equal(content.includes(password), false, file);
+      if (!file.endsWith('walker-tui-bridge.js')) assert.equal(content.includes(token), false, file);
+    }
+    assert.equal(fs.existsSync(path.join(tmpDir, 'package.json')), false);
+
+    fs.renameSync = function patchedRename(from, to) {
+      if (String(from).includes(failDir) && String(from).includes('.tmp')) {
+        throw new Error('rename failed ' + token + ' ' + password);
+      }
+      return originalRename.call(fs, from, to);
+    };
+    const failure = captureStderr(() => installHookPlugin({
+      opencodeConfigDir: failDir,
+      walkerPort: 8787,
+      enabled: true,
+      walkerToken: token,
+      feishuPassword: password,
+    }));
+    const failureText = JSON.stringify(failure.result) + failure.text;
+    assert.equal(failure.result.installed, false);
+    assert.equal(failure.result.reason, 'error');
+    assert.equal(failureText.includes(token), false);
+    assert.equal(failureText.includes(password), false);
+    assert.match(failure.result.error, /\[redacted\]/);
+    assert.match(failure.text, /\[redacted\]/);
+    for (const file of listTree(failDir)) {
+      const content = fs.readFileSync(file, 'utf8');
+      assert.equal(content.includes(token), false, file);
+      assert.equal(content.includes(password), false, file);
+    }
+  } finally {
+    fs.renameSync = originalRename;
+    if (originalSecret == null) delete process.env.FEISHU_APP_SECRET;
+    else process.env.FEISHU_APP_SECRET = originalSecret;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(failDir, { recursive: true, force: true });
+  }
+});
