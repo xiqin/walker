@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢你对 Walker 项目的兴趣！Walker 是飞书多 Agent CLI 桥接器，通过飞书长连接操控本机 opencode agent 会话（架构保留 Claude Code、Codex 等扩展点）。本文档说明如何参与本项目开发。
+感谢你对 Walker 项目的兴趣！Walker 是飞书多 Agent CLI 桥接器，通过飞书长连接操控本机 opencode agent 会话。OpenCode 已实现；Codex 为 stub 驱动，shell 为内置诊断 provider。本文档说明如何参与本项目开发。
 
 ## 环境准备
 

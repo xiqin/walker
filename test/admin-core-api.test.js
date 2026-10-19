@@ -8,17 +8,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('events');
 const fs = require('fs');
+const http = require('http');
 const os = require('os');
 const path = require('path');
 
 const { createEventStore, recordEvent } = require('../src/admin/event-store');
 const { createRouter } = require('../src/admin/router');
 const { createCoreRoutes } = require('../src/admin/core-routes');
+const { createAdminServerFromContext } = require('../src/admin/index');
 const sessionAdmin = require('../src/admin/session-admin');
 const routeAdmin = require('../src/admin/route-admin');
 const agentRuntimeAdmin = require('../src/admin/agent-runtime-admin');
 const { SessionService } = require('../src/core/session-service');
 const { JsonStore } = require('../src/core/json-store');
+
+const CLAUDE_REMOVED_MESSAGE = 'Claude integration has been removed.';
 
 /**
  * 创建 fake SessionService，支持所有方法签名
@@ -470,55 +474,31 @@ test('REQ-005: 创建 Walker session 并创建底层 opencode session', async ()
   assert.ok(session.agentRef.opencodeSessionId);
 });
 
-test('REQ-007-B01 和 REQ-008-B01: 创建底层 Claude session 时按 agent 获取 driver', async () => {
-  let createOptions = null;
-  const ctx = buildAppContext({
-    registry: createFakeRegistry({
-      opencode: createFakeOpencodeDriver(),
-      claude: {
-        name: 'claude',
-        createSession: async (opts) => {
-          createOptions = opts;
-          return { provider: 'claude', transport: 'cli', claudeSessionId: 'claude-session-1', cwd: opts.cwd };
-        },
-      },
-    }),
-  });
-
-  const session = await sessionAdmin.createSession(ctx, {
-    agent: 'claude',
-    title: 'claude test',
-    cwd: 'H:\\walker',
-    createAgentSession: true,
-    model: { providerID: 'claude', modelID: 'sonnet' },
-  });
-
-  assert.equal(session.agent, 'claude');
-  assert.equal(session.status, 'running');
-  assert.deepEqual(session.agentRef, {
-    provider: 'claude',
-    transport: 'cli',
-    claudeSessionId: 'claude-session-1',
-    cwd: 'H:\\walker',
-  });
-  assert.deepEqual(createOptions, {
-    title: 'claude test',
-    cwd: 'H:\\walker',
-    model: { providerID: 'claude', modelID: 'sonnet' },
-  });
-});
-
-test('REQ-007-B05: createAgentSession 缺少对应 driver 时记录可诊断错误', async () => {
+test('未知非 claude agent 缺少 driver 时仍记录 driver not found', async () => {
   const ctx = buildAppContext({ registry: createFakeRegistry({}) });
 
   const session = await sessionAdmin.createSession(ctx, {
-    agent: 'claude',
+    agent: 'ghost',
     createAgentSession: true,
   });
 
+  assert.equal(session.agent, 'ghost');
   assert.equal(session.status, 'error');
-  assert.match(session.errorMessage, /driver not found for agent: claude/);
-  assert.equal(ctx.eventStore.events.some((event) => event.message.includes('driver not found for agent: claude')), true);
+  assert.match(session.errorMessage, /driver not found for agent: ghost/);
+  assert.equal(ctx.eventStore.events.some((event) => event.message.includes('driver not found for agent: ghost')), true);
+});
+
+test('agent=Claude 按未知 agent 处理，不迁移为 opencode，也不返回 claude_removed', async () => {
+  const ctx = buildAppContext({ registry: createFakeRegistry({}) });
+
+  const session = await sessionAdmin.createSession(ctx, {
+    agent: 'Claude',
+    createAgentSession: true,
+  });
+
+  assert.equal(session.agent, 'Claude');
+  assert.equal(session.ok, undefined);
+  assert.match(session.errorMessage, /driver not found for agent: Claude/);
 });
 
 test('REQ-005: 创建底层 session 失败时标记错误', async () => {
@@ -884,19 +864,16 @@ test('REQ-009: listAgents 展示 stub driver 不可用状态', () => {
   assert.ok(codex.reason.includes('not implemented'));
 });
 
-test('REQ-001-B02: listAgents 展示真实 Claude driver 可用状态', () => {
-  const ctx = buildAppContext({
-    registry: createFakeRegistry({
-      opencode: createFakeOpencodeDriver(),
-      claude: { name: 'claude', ensureReady: async () => true },
-    }),
-  });
+test('REQ-007-B01 和 REQ-007-B03: 连接页不再把 Claude 列为可用接入或未来扩展点', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'public', 'js', 'pages', 'connections.js'), 'utf8');
+  const listMatch = source.match(/for \(const name of \[([^\]]+)\]\)/);
 
-  const agents = agentRuntimeAdmin.listAgents(ctx);
-  const claude = agents.find((a) => a.name === 'claude');
-
-  assert.equal(claude.available, true);
-  assert.equal(claude.reason, '');
+  assert.ok(listMatch, '连接页应声明 agent 列表');
+  assert.deepEqual(listMatch[1].split(',').map((item) => item.trim().replace(/['"]/g, '')), ['opencode', 'codex']);
+  assert.equal(/claude/i.test(source), false);
+  assert.equal(source.includes('Claude Code CLI，未来实现'), false);
+  assert.equal(source.includes('未来实现'), true);
+  assert.match(source, /Codex CLI，未来实现/);
 });
 
 // ── REQ-010: OpenCode check 和 ensure-ready 返回明确结果 ──
@@ -1299,4 +1276,559 @@ test('REQ-026: cleanup 事件写入 eventStore', () => {
   routeAdmin.cleanupDangling(ctx, true);
   const events = ctx.eventStore.events.filter((e) => e.message === 'dangling route cleaned up');
   assert.ok(events.length >= 1);
+});
+
+const CLAUDE_DRIVER_METHODS = [
+  'prompt',
+  'question',
+  'replyQuestion',
+  'cancel',
+  'watch',
+  'watchSession',
+  'stop',
+  'delete',
+  'createSession',
+  'resumeSession',
+  'listSessions',
+  'ensureReady',
+];
+
+function createCountingDriver(name) {
+  const calls = {};
+  const driver = { name, calls };
+  for (const method of CLAUDE_DRIVER_METHODS) {
+    calls[method] = 0;
+    driver[method] = async () => {
+      calls[method] += 1;
+      return method === 'prompt' ? [{ type: 'text', data: { text: 'should-not-run' } }] : { ok: true };
+    };
+  }
+  return driver;
+}
+
+function createCountingRegistry(drivers) {
+  const gets = [];
+  const registry = createFakeRegistry(drivers);
+  const originalGet = registry.get.bind(registry);
+  registry.get = (agentName) => {
+    gets.push(agentName);
+    return originalGet(agentName);
+  };
+  registry.gets = gets;
+  return registry;
+}
+
+function assertDriverUnused(driver) {
+  for (const method of CLAUDE_DRIVER_METHODS) {
+    assert.equal(driver.calls[method], 0, method);
+  }
+}
+
+function createTempState(initialState) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-admin-claude-'));
+  const filePath = path.join(tmpDir, 'state.json');
+  const stateStore = new JsonStore(filePath, { sessions: {}, routes: {}, platformMessages: { feishu: {} } });
+  stateStore.write(initialState || {
+    sessions: {},
+    routes: {},
+    platformMessages: { feishu: {} },
+    _schemaVersion: 3,
+  });
+  const sessionService = new SessionService({ stateStore });
+  return {
+    tmpDir,
+    filePath,
+    stateStore,
+    sessionService,
+    cleanup() {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    },
+  };
+}
+
+function snapshotStore(tempState) {
+  tempState.sessionService.listSessions();
+  return {
+    bytes: fs.readFileSync(tempState.filePath),
+    count: tempState.sessionService.listSessions().length,
+    sessions: tempState.stateStore.read().sessions,
+  };
+}
+
+function httpRequest(options, body) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(options, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let parsed = raw;
+        try { parsed = JSON.parse(raw); } catch (_err) { parsed = raw; }
+        resolve({ statusCode: res.statusCode, body: parsed, raw });
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(5000, () => {
+      req.destroy(new Error('request timeout'));
+    });
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+test('REQ-005-B01: 列表和详情保留旧 agent=claude 并包含移除消息', () => {
+  const agentRef = {
+    provider: 'claude',
+    transport: 'cli-terminal',
+    claudeSessionId: '11111111-1111-4111-8111-111111111111',
+    terminal: { status: 'active', windowId: 'win_1', updatedAt: 2000 },
+  };
+  const tempState = createTempState({
+    sessions: {
+      wks_claude: {
+        id: 'wks_claude',
+        agent: 'claude',
+        title: 'old claude',
+        runtime: 'windows',
+        cwd: 'H:\\walker',
+        status: 'running',
+        agentRef,
+        errorMessage: null,
+        createdAt: 1000,
+        updatedAt: 1000,
+      },
+    },
+    routes: {},
+    platformMessages: { feishu: {} },
+    _schemaVersion: 3,
+  });
+  try {
+    const before = snapshotStore(tempState);
+    const ctx = buildAppContext({ sessionService: tempState.sessionService });
+    const listed = sessionAdmin.listSessions(ctx);
+    const detail = sessionAdmin.getSession(ctx, 'wks_claude');
+    const stored = tempState.stateStore.read().sessions.wks_claude;
+
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].id, 'wks_claude');
+    assert.equal(listed[0].agent, 'claude');
+    assert.equal(listed[0].status, 'running');
+    assert.equal(listed[0].statusText, CLAUDE_REMOVED_MESSAGE);
+    assert.equal(listed[0].warning, CLAUDE_REMOVED_MESSAGE);
+    assert.match(listed[0].health.reason, /Claude integration has been removed\./);
+    assert.equal(detail.agent, 'claude');
+    assert.equal(detail.statusText, CLAUDE_REMOVED_MESSAGE);
+    assert.equal(stored.agent, 'claude');
+    assert.equal(stored.status, 'running');
+    assert.deepEqual(stored.agentRef, agentRef);
+    assert.equal(stored.agent, before.sessions.wks_claude.agent);
+    assert.notEqual(stored.agent, 'opencode');
+  } finally {
+    tempState.cleanup();
+  }
+});
+
+test('REQ-005-B05: createSession 在写 store 前拒绝 agent=claude', async () => {
+  const driver = createCountingDriver('claude');
+  const registry = createCountingRegistry({
+    opencode: createFakeOpencodeDriver(),
+    claude: driver,
+  });
+  const tempState = createTempState({
+    sessions: {
+      wks_keep: {
+        id: 'wks_keep',
+        agent: 'opencode',
+        title: 'keep',
+        runtime: 'windows',
+        cwd: '',
+        status: 'idle',
+        agentRef: null,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    },
+    routes: {},
+    platformMessages: { feishu: {} },
+    _schemaVersion: 3,
+  });
+  try {
+    const ctx = buildAppContext({ sessionService: tempState.sessionService, registry });
+    let createCalls = 0;
+    const originalCreate = tempState.sessionService.createSession.bind(tempState.sessionService);
+    tempState.sessionService.createSession = (opts) => {
+      createCalls += 1;
+      return originalCreate(opts);
+    };
+    const before = snapshotStore(tempState);
+
+    const result = await sessionAdmin.createSession(ctx, {
+      agent: 'claude',
+      title: 'must-not-create',
+      cwd: 'H:\\walker',
+      createAgentSession: true,
+      model: { providerID: 'claude', modelID: 'sonnet' },
+    });
+
+    const afterBytes = fs.readFileSync(tempState.filePath);
+    assert.deepEqual(result, {
+      ok: false,
+      error: { code: 'claude_removed', message: CLAUDE_REMOVED_MESSAGE },
+    });
+    assert.equal(result.error.message, 'Claude integration has been removed.');
+    assert.equal(createCalls, 0);
+    assert.equal(tempState.sessionService.listSessions().length, before.count);
+    assert.equal(afterBytes.equals(before.bytes), true);
+    assert.equal(registry.gets.includes('claude'), false);
+    assertDriverUnused(driver);
+    assert.equal(ctx.eventStore.events.some((event) => event.message === 'session created'), false);
+  } finally {
+    tempState.cleanup();
+  }
+});
+
+test('REQ-005-B05: 已认证 POST /api/admin/sessions 返回 claude_removed 且不写 store', async () => {
+  const driver = createCountingDriver('claude');
+  const tempState = createTempState({
+    sessions: {
+      wks_keep: {
+        id: 'wks_keep',
+        agent: 'opencode',
+        title: 'keep',
+        runtime: 'windows',
+        cwd: '',
+        status: 'idle',
+        agentRef: null,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    },
+    routes: {},
+    platformMessages: { feishu: {} },
+    _schemaVersion: 3,
+  });
+  const registry = createCountingRegistry({ claude: driver, opencode: createFakeOpencodeDriver() });
+  const ctx = buildAppContext({
+    sessionService: tempState.sessionService,
+    registry,
+    config: { enabled: true, host: '127.0.0.1', port: 0, token: 't5-create-token' },
+  });
+  const adminServer = createAdminServerFromContext(ctx);
+  try {
+    const before = snapshotStore(tempState);
+    const started = await adminServer.start();
+    const removed = await httpRequest({
+      hostname: started.host,
+      port: started.port,
+      path: '/api/admin/sessions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer t5-create-token',
+        Connection: 'close',
+      },
+    }, JSON.stringify({
+      agent: 'claude',
+      title: 'must-not-create',
+      createAgentSession: true,
+      model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' },
+    }));
+    const kept = await httpRequest({
+      hostname: started.host,
+      port: started.port,
+      path: '/api/admin/sessions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer t5-create-token',
+        Connection: 'close',
+      },
+    }, JSON.stringify({ agent: 'opencode', title: 'still-created', createAgentSession: false }));
+
+    assert.equal(removed.statusCode, 400);
+    assert.deepEqual(removed.body, {
+      ok: false,
+      error: { code: 'claude_removed', message: CLAUDE_REMOVED_MESSAGE },
+    });
+    assert.equal(removed.body.data, undefined);
+    assert.equal(kept.statusCode, 200);
+    assert.equal(kept.body.ok, true);
+    assert.equal(kept.body.data.agent, 'opencode');
+    assert.equal(typeof kept.body.data.id, 'string');
+    assert.equal(kept.body.error, undefined);
+    assert.equal(tempState.sessionService.listSessions().some((session) => session.agent === 'claude'), false);
+    assert.equal(tempState.sessionService.listSessions().some((session) => session.title === 'still-created'), true);
+    assert.equal(Object.keys(tempState.stateStore.read().sessions).length, before.count + 1);
+    assert.equal(JSON.stringify(tempState.stateStore.read()).includes('must-not-create'), false);
+    assert.equal(registry.gets.includes('claude'), false);
+    assertDriverUnused(driver);
+    assert.equal(ctx.eventStore.events.some((event) => event.message === 'session created' && event.data && event.data.agent === 'claude'), false);
+  } finally {
+    await adminServer.stop();
+    tempState.cleanup();
+  }
+});
+
+test('REQ-005-B06: 未认证创建 agent=claude 仍返回 401 且 store 不变', async () => {
+  const driver = createCountingDriver('claude');
+  const tempState = createTempState({
+    sessions: {
+      wks_old: {
+        id: 'wks_old',
+        agent: 'claude',
+        title: 'old',
+        runtime: 'windows',
+        cwd: '',
+        status: 'idle',
+        agentRef: { claudeSessionId: '11111111-1111-4111-8111-111111111111' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    },
+    routes: {},
+    platformMessages: { feishu: {} },
+    _schemaVersion: 3,
+  });
+  const ctx = buildAppContext({
+    sessionService: tempState.sessionService,
+    registry: createCountingRegistry({ claude: driver }),
+    config: { enabled: true, host: '127.0.0.1', port: 0, token: 't5-admin-token' },
+  });
+  const adminServer = createAdminServerFromContext(ctx);
+  try {
+    const before = snapshotStore(tempState);
+    const started = await adminServer.start();
+    const res = await httpRequest({
+      hostname: started.host,
+      port: started.port,
+      path: '/api/admin/sessions',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Connection: 'close' },
+    }, JSON.stringify({ agent: 'claude', createAgentSession: true, title: 'unauth' }));
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(res.body.ok, false);
+    assert.equal(res.body.error.code, 'UNAUTHORIZED');
+    assert.equal(res.body.data, undefined);
+    assert.equal(tempState.sessionService.listSessions().length, before.count);
+    assert.equal(fs.readFileSync(tempState.filePath).equals(before.bytes), true);
+    assertDriverUnused(driver);
+  } finally {
+    await adminServer.stop();
+    tempState.cleanup();
+  }
+});
+
+test('REQ-005-B03: 本地 stop 只标记 stopped，且不调用注入的 claude driver', async () => {
+  const claudeDriver = createCountingDriver('claude');
+  const opencodeStops = [];
+  const registry = createCountingRegistry({
+    claude: claudeDriver,
+    opencode: createFakeOpencodeDriver({
+      stop: async (ref) => { opencodeStops.push(ref); },
+    }),
+  });
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      {
+        id: 'wks_claude_stop',
+        agent: 'claude',
+        title: 'old',
+        runtime: 'windows',
+        cwd: 'H:\\walker',
+        status: 'running',
+        agentRef: { claudeSessionId: '11111111-1111-4111-8111-111111111111', provider: 'claude' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: 'wks_opencode_stop',
+        agent: 'opencode',
+        title: 'keep',
+        runtime: 'windows',
+        cwd: '',
+        status: 'running',
+        agentRef: { opencodeSessionId: 'oc_keep' },
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ]),
+    registry,
+  });
+
+  const result = await sessionAdmin.stopSession(ctx, 'wks_claude_stop');
+  const stored = ctx.sessionService.getSession('wks_claude_stop');
+
+  assert.equal(result.ok, true);
+  assert.equal(result.session.status, 'stopped');
+  assert.equal(result.session.agent, 'claude');
+  assert.equal(result.warning, CLAUDE_REMOVED_MESSAGE);
+  assert.equal(stored.status, 'stopped');
+  assert.equal(stored.agent, 'claude');
+  assert.equal(stored.agentRef.claudeSessionId, '11111111-1111-4111-8111-111111111111');
+  assert.equal(registry.gets.includes('claude'), false);
+  assertDriverUnused(claudeDriver);
+
+  const opencodeResult = await sessionAdmin.stopSession(ctx, 'wks_opencode_stop');
+  assert.equal(opencodeResult.ok, true);
+  assert.equal(opencodeResult.session.status, 'stopped');
+  assert.equal(opencodeStops.length, 1);
+  assertDriverUnused(claudeDriver);
+});
+
+test('REQ-005-B03: 本地 delete 只删除 Walker 活跃记录，且不调用注入的 claude driver', async () => {
+  const claudeDriver = createCountingDriver('claude');
+  const registry = createCountingRegistry({ claude: claudeDriver, opencode: createFakeOpencodeDriver() });
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      {
+        id: 'wks_claude_del',
+        agent: 'claude',
+        title: 'old',
+        runtime: 'windows',
+        cwd: 'H:\\walker',
+        status: 'idle',
+        agentRef: { claudeSessionId: '22222222-2222-4222-8222-222222222222', provider: 'claude' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: 'wks_keep',
+        agent: 'opencode',
+        title: 'keep',
+        runtime: 'windows',
+        cwd: '',
+        status: 'idle',
+        agentRef: { opencodeSessionId: 'oc_keep' },
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ]),
+    registry,
+  });
+
+  const result = await sessionAdmin.deleteSession(ctx, 'wks_claude_del');
+  const listed = sessionAdmin.listSessions(ctx).map((session) => session.id);
+  const stored = ctx.sessionService.getSession('wks_claude_del');
+
+  assert.equal(result.ok, true);
+  assert.equal(result.warning, CLAUDE_REMOVED_MESSAGE);
+  assert.equal(listed.includes('wks_claude_del'), false);
+  assert.equal(listed.includes('wks_keep'), true);
+  assert.equal(stored.status, 'deleted');
+  assert.equal(stored.agent, 'claude');
+  assert.equal(stored.agentRef.claudeSessionId, '22222222-2222-4222-8222-222222222222');
+  assert.equal(registry.gets.includes('claude'), false);
+  assertDriverUnused(claudeDriver);
+});
+
+test('REQ-005-B07: 注入 claude driver 时 prompt、question、cancel、watch、stop、delete 调用次数为 0', async () => {
+  const driver = createCountingDriver('claude');
+  const registry = createCountingRegistry({
+    claude: driver,
+    opencode: createFakeOpencodeDriver(),
+  });
+  const ctx = buildAppContext({
+    sessionService: createFakeSessionService([
+      {
+        id: 'wks_claude_prompt',
+        agent: 'claude',
+        title: 'old',
+        runtime: 'windows',
+        cwd: 'H:\\walker',
+        status: 'running',
+        agentRef: { claudeSessionId: '33333333-3333-4333-8333-333333333333', provider: 'claude' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]),
+    registry,
+    dispatcher: {
+      sessionWatchStops: { has: () => false },
+      getTurnState: () => null,
+    },
+  });
+  const before = JSON.parse(JSON.stringify(ctx.sessionService.getSession('wks_claude_prompt')));
+  const promptSentinel = 'PROMPT_SENTINEL_do_not_log';
+
+  sessionAdmin.listSessions(ctx);
+  const [first, second] = await Promise.all([
+    sessionAdmin.sendPrompt(ctx, 'wks_claude_prompt', promptSentinel),
+    sessionAdmin.sendPrompt(ctx, 'wks_claude_prompt', promptSentinel + '-2'),
+  ]);
+  await sessionAdmin.stopSession(ctx, 'wks_claude_prompt');
+  const stopped = ctx.sessionService.getSession('wks_claude_prompt');
+  ctx.sessionService.updateSessionField('wks_claude_prompt', 'status', 'running');
+  await sessionAdmin.deleteSession(ctx, 'wks_claude_prompt');
+
+  assert.equal(first.ok, false);
+  assert.deepEqual(first.error, { code: 'claude_removed', message: CLAUDE_REMOVED_MESSAGE });
+  assert.deepEqual(second.error, { code: 'claude_removed', message: CLAUDE_REMOVED_MESSAGE });
+  assert.equal(registry.gets.includes('claude'), false);
+  assertDriverUnused(driver);
+  assert.equal(ctx.eventStore.events.some((event) => event.message === 'web prompt sent'), false);
+  assert.equal(JSON.stringify(ctx.eventStore.events).includes(promptSentinel), false);
+  assert.equal(stopped.agent, before.agent);
+  assert.deepEqual(stopped.agentRef, before.agentRef);
+  assert.equal(ctx.sessionService.listSessions().some((session) => session.id === 'wks_claude_prompt'), false);
+});
+
+test('REQ-005-B07: 已认证 prompt 在 driver 之前返回 claude_removed，且不记录成功事件', async () => {
+  const driver = createCountingDriver('claude');
+  const tempState = createTempState({
+    sessions: {
+      wks_http_prompt: {
+        id: 'wks_http_prompt',
+        agent: 'claude',
+        title: 'old',
+        runtime: 'windows',
+        cwd: 'H:\\walker',
+        status: 'running',
+        agentRef: { claudeSessionId: '44444444-4444-4444-8444-444444444444', provider: 'claude' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    },
+    routes: {},
+    platformMessages: { feishu: {} },
+    _schemaVersion: 3,
+  });
+  const ctx = buildAppContext({
+    sessionService: tempState.sessionService,
+    registry: createCountingRegistry({ claude: driver, opencode: createFakeOpencodeDriver() }),
+    config: { enabled: true, host: '127.0.0.1', port: 0, token: 't5-prompt-token' },
+  });
+  const adminServer = createAdminServerFromContext(ctx);
+  const sentinel = 'HTTP_PROMPT_SENTINEL_do_not_store';
+  try {
+    const started = await adminServer.start();
+    const res = await httpRequest({
+      hostname: started.host,
+      port: started.port,
+      path: '/api/admin/sessions/wks_http_prompt/prompt',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer t5-prompt-token',
+        Connection: 'close',
+      },
+    }, JSON.stringify({ text: sentinel }));
+    const stored = tempState.stateStore.read().sessions.wks_http_prompt;
+
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, {
+      ok: false,
+      error: { code: 'claude_removed', message: CLAUDE_REMOVED_MESSAGE },
+    });
+    assert.equal(res.raw.includes(sentinel), false);
+    assert.equal(stored.agent, 'claude');
+    assert.equal(stored.status, 'running');
+    assert.equal(stored.agentRef.claudeSessionId, '44444444-4444-4444-8444-444444444444');
+    assertDriverUnused(driver);
+    assert.equal(JSON.stringify(ctx.eventStore.events).includes('web prompt sent'), false);
+    assert.equal(JSON.stringify(ctx.eventStore.events).includes(sentinel), false);
+  } finally {
+    await adminServer.stop();
+    tempState.cleanup();
+  }
 });

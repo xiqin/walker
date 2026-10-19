@@ -70,15 +70,17 @@ test('handlePlatformMessage 接受标准事件并复用 prompt 状态机', async
   assert.equal(listEvents(mocks.eventStore, { type: 'platform.message_received' }).length, 1);
 });
 
-test('handlePlatformMessage 支持 Claude agentRef 并复用通用 prompt 状态机', async () => {
+test('REQ-005-B04: handlePlatformMessage 对旧 Claude 会话在 driver 前返回 claude_removed', async () => {
   const claudeSessionId = '11111111-1111-4111-8111-111111111111';
   const claudeSession = { id: 'wks_claude', agent: 'claude', status: 'idle', agentRef: { claudeSessionId, transport: 'cli' } };
   const mocks = makeDispatcher({ session: claudeSession });
 
   const result = await mocks.dispatcher.handlePlatformMessage(platformEvent({ messageId: 'om_claude' }));
 
-  assert.equal(result, 'prompted');
-  assert.deepEqual(mocks.driver.promptCalls, [{ agentRef: { claudeSessionId, transport: 'cli' }, text: 'hello' }]);
+  assert.deepEqual(result, { error: 'claude_removed' });
+  assert.deepEqual(mocks.driver.promptCalls, []);
+  assert.equal(mocks.sessionService.getSession().agent, 'claude');
+  assert.equal(mocks.sessionService.getSession().agentRef.claudeSessionId, claudeSessionId);
   assert.equal(mocks.sessionService.getSession().status, 'idle');
 });
 

@@ -1,6 +1,10 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const childProcess = require('child_process');
+const net = require('net');
 const { createApp, resolveDataDir } = require('../src/app/bootstrap');
 const { createStatusAdmin } = require('../src/admin/status-admin');
 const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
@@ -295,8 +299,10 @@ describe('createApp', () => {
     assert.ok(!platformStarted.includes('opendray'));
   });
 
-  it('启动时注册真实 ClaudeDriver 并保留 opencode/codex 注册', () => {
+  it('REQ-001-B01: 残留 Claude 配置不再注册 claude，opencode 与 codex 仍注册', () => {
     const registered = [];
+    let claudeBuilds = 0;
+    let bridgeBuilds = 0;
     const config = {
       feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
       walkerDefaultAgent: 'opencode', walkerDefaultRuntime: 'windows', walkerDefaultCwd: 'H:\\walker',
@@ -309,7 +315,7 @@ describe('createApp', () => {
       claudeSettingsFile: 'C:/claude/settings.json', claudeSettingSources: ['user', 'project'],
       claudePluginDirs: ['C:/plugins'], claudeBare: true, claudeSafeMode: true,
       claudeDisableSlashCommands: true, claudeAllowBypassPermissions: false,
-      claudePromptTimeoutMs: 45000, walkerWslDistro: 'Ubuntu-24.04',
+      claudePromptTimeoutMs: 45000, claudeBridgeToken: 'bridge-token', walkerWslDistro: 'Ubuntu-24.04',
       feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
     };
     const deps = {
@@ -317,14 +323,15 @@ describe('createApp', () => {
       SessionService: class { recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
       JsonStore: class { constructor() { this.read = () => ({}); this.update = () => {}; } },
       OpencodeDriver: class { constructor(options) { this.name = 'opencode'; this.options = options; } },
-      ClaudeDriver: class { constructor(options) { this.name = 'claude'; this.options = options; } },
+      ClaudeDriver: class { constructor() { claudeBuilds += 1; } },
+      ClaudeBridgeSidecar: class { constructor() { bridgeBuilds += 1; } },
       OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
-      stubClaudeDriver: () => ({ name: 'claude-stub' }),
-      stubCodexDriver: () => ({ name: 'codex-stub' }),
+      stubCodexDriver: () => ({ name: 'codex-stub', _isStub: true }),
       DriverRegistry: class {
         constructor() { this.drivers = new Map(); }
         register(name, driver) { registered.push({ name, driver }); this.drivers.set(name, driver); }
         get(name) { return this.drivers.get(name) || null; }
+        list() { return Array.from(this.drivers.keys()); }
       },
       createRuntime: () => ({ spawn() {} }),
       MessageDedup: class {},
@@ -334,33 +341,14 @@ describe('createApp', () => {
       createAdminServer: () => null,
     };
 
-    createApp(config, deps);
+    const app = createApp(config, deps);
 
-    assert.deepEqual(registered.map((item) => item.name), ['opencode', 'claude', 'codex']);
-    const claude = registered.find((item) => item.name === 'claude').driver;
-    assert.equal(claude.name, 'claude');
-    assert.equal(claude.options.claudeCmd, 'claude-test');
-    assert.equal(claude.options.model, 'sonnet');
-    assert.equal(claude.options.fallbackModel, 'opus');
-    assert.equal(claude.options.agent, 'reviewer');
-    assert.equal(claude.options.permissionMode, 'plan');
-    assert.equal(claude.options.permissionModeMigrated, true);
-    assert.equal(claude.options.allowedTools, 'Read,Grep');
-    assert.equal(claude.options.disallowedTools, 'Bash');
-    assert.equal(claude.options.configDir, undefined);
-    assert.equal(claude.options.transcriptConfigDir, 'C:\\claude');
-    assert.deepEqual(claude.options.tools, ['Read', 'Grep']);
-    assert.deepEqual(claude.options.agents, { reviewer: { model: 'opus' } });
-    assert.deepEqual(claude.options.mcpConfigs, ['C:/mcp/a.json']);
-    assert.equal(claude.options.strictMcpConfig, true);
-    assert.equal(claude.options.settingsFile, 'C:/claude/settings.json');
-    assert.deepEqual(claude.options.settingSources, ['user', 'project']);
-    assert.deepEqual(claude.options.pluginDirs, ['C:/plugins']);
-    assert.equal(claude.options.bare, true);
-    assert.equal(claude.options.safeMode, true);
-    assert.equal(claude.options.disableSlashCommands, true);
-    assert.equal(claude.options.allowBypassPermissions, false);
-    assert.equal(claude.options.promptTimeoutMs, 45000);
+    assert.deepEqual(registered.map((item) => item.name), ['opencode', 'codex']);
+    assert.equal(app.registry.list().includes('claude'), false);
+    assert.equal(app.registry.get('claude'), null);
+    assert.equal(registered.find((item) => item.name === 'codex').driver.name, 'codex-stub');
+    assert.equal(claudeBuilds, 0);
+    assert.equal(bridgeBuilds, 0);
   });
 
   it('stop 关闭 platform', async () => {
@@ -396,7 +384,7 @@ describe('createApp', () => {
     assert.deepEqual(platformStopped, ['feishu']);
   });
 
-  it('stop 在关闭 platform 前释放 Claude Walker connection 并关闭 bridge sidecar', async () => {
+  it('REQ-001-B02: 一次和两次 stop 都不调用 Claude release', async () => {
     const calls = [];
     const config = {
       feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
@@ -411,16 +399,21 @@ describe('createApp', () => {
       JsonStore: class { constructor() {} },
       OpencodeDriver: class { constructor() {} },
       ClaudeDriver: class {
-        constructor() { this.name = 'claude'; }
+        constructor() { calls.push('claude.construct'); }
         stopWalkerConnection(reason) { calls.push('claude.stopWalkerConnection:' + reason); }
-        detachAllRuntimes() { throw new Error('detachAllRuntimes should not run during Walker stop'); }
-        stopRuntime() { throw new Error('stopRuntime should not run during Walker stop'); }
-        deleteRuntime() { throw new Error('deleteRuntime should not run during Walker stop'); }
+        detachAllRuntimes() { calls.push('claude.detachAllRuntimes'); }
+        stopRuntime() { calls.push('claude.stopRuntime'); }
+        deleteRuntime() { calls.push('claude.deleteRuntime'); }
       },
-      claudeBridge: { stop: () => calls.push('claudeBridge.stop') },
+      ClaudeBridgeSidecar: class { constructor() { calls.push('bridge.construct'); } stop() { calls.push('bridge.stop'); } },
+      claudeBridge: { stop() { calls.push('claudeBridge.stop'); }, stopWalkerConnection() { calls.push('claudeBridge.stopWalkerConnection'); } },
       stubCodexDriver: () => ({}),
       DriverRegistry: class { register() {} },
-      createRuntime: () => ({}),
+      createRuntime: () => ({
+        openTerminal() { calls.push('runtime.openTerminal'); },
+        openClaudeAttachTerminal() { calls.push('runtime.openClaudeAttachTerminal'); },
+        spawn() { calls.push('runtime.spawn'); },
+      }),
       MessageDedup: class {},
       MessageDispatcher: class {},
       AttachmentService: class {},
@@ -430,46 +423,8 @@ describe('createApp', () => {
     const app = createApp(config, deps);
     await app.start();
     await app.stop();
-    assert.deepEqual(calls, ['claude.stopWalkerConnection:walker shutdown', 'claudeBridge.stop', 'platform.stop']);
-  });
-
-  it('createApp 将 Claude bridge sidecar 注入生产 Claude driver', () => {
-    const received = [];
-    const config = {
-      feishuAppId: 'cli_test', feishuAppSecret: 'test_secret', feishuRouteMode: 'thread',
-      walkerDefaultAgent: 'claude', walkerDefaultRuntime: 'windows', walkerDefaultCwd: '',
-      walkerDataDir: '', opencodeServerUrl: '', opencodeServerAutostart: false,
-      opencodeCmd: 'opencode', walkerWslDistro: 'Ubuntu-24.04',
-      feishuProgressStyle: 'card', feishuReactionEmoji: '', feishuDoneEmoji: '',
-      admin: { enabled: false, host: '127.0.0.1', port: 8787, token: '' },
-    };
-    class FakeClaudeBridgeSidecar {
-      constructor(options) { this.options = options; }
-      stopWalkerConnection() {}
-    }
-    const deps = {
-      FeishuPlatform: class { constructor() { this.api = {}; } start() { return Promise.resolve(); } stop() {} },
-      SessionService: class { constructor() {} recoverOnStartup() { return []; } cleanOrphanRoutes() { return []; } },
-      JsonStore: class { constructor() {} },
-      OpencodeDriver: class { constructor() {} },
-      OpencodeTuiBridge: class { setOnSessionEnrolled() {} close() {} },
-      ClaudeBridgeSidecar: FakeClaudeBridgeSidecar,
-      ClaudeDriver: class { constructor(options) { received.push(options); } },
-      stubCodexDriver: () => ({}),
-      DriverRegistry: class { register() {} },
-      createRuntime: () => ({}),
-      MessageDedup: class {},
-      MessageDispatcher: class {},
-      AttachmentService: class {},
-      createEventStore: () => ({ events: [], metrics: { messages: 0, commands: 0, prompts: 0, errors: 0, promptDurationsMs: [], entries: [] }, now: Date.now, nextEventId: 1 }),
-      createAdminServer: () => null,
-    };
-
-    createApp(config, deps);
-
-    assert.equal(received.length, 1);
-    assert.ok(received[0].claudeBridge instanceof FakeClaudeBridgeSidecar);
-    assert.equal(received[0].claudeBridge.options.host, '127.0.0.1');
+    await app.stop();
+    assert.deepEqual(calls, ['platform.stop', 'platform.stop']);
   });
 
   it('重复 stop 不 kill runtime 且不打开独立 claude --resume 终端', async () => {
@@ -515,8 +470,6 @@ describe('createApp', () => {
 
     assert.deepEqual(calls, [
       'dispatcher.destroy',
-      'claude.stopWalkerConnection:walker shutdown',
-      'claudeBridge.stop',
       'platform.stop',
       'platform.stop',
     ]);
@@ -1175,5 +1128,487 @@ describe('createApp', () => {
     assert.ok(patchCall);
     assert.equal(patchCall.cardId, 'om_perm_card1');
     assert.equal(patchCall.card.header.title.content, '权限已处理');
+  });
+});
+
+const DELETED_CLAUDE_MODULES = [
+  ['claude', 'driver'],
+  ['claude', 'pty', 'runtime'],
+  ['claude', 'pty', 'broker'],
+  ['claude', 'bridge', 'sidecar'],
+  ['claude', 'attach', 'server'],
+  ['claude', 'transcript'],
+  ['claude', 'attach', 'command'],
+].map((parts) => parts.join('-'));
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function listJsFiles(dir) {
+  if (!fs.existsSync(dir)) return [];
+  const files = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === '.git') continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...listJsFiles(full));
+    else if (entry.isFile() && entry.name.endsWith('.js')) files.push(full);
+  }
+  return files;
+}
+
+function findDeletedModuleReferences(roots) {
+  const pattern = new RegExp(DELETED_CLAUDE_MODULES.map(escapeRegExp).join('|'));
+  const hits = [];
+  for (const root of roots) {
+    for (const file of listJsFiles(root)) {
+      const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+      lines.forEach((line, index) => {
+        if (pattern.test(line)) {
+          hits.push(path.relative(process.cwd(), file) + ':' + (index + 1) + ':' + line.trim());
+        }
+      });
+    }
+  }
+  return hits;
+}
+
+function makeTempDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function removeTempDir(dir) {
+  if (dir) fs.rmSync(dir, { recursive: true, force: true });
+}
+
+function baseRemovedConfig(dir, extra) {
+  return Object.assign({
+    feishuAppId: 'cli_test',
+    feishuAppSecret: 'test_secret',
+    feishuRouteMode: 'thread',
+    walkerDefaultAgent: 'opencode',
+    walkerDefaultRuntime: 'windows',
+    walkerDefaultCwd: dir,
+    walkerDataDir: dir,
+    opencodeServerUrl: '',
+    opencodeServerAutostart: false,
+    opencodeCmd: 'opencode',
+    walkerWslDistro: 'Ubuntu-24.04',
+    walkerOpencodeHookEnabled: false,
+    feishuProgressStyle: 'card',
+    feishuReactionEmoji: '',
+    feishuDoneEmoji: '',
+    admin: { enabled: false, host: '127.0.0.1', port: 0, token: '' },
+    claudeCmd: 'claude',
+    claudeModel: 'sonnet',
+    claudeBridgeEnabled: true,
+    claudeBridgeHost: '127.0.0.1',
+    claudeBridgePort: 9,
+    claudeBridgeToken: 'bridge-token',
+    claudeConfigDir: path.join(dir, 'claude-config'),
+  }, extra || {});
+}
+
+function quietDeps(extra) {
+  return Object.assign({
+    FeishuPlatform: class {
+      constructor() { this.api = {}; }
+      start() { return Promise.resolve(); }
+      stop() { return Promise.resolve(); }
+    },
+    OpencodeDriver: class {
+      constructor(options) { this.name = 'opencode'; this.options = options || {}; }
+    },
+    OpencodeTuiBridge: class {
+      setOnSessionEnrolled() {}
+      close() {}
+    },
+    MessageDispatcher: class {
+      destroy() {}
+    },
+    AttachmentService: class {},
+    createAdminServer: () => null,
+  }, extra || {});
+}
+
+function installSideEffectProbes() {
+  const calls = { execFile: [], execFileSync: [], spawn: [], spawnSync: [], exec: [], execSync: [], listen: [], timers: [] };
+  const originals = {
+    execFile: childProcess.execFile,
+    execFileSync: childProcess.execFileSync,
+    spawn: childProcess.spawn,
+    spawnSync: childProcess.spawnSync,
+    exec: childProcess.exec,
+    execSync: childProcess.execSync,
+    listen: net.Server.prototype.listen,
+    setTimeout: global.setTimeout,
+    setInterval: global.setInterval,
+  };
+  const timers = [];
+  function record(bucket, args) {
+    calls[bucket].push(Array.from(args).map((arg) => (typeof arg === 'function' ? '[Function]' : arg)));
+  }
+  childProcess.execFile = function execFileProbe(...args) {
+    record('execFile', args);
+    return { unref() {}, on() { return this; }, pid: 0 };
+  };
+  childProcess.execFileSync = function execFileSyncProbe(...args) {
+    record('execFileSync', args);
+    return '';
+  };
+  childProcess.spawn = function spawnProbe(...args) {
+    record('spawn', args);
+    return { unref() {}, on() { return this; }, pid: 0 };
+  };
+  childProcess.spawnSync = function spawnSyncProbe(...args) {
+    record('spawnSync', args);
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  childProcess.exec = function execProbe(...args) {
+    record('exec', args);
+    const cb = args.find((arg) => typeof arg === 'function');
+    if (cb) process.nextTick(() => cb(null, '', ''));
+    return { unref() {}, on() { return this; }, pid: 0 };
+  };
+  childProcess.execSync = function execSyncProbe(...args) {
+    record('execSync', args);
+    return '';
+  };
+  net.Server.prototype.listen = function listenProbe(...args) {
+    record('listen', args);
+    const cb = args.find((arg) => typeof arg === 'function');
+    if (cb) process.nextTick(cb);
+    return this;
+  };
+  global.setTimeout = function setTimeoutProbe(fn, ms, ...args) {
+    calls.timers.push({ kind: 'timeout', ms });
+    const timer = originals.setTimeout(fn, ms, ...args);
+    timers.push(timer);
+    return timer;
+  };
+  global.setInterval = function setIntervalProbe(fn, ms, ...args) {
+    calls.timers.push({ kind: 'interval', ms });
+    const timer = originals.setInterval(fn, ms, ...args);
+    timers.push(timer);
+    return timer;
+  };
+  return {
+    calls,
+    restore() {
+      childProcess.execFile = originals.execFile;
+      childProcess.execFileSync = originals.execFileSync;
+      childProcess.spawn = originals.spawn;
+      childProcess.spawnSync = originals.spawnSync;
+      childProcess.exec = originals.exec;
+      childProcess.execSync = originals.execSync;
+      net.Server.prototype.listen = originals.listen;
+      global.setTimeout = originals.setTimeout;
+      global.setInterval = originals.setInterval;
+      for (const timer of timers) {
+        clearTimeout(timer);
+        clearInterval(timer);
+      }
+      delete require.cache[require.resolve('../src/app/bootstrap')];
+    },
+  };
+}
+
+function loadFreshCreateApp() {
+  const resolved = require.resolve('../src/app/bootstrap');
+  delete require.cache[resolved];
+  return require('../src/app/bootstrap').createApp;
+}
+
+function captureStderr() {
+  const lines = [];
+  const original = process.stderr.write;
+  process.stderr.write = function stderrProbe(chunk, encoding, callback) {
+    lines.push(String(chunk));
+    return original.call(process.stderr, chunk, encoding, callback);
+  };
+  return {
+    lines,
+    restore() { process.stderr.write = original; },
+    text() { return lines.join(''); },
+  };
+}
+
+describe('removed claude runtime wiring', () => {
+  it('REQ-001-B03: 启动和关闭不 spawn claude，也不打开 attach 终端', async () => {
+    const dir = makeTempDir('walker-t1-b03-');
+    const token = 'walker-attach-token-sentinel-b03';
+    const attachUrl = 'ws://127.0.0.1:9/attach?token=' + token;
+    const previousUrl = process.env.WALKER_CLAUDE_ATTACH_URL;
+    const previousToken = process.env.WALKER_CLAUDE_ATTACH_TOKEN;
+    process.env.WALKER_CLAUDE_ATTACH_URL = attachUrl;
+    process.env.WALKER_CLAUDE_ATTACH_TOKEN = token;
+    const probes = installSideEffectProbes();
+    try {
+      const freshCreateApp = loadFreshCreateApp();
+      const app = freshCreateApp(baseRemovedConfig(dir, {
+        walkerDefaultAgent: 'claude',
+        claudeBridgeToken: token,
+        claudeAttachUrl: attachUrl,
+      }), quietDeps());
+      assert.equal(typeof app.runtime.openClaudeAttachTerminal, 'undefined');
+      assert.equal(Object.prototype.hasOwnProperty.call(app.runtime, 'openClaudeAttachTerminal'), false);
+      if (typeof app.runtime.openClaudeAttachTerminal === 'function') {
+        await app.runtime.openClaudeAttachTerminal('rt_1', {
+          cwd: dir,
+          walkerCommand: 'walker',
+          attachUrl,
+          token,
+        });
+      }
+      await app.start();
+      await app.stop();
+      await app.stop();
+      const serialized = JSON.stringify(probes.calls);
+      assert.equal(serialized.includes('claude'), false);
+      assert.equal(serialized.includes('WALKER_CLAUDE_ATTACH'), false);
+      assert.equal(serialized.includes(token), false);
+      assert.equal(serialized.includes('walker claude attach'), false);
+      assert.equal(probes.calls.spawn.length, 0);
+      assert.equal(probes.calls.execFile.length, 0);
+      assert.equal(probes.calls.execFileSync.length, 0);
+    } finally {
+      probes.restore();
+      if (previousUrl === undefined) delete process.env.WALKER_CLAUDE_ATTACH_URL;
+      else process.env.WALKER_CLAUDE_ATTACH_URL = previousUrl;
+      if (previousToken === undefined) delete process.env.WALKER_CLAUDE_ATTACH_TOKEN;
+      else process.env.WALKER_CLAUDE_ATTACH_TOKEN = previousToken;
+      removeTempDir(dir);
+    }
+  });
+
+  it('REQ-001-B04: 残留 attach token 不进入启动日志或子进程环境', async () => {
+    const dir = makeTempDir('walker-t1-b04-');
+    const token = 'walker-attach-token-sentinel-b04-7f3a9c';
+    const attachUrl = 'ws://127.0.0.1:9/attach?token=' + token;
+    const previousUrl = process.env.WALKER_CLAUDE_ATTACH_URL;
+    const previousToken = process.env.WALKER_CLAUDE_ATTACH_TOKEN;
+    const previousLogFile = process.env.WALKER_LOG_FILE;
+    process.env.WALKER_CLAUDE_ATTACH_URL = attachUrl;
+    process.env.WALKER_CLAUDE_ATTACH_TOKEN = token;
+    process.env.WALKER_LOG_FILE = 'false';
+    const probes = installSideEffectProbes();
+    const stderr = captureStderr();
+    const driverOptions = [];
+    try {
+      const freshCreateApp = loadFreshCreateApp();
+      const app = freshCreateApp(baseRemovedConfig(dir, {
+        walkerDefaultAgent: 'claude',
+        claudeBridgeToken: token,
+        claudeAttachUrl: attachUrl,
+      }), quietDeps({
+        OpencodeDriver: class {
+          constructor(options) {
+            this.name = 'opencode';
+            this.options = options || {};
+            driverOptions.push(this.options);
+          }
+        },
+      }));
+      await app.start();
+      await app.stop();
+      const logs = stderr.text();
+      const serialized = JSON.stringify({ calls: probes.calls, driverOptions });
+      assert.equal(logs.includes(token), false);
+      assert.equal(logs.includes(attachUrl), false);
+      assert.equal(serialized.includes(token), false);
+      assert.equal(serialized.includes(attachUrl), false);
+      assert.equal(probes.calls.listen.length, 0);
+      assert.equal(probes.calls.spawn.length, 0);
+    } finally {
+      stderr.restore();
+      probes.restore();
+      if (previousUrl === undefined) delete process.env.WALKER_CLAUDE_ATTACH_URL;
+      else process.env.WALKER_CLAUDE_ATTACH_URL = previousUrl;
+      if (previousToken === undefined) delete process.env.WALKER_CLAUDE_ATTACH_TOKEN;
+      else process.env.WALKER_CLAUDE_ATTACH_TOKEN = previousToken;
+      if (previousLogFile === undefined) delete process.env.WALKER_LOG_FILE;
+      else process.env.WALKER_LOG_FILE = previousLogFile;
+      removeTempDir(dir);
+    }
+  });
+
+  it('REQ-001-B05: src 不再 require 已删除的 Claude 模块', () => {
+    const srcRoot = path.join(__dirname, '../src');
+    const hits = findDeletedModuleReferences([srcRoot]).filter((hit) => /require\s*\(|import\s+|from\s+['"]/.test(hit));
+    assert.deepEqual(hits, []);
+    const bootstrapSource = fs.readFileSync(path.join(srcRoot, 'app', 'bootstrap.js'), 'utf8');
+    const runtimeSource = fs.readFileSync(path.join(srcRoot, 'runtime', 'windows-runtime.js'), 'utf8');
+    assert.equal(bootstrapSource.includes('ClaudeDriver'), false);
+    assert.equal(bootstrapSource.includes('ClaudeBridgeSidecar'), false);
+    assert.equal(bootstrapSource.includes('openClaudeAttachTerminal'), false);
+    assert.equal(runtimeSource.includes('openClaudeAttachTerminal'), false);
+    assert.equal(runtimeSource.includes('WALKER_CLAUDE_ATTACH'), false);
+  });
+
+  it('REQ-001-B06: createApp 不探测 claude、不监听 bridge、不建重试 timer', () => {
+    const dir = makeTempDir('walker-t1-b06-');
+    const probes = installSideEffectProbes();
+    try {
+      const freshCreateApp = loadFreshCreateApp();
+      const app = freshCreateApp(baseRemovedConfig(dir, {
+        walkerDefaultAgent: 'claude',
+        claudeCmd: 'claude',
+        claudeBridgePort: 0,
+      }), quietDeps({
+        ClaudeDriver: class { constructor() { throw new Error('ClaudeDriver must not be constructed'); } },
+        ClaudeBridgeSidecar: class { constructor() { throw new Error('bridge must not be constructed'); } },
+        claudeBridge: { listen() { throw new Error('injected bridge must not be used'); } },
+      }));
+      assert.equal(app.registry.list().includes('claude'), false);
+      assert.equal(probes.calls.execFile.length, 0);
+      assert.equal(probes.calls.execFileSync.length, 0);
+      assert.equal(probes.calls.spawn.length, 0);
+      assert.equal(probes.calls.listen.length, 0);
+      assert.equal(probes.calls.timers.length, 0);
+      const serialized = JSON.stringify(probes.calls);
+      assert.equal(serialized.includes('claude'), false);
+    } finally {
+      probes.restore();
+      removeTempDir(dir);
+    }
+  });
+
+  it('REQ-005-B02: 启动不改写旧 agent=claude 记录', async () => {
+    const dir = makeTempDir('walker-t1-store-');
+    const claudeSession = {
+      id: 'wks_old_claude',
+      agent: 'claude',
+      title: 'old claude',
+      runtime: 'windows',
+      cwd: 'H:\\walker',
+      status: 'running',
+      agentRef: {
+        provider: 'claude',
+        transport: 'pty-attach',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        terminal: { status: 'active', windowId: 'win_1', updatedAt: 1000 },
+      },
+      errorMessage: 'keep-me',
+      model: { providerID: 'anthropic', modelID: 'claude-sonnet-4' },
+      createdAt: 1000,
+      updatedAt: 1000,
+    };
+    const upperSession = {
+      id: 'wks_upper_claude',
+      agent: 'Claude',
+      title: 'upper',
+      runtime: 'windows',
+      cwd: 'H:\\walker',
+      status: 'running',
+      agentRef: { provider: 'Claude', claudeSessionId: '22222222-2222-4222-8222-222222222222' },
+      errorMessage: 'upper-error',
+      createdAt: 1000,
+      updatedAt: 1000,
+    };
+    const spacedSession = {
+      id: 'wks_spaced_claude',
+      agent: 'claude ',
+      title: 'spaced',
+      runtime: 'windows',
+      cwd: 'H:\\walker',
+      status: 'error',
+      agentRef: { provider: 'claude ' },
+      errorMessage: 'spaced-error',
+      createdAt: 1000,
+      updatedAt: 1000,
+    };
+    const opencodeSession = {
+      id: 'wks_opencode_running',
+      agent: 'opencode',
+      title: 'opencode',
+      runtime: 'windows',
+      cwd: 'H:\\walker',
+      status: 'running',
+      agentRef: { provider: 'opencode', opencodeSessionId: 'ses_keep' },
+      errorMessage: null,
+      createdAt: 1000,
+      updatedAt: 1000,
+    };
+    const before = JSON.parse(JSON.stringify(claudeSession));
+    fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({
+      _schemaVersion: 3,
+      sessions: {
+        wks_old_claude: claudeSession,
+        wks_upper_claude: upperSession,
+        wks_spaced_claude: spacedSession,
+        wks_opencode_running: opencodeSession,
+      },
+      routes: {
+        'feishu:oc_1:ou_1': {
+          focusSessionId: 'wks_old_claude',
+          sessions: ['wks_old_claude', 'wks_upper_claude', 'wks_spaced_claude', 'wks_opencode_running'],
+          cwd: 'H:\\walker',
+          updatedAt: 1000,
+        },
+      },
+      platformMessages: { feishu: {} },
+    }, null, 2));
+    try {
+      const app = createApp(baseRemovedConfig(dir, { walkerDefaultAgent: 'claude' }), quietDeps());
+      await app.start();
+      const stored = JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).sessions.wks_old_claude;
+      const loaded = app.sessionService.getSession('wks_old_claude');
+      assert.deepEqual(stored, before);
+      assert.deepEqual(loaded, before);
+      assert.equal(stored.id, 'wks_old_claude');
+      assert.equal(stored.agent, 'claude');
+      assert.equal(stored.status, 'running');
+      assert.equal(stored.errorMessage, 'keep-me');
+      assert.equal(stored.updatedAt, 1000);
+      assert.equal(stored.agentRef.claudeSessionId, '11111111-1111-4111-8111-111111111111');
+      assert.equal(app.sessionService.getSession('wks_opencode_running').status, 'idle');
+      assert.equal(app.sessionService.getSession('wks_upper_claude').status, 'idle');
+      assert.equal(app.sessionService.getSession('wks_upper_claude').agent, 'Claude');
+      assert.equal(app.sessionService.getSession('wks_spaced_claude').status, 'idle');
+      assert.equal(app.sessionService.getSession('wks_spaced_claude').agent, 'claude ');
+      await app.stop();
+    } finally {
+      removeTempDir(dir);
+    }
+  });
+
+  it('REQ-006-B02: 真实 stubCodexDriver 仍注册，claude-sonnet-4 原样保存', async () => {
+    const dir = makeTempDir('walker-t1-codex-');
+    const stubs = require('../src/drivers/stub-drivers');
+    const model = { providerID: 'anthropic', modelID: 'claude-sonnet-4' };
+    const before = JSON.parse(JSON.stringify(model));
+    try {
+      assert.equal(typeof stubs.stubCodexDriver, 'function');
+      assert.equal(Object.prototype.hasOwnProperty.call(stubs, 'stubClaudeDriver'), false);
+      const app = createApp(baseRemovedConfig(dir), quietDeps());
+      assert.deepEqual(app.registry.list(), ['opencode', 'codex']);
+      const codex = app.registry.get('codex');
+      assert.equal(codex.name, 'codex');
+      assert.equal(codex._isStub, true);
+      await assert.rejects(() => codex.prompt(), /codex driver is not implemented yet/);
+      const session = app.sessionService.createSession({
+        agent: 'opencode',
+        title: 'keep model',
+        runtime: 'windows',
+        cwd: dir,
+        model,
+      });
+      assert.deepEqual(model, before);
+      assert.deepEqual(session.model, before);
+      assert.deepEqual(app.sessionService.getSession(session.id).model, before);
+      const raw = JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8'));
+      assert.deepEqual(raw.sessions[session.id].model, before);
+      assert.equal(app.registry.get('claude'), null);
+    } finally {
+      removeTempDir(dir);
+    }
+  });
+
+  it('REQ-008-B04: src 与 test 不再引用已删除 Claude 模块', () => {
+    const hits = findDeletedModuleReferences([
+      path.join(__dirname, '../src'),
+      path.join(__dirname, '.'),
+    ]);
+    assert.deepEqual(hits, []);
   });
 });

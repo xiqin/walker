@@ -72,39 +72,6 @@ function createConfigError(key, message) {
   return new Error(`${key} ${message}`);
 }
 
-function parseListValue(key, val, defaultVal) {
-  if (val === undefined || val === '') return defaultVal.slice();
-  const text = String(val).trim();
-  if (!text) return defaultVal.slice();
-  if (text.startsWith('[')) {
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch (_err) {
-      throw createConfigError(key, 'must be valid JSON array');
-    }
-    if (!Array.isArray(parsed)) throw createConfigError(key, 'must be a list');
-    if (!parsed.every((item) => typeof item === 'string')) throw createConfigError(key, 'must contain only strings');
-    return parsed.map((item) => item.trim()).filter(Boolean);
-  }
-  if (text.startsWith('{')) throw createConfigError(key, 'must be a list');
-  return text.split(',').map((item) => item.trim()).filter(Boolean);
-}
-
-function parseJsonObjectValue(key, val, defaultVal) {
-  if (val === undefined || val === '') return { ...defaultVal };
-  const text = String(val).trim();
-  if (!text) return { ...defaultVal };
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (_err) {
-    throw createConfigError(key, 'must be valid JSON object');
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw createConfigError(key, 'must be a JSON object');
-  return parsed;
-}
-
 /**
  * 加载环境配置，从环境变量 / .env 文件读取飞书凭据
  * @param {Object} options - 配置选项
@@ -120,6 +87,14 @@ function loadEnvConfig(options) {
       homeDir: options && options.homeDir,
       packageEnvPath: options && options.packageEnvPath,
     });
+  }
+
+  // 只把精确小写 claude 视为已移除接入。其他大小写按未知 agent 继续加载。
+  // 残留 CLAUDE_* 不进入结果对象，失败时也不改写 .env。
+  if (env.WALKER_DEFAULT_AGENT === 'claude') {
+    const error = new Error('Claude integration has been removed.');
+    error.code = 'claude_removed';
+    throw error;
   }
 
   const feishuAppId = env.FEISHU_APP_ID || '';
@@ -139,12 +114,6 @@ function loadEnvConfig(options) {
     if (s === 'false' || s === '0' || s === 'no') return false;
     if (key) throw createConfigError(key, 'must be boolean');
     return false;
-  }
-
-  function parseClaudePermissionMode(val) {
-    const text = val === undefined ? '' : String(val).trim();
-    if (!text || text === 'default') return '';
-    return text;
   }
 
   /**
@@ -190,27 +159,6 @@ function loadEnvConfig(options) {
     opencodeCmd: env.OPENCODE_CMD || 'opencode',
     opencodeModel: env.OPENCODE_MODEL || '',
     opencodeAgent: env.OPENCODE_AGENT || '',
-    claudeCmd: env.CLAUDE_CMD || 'claude',
-    claudeModel: env.CLAUDE_MODEL || '',
-    claudeFallbackModel: env.CLAUDE_FALLBACK_MODEL || '',
-    claudeAgent: env.CLAUDE_AGENT || '',
-    claudePermissionMode: parseClaudePermissionMode(env.CLAUDE_PERMISSION_MODE),
-    claudePermissionModeMigrated: env.CLAUDE_PERMISSION_MODE === 'default',
-    claudeAllowedTools: env.CLAUDE_ALLOWED_TOOLS || '',
-    claudeDisallowedTools: env.CLAUDE_DISALLOWED_TOOLS || '',
-    claudeConfigDir: env.CLAUDE_CONFIG_DIR || '',
-    claudeTools: parseListValue('CLAUDE_TOOLS', env.CLAUDE_TOOLS, []),
-    claudeAgents: parseJsonObjectValue('CLAUDE_AGENTS', env.CLAUDE_AGENTS, {}),
-    claudeMcpConfigs: parseListValue('CLAUDE_MCP_CONFIGS', env.CLAUDE_MCP_CONFIGS, []),
-    claudeStrictMcpConfig: parseBool(env.CLAUDE_STRICT_MCP_CONFIG, false, 'CLAUDE_STRICT_MCP_CONFIG'),
-    claudeSettingsFile: env.CLAUDE_SETTINGS_FILE || '',
-    claudeSettingSources: parseListValue('CLAUDE_SETTING_SOURCES', env.CLAUDE_SETTING_SOURCES, []),
-    claudePluginDirs: parseListValue('CLAUDE_PLUGIN_DIRS', env.CLAUDE_PLUGIN_DIRS, []),
-    claudeBare: parseBool(env.CLAUDE_BARE, false, 'CLAUDE_BARE'),
-    claudeSafeMode: parseBool(env.CLAUDE_SAFE_MODE, false, 'CLAUDE_SAFE_MODE'),
-    claudeDisableSlashCommands: parseBool(env.CLAUDE_DISABLE_SLASH_COMMANDS, false, 'CLAUDE_DISABLE_SLASH_COMMANDS'),
-    claudeAllowBypassPermissions: parseBool(env.CLAUDE_ALLOW_BYPASS_PERMISSIONS, false, 'CLAUDE_ALLOW_BYPASS_PERMISSIONS'),
-    claudePromptTimeoutMs: parsePositiveInt(env.CLAUDE_PROMPT_TIMEOUT_MS, 120000),
     feishuProgressStyle: env.FEISHU_PROGRESS_STYLE || 'card',
     feishuReactionEmoji: normalizeEmoji(env.FEISHU_REACTION_EMOJI, 'OnIt'),
     feishuDoneEmoji: normalizeEmoji(env.FEISHU_DONE_EMOJI, ''),

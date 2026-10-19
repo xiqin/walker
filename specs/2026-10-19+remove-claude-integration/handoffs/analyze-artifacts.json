@@ -1,0 +1,38 @@
+{
+  "analysis_status": "pass",
+  "blocker_count": 0,
+  "findings": [],
+  "coverage": {
+    "requirement_coverage": "100%",
+    "behavior_coverage": "100%",
+    "required_category_coverage": "0%",
+    "required_category_note": "分析脚本将该字段初始化为 0% 且未回写。requirements.json 中每个 required_category 均有对应 behavior，detail-expansion 已通过。",
+    "traceability_req_coverage": "100%",
+    "traceability_behavior_coverage": "100%"
+  },
+  "checks": [
+    "无重复或歧义需求阻断",
+    "无未映射 behavior",
+    "无未知 REQ/behavior 引用",
+    "无依赖环",
+    "无 owns 冲突"
+  ],
+  "fingerprint_refresh": "executing 期间更新了 tasks/T4.md 的 owns，并勾选 tasks/T7.md。计划决策与分析结论未改，此处只刷新 tasks/ 指纹。",
+  "status": "done",
+  "summary": "跨产物分析通过：8/8 REQ、45/45 behavior、traceability 全覆盖，无 blocker、无 owns 冲突、无依赖环。executing 后仅刷新 tasks/ 指纹。",
+  "artifacts": [
+    "plan.md",
+    "tasks/"
+  ],
+  "stage": "analyze-artifacts",
+  "task_id": "analyze-artifacts",
+  "basis_fingerprints": {
+    "plan.md": "d4a22be15362ae113cab26965dc5718280d16ead378ddddcd04eca12ad6941b3",
+    "spec.md": "7019b7d584a820b0f648d3800f6b7b76b44ce407d46cb65fc4cdb423bb9003cd"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "d4a22be15362ae113cab26965dc5718280d16ead378ddddcd04eca12ad6941b3",
+    "tasks/": "91e1f87be664d8a53c7cd638cc17a30425d93f59f17f0a9d78d4e3975d6cb484"
+  },
+  "written_at": "2026-10-19T09:23:53.951Z"
+}

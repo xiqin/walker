@@ -1,0 +1,40 @@
+{
+  "task_id": "T6",
+  "status": "done",
+  "summary": "现行 README、CONTRIBUTING、CHANGELOG Unreleased 和 walker-console-v2.html 不再把 Claude 列为可用 provider、配置项、可执行接入或预留扩展。Unreleased 记录了 Claude 集成移除，并保留 OpenCode、Codex、shell 诊断说明。已发布 0.1.0 段落未改写。",
+  "modified_files": [
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "walker-console-v2.html",
+    "specs/2026-10-19+remove-claude-integration/evidence/T6-doc-scan.log",
+    "specs/2026-10-19+remove-claude-integration/handoffs/T6.json"
+  ],
+  "requirements_verified": ["REQ-007"],
+  "behaviors_verified": ["REQ-007-B01", "REQ-007-B02", "REQ-007-B03"],
+  "traceability_updated": false,
+  "tests": [
+    {
+      "command": "Select-String -Path README.md,CHANGELOG.md,CONTRIBUTING.md,walker-console-v2.html -Pattern 'CLAUDE_','claude attach','未来实现' -SimpleMatch",
+      "status": "passed",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T6-doc-scan.log",
+      "summary": "三个强制模式均无匹配。未新增测试文件。"
+    }
+  ],
+  "evidence": [
+    "specs/2026-10-19+remove-claude-integration/evidence/T6-doc-scan.log"
+  ],
+  "behavior_checks": {
+    "REQ-007-B01": "对 README.md、CONTRIBUTING.md、walker-console-v2.html 做不区分大小写的 claude 文本扫描，无匹配。命令示例改为 opencode、codex、shell。原型页删除 claude 筛选项和尚未实现行。",
+    "REQ-007-B02": "检查 CHANGELOG.md 的 Unreleased 段：有移除 Claude 集成记录，provider 示例为 opencode、codex、shell，并保留 walker doctor、walker providers list、walker providers doctor 诊断说明。0.1.0 历史段落未改。",
+    "REQ-007-B03": "对四个 owned 文件搜索 CLAUDE_、claude attach 和未来实现，均无匹配。README 与原型页不再出现“Claude Code CLI，未来实现”或现行 Claude 预留扩展承诺。"
+  },
+  "notes": [
+    "设计审查：文档扫描不需要新生产抽象。本次只改现行说明文本，没有新增模块、接口或测试文件。",
+    "Codex 按当前代码描述为 stubCodexDriver：驱动方法未实现，catalog 健康检查为命令探测。shell 只在 provider catalog 中做 builtin 诊断，不注册为 Agent 驱动。",
+    "四个 owned 文件中本来没有 claude-sonnet-4 或 claude-opus-4，没有误删 OpenCode 模型名。",
+    "CHANGELOG 0.1.0 仍保留历史句子“claude：预留扩展点，Claude Code CLI”，这是已发布记录，不是现行承诺。",
+    "walker-console-v2.html 颜色映射仍有未使用的键“预留扩展点”，不是 Claude provider 行或可执行接入承诺。",
+    "未修改 .env.example、connections.js、源码、测试、traceability.json 或历史 specs。traceability_updated 为 false。"
+  ]
+}

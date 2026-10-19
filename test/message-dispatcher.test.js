@@ -164,22 +164,16 @@ describe('MessageDispatcher unbound route', () => {
 });
 
 describe('MessageDispatcher bound route prompt', () => {
-  it('Claude 首轮 prompt 后持久化 conversationReady 和终端状态', async () => {
+  it('REQ-004-B06: 并发消息打到同一旧 Claude 会话时全部拒绝且不调用 prompt', async () => {
     const mocks = makeMocks();
     const agentRef = {
       claudeSessionId: '11111111-1111-4111-8111-111111111111',
       conversationReady: false,
-      terminal: { status: 'pending' },
     };
     const session = { id: 'wks_claude_first', agent: 'claude', status: 'idle', agentRef };
-    const updates = [];
+    const promptCalls = [];
     mocks.sessionService.getCurrent = () => session;
-    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
-    mocks.driver.prompt = async (ref) => {
-      ref.conversationReady = true;
-      ref.terminal = { status: 'active', windowId: 'win_1' };
-      return [new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'success' })];
-    };
+    mocks.driver.prompt = async (...args) => { promptCalls.push(args); return []; };
     const dispatcher = new MessageDispatcher({
       sessionService: mocks.sessionService,
       driverRegistry: mocks.driverRegistry,
@@ -188,326 +182,110 @@ describe('MessageDispatcher bound route prompt', () => {
       routeMode: 'thread',
     });
 
-    const result = await dispatcher.handleIncomingMessage({
-      chatId: 'oc_chat1', messageId: 'om_claude_first', openId: 'ou_user1', text: '你好',
-      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
-    });
+    const [first, second] = await Promise.all([
+      dispatcher.handleIncomingMessage({
+        chatId: 'oc_chat1', messageId: 'om_claude_first', openId: 'ou_user1', text: '你好',
+        messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      }),
+      dispatcher.handleIncomingMessage({
+        chatId: 'oc_chat1', messageId: 'om_claude_second', openId: 'ou_user1', text: '继续',
+        messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      }),
+    ]);
 
-    assert.equal(result, 'prompted');
-    assert.equal(session.agentRef.conversationReady, true);
-    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
-      sessionId: 'wks_claude_first',
-      field: 'agentRef',
-      value: agentRef,
-    });
+    assert.equal(first.error, 'claude_removed');
+    assert.equal(second.error, 'claude_removed');
+    assert.equal(promptCalls.length, 0);
+    assert.equal(session.status, 'idle');
+    assert.equal(session.agentRef, agentRef);
+    assert.equal(mocks.feishuApi.calls.filter((call) => call.type === 'sendErrorCard' && call.message === 'Claude integration has been removed.').length, 2);
   });
 
-  it('REQ-005-B05: Claude prompt 后持久化完整 pty-attach agentRef', async () => {
+  it('REQ-005-B04: 连续两次 prompt 都返回 claude_removed 且记录仍可读取', async () => {
     const mocks = makeMocks();
     const agentRef = {
       provider: 'claude',
       transport: 'pty-attach',
       runtimeId: 'rt_claude_1',
       claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 1,
-      terminal: { status: 'pending' },
-      conversationReady: false,
     };
     const session = { id: 'wks_claude_pty', agent: 'claude', status: 'idle', agentRef };
     const updates = [];
     mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
     mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
-    mocks.driver.prompt = async (ref) => {
-      Object.assign(ref, {
-        conversationReady: true,
-        runtimeId: 'rt_claude_2',
-        claudeSessionId: '11111111-1111-4111-8111-111111111111',
-        processGeneration: 2,
-        terminal: { status: 'active', windowId: 'win_2' },
-      });
-      return [new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'submitted' })];
-    };
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
 
-    const result = await dispatcher.handleIncomingMessage({
+    const first = await dispatcher.handleIncomingMessage({
       chatId: 'oc_chat1', messageId: 'om_claude_pty1', openId: 'ou_user1', text: '继续',
       messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
       routeKey: 'feishu:oc_chat1:root:om_root1',
     });
+    const second = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_claude_pty2', openId: 'ou_user1', text: '再试一次',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      routeKey: 'feishu:oc_chat1:root:om_root1',
+    });
 
-    assert.equal(result, 'prompted');
-    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
-      sessionId: 'wks_claude_pty',
-      field: 'agentRef',
-      value: {
+    assert.equal(first.error, 'claude_removed');
+    assert.equal(second.error, 'claude_removed');
+    assert.equal(mocks.driver.promptCalls.length, 0);
+    assert.equal(updates.length, 0);
+    assert.equal(mocks.sessionService.getSession().id, 'wks_claude_pty');
+    assert.equal(mocks.sessionService.getSession().agent, 'claude');
+    assert.equal(mocks.sessionService.getSession().agentRef, agentRef);
+    assert.equal(session.status, 'idle');
+  });
+
+  it('REQ-005-B04: stale、fallback 和 legacy Claude ref 在 driver 前拒绝且不改写 agentRef', async () => {
+    const refs = [
+      {
         provider: 'claude',
         transport: 'pty-attach',
-        runtimeId: 'rt_claude_2',
+        runtimeId: 'rt_old_process',
         claudeSessionId: '11111111-1111-4111-8111-111111111111',
-        processGeneration: 2,
-        terminal: { status: 'active', windowId: 'win_2' },
+        processGeneration: 1,
+        terminal: { status: 'active', windowId: 'win_old' },
         conversationReady: true,
       },
-    });
-  });
-
-  it('Walker 重启后 stale Claude runtimeId 会先 resume 并持久化新 agentRef', async () => {
-    const mocks = makeMocks();
-    const oldRef = {
-      provider: 'claude',
-      transport: 'pty-attach',
-      runtimeId: 'rt_old_process',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 1,
-      terminal: { status: 'active', windowId: 'win_old' },
-      conversationReady: true,
-    };
-    const newRef = {
-      provider: 'claude',
-      transport: 'pty-attach',
-      runtimeId: 'rt_new_process',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 2,
-      terminal: { status: 'active', windowId: 'win_new' },
-      conversationReady: true,
-    };
-    const session = { id: 'wks_claude_restart', agent: 'claude', status: 'idle', agentRef: oldRef };
-    const updates = [];
-    const resumed = [];
-    mocks.sessionService.getCurrent = () => session;
-    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
-    mocks.driver.isSessionRefActive = () => false;
-    mocks.driver.resumeSession = async (ref) => {
-      resumed.push(ref);
-      return newRef;
-    };
-    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
-
-    const result = await dispatcher.handleIncomingMessage({
-      chatId: 'oc_chat1', messageId: 'om_claude_restart', openId: 'ou_user1', text: '继续',
-      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
-      routeKey: 'feishu:oc_chat1:root:om_root1',
-    });
-
-    assert.equal(result, 'prompted');
-    assert.deepEqual(resumed, [oldRef]);
-    assert.equal(session.agentRef, newRef);
-    assert.equal(mocks.driver.promptCalls[0].agentRef, newRef);
-    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
-      sessionId: 'wks_claude_restart',
-      field: 'agentRef',
-      value: newRef,
-    });
-  });
-
-  it('Claude stale ref 续接时等待 resume 和持久化完成后才 prompt', async () => {
-    const mocks = makeMocks();
-    const order = [];
-    let releaseUpdate;
-    const updateDone = new Promise((resolve) => { releaseUpdate = resolve; });
-    const oldRef = {
-      provider: 'claude',
-      transport: 'pty-attach',
-      runtimeId: 'rt_stale_active',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 1,
-      terminal: { status: 'active', windowId: 'win_stale' },
-      conversationReady: true,
-    };
-    const newRef = {
-      provider: 'claude',
-      transport: 'pty-attach',
-      runtimeId: 'rt_reconnected',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 2,
-      terminal: { status: 'active', windowId: 'win_reconnected' },
-      conversationReady: true,
-    };
-    const session = { id: 'wks_claude_order', agent: 'claude', status: 'idle', agentRef: oldRef };
-    mocks.sessionService.getCurrent = () => session;
-    mocks.sessionService.updateSessionField = async (_sessionId, field, value) => {
-      order.push('update:start:' + value.runtimeId);
-      assert.equal(field, 'agentRef');
-      await updateDone;
-      order.push('update:done:' + value.runtimeId);
-    };
-    mocks.driver.isSessionRefActive = (ref) => {
-      order.push('active:' + ref.runtimeId);
-      return false;
-    };
-    mocks.driver.resumeSession = async (ref) => {
-      order.push('resume:' + ref.runtimeId);
-      return newRef;
-    };
-    mocks.driver.prompt = async (ref) => {
-      order.push('prompt:' + ref.runtimeId);
-      return [new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'submitted' })];
-    };
-    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
-
-    const pending = dispatcher.handleIncomingMessage({
-      chatId: 'oc_chat1', messageId: 'om_claude_order', openId: 'ou_user1', text: '继续',
-      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
-      routeKey: 'feishu:oc_chat1:root:om_root1',
-    });
-    await new Promise((resolve) => setImmediate(resolve));
-
-    assert.deepEqual(order, [
-      'active:rt_stale_active',
-      'resume:rt_stale_active',
-      'update:start:rt_reconnected',
-    ]);
-
-    releaseUpdate();
-    const result = await pending;
-
-    assert.equal(result, 'prompted');
-    assert.equal(session.agentRef, newRef);
-    assert.deepEqual(order.slice(0, 5), [
-      'active:rt_stale_active',
-      'resume:rt_stale_active',
-      'update:start:rt_reconnected',
-      'update:done:rt_reconnected',
-      'prompt:rt_reconnected',
-    ]);
-  });
-
-  it('Claude agentRef 持久化失败时不写入 prompt', async () => {
-    const mocks = makeMocks();
-    const oldRef = {
-      provider: 'claude',
-      transport: 'pty-attach',
-      runtimeId: 'rt_stale_unpersisted',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 1,
-      terminal: { status: 'active' },
-      conversationReady: true,
-    };
-    const newRef = {
-      provider: 'claude',
-      transport: 'bridge-sidecar',
-      runtimeId: 'rt_reconnected_unpersisted',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 2,
-      runtimeStatus: 'reconnected',
-      conversationReady: true,
-    };
-    const session = { id: 'wks_claude_persist_fail', agent: 'claude', status: 'idle', agentRef: oldRef };
-    mocks.sessionService.getCurrent = () => session;
-    mocks.sessionService.updateSessionField = async () => { throw new Error('disk unavailable'); };
-    mocks.driver.isSessionRefActive = () => false;
-    mocks.driver.resumeSession = async () => newRef;
-    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
-
-    const result = await dispatcher.handleIncomingMessage({
-      chatId: 'oc_chat1', messageId: 'om_claude_persist_fail', openId: 'ou_user1', text: '继续',
-      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
-      routeKey: 'feishu:oc_chat1:root:om_root1',
-    });
-
-    assert.equal(result, 'error');
-    assert.equal(session.agentRef, oldRef);
-    assert.equal(mocks.driver.promptCalls.length, 0);
-    assert.equal(mocks.feishuApi.calls.some((call) => call.type === 'sendErrorCard'), true);
-  });
-
-  it('Claude fallback 后 prompt 使用新 ref 且旧 terminal active 不能绕过 driver 判定', async () => {
-    const mocks = makeMocks();
-    const oldRef = {
-      provider: 'claude',
-      transport: 'pty-attach',
-      runtimeId: 'rt_old_active_but_dead',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 1,
-      terminal: { status: 'active', windowId: 'win_old' },
-      conversationReady: true,
-    };
-    const fallbackRef = {
-      provider: 'claude',
-      transport: 'pty-attach',
-      runtimeId: 'rt_fallback_new',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 2,
-      terminal: { status: 'active', windowId: 'win_new' },
-      conversationReady: true,
-    };
-    const session = { id: 'wks_claude_fallback', agent: 'claude', status: 'idle', agentRef: oldRef };
-    const updates = [];
-    let activeChecks = 0;
-    mocks.sessionService.getCurrent = () => session;
-    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
-    mocks.driver.isSessionRefActive = (ref) => {
-      activeChecks += 1;
-      assert.equal(ref, oldRef);
-      return false;
-    };
-    mocks.driver.resumeSession = async (ref) => {
-      assert.equal(ref, oldRef);
-      return fallbackRef;
-    };
-    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
-
-    const result = await dispatcher.handleIncomingMessage({
-      chatId: 'oc_chat1', messageId: 'om_claude_fallback', openId: 'ou_user1', text: '继续',
-      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
-      routeKey: 'feishu:oc_chat1:root:om_root1',
-    });
-
-    assert.equal(result, 'prompted');
-    assert.equal(activeChecks, 1);
-    assert.equal(session.agentRef, fallbackRef);
-    assert.equal(mocks.driver.promptCalls[0].agentRef, fallbackRef);
-    assert.equal(mocks.driver.promptCalls[0].agentRef.runtimeId, 'rt_fallback_new');
-    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
-      sessionId: 'wks_claude_fallback',
-      field: 'agentRef',
-      value: fallbackRef,
-    });
-  });
-
-  it('Claude 旧格式缺少 bridge 字段但有 claudeSessionId 时可 fallback 恢复', async () => {
-    const mocks = makeMocks();
-    const legacyRef = {
-      provider: 'claude',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      cwd: 'H:\\walker',
-      terminal: { status: 'active' },
-      conversationReady: true,
-    };
-    const fallbackRef = {
-      provider: 'claude',
-      transport: 'pty-attach',
-      runtimeId: 'rt_legacy_fallback',
-      claudeSessionId: '11111111-1111-4111-8111-111111111111',
-      processGeneration: 1,
-      terminal: { status: 'active', windowId: 'win_legacy' },
-      conversationReady: true,
-    };
-    const session = { id: 'wks_claude_legacy', agent: 'claude', status: 'idle', agentRef: legacyRef };
-    const updates = [];
-    mocks.sessionService.getCurrent = () => session;
-    mocks.sessionService.updateSessionField = (sessionId, field, value) => updates.push({ sessionId, field, value });
-    mocks.driver.isSessionRefActive = () => { throw new Error('legacy ref should not use active shortcut'); };
-    mocks.driver.resumeSession = async (ref) => {
-      assert.equal(ref, legacyRef);
-      return fallbackRef;
-    };
-    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
-
-    const result = await dispatcher.handleIncomingMessage({
-      chatId: 'oc_chat1', messageId: 'om_claude_legacy', openId: 'ou_user1', text: '继续',
-      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
-      routeKey: 'feishu:oc_chat1:root:om_root1',
-    });
-
-    assert.equal(result, 'prompted');
-    assert.equal(session.agentRef, fallbackRef);
-    assert.equal(mocks.driver.promptCalls[0].agentRef, fallbackRef);
-    assert.deepEqual(updates.find((update) => update.field === 'agentRef'), {
-      sessionId: 'wks_claude_legacy',
-      field: 'agentRef',
-      value: fallbackRef,
-    });
+      {
+        provider: 'claude',
+        transport: 'pty-attach',
+        runtimeId: 'rt_old_active_but_dead',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        terminal: { status: 'active', windowId: 'win_old' },
+        conversationReady: true,
+      },
+      {
+        provider: 'claude',
+        claudeSessionId: '11111111-1111-4111-8111-111111111111',
+        cwd: 'H:\\walker',
+        terminal: { status: 'active' },
+        conversationReady: true,
+      },
+    ];
+    for (const [index, agentRef] of refs.entries()) {
+      const mocks = makeMocks();
+      const session = { id: 'wks_claude_stale_' + index, agent: 'claude', status: 'idle', agentRef };
+      const updates = [];
+      mocks.sessionService.getCurrent = () => session;
+      mocks.sessionService.getSession = () => session;
+      mocks.sessionService.updateSessionField = (...args) => { updates.push(args); };
+      mocks.driver.isSessionRefActive = () => { throw new Error('claude active check must not run'); };
+      mocks.driver.resumeSession = async () => { throw new Error('claude resume must not run'); };
+      const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+      const result = await dispatcher.handleIncomingMessage({
+        chatId: 'oc_chat1', messageId: 'om_claude_stale_' + index, openId: 'ou_user1', text: '继续',
+        messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+        routeKey: 'feishu:oc_chat1:root:om_root1',
+      });
+      assert.equal(result.error, 'claude_removed');
+      assert.equal(session.agentRef, agentRef);
+      assert.equal(session.status, 'idle');
+      assert.equal(updates.length, 0);
+      assert.equal(mocks.driver.promptCalls.length, 0);
+      assert.equal(mocks.feishuApi.calls.some((call) => call.type === 'sendErrorCard' && call.message === 'Claude integration has been removed.'), true);
+    }
   });
 
   it('_callFeishu 为支持的飞书消息方法追加最新 session 模型和上下文 metadata', async () => {
@@ -2302,26 +2080,16 @@ describe('MessageDispatcher /new command', () => {
     assert.equal(sendMarkdown.text, '终端回复');
   });
 
-  it('REQ-010-B01/B06/B11: /new claude 创建 session 后展示终端窗口状态且不要求 opencodeSessionId', async () => {
+  it('REQ-004-B01: /new claude 在 driver 和 createSession 之前返回 claude_removed', async () => {
     const mocks = makeMocks();
-    const created = {};
+    const gets = [];
     const claudeDriver = {
-      ensureReady: async () => true,
-      createSession: async (opts) => ({
-        provider: 'claude',
-        transport: 'cli-terminal',
-        claudeSessionId: '11111111-1111-4111-8111-111111111111',
-        cwd: opts.cwd,
-        title: opts.title,
-        terminal: { status: 'active', windowId: 'win_1' },
-      }),
-      watchSession: () => () => {},
+      ensureReady: async () => { throw new Error('ensureReady must not run'); },
+      createSession: async () => { throw new Error('createSession must not run'); },
+      watchSession: () => { throw new Error('watchSession must not run'); },
     };
-    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
-    mocks.sessionService.createSession = (opts) => {
-      created.opts = opts;
-      return { id: 'wks_claude1', agent: opts.agent, status: 'created', route: opts.route, agentRef: opts.agentRef };
-    };
+    mocks.driverRegistry.get = (name) => { gets.push(name); return name === 'claude' ? claudeDriver : mocks.driver; };
+    mocks.sessionService.createSession = () => { throw new Error('session store must not be written'); };
     const dispatcher = new MessageDispatcher({
       sessionService: mocks.sessionService,
       driverRegistry: mocks.driverRegistry,
@@ -2335,45 +2103,16 @@ describe('MessageDispatcher /new command', () => {
       routeKey: 'feishu:oc_chat1:om_root1',
       messageId: 'om_new_claude1', chatId: 'oc_chat1',
     });
-
-    assert.equal(result.sessionId, 'wks_claude1');
-    assert.equal(created.opts.title, 'kscc-test');
-    assert.equal(created.opts.agentRef.claudeSessionId, '11111111-1111-4111-8111-111111111111');
-    assert.equal(created.opts.agentRef.opencodeSessionId, undefined);
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.match(reply.text, /Session created: wks_claude1 \(claude\)/);
-    assert.match(reply.text, /terminal active/);
-  });
-
-  it('REQ-010-B03/B05/B11: /new claude 终端降级时回复明确状态', async () => {
-    const mocks = makeMocks();
-    const claudeDriver = {
-      ensureReady: async () => true,
-      createSession: async () => ({
-        provider: 'claude',
-        transport: 'cli-terminal',
-        claudeSessionId: '11111111-1111-4111-8111-111111111111',
-        terminal: { status: 'failed', reason: 'spawn failed' },
-      }),
-      watchSession: () => () => {},
-    };
-    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
-    mocks.sessionService.createSession = (opts) => ({ id: 'wks_claude_failed1', agent: opts.agent, status: 'created', route: opts.route, agentRef: opts.agentRef });
-    const dispatcher = new MessageDispatcher({
-      sessionService: mocks.sessionService,
-      driverRegistry: mocks.driverRegistry,
-      feishuApi: mocks.feishuApi,
-      dedup: mocks.dedup,
-      routeMode: 'thread',
-    });
-
-    await dispatcher.handleCommand({
+    const direct = await dispatcher._cmdNew({
       type: 'command', name: 'new', args: ['claude', 'kscc-test'],
-      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_new_claude_failed1', chatId: 'oc_chat1',
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_new_claude_direct', chatId: 'oc_chat1',
     });
 
-    const reply = mocks.feishuApi.calls.find(c => c.type === 'replyText');
-    assert.match(reply.text, /terminal failed: spawn failed/);
+    assert.equal(result.error, 'claude_removed');
+    assert.equal(direct.error, 'claude_removed');
+    assert.deepEqual(gets, []);
+    assert.equal(mocks.feishuApi.calls.filter((call) => call.type === 'sendErrorCard' && call.message === 'Claude integration has been removed.').length, 2);
   });
 
   it('/new driver 准备失败时发送错误卡片并返回错误结果', async () => {
@@ -2560,7 +2299,7 @@ describe('MessageDispatcher command error boundary', () => {
 });
 
 describe('MessageDispatcher turn lifecycle commands', () => {
-  it('REQ-005-B05: /stop 和 /delete 使用 Claude pty-attach agentRef 调用 driver', async () => {
+  it('REQ-005-B07: /stop 和 /delete 不调用注入的 claude driver，只更新本地记录', async () => {
     const mocks = makeMocks();
     const agentRef = {
       provider: 'claude',
@@ -2572,15 +2311,18 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     const session = { id: 'wks_claude_stop1', agent: 'claude', status: 'idle', agentRef };
     const stopCalls = [];
     const deleteCalls = [];
+    const local = [];
     mocks.sessionService.getCurrent = () => session;
     mocks.sessionService.getSession = () => session;
     mocks.sessionService.listSessionsInRoute = () => [session];
-    mocks.sessionService.stopSession = () => { session.status = 'stopped'; };
+    mocks.sessionService.stopSession = (id) => { local.push('stop:' + id); session.status = 'stopped'; };
+    mocks.sessionService.deleteSession = (id) => { local.push('delete:' + id); session.status = 'deleted'; };
     const claudeDriver = {
       stop: async (ref) => { stopCalls.push(ref); },
       delete: async (ref) => { deleteCalls.push(ref); },
     };
-    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
+    const gets = [];
+    mocks.driverRegistry.get = (name) => { gets.push(name); return name === 'claude' ? claudeDriver : mocks.driver; };
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
 
     const stopped = await dispatcher.handleCommand({
@@ -2594,8 +2336,12 @@ describe('MessageDispatcher turn lifecycle commands', () => {
 
     assert.equal(stopped.stopped, 'wks_claude_stop1');
     assert.equal(deleted.deleted, 'wks_claude_stop1');
-    assert.deepEqual(stopCalls, [agentRef]);
-    assert.deepEqual(deleteCalls, [agentRef]);
+    assert.deepEqual(local, ['stop:wks_claude_stop1', 'delete:wks_claude_stop1']);
+    assert.deepEqual(stopCalls, []);
+    assert.deepEqual(deleteCalls, []);
+    assert.equal(gets.includes('claude'), false);
+    assert.equal(session.agent, 'claude');
+    assert.equal(session.agentRef, agentRef);
   });
 
   it('/cancel 无绑定 session 时返回可诊断提示', async () => {
@@ -3001,7 +2747,7 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     assert.equal(sendCardCalls.length, 0, '非 card 模式不应建进度卡片');
   });
 
-  it('REQ-005-B05: Claude pty-attach watch 使用 claudeSessionId/runtimeId 并路由到飞书', async () => {
+  it('REQ-005-B07: Claude watch 不调用注入 driver.watchSession', () => {
     const mocks = makeMocks();
     const session = {
       id: 'wks_claude_watch1',
@@ -3015,113 +2761,61 @@ describe('MessageDispatcher turn lifecycle commands', () => {
         claudeSessionId: '11111111-1111-4111-8111-111111111111',
       },
     };
-    let watchedRef;
-    let watchedHandlers;
-    mocks.driver.watchSession = (agentRef, handlers) => {
-      watchedRef = agentRef;
-      watchedHandlers = handlers;
-      return () => {};
-    };
+    let watchCount = 0;
+    const claudeDriver = { watchSession: () => { watchCount += 1; return () => {}; } };
+    mocks.driver.watchSession = () => { watchCount += 1; return () => {}; };
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
 
-    dispatcher._watchSessionEvents(session, { chatId: 'oc_chat1' }, mocks.driver);
-    const tokenUsage = { inputTokens: 12, outputTokens: 8, cacheReadTokens: 100, cacheWriteTokens: 5, totalTokens: 125 };
-    await watchedHandlers.onEvent(new AgentEvent(AgentEvent.TYPE_TEXT, {
-      text: 'Claude 本地 TUI 回复',
-      model: 'claude-sonnet-4-20250514',
-      contextSize: 125,
-      tokenUsage,
-    }));
-    await watchedHandlers.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, {
-      reason: 'watch',
-      model: 'claude-sonnet-4-20250514',
-      contextSize: 125,
-      tokenUsage,
-    }));
-    await new Promise((resolve) => setImmediate(resolve));
+    dispatcher._watchSessionEvents(session, { chatId: 'oc_chat1' }, claudeDriver);
 
-    assert.deepEqual(watchedRef, session.agentRef);
-    const send = mocks.feishuApi.calls.find(c => c.type === 'sendMarkdown');
-    assert.equal(send.chatId, 'oc_chat1');
-    assert.equal(send.text, 'Claude 本地 TUI 回复');
-    assert.equal(send.runtime.model, 'claude-sonnet-4-20250514');
-    assert.equal(send.runtime.contextSize, 125);
-    assert.deepEqual(send.runtime.tokenUsage, tokenUsage);
+    assert.equal(watchCount, 0);
+    assert.equal(dispatcher.sessionWatchStops.has(session.id), false);
+    assert.equal(mocks.feishuApi.calls.some((call) => call.type === 'sendMarkdown'), false);
   });
 });
 
 describe('MessageDispatcher /attach command', () => {
-  it('REQ-005-B05: /attach claude <uuid> 精确 resume 并持久化 pty-attach ref', async () => {
+  it('REQ-004-B01/B02: /attach claude 的 UUID、无参、分页和搜索都在 driver 前拒绝', async () => {
     const mocks = makeMocks();
-    const uuid = '11111111-1111-4111-8111-111111111111';
-    const resumeCalls = [];
-    let createOpts;
-    let watchedRef;
+    const counts = { listSessions: 0, resumeSession: 0, ensureReady: 0, gets: [] };
     const claudeDriver = {
-      ensureReady: async () => true,
-      resumeSession: async (ref) => {
-        resumeCalls.push(ref);
-        return Object.assign({}, ref, {
-          provider: 'claude',
-          transport: 'pty-attach',
-          runtimeId: 'rt_resumed_1',
-          processGeneration: 3,
-          terminal: { status: 'active', windowId: 'win_resumed' },
-        });
-      },
-      watchSession: (agentRef) => { watchedRef = agentRef; return () => {}; },
-    };
-    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
-    mocks.sessionService.createSession = (opts) => {
-      createOpts = opts;
-      return { id: 'wks_claude_attached1', agent: opts.agent, status: 'created', route: opts.route, agentRef: opts.agentRef };
-    };
-    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', defaultCwd: 'H:\walker' });
-
-    const result = await dispatcher.handleCommand({
-      type: 'command', name: 'attach', args: ['claude', uuid],
-      routeKey: 'feishu:oc_chat1:om_root1',
-      messageId: 'om_attach_claude1', chatId: 'oc_chat1',
-    });
-
-    assert.equal(result.sessionId, 'wks_claude_attached1');
-    assert.deepEqual(resumeCalls, [{ claudeSessionId: uuid, cwd: 'H:\walker' }]);
-    assert.equal(createOpts.agent, 'claude');
-    assert.equal(createOpts.agentRef.transport, 'pty-attach');
-    assert.equal(createOpts.agentRef.runtimeId, 'rt_resumed_1');
-    assert.equal(createOpts.agentRef.claudeSessionId, uuid);
-    assert.equal(createOpts.agentRef.processGeneration, 3);
-    assert.deepEqual(createOpts.agentRef.terminal, { status: 'active', windowId: 'win_resumed' });
-    assert.deepEqual(watchedRef, createOpts.agentRef);
-    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'replyText' && c.text.includes('Claude session attached')));
-  });
-
-  it('REQ-005-B05: /attach claude 非法 UUID fail closed 且不调用 resumeSession;无参进入列举', async () => {
-    const mocks = makeMocks();
-    const resumeCalls = [];
-    const claudeDriver = {
-      ensureReady: async () => true,
-      listSessions: async () => [],
-      resumeSession: async (ref) => { resumeCalls.push(ref); return ref; },
+      ensureReady: async () => { counts.ensureReady += 1; },
+      listSessions: async () => { counts.listSessions += 1; return []; },
+      resumeSession: async (ref) => { counts.resumeSession += 1; return ref; },
       watchSession: () => () => {},
     };
-    mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
-    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    mocks.driverRegistry.get = (name) => { counts.gets.push(name); return name === 'claude' ? claudeDriver : mocks.driver; };
+    mocks.sessionService.createSession = () => { throw new Error('session store must not be written'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', defaultCwd: 'H:\\walker' });
+    const uuid = '11111111-1111-4111-8111-111111111111';
+    const cases = [
+      ['claude'],
+      ['claude', uuid],
+      ['claude', 'not-a-uuid'],
+      ['claude', '--page', '1'],
+      ['claude', '--search', 'walker'],
+    ];
 
-    const missing = await dispatcher.handleCommand({
-      type: 'command', name: 'attach', args: ['claude'],
-      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_attach_claude_missing1', chatId: 'oc_chat1',
-    });
-    const invalid = await dispatcher.handleCommand({
-      type: 'command', name: 'attach', args: ['claude', 'not-a-uuid'],
-      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_attach_claude_invalid1', chatId: 'oc_chat1',
+    for (const [index, args] of cases.entries()) {
+      const result = await dispatcher.handleCommand({
+        type: 'command', name: 'attach', args,
+        routeKey: 'feishu:oc_chat1:om_root1',
+        messageId: 'om_attach_claude_' + index, chatId: 'oc_chat1',
+      });
+      assert.equal(result.error, 'claude_removed');
+    }
+    const direct = await dispatcher._cmdAttach({
+      type: 'command', name: 'attach', args: ['claude', uuid],
+      routeKey: 'feishu:oc_chat1:om_root1', messageId: 'om_attach_claude_direct', chatId: 'oc_chat1',
     });
 
-    assert.equal(missing.error, undefined, '无参进入列举而非 fail closed');
-    assert.ok(mocks.feishuApi.calls.some((c) => c.type === 'sendAttachableSessionList'), '无参列出 Claude 会话卡片');
-    assert.equal(invalid.error, 'invalid_claude_session_id');
-    assert.deepEqual(resumeCalls, []);
-    assert.equal(mocks.feishuApi.calls.filter((c) => c.type === 'sendErrorCard' && /Claude session id/.test(c.message)).length, 1);
+    assert.equal(direct.error, 'claude_removed');
+    assert.equal(counts.listSessions, 0);
+    assert.equal(counts.resumeSession, 0);
+    assert.equal(counts.ensureReady, 0);
+    assert.equal(counts.gets.includes('claude'), false);
+    assert.equal(mocks.feishuApi.calls.filter((call) => call.type === 'sendErrorCard' && call.message === 'Claude integration has been removed.').length, cases.length + 1);
+    assert.equal(mocks.feishuApi.calls.some((call) => call.type === 'sendAttachableSessionList'), false);
   });
 
   it('/attach 单个 OpenCode 候选时仍发送混合列表卡片', async () => {
@@ -3151,7 +2845,7 @@ describe('MessageDispatcher /attach command', () => {
     const cardCall = mocks.feishuApi.calls.find(c => c.type === 'sendAttachableSessionList');
     assert.equal(result.candidates.length, 1);
     assert.ok(cardCall);
-    assert.equal(cardCall.options.agent, 'mixed');
+    assert.equal(cardCall.options.agent, 'opencode');
     assert.deepEqual(cardCall.sessions, [{ id: 'ses_existing1', title: 'terminal session', cwd: 'H:\\walker', status: 'idle', agent: 'opencode' }]);
   });
 
@@ -4648,13 +4342,17 @@ describe('MessageDispatcher ensureWatchForSession', () => {
     assert.equal(dispatcher.sessionWatchStops.has(session.id), true, '调用后应启动 watch');
   });
 
-  it('REQ-010-B04/B06: Claude session 通过 claudeSessionId 启动 watch 且重复调用幂等', () => {
+  it('REQ-005-B07: ensureWatchForSession 与 restoreWatches 不启动 Claude watch，OpenCode 仍可恢复', () => {
     const mocks = makeMocks();
-    const session = { id: 'wks_claude_watch1', agent: 'claude', status: 'idle', agentRef: { claudeSessionId: 'claude_watch1', transport: 'cli-terminal', terminal: { status: 'active' } } };
-    mocks.sessionService.getSession = (id) => id === session.id ? session : null;
+    const claudeSession = { id: 'wks_claude_watch1', agent: 'claude', status: 'idle', agentRef: { claudeSessionId: 'claude_watch1', transport: 'cli-terminal', terminal: { status: 'active' } } };
+    const opencodeSession = { id: 'wks_oc_watch1', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_oc_watch1' } };
+    mocks.sessionService.getSession = (id) => id === claudeSession.id ? claudeSession : id === opencodeSession.id ? opencodeSession : null;
+    mocks.sessionService.listSessions = () => [claudeSession, opencodeSession];
     mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
-    let watchCount = 0;
-    const claudeDriver = { watchSession: () => { watchCount += 1; return () => {}; } };
+    let claudeWatch = 0;
+    let opencodeWatch = 0;
+    const claudeDriver = { watchSession: () => { claudeWatch += 1; return () => {}; } };
+    mocks.driver.watchSession = () => { opencodeWatch += 1; return () => {}; };
     mocks.driverRegistry.get = (name) => name === 'claude' ? claudeDriver : mocks.driver;
     const dispatcher = new MessageDispatcher({
       sessionService: mocks.sessionService,
@@ -4664,11 +4362,14 @@ describe('MessageDispatcher ensureWatchForSession', () => {
       routeMode: 'thread',
     });
 
-    dispatcher.ensureWatchForSession(session.id);
-    dispatcher.ensureWatchForSession(session.id);
+    dispatcher.ensureWatchForSession(claudeSession.id);
+    dispatcher.ensureWatchForSession(claudeSession.id, { refresh: true });
+    dispatcher.restoreWatches();
 
-    assert.equal(watchCount, 1);
-    assert.equal(dispatcher.sessionWatchStops.has(session.id), true);
+    assert.equal(claudeWatch, 0);
+    assert.equal(dispatcher.sessionWatchStops.has(claudeSession.id), false);
+    assert.equal(opencodeWatch, 1);
+    assert.equal(dispatcher.sessionWatchStops.has(opencodeSession.id), true);
   });
 
   it('session 不存在时安全跳过', () => {
@@ -5860,5 +5561,342 @@ describe('MessageDispatcher watch buffer 空时从历史补取完成回答', () 
     const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
     assert.equal(sends.length, 0, 'dispatcher destroy 后，悬挂的 DONE 补取不应继续发送飞书消息');
     assert.equal(dispatcher.sessionDoneInFlight.size, 0, 'destroy 后 in-flight DONE 队列应保持清空');
+  });
+});
+
+describe('MessageDispatcher Claude integration removed', () => {
+  const REMOVED = 'Claude integration has been removed.';
+
+  function command(name, args, extra) {
+    return Object.assign({
+      type: 'command',
+      name,
+      args: args || [],
+      routeKey: 'feishu:oc_chat1:om_root1',
+      messageId: 'om_' + name + '_' + (args || []).join('_'),
+      chatId: 'oc_chat1',
+    }, extra || {});
+  }
+
+  it('REQ-004-B03: /new claude、/new Claude 与普通 /attach 走三条互不混淆的路径', async () => {
+    const mocks = makeMocks();
+    const gets = [];
+    mocks.driverRegistry.get = (name) => {
+      gets.push(name);
+      if (name === 'Claude') return null;
+      return mocks.driver;
+    };
+    mocks.driver.listSessions = async () => [{ id: 'ses_oc', title: 'oc', cwd: 'H:\\walker', status: 'idle' }];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    const defaultDispatcher = new MessageDispatcher({
+      ...mocks,
+      dedup: new MessageDedup({ windowMs: 300000 }),
+      routeMode: 'thread',
+      defaultAgent: 'claude',
+    });
+
+    const removed = await dispatcher.handleCommand(command('new', ['claude'], { messageId: 'om_b03_claude' }));
+    const unknown = await dispatcher.handleCommand(command('new', ['Claude'], { messageId: 'om_b03_Claude' }));
+    const attached = await dispatcher.handleCommand(command('attach', [], { messageId: 'om_b03_attach' }));
+    const implicit = await defaultDispatcher.handleCommand(command('new', ['--cwd', 'H:\\walker'], { messageId: 'om_b03_default' }));
+
+    assert.equal(removed.error, 'claude_removed');
+    assert.equal(unknown.error, 'driver_not_found');
+    assert.notEqual(unknown.error, 'claude_removed');
+    assert.ok(mocks.feishuApi.calls.some((call) => call.type === 'sendErrorCard' && call.message === 'Agent not found: Claude'));
+    assert.equal(attached.error, undefined);
+    assert.equal(attached.candidates.length, 1);
+    assert.equal(implicit.error, 'claude_removed');
+    assert.equal(gets.includes('claude'), false);
+    assert.equal(gets.includes('Claude'), true);
+    assert.equal(gets.includes('opencode'), true);
+  });
+
+  it('REQ-004-B04: /new claude 不写入 store，也不改变当前 OpenCode 绑定', async () => {
+    const mocks = makeMocks();
+    const current = { id: 'wks_oc_current', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_oc' } };
+    const sessions = [current];
+    const writes = [];
+    mocks.sessionService.getCurrent = () => current;
+    mocks.sessionService.listSessions = () => sessions.slice();
+    mocks.sessionService.createSession = () => { writes.push('create'); };
+    mocks.sessionService.bindRoute = () => { writes.push('bind'); };
+    mocks.sessionService.setFocus = () => { writes.push('focus'); };
+    mocks.sessionService.updateSessionField = () => { writes.push('update'); };
+    mocks.sessionService.stopSession = () => { writes.push('stop'); };
+    mocks.sessionService.deleteSession = () => { writes.push('delete'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const result = await dispatcher.handleCommand(command('new', ['claude', 'title'], { messageId: 'om_b04' }));
+
+    assert.equal(result.error, 'claude_removed');
+    assert.equal(mocks.sessionService.getCurrent().id, 'wks_oc_current');
+    assert.equal(mocks.sessionService.listSessions().length, 1);
+    assert.deepEqual(writes, []);
+    assert.deepEqual(mocks.sessionService.touchRouteCalls, []);
+  });
+
+  it('REQ-004-B05: 重复 /new claude 与 /attach claude 不累积会话', async () => {
+    const mocks = makeMocks();
+    let sessionCount = 1;
+    mocks.sessionService.listSessions = () => Array.from({ length: sessionCount }, (_item, index) => ({ id: 'wks_' + index }));
+    mocks.sessionService.createSession = () => { sessionCount += 1; return { id: 'wks_new' }; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    const same = command('new', ['claude'], { messageId: 'om_b05_same' });
+    const attach = command('attach', ['claude', '--page', '2'], { messageId: 'om_b05_attach' });
+
+    const first = await dispatcher.handleCommand(same);
+    const second = await dispatcher.handleCommand(same);
+    const third = await dispatcher.handleCommand(attach);
+    const fourth = await dispatcher.handleCommand(attach);
+
+    assert.equal(first.error, 'claude_removed');
+    assert.equal(second.error, 'claude_removed');
+    assert.equal(second.duplicate, undefined);
+    assert.equal(third.error, 'claude_removed');
+    assert.equal(fourth.error, 'claude_removed');
+    assert.equal(fourth.duplicate, undefined);
+    assert.equal(sessionCount, 1);
+  });
+
+  it('REQ-004-B07: 带 cwd 的入站消息不自动绑定 Claude，源码也不再保留 attach 开关', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const source = fs.readFileSync(path.join(__dirname, '../src/dispatch/message-dispatcher.js'), 'utf8');
+    for (const name of ['_cmdAttachClaude', '_attachClaudeSession', '_prepareClaudeAgentRef', '_tryAutoBindClaudeRoute', '_managedClaudeSessionIds', '_findSessionByClaudeId']) {
+      assert.equal(source.includes(name), false, name);
+    }
+    assert.equal(/enableClaude|claudeAttachEnabled|CLAUDE_ATTACH_ENABLED/.test(source), false);
+    const mocks = makeMocks();
+    const counts = { listSessions: 0, gets: [] };
+    const claudeDriver = {
+      listSessions: async () => { counts.listSessions += 1; return [{ id: '11111111-1111-4111-8111-111111111111', cwd: 'H:\\walker' }]; },
+      resumeSession: async () => { throw new Error('resume must not run'); },
+    };
+    mocks.driverRegistry.get = (name) => { counts.gets.push(name); return name === 'claude' ? claudeDriver : mocks.driver; };
+    mocks.sessionService.createSession = () => { throw new Error('create must not run'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', defaultCwd: 'H:\\walker' });
+
+    const result = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_autobind', openId: 'ou_user1', text: 'hello',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+      cwd: 'H:\\walker',
+    });
+
+    assert.equal(result, 'unbound');
+    assert.equal(counts.listSessions, 0);
+    assert.equal(counts.gets.includes('claude'), false);
+    assert.equal(mocks.feishuApi.calls.some((call) => call.type === 'sendUnboundGuide'), true);
+  });
+
+  it('REQ-004-B08: 拒绝路径不读取 ~/.claude，日志不含消息正文哨兵', async () => {
+    const fs = require('fs');
+    const { setLogLevel } = require('../src/core/logger');
+    const previousLevel = process.env.WALKER_LOG_LEVEL || 'info';
+    setLogLevel('info');
+    const sentinel = 'PROMPT_SENTINEL_T4_9f3a';
+    const hits = [];
+    const saved = [];
+    function wrap(target, name) {
+      if (!target || typeof target[name] !== 'function') return;
+      const original = target[name];
+      saved.push({ target, name, original });
+      target[name] = function patchedFs(...args) {
+        const filePath = args[0];
+        if (filePath && String(filePath).includes('.claude')) hits.push(String(filePath));
+        return original.apply(this, args);
+      };
+    }
+    for (const name of ['readFile', 'readFileSync', 'readdir', 'readdirSync', 'access', 'accessSync', 'stat', 'statSync', 'open', 'openSync', 'lstat', 'lstatSync']) {
+      wrap(fs, name);
+      if (fs.promises) wrap(fs.promises, name);
+    }
+    const mocks = makeMocks();
+    const agentRef = { provider: 'claude', claudeSessionId: '11111111-1111-4111-8111-111111111111' };
+    const session = { id: 'wks_claude_log', agent: 'claude', status: 'idle', agentRef };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    const originalWrite = process.stderr.write;
+    let output = '';
+    process.stderr.write = function patchedWrite(chunk, encoding, cb) {
+      output += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+      if (typeof encoding === 'function') encoding();
+      if (typeof cb === 'function') cb();
+      return true;
+    };
+    try {
+      const prompted = await dispatcher.handleIncomingMessage({
+        chatId: 'oc_chat1', messageId: 'om_b08', openId: 'ou_user1', text: sentinel,
+        messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+        routeKey: 'feishu:oc_chat1:root:om_root1',
+      });
+      const answered = await dispatcher.handleCommand({
+        type: 'command', name: 'answer',
+        args: ['req_b08:0', '--option', sentinel, session.id],
+        routeKey: 'feishu:oc_chat1:om_root1',
+        messageId: 'om_b08_answer',
+        chatId: 'oc_chat1',
+        formValue: { question_custom: sentinel },
+      });
+      assert.equal(prompted.error, 'claude_removed');
+      assert.equal(answered.error, 'claude_removed');
+    } finally {
+      process.stderr.write = originalWrite;
+      setLogLevel(previousLevel);
+      for (const item of saved) item.target[item.name] = item.original;
+    }
+    assert.deepEqual(hits, []);
+    assert.equal(output.includes(sentinel), false);
+    assert.ok(output.includes('claude_removed'));
+    assert.ok(output.includes(session.id));
+    assert.ok(output.includes('feishu:oc_chat1:root:om_root1'));
+  });
+
+  it('REQ-004-B09: attach 帮助只描述 OpenCode，拒绝码稳定为 claude_removed', async () => {
+    const { COMMANDS, formatHelp } = require('../src/platform/feishu/commands');
+    const mocks = makeMocks();
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    const result = await dispatcher.handleCommand(command('attach', ['claude'], { messageId: 'om_b09' }));
+    const help = formatHelp();
+
+    assert.equal(COMMANDS.attach.usage, '/attach [session_id]');
+    assert.equal(COMMANDS.attach.desc.includes('Claude'), false);
+    assert.equal(help.includes('/attach [session_id]'), true);
+    assert.equal(help.includes('/attach claude'), false);
+    assert.equal(result.error, 'claude_removed');
+    assert.equal(mocks.feishuApi.calls.some((call) => call.type === 'sendErrorCard' && call.message === REMOVED), true);
+  });
+
+  it('REQ-005-B01: /status、/current 和 /list 保留旧 Claude 记录并包含移除消息', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_claude_status',
+      agent: 'claude',
+      status: 'idle',
+      title: 'old claude',
+      agentRef: { claudeSessionId: '11111111-1111-4111-8111-111111111111' },
+    };
+    const before = JSON.parse(JSON.stringify(session.agentRef));
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.listSessionsInRoute = () => [session];
+    mocks.sessionService.updateSessionField = () => { throw new Error('status must not rewrite'); };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+
+    const status = await dispatcher.handleCommand(command('status', [], { messageId: 'om_status_claude' }));
+    const current = await dispatcher.handleCommand(command('current', [], { messageId: 'om_current_claude' }));
+    const listed = await dispatcher.handleCommand(command('list', [], { messageId: 'om_list_claude' }));
+    const statusText = mocks.feishuApi.calls.find((call) => call.type === 'replyText' && call.text && call.text.includes('Route:')).text;
+    const currentText = mocks.feishuApi.calls.find((call) => call.type === 'replyText' && call.text && call.text.startsWith('Current session:')).text;
+    const listCall = mocks.feishuApi.calls.find((call) => call.type === 'sendSessionList');
+
+    assert.equal(status.sessionId, session.id);
+    assert.equal(current.current.id, session.id);
+    assert.equal(current.current.agent, 'claude');
+    assert.ok(statusText.includes(session.id));
+    assert.ok(statusText.includes('claude'));
+    assert.ok(statusText.includes(REMOVED));
+    assert.ok(currentText.includes(session.id));
+    assert.ok(currentText.includes('claude'));
+    assert.ok(currentText.includes(REMOVED));
+    assert.equal(listed.sessions[0].id, session.id);
+    assert.equal(listed.sessions[0].agent, 'claude');
+    assert.equal(listCall.sessions[0].agent, 'claude');
+    assert.deepEqual(session.agentRef, before);
+    assert.equal(session.status, 'idle');
+  });
+
+  it('REQ-005-B07: 注入 claude driver 时 prompt、cancel、watch、stop、delete 调用次数为 0', async () => {
+    const mocks = makeMocks();
+    const counts = { prompt: 0, cancel: 0, watchSession: 0, stop: 0, delete: 0, replyQuestion: 0, resumeSession: 0, listSessions: 0, createSession: 0, ensureReady: 0, gets: [] };
+    const claudeDriver = {
+      prompt: async () => { counts.prompt += 1; return []; },
+      cancel: async () => { counts.cancel += 1; },
+      watchSession: () => { counts.watchSession += 1; return () => {}; },
+      stop: async () => { counts.stop += 1; },
+      delete: async () => { counts.delete += 1; },
+      replyQuestion: async () => { counts.replyQuestion += 1; },
+      resumeSession: async () => { counts.resumeSession += 1; return {}; },
+      listSessions: async () => { counts.listSessions += 1; return []; },
+      createSession: async () => { counts.createSession += 1; return {}; },
+      ensureReady: async () => { counts.ensureReady += 1; },
+    };
+    mocks.driverRegistry.get = (name) => {
+      counts.gets.push(name);
+      return name === 'claude' ? claudeDriver : mocks.driver;
+    };
+    const session = { id: 'wks_claude_inject', agent: 'claude', status: 'running', agentRef: { claudeSessionId: '11111111-1111-4111-8111-111111111111' } };
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.listSessions = () => [session];
+    mocks.sessionService.listSessionsInRoute = () => [session];
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:om_root1';
+    mocks.sessionService.stopSession = () => { session.status = 'stopped'; };
+    mocks.sessionService.deleteSession = () => { session.status = 'deleted'; };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    dispatcher.turnStates.set(session.id, { token: 1, cancelled: false });
+
+    const prompted = await dispatcher.handleIncomingMessage({
+      chatId: 'oc_chat1', messageId: 'om_b07_prompt', openId: 'ou_user1', text: 'prompt',
+      messageType: 'text', createTime: Date.now(), rootId: 'om_root1',
+    });
+    const cancelled = await dispatcher.handleCommand(command('cancel', [], { messageId: 'om_b07_cancel' }));
+    const external = await dispatcher.cancelTurnBySessionId(session.id, 'external');
+    dispatcher.ensureWatchForSession(session.id, { refresh: true });
+    dispatcher._watchSessionEvents(session, { chatId: 'oc_chat1' }, claudeDriver);
+    const stopped = await dispatcher.handleCommand(command('stop', [], { messageId: 'om_b07_stop' }));
+    const deleted = await dispatcher.handleCommand(command('delete', [session.id], { messageId: 'om_b07_delete' }));
+    const model = await dispatcher.handleCommand(command('model', ['anthropic/claude-sonnet-4'], { messageId: 'om_b07_model' }));
+    const permit = await dispatcher.handleCommand(command('permit', ['perm1', 'allow'], { messageId: 'om_b07_permit' }));
+    dispatcher.turnStates.delete(session.id);
+    session.status = 'idle';
+    const cleared = await dispatcher.handleCommand(command('clear', [], { messageId: 'om_b07_clear' }));
+
+    assert.equal(prompted.error, 'claude_removed');
+    assert.equal(cancelled.error, 'claude_removed');
+    assert.equal(external.error, 'claude_removed');
+    assert.equal(stopped.stopped, session.id);
+    assert.equal(deleted.deleted, session.id);
+    assert.equal(model.error, 'list_models_not_supported');
+    assert.equal(permit.error, 'driver_not_supported');
+    assert.equal(cleared.rejected, true);
+    assert.notEqual(model.error, 'claude_removed');
+    assert.equal(counts.prompt, 0);
+    assert.equal(counts.cancel, 0);
+    assert.equal(counts.watchSession, 0);
+    assert.equal(counts.stop, 0);
+    assert.equal(counts.delete, 0);
+    assert.equal(counts.replyQuestion, 0);
+    assert.equal(counts.resumeSession, 0);
+    assert.equal(counts.listSessions, 0);
+    assert.equal(counts.createSession, 0);
+    assert.equal(counts.ensureReady, 0);
+    assert.equal(counts.gets.includes('claude'), false);
+  });
+
+  it('REQ-006-B01: 默认 /new 与 OpenCode /attach 仍成功且不返回 claude_removed', async () => {
+    const mocks = makeMocks();
+    const created = [];
+    mocks.driver.listSessions = async () => [{ id: 'ses_attach_b06', title: 'attach me', cwd: 'H:\\walker', status: 'idle', updatedAt: Date.now() }];
+    mocks.driver.resumeSession = async (ref) => Object.assign({ serverUrl: 'http://localhost:4096' }, ref);
+    mocks.sessionService.createSession = (opts) => {
+      created.push(opts);
+      return { id: 'wks_b06_' + created.length, agent: opts.agent, status: 'created', route: opts.route, agentRef: opts.agentRef };
+    };
+    mocks.sessionService.listSessions = () => [];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', defaultCwd: 'H:\\walker' });
+
+    const createdResult = await dispatcher.handleCommand(command('new', [], { messageId: 'om_b06_new' }));
+    const attached = await dispatcher.handleCommand(command('attach', ['ses_attach_b06'], { messageId: 'om_b06_attach' }));
+
+    assert.equal(createdResult.error, undefined);
+    assert.equal(created[0].agent, 'opencode');
+    assert.equal(attached.error, undefined);
+    assert.equal(attached.sessionId, 'wks_b06_2');
+    assert.equal(created[1].agent, 'opencode');
+    assert.ok(mocks.feishuApi.calls.some((call) => call.type === 'replyText' && String(call.text).includes('Session created:')));
+    assert.ok(mocks.feishuApi.calls.some((call) => call.type === 'replyText' && String(call.text).includes('OpenCode session attached:')));
+    assert.equal(mocks.feishuApi.calls.some((call) => call.message === REMOVED), false);
   });
 });

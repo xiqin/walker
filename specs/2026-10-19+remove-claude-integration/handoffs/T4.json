@@ -1,0 +1,150 @@
+{
+  "task_id": "T4",
+  "status": "done",
+  "summary": "飞书 /new claude、/attach claude、自动绑定、卡片动作和旧 Claude 会话消息都在 driver 调用前拒绝。OpenCode 的 /new 与 /attach 保持原路径。",
+  "modified_files": [
+    "src/dispatch/message-dispatcher.js",
+    "src/dispatch/question-handler.js",
+    "src/platform/feishu/cards.js",
+    "src/platform/feishu/commands.js",
+    "test/message-dispatcher.test.js",
+    "test/question-handler.test.js",
+    "test/feishu-cards.test.js",
+    "test/claude-attach-list.test.js",
+    "test/integration-feishu-tui-sync.test.js",
+    "test/message-dispatcher-platform-event.test.js",
+    "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log",
+    "specs/2026-10-19+remove-claude-integration/handoffs/T4.json"
+  ],
+  "requirements": ["REQ-004", "REQ-005", "REQ-006"],
+  "behavior_ids": [
+    "REQ-004-B01",
+    "REQ-004-B02",
+    "REQ-004-B03",
+    "REQ-004-B04",
+    "REQ-004-B05",
+    "REQ-004-B06",
+    "REQ-004-B07",
+    "REQ-004-B08",
+    "REQ-004-B09",
+    "REQ-005-B01",
+    "REQ-005-B04",
+    "REQ-005-B07",
+    "REQ-006-B01"
+  ],
+  "behaviors": [
+    {
+      "id": "REQ-004-B01",
+      "test": "REQ-004-B01: /new claude 在 driver 和 createSession 之前返回 claude_removed；REQ-004-B01/B02: /attach claude 的 UUID、无参、分页和搜索都在 driver 前拒绝",
+      "file": "test/message-dispatcher.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-004-B02",
+      "test": "REQ-004-B01/B02: /attach claude 的 UUID、无参、分页和搜索都在 driver 前拒绝",
+      "file": "test/message-dispatcher.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-004-B03",
+      "test": "REQ-004-B03: /new claude、/new Claude 与普通 /attach 走三条互不混淆的路径",
+      "file": "test/message-dispatcher.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-004-B04",
+      "test": "REQ-004-B04: /new claude 不写入 store，也不改变当前 OpenCode 绑定",
+      "file": "test/message-dispatcher.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-004-B05",
+      "test": "REQ-004-B05: 重复 /new claude 与 /attach claude 不累积会话",
+      "file": "test/message-dispatcher.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-004-B06",
+      "test": "REQ-004-B06: 并发消息打到同一旧 Claude 会话时全部拒绝且不调用 prompt",
+      "file": "test/message-dispatcher.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-004-B07",
+      "test": "REQ-004-B07: 带 cwd 的入站消息不自动绑定 Claude，源码也不再保留 attach 开关；REQ-004-B07: renderAttachableSessionCard 的 Claude 列表不生成接入或新建 Claude 命令；REQ-004-B07: Claude 空态只提供新建 OpenCode，不提供 cmd:/new claude；REQ-004-B07: 混合列表只给 OpenCode 生成纳入按钮，旧 Claude 会话显示不可用",
+      "file": "test/message-dispatcher.test.js；test/feishu-cards.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-004-B08",
+      "test": "REQ-004-B08: 拒绝路径不读取 ~/.claude，日志不含消息正文哨兵",
+      "file": "test/message-dispatcher.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-004-B09",
+      "test": "REQ-004-B09: attach 帮助只描述 OpenCode，拒绝码稳定为 claude_removed；renderHelpCard 基于命令元数据生成帮助按钮",
+      "file": "test/message-dispatcher.test.js；test/feishu-cards.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-005-B01",
+      "test": "REQ-005-B01: /status、/current 和 /list 保留旧 Claude 记录并包含移除消息；REQ-005-B01: 会话列表保留旧 agent=claude 并包含移除消息，按钮不触发接入",
+      "file": "test/message-dispatcher.test.js；test/feishu-cards.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-005-B04",
+      "test": "REQ-005-B04: 连续两次 prompt 都返回 claude_removed 且记录仍可读取；REQ-005-B04: stale、fallback 和 legacy Claude ref 在 driver 前拒绝且不改写 agentRef；REQ-005-B04/B07: agent=claude 的提问回复在 driver 前拒绝，重复调用得到同一错误且记录不变",
+      "file": "test/message-dispatcher.test.js；test/question-handler.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-005-B07",
+      "test": "REQ-005-B07: 注入 claude driver 时 prompt、cancel、watch、stop、delete 调用次数为 0；REQ-005-B07: /stop 和 /delete 不调用注入的 claude driver，只更新本地记录；REQ-005-B07: Claude watch 不调用注入 driver.watchSession；REQ-005-B07: ensureWatchForSession 与 restoreWatches 不启动 Claude watch，OpenCode 仍可恢复；REQ-005-B04/B07: agent=claude 的提问回复在 driver 前拒绝，重复调用得到同一错误且记录不变",
+      "file": "test/message-dispatcher.test.js；test/question-handler.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    },
+    {
+      "id": "REQ-006-B01",
+      "test": "REQ-006-B01: 默认 /new 与 OpenCode /attach 仍成功且不返回 claude_removed",
+      "file": "test/message-dispatcher.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+    }
+  ],
+  "tests": {
+    "command": "node --test test/message-dispatcher.test.js test/question-handler.test.js test/feishu-cards.test.js",
+    "exit_code": 0,
+    "summary": "312 pass, 0 fail",
+    "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T4-node-test.log"
+  },
+  "traceability_updated": false,
+  "design_review": {
+    "verdict": "pass",
+    "notes": [
+      "单一拒绝函数是 src/platform/feishu/commands.js 的 rejectRemovedClaude。文案精确为 Claude integration has been removed.，错误码为 claude_removed。它只服务本产品规则，不是 provider 插件，也不读取 Claude 配置或 transcript。",
+      "只把精确小写 claude 视为已移除。/new claude 与 /attach claude 在去重和 route touch 之前拒绝。无参 /new 且 defaultAgent 为 claude 也拒绝。/new Claude 继续走未知 agent 的 driver not found。",
+      "已删除 _cmdAttachClaude、_attachClaudeSession、_prepareClaudeAgentRef、_tryAutoBindClaudeRoute、_managedClaudeSessionIds、_findSessionByClaudeId，以及 test/claude-attach-list.test.js。没有可重新打开的 Claude attach 开关。",
+      "question-handler 在 session.agent 或 request.agent 为 claude 时于 driverRegistry.get 之前拒绝，且不 require message-dispatcher。",
+      "卡片不再生成 cmd:/attach claude 或 cmd:/new claude。Claude 列表显示不可用，新建按钮是 cmd:/new。COMMANDS.attach.usage 为 /attach [session_id]。帮助卡片经 escapeLarkMd 展示转义后的方括号和下划线。",
+      "/answer 在 result.error 为 claude_removed 时，dispatcher 日志只记录错误码、session id 和 route key，不记录 args 或 form keys。"
+    ]
+  },
+  "known_boundaries": [
+    "帮助卡片正文是转义后的 /attach \\[session\\_id\\]，formatHelp() 和 COMMANDS.attach.usage 仍保留未转义的 /attach [session_id]。",
+    "/model 与 /permit 对 agent=claude 不调用 driver，但返回原有不支持文案，不返回 claude_removed。/clear 对非 opencode 仍返回 { rejected: true }。",
+    "/stop 与 /delete 不调用注入的 claude driver，但会更新本地 store。",
+    "getAgentRefId、shouldPersistAgentRef 和 question-handler._key 仍可读已存储的 agentRef.claudeSessionId。shouldPersistAgentRef 只在 driver.prompt 成功后执行，Claude 会话在 prompt 前已拒绝。这些路径不扫描 transcript，不读 ~/.claude。",
+    "未修改 traceability.json。bootstrap、session-admin 和 OpenCode driver 不属于 T4 owns，本次不修改。"
+  ],
+  "regression_closure": {
+    "at": "2026-10-19T09:17:30.000Z",
+    "reason": "首次 npm run check 有 3 个失败，测试仍期望 Claude watch、按 cwd 自动绑定，以及 handlePlatformMessage prompt。",
+    "files": [
+      "test/integration-feishu-tui-sync.test.js",
+      "test/message-dispatcher-platform-event.test.js"
+    ],
+    "owns_updated": true,
+    "result": "定向 40 pass、0 fail。随后 npm run check 1490 pass、0 fail。traceability 由 executing 收口补齐。"
+  }
+}

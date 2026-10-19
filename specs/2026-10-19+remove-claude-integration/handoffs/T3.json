@@ -1,0 +1,92 @@
+{
+  "task_id": "T3",
+  "status": "done",
+  "summary": "配置加载和管理端编辑不再认识 CLAUDE_*。WALKER_DEFAULT_AGENT 精确等于 claude 时抛出 claude_removed，且不改写 .env、不调用 createApp。",
+  "modified_files": [
+    "src/config/env.js",
+    "src/admin/config.js",
+    "src/admin/config-editor.js",
+    ".env.example",
+    "test/config-env.test.js",
+    "test/admin-observability-config.test.js",
+    "test/admin-config-event.test.js",
+    "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log",
+    "specs/2026-10-19+remove-claude-integration/handoffs/T3.json"
+  ],
+  "requirements": ["REQ-003"],
+  "behavior_ids": [
+    "REQ-003-B01",
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-003-B04",
+    "REQ-003-B05",
+    "REQ-003-B06",
+    "REQ-003-B07"
+  ],
+  "behaviors": [
+    {
+      "id": "REQ-003-B01",
+      "test": "REQ-003-B01: 默认配置对象和摘要不含 Claude 字段",
+      "file": "test/config-env.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log"
+    },
+    {
+      "id": "REQ-003-B02",
+      "test": "REQ-003-B02: WALKER_DEFAULT_AGENT=claude 抛出 claude_removed 且不调用 createApp",
+      "file": "test/config-env.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log"
+    },
+    {
+      "id": "REQ-003-B03",
+      "test": "REQ-003-B03: PATCH 只含 CLAUDE_* 时拒绝且文件哈希不变",
+      "file": "test/admin-config-event.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log"
+    },
+    {
+      "id": "REQ-003-B04",
+      "test": "REQ-003-B04: 残留 CLAUDE_* 被忽略且合法配置继续生效",
+      "file": "test/config-env.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log"
+    },
+    {
+      "id": "REQ-003-B05",
+      "test": "REQ-003-B05: 摘要、错误和日志不回显 CLAUDE_* 哨兵",
+      "file": "test/admin-observability-config.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log"
+    },
+    {
+      "id": "REQ-003-B06",
+      "test": "REQ-003-B06: 不根据 CLAUDE_ALLOW_BYPASS_PERMISSIONS 构造 argv 或子进程",
+      "file": "test/config-env.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log"
+    },
+    {
+      "id": "REQ-003-B07",
+      "test": "REQ-003-B07: 默认 agent 改回 opencode 后即使残留 CLAUDE_* 也能加载",
+      "file": "test/config-env.test.js",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log"
+    }
+  ],
+  "tests": {
+    "command": "node --test test/config-env.test.js test/admin-observability-config.test.js test/admin-config-event.test.js",
+    "exit_code": 0,
+    "summary": "56 pass, 0 fail",
+    "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T3-node-test.log"
+  },
+  "traceability_updated": false,
+  "design_review": {
+    "verdict": "pass",
+    "notes": [
+      "不为残留 CLAUDE_* 增加迁移写入；加载失败和非法 PATCH 都不改写 .env 字节。",
+      "只对精确小写 claude 抛出 code=claude_removed、message=Claude integration has been removed.。Claude 等其他大小写按未知 agent 继续加载。",
+      "PATCH CLAUDE_* 复用现有非法字段错误 Environment key <key> is not editable，路由层仍包装为 BAD_REQUEST，不改成 claude_removed。",
+      "不解析 CLAUDE_ALLOW_BYPASS_PERMISSIONS，不构造 argv，不调用 child_process。",
+      "OpenCode 模型 ID claude-sonnet-4 只作为普通字符串保留，不因子串 claude 被删除。",
+      "createApp 不在 T3 模块内调用。loadEnvConfig 在返回前抛错，因此既有 runForeground 顺序无法执行到 createApp。未修改 index.js，因为它属于 T1。"
+    ]
+  },
+  "known_boundaries": [
+    "src/app/bootstrap.js 仍可能读取 config.claudeCmd，该文件属于 T1，本次不修改。",
+    "src/admin/config-routes.js 的 reload 仍会把 .env 中的未知键复制进 process.env，该文件不属于 T3 owns。loadEnvConfig 的结果对象不包含这些键。"
+  ]
+}

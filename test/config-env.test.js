@@ -1,11 +1,34 @@
-const test = require('node:test');
+const { test, mock } = require('node:test');
 const assert = require('node:assert/strict');
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
 const { loadEnvConfig } = require('../src/config/env');
-const { EDITABLE_ENV_KEYS } = require('../src/admin/config');
+const { EDITABLE_ENV_KEYS, CONFIG_GROUPS, buildConfigSummary } = require('../src/admin/config');
+
+function assertNoClaudeConfigFields(value) {
+  const keys = [];
+  const visit = (current, prefix) => {
+    if (!current || typeof current !== 'object') return;
+    for (const key of Object.keys(current)) {
+      const full = prefix ? `${prefix}.${key}` : key;
+      keys.push(full);
+      if (current[key] && typeof current[key] === 'object') visit(current[key], full);
+    }
+  };
+  visit(value, '');
+  assert.deepEqual(keys.filter((key) => /(^|\.)claude/i.test(key) || key.includes('CLAUDE_')), []);
+}
+
+function isolatedEnvOptions(tmpDir, envPath) {
+  return {
+    envPath,
+    homeDir: path.join(tmpDir, 'home'),
+    packageEnvPath: path.join(tmpDir, 'missing-package.env'),
+  };
+}
 
 test('loadEnvConfig 默认值正常', () => {
   const config = loadEnvConfig({ env: {} });
@@ -20,27 +43,6 @@ test('loadEnvConfig 默认值正常', () => {
   assert.equal(config.opencodeCmd, 'opencode');
   assert.equal(config.opencodeModel, '');
   assert.equal(config.opencodeAgent, '');
-  assert.equal(config.claudeCmd, 'claude');
-  assert.equal(config.claudeModel, '');
-  assert.equal(config.claudeFallbackModel, '');
-  assert.equal(config.claudeAgent, '');
-  assert.equal(config.claudePermissionMode, '');
-  assert.equal(config.claudePermissionModeMigrated, false);
-  assert.equal(config.claudeAllowedTools, '');
-  assert.equal(config.claudeDisallowedTools, '');
-  assert.equal(config.claudeConfigDir, '');
-  assert.deepEqual(config.claudeTools, []);
-  assert.deepEqual(config.claudeAgents, {});
-  assert.deepEqual(config.claudeMcpConfigs, []);
-  assert.equal(config.claudeStrictMcpConfig, false);
-  assert.equal(config.claudeSettingsFile, '');
-  assert.deepEqual(config.claudeSettingSources, []);
-  assert.deepEqual(config.claudePluginDirs, []);
-  assert.equal(config.claudeBare, false);
-  assert.equal(config.claudeSafeMode, false);
-  assert.equal(config.claudeDisableSlashCommands, false);
-  assert.equal(config.claudeAllowBypassPermissions, false);
-  assert.equal(config.claudePromptTimeoutMs, 120000);
   assert.equal(config.feishuProgressStyle, 'card');
   assert.equal(config.feishuReactionEmoji, 'OnIt');
   assert.equal(config.feishuDoneEmoji, '');
@@ -56,7 +58,7 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
     FEISHU_APP_SECRET: 'secret456',
     FEISHU_ROUTE_MODE: 'user',
     WALKER_DATA_DIR: '/tmp/walker-test',
-    WALKER_DEFAULT_AGENT: 'claude',
+    WALKER_DEFAULT_AGENT: 'codex',
     WALKER_DEFAULT_RUNTIME: 'wsl',
     WALKER_DEFAULT_CWD: '/home/user/project',
     WALKER_WSL_DISTRO: 'Ubuntu-22.04',
@@ -65,26 +67,6 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
     OPENCODE_CMD: 'opencode-custom',
     OPENCODE_MODEL: 'anthropic/claude-sonnet-4',
     OPENCODE_AGENT: 'coder',
-    CLAUDE_CMD: 'claude-beta',
-    CLAUDE_MODEL: 'sonnet',
-    CLAUDE_FALLBACK_MODEL: 'opus',
-    CLAUDE_AGENT: 'reviewer',
-    CLAUDE_PERMISSION_MODE: 'plan',
-    CLAUDE_ALLOWED_TOOLS: 'Read,Grep',
-    CLAUDE_DISALLOWED_TOOLS: 'Bash',
-    CLAUDE_CONFIG_DIR: 'C:\\claude',
-    CLAUDE_TOOLS: '["Read","Grep"]',
-    CLAUDE_AGENTS: '{"reviewer":{"model":"opus"}}',
-    CLAUDE_MCP_CONFIGS: '["C:/mcp/a.json","C:/mcp/b.json"]',
-    CLAUDE_STRICT_MCP_CONFIG: 'true',
-    CLAUDE_SETTINGS_FILE: 'C:\\claude\\settings.json',
-    CLAUDE_SETTING_SOURCES: 'user,project',
-    CLAUDE_PLUGIN_DIRS: 'C:/plugins/a,C:/plugins/b',
-    CLAUDE_BARE: '1',
-    CLAUDE_SAFE_MODE: 'yes',
-    CLAUDE_DISABLE_SLASH_COMMANDS: 'true',
-    CLAUDE_ALLOW_BYPASS_PERMISSIONS: 'false',
-    CLAUDE_PROMPT_TIMEOUT_MS: '45000',
     FEISHU_PROGRESS_STYLE: 'compact',
     FEISHU_REACTION_EMOJI: 'ThumbsUp',
     FEISHU_DONE_EMOJI: 'Done',
@@ -98,7 +80,7 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
   assert.equal(config.feishuAppSecret, 'secret456');
   assert.equal(config.feishuRouteMode, 'user');
   assert.equal(config.walkerDataDir, '/tmp/walker-test');
-  assert.equal(config.walkerDefaultAgent, 'claude');
+  assert.equal(config.walkerDefaultAgent, 'codex');
   assert.equal(config.walkerDefaultRuntime, 'wsl');
   assert.equal(config.walkerDefaultCwd, '/home/user/project');
   assert.equal(config.walkerWslDistro, 'Ubuntu-22.04');
@@ -107,26 +89,6 @@ test('loadEnvConfig 环境变量覆盖默认值', () => {
   assert.equal(config.opencodeCmd, 'opencode-custom');
   assert.equal(config.opencodeModel, 'anthropic/claude-sonnet-4');
   assert.equal(config.opencodeAgent, 'coder');
-  assert.equal(config.claudeCmd, 'claude-beta');
-  assert.equal(config.claudeModel, 'sonnet');
-  assert.equal(config.claudeFallbackModel, 'opus');
-  assert.equal(config.claudeAgent, 'reviewer');
-  assert.equal(config.claudePermissionMode, 'plan');
-  assert.equal(config.claudeAllowedTools, 'Read,Grep');
-  assert.equal(config.claudeDisallowedTools, 'Bash');
-  assert.equal(config.claudeConfigDir, 'C:\\claude');
-  assert.deepEqual(config.claudeTools, ['Read', 'Grep']);
-  assert.deepEqual(config.claudeAgents, { reviewer: { model: 'opus' } });
-  assert.deepEqual(config.claudeMcpConfigs, ['C:/mcp/a.json', 'C:/mcp/b.json']);
-  assert.equal(config.claudeStrictMcpConfig, true);
-  assert.equal(config.claudeSettingsFile, 'C:\\claude\\settings.json');
-  assert.deepEqual(config.claudeSettingSources, ['user', 'project']);
-  assert.deepEqual(config.claudePluginDirs, ['C:/plugins/a', 'C:/plugins/b']);
-  assert.equal(config.claudeBare, true);
-  assert.equal(config.claudeSafeMode, true);
-  assert.equal(config.claudeDisableSlashCommands, true);
-  assert.equal(config.claudeAllowBypassPermissions, false);
-  assert.equal(config.claudePromptTimeoutMs, 45000);
   assert.equal(config.feishuProgressStyle, 'compact');
   assert.equal(config.feishuReactionEmoji, 'ThumbsUp');
   assert.equal(config.feishuDoneEmoji, 'Done');
@@ -143,7 +105,6 @@ test('loadEnvConfig 长任务数值配置无效时回落默认值', () => {
       WALKER_PROMPT_HEARTBEAT_INTERVAL_MS: '-1',
       WALKER_PROMPT_HEARTBEAT_STUCK_MS: 'abc',
       WALKER_MAX_TURN_TIME_MINS: 'nope',
-      CLAUDE_PROMPT_TIMEOUT_MS: '0',
     },
   });
 
@@ -151,7 +112,6 @@ test('loadEnvConfig 长任务数值配置无效时回落默认值', () => {
   assert.equal(config.walkerPromptHeartbeatIntervalMs, 60000);
   assert.equal(config.walkerPromptHeartbeatStuckMs, 300000);
   assert.equal(config.walkerMaxTurnTimeMins, 0);
-  assert.equal(config.claudePromptTimeoutMs, 120000);
 });
 
 test('loadEnvConfig 缺少飞书凭据时标记为缺失', () => {
@@ -356,39 +316,175 @@ test('loadEnvConfig lease 为 0 时不校验 heartbeat 与 lease 关系', () => 
   assert.equal(config.opencodeTuiHeartbeatIntervalMs, 30000);
 });
 
-test('REQ-006-B02: Claude JSON 配置错误只暴露配置键和值类型', () => {
-  assert.throws(
-    () => loadEnvConfig({ env: { CLAUDE_MCP_CONFIGS: '["C:/safe", "SECRET_RAW_VALUE"' } }),
-    (err) => err.message.includes('CLAUDE_MCP_CONFIGS') && !err.message.includes('SECRET_RAW_VALUE'),
-  );
-  assert.throws(
-    () => loadEnvConfig({ env: { CLAUDE_TOOLS: '{"tool":"Read"}' } }),
-    /CLAUDE_TOOLS must be a list/,
-  );
-  assert.throws(
-    () => loadEnvConfig({ env: { CLAUDE_AGENTS: '["reviewer"]' } }),
-    /CLAUDE_AGENTS must be a JSON object/,
-  );
+test('REQ-003-B01: 默认配置对象和摘要不含 Claude 字段', () => {
+  const config = loadEnvConfig({ env: {} });
+  assert.equal(config.walkerDefaultAgent, 'opencode');
+  assert.equal(config.opencodeCmd, 'opencode');
+  assert.equal(config.feishuRouteMode, 'thread');
+  assertNoClaudeConfigFields(config);
+
+  const summary = buildConfigSummary({});
+  assert.equal(summary.groups.some((group) => group.id === 'claude' || group.label === 'Claude'), false);
+  assert.equal(summary.editableKeys.some((key) => key.startsWith('CLAUDE_')), false);
+  assert.equal(Object.keys(summary.values).some((key) => key.startsWith('CLAUDE_')), false);
+  assert.equal(summary.groups.flatMap((group) => group.items).some((item) => String(item.env).startsWith('CLAUDE_')), false);
+  assert.deepEqual(summary.groups.map((group) => group.id), CONFIG_GROUPS.map((group) => group.id));
+  assert.equal(EDITABLE_ENV_KEYS.some((key) => key.startsWith('CLAUDE_')), false);
+
+  const example = fs.readFileSync(path.join(__dirname, '..', '.env.example'), 'utf8');
+  assert.equal(example.includes('CLAUDE_'), false);
+  assert.equal(example.includes('Claude Code'), false);
+  assert.match(example, /^FEISHU_APP_ID=/m);
+  assert.match(example, /^FEISHU_APP_SECRET=/m);
+  assert.match(example, /^OPENCODE_CMD=/m);
+  assert.match(example, /^OPENCODE_SERVER_URL=/m);
 });
 
-test('REQ-003-B05/REQ-006-B02: 旧 default 权限模式和非法 Claude 布尔值安全处理', () => {
-  const migrated = loadEnvConfig({ env: { CLAUDE_PERMISSION_MODE: 'default' } });
-  assert.equal(migrated.claudePermissionMode, '');
-  assert.equal(migrated.claudePermissionModeMigrated, true);
+test('REQ-003-B02: WALKER_DEFAULT_AGENT=claude 抛出 claude_removed 且不调用 createApp', () => {
+  const createApp = mock.fn(() => ({ started: true }));
+  const credentials = {
+    FEISHU_APP_ID: 'cli_valid',
+    FEISHU_APP_SECRET: 'secret_valid',
+  };
+
+  const ready = loadEnvConfig({ env: { ...credentials, WALKER_DEFAULT_AGENT: 'opencode' } });
+  if (ready.feishuAppId && ready.feishuAppSecret) createApp(ready);
+  assert.equal(createApp.mock.calls.length, 1);
+
+  const unknownCase = loadEnvConfig({ env: { ...credentials, WALKER_DEFAULT_AGENT: 'Claude' } });
+  assert.equal(unknownCase.walkerDefaultAgent, 'Claude');
+  assertNoClaudeConfigFields(unknownCase);
+  if (unknownCase.feishuAppId && unknownCase.feishuAppSecret) createApp(unknownCase);
+  assert.equal(createApp.mock.calls.length, 2);
+
   assert.throws(
-    () => loadEnvConfig({ env: { CLAUDE_SAFE_MODE: 'SECRET_RAW_VALUE' } }),
-    (err) => err.message.includes('CLAUDE_SAFE_MODE') && !err.message.includes('SECRET_RAW_VALUE'),
+    () => {
+      const config = loadEnvConfig({
+        env: {
+          ...credentials,
+          WALKER_DEFAULT_AGENT: 'claude',
+          CLAUDE_CMD: 'T3_B02_SHOULD_NOT_ECHO',
+        },
+      });
+      if (config.feishuAppId && config.feishuAppSecret) createApp(config);
+    },
+    (err) => {
+      assert.equal(err instanceof Error, true);
+      assert.equal(err.code, 'claude_removed');
+      assert.equal(err.message, 'Claude integration has been removed.');
+      assert.equal(err.message.includes('T3_B02_SHOULD_NOT_ECHO'), false);
+      assert.equal(JSON.stringify({ code: err.code, message: err.message }).includes('T3_B02_SHOULD_NOT_ECHO'), false);
+      return true;
+    },
   );
+  assert.equal(createApp.mock.calls.length, 2);
 });
 
-test('REQ-006-B05: 旧最小 Claude 配置未使用新增字段仍可加载', () => {
-  const config = loadEnvConfig({ env: { CLAUDE_CMD: 'claude', CLAUDE_ALLOWED_TOOLS: 'Read', CLAUDE_DISALLOWED_TOOLS: 'Bash', CLAUDE_CONFIG_DIR: 'C:/transcripts' } });
-  assert.equal(config.claudeCmd, 'claude');
-  assert.equal(config.claudeAllowedTools, 'Read');
-  assert.equal(config.claudeDisallowedTools, 'Bash');
-  assert.equal(config.claudeConfigDir, 'C:/transcripts');
-  assert.deepEqual(config.claudeTools, []);
-  assert.deepEqual(config.claudeAgents, {});
-  assert.deepEqual(config.claudeMcpConfigs, []);
-  assert.equal(config.claudeSafeMode, false);
+test('REQ-003-B04: 残留 CLAUDE_* 被忽略且合法配置继续生效', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-req003-b04-'));
+  const envPath = path.join(tmpDir, '.env');
+  const original = [
+    'CLAUDE_CMD=claude-beta',
+    'CLAUDE_TOOLS=["unterminated',
+    'CLAUDE_SAFE_MODE=not-a-bool',
+    'CLAUDE_ALLOW_BYPASS_PERMISSIONS=true',
+    'OPENCODE_CMD=opencode-custom',
+    'OPENCODE_MODEL=anthropic/claude-sonnet-4',
+    'FEISHU_APP_ID=cli_keep',
+    'FEISHU_APP_SECRET=secret_keep',
+    'FEISHU_ROUTE_MODE=user',
+    '',
+  ].join('\n');
+  fs.writeFileSync(envPath, original, 'utf8');
+  const before = fs.readFileSync(envPath);
+  try {
+    const config = loadEnvConfig({ env: {}, ...isolatedEnvOptions(tmpDir, envPath) });
+    assert.equal(config.opencodeCmd, 'opencode-custom');
+    assert.equal(config.opencodeModel, 'anthropic/claude-sonnet-4');
+    assert.equal(config.feishuAppId, 'cli_keep');
+    assert.equal(config.feishuAppSecret, 'secret_keep');
+    assert.equal(config.feishuRouteMode, 'user');
+    assert.equal(config.walkerDefaultAgent, 'opencode');
+    assertNoClaudeConfigFields(config);
+    assert.deepEqual(fs.readFileSync(envPath), before);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('REQ-003-B06: 不根据 CLAUDE_ALLOW_BYPASS_PERMISSIONS 构造 argv 或子进程', () => {
+  const spawn = mock.method(childProcess, 'spawn', () => { throw new Error('spawn must not be called'); });
+  const spawnSync = mock.method(childProcess, 'spawnSync', () => { throw new Error('spawnSync must not be called'); });
+  const execFile = mock.method(childProcess, 'execFile', () => { throw new Error('execFile must not be called'); });
+  const execFileSync = mock.method(childProcess, 'execFileSync', () => { throw new Error('execFileSync must not be called'); });
+  try {
+    const config = loadEnvConfig({
+      env: {
+        WALKER_DEFAULT_AGENT: 'opencode',
+        CLAUDE_ALLOW_BYPASS_PERMISSIONS: 'true',
+        CLAUDE_PERMISSION_MODE: 'bypassPermissions',
+        OPENCODE_CMD: 'opencode',
+      },
+    });
+    const serialized = JSON.stringify(config);
+    assert.equal(serialized.includes('bypassPermissions'), false);
+    assert.equal(serialized.includes('claudeAllowBypassPermissions'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(config, 'claudeAllowBypassPermissions'), false);
+    assertNoClaudeConfigFields(config);
+    assert.equal(config.opencodeCmd, 'opencode');
+    assert.equal(spawn.mock.calls.length, 0);
+    assert.equal(spawnSync.mock.calls.length, 0);
+    assert.equal(execFile.mock.calls.length, 0);
+    assert.equal(execFileSync.mock.calls.length, 0);
+
+    for (const relativePath of ['src/config/env.js', 'src/admin/config.js', 'src/admin/config-editor.js']) {
+      const source = fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
+      assert.equal(source.includes('CLAUDE_ALLOW_BYPASS_PERMISSIONS'), false, relativePath);
+      assert.equal(source.includes('bypassPermissions'), false, relativePath);
+      assert.equal(source.includes('child_process'), false, relativePath);
+    }
+  } finally {
+    spawn.mock.restore();
+    spawnSync.mock.restore();
+    execFile.mock.restore();
+    execFileSync.mock.restore();
+  }
+});
+
+test('REQ-003-B07: 默认 agent 改回 opencode 后即使残留 CLAUDE_* 也能加载', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-req003-b07-'));
+  const envPath = path.join(tmpDir, '.env');
+  const broken = [
+    'WALKER_DEFAULT_AGENT=claude',
+    'CLAUDE_CMD=claude-keep-cmd',
+    'OPENCODE_CMD=opencode-custom',
+    'FEISHU_APP_ID=cli_recover',
+    'FEISHU_APP_SECRET=secret_recover',
+    '',
+  ].join('\n');
+  fs.writeFileSync(envPath, broken, 'utf8');
+  const before = fs.readFileSync(envPath);
+  const options = isolatedEnvOptions(tmpDir, envPath);
+  try {
+    assert.throws(
+      () => loadEnvConfig({ env: {}, ...options }),
+      (err) => err.code === 'claude_removed' && err.message === 'Claude integration has been removed.',
+    );
+    assert.deepEqual(fs.readFileSync(envPath), before);
+
+    const repaired = broken.replace('WALKER_DEFAULT_AGENT=claude', 'WALKER_DEFAULT_AGENT=opencode');
+    fs.writeFileSync(envPath, repaired, 'utf8');
+    const config = loadEnvConfig({ env: {}, ...options });
+    assert.equal(config.walkerDefaultAgent, 'opencode');
+    assert.equal(config.opencodeCmd, 'opencode-custom');
+    assert.equal(config.feishuAppId, 'cli_recover');
+    assert.equal(config.feishuAppSecret, 'secret_recover');
+    assertNoClaudeConfigFields(config);
+    const after = fs.readFileSync(envPath, 'utf8');
+    assert.match(after, /^CLAUDE_CMD=claude-keep-cmd/m);
+    assert.match(after, /^WALKER_DEFAULT_AGENT=opencode/m);
+    assert.equal(after.includes('WALKER_DEFAULT_AGENT=claude'), false);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

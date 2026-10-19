@@ -345,61 +345,77 @@ test('renderAttachableSessionCard 空列表也渲染搜索表单', () => {
   assert.equal(inputEl.name, 'attach_search');
 });
 
-test('renderAttachableSessionCard claude 模式按钮/分页/搜索前缀为 cmd:/attach claude', () => {
+test('REQ-004-B07: renderAttachableSessionCard 的 Claude 列表不生成接入或新建 Claude 命令', () => {
   const routeKey = 'feishu:oc_chat1:root:om_root1';
   const sessions = Array.from({ length: 15 }, (_, i) => ({
     id: 'claude-ses-' + String(i + 1).padStart(2, '0'),
     title: 'claude session ' + i,
     cwd: 'H:\\walker',
     status: 'idle',
+    agent: 'claude',
     updatedAt: 1000 + i,
   }));
   const card = renderAttachableSessionCard(sessions, { managedIds: [], routeKey, agent: 'claude', page: 2 });
-  const elements = card.body.elements;
-  const attachBtns = elements.filter((el) => el.tag === 'button')
-    .map((el) => (el.behaviors || []).find((b) => b.type === 'callback'))
-    .filter((b) => b && b.value && b.value.action && b.value.action.startsWith('cmd:/attach claude '));
-  assert.ok(attachBtns.some((b) => b.value.action === 'cmd:/attach claude claude-ses-11'));
-  const navBtns = elements.filter((el) => el.tag === 'button')
-    .map((el) => (el.behaviors || []).find((b) => b.type === 'callback'))
-    .filter((b) => b && b.value && b.value.action && b.value.action.startsWith('cmd:/attach claude --page '));
-  assert.ok(navBtns.some((b) => b.value.action.includes('--page 1')), '上一页前缀为 cmd:/attach claude');
-  const formEl = elements.find((el) => el.tag === 'form');
-  const submitBtn = formEl.elements.find((el) => el.tag === 'button' && el.action_type === 'form_submit');
-  assert.equal(submitBtn.value.action, 'cmd:/attach claude --search');
-  assert.equal(submitBtn.value.routeKey, routeKey);
-  assert.equal(card.header.title.content, 'Claude 会话列表 (15)');
-  const content = elements.filter((el) => el.tag === 'markdown').map((el) => el.content).join('\n');
-  assert.equal(content.includes('OpenCode'), false);
+  const raw = JSON.stringify(card);
+  const actions = collectButtons(card).map((button) => buttonValue(button).action);
+  const content = card.body.elements.filter((el) => el.tag === 'markdown').map((el) => el.content).join('\n');
+  assert.equal(card.header.title.content, 'Claude 会话不可用 (15)');
+  assert.ok(content.includes('Claude integration has been removed.'));
+  assert.ok(content.includes('claude-ses-11'));
+  assert.equal(actions.some((action) => action && action.includes('cmd:/attach')), false);
+  assert.equal(raw.includes('cmd:/attach claude'), false);
+  assert.equal(raw.includes('cmd:/new claude'), false);
+  assert.equal(card.body.elements.some((el) => el.tag === 'form'), false);
 });
 
-test('renderAttachableSessionCard claude 空态文案与新建按钮前缀', () => {
+test('REQ-004-B07: Claude 空态只提供新建 OpenCode，不提供 cmd:/new claude', () => {
   const routeKey = 'feishu:oc_chat1:root:om_root1';
   const card = renderAttachableSessionCard([], { managedIds: [], routeKey, agent: 'claude' });
-  assert.equal(card.header.title.content, '可纳入的 Claude 会话');
+  const raw = JSON.stringify(card);
   const content = card.body.elements.filter((el) => el.tag === 'markdown').map((el) => el.content).join('\n');
-  assert.ok(content.includes('Claude 会话'));
-  assert.equal(content.includes('OpenCode'), false);
-  const newBtn = card.body.elements.filter((el) => el.tag === 'button')
-    .map((el) => (el.behaviors || []).find((b) => b.type === 'callback'))
-    .find((b) => b && b.value && b.value.action === 'cmd:/new claude');
-  assert.ok(newBtn, '新建按钮前缀为 cmd:/new claude');
-  assert.equal(newBtn.value.routeKey, routeKey);
+  const newBtn = collectButtons(card).find((button) => button.text && button.text.content === '新建 OpenCode 会话');
+  assert.equal(card.header.title.content, 'Claude 会话不可用');
+  assert.ok(content.includes('没有可接入的 Claude 会话。'));
+  assert.ok(content.includes('Claude integration has been removed.'));
+  assert.equal(buttonValue(newBtn).action, 'cmd:/new');
+  assert.equal(buttonValue(newBtn).routeKey, routeKey);
+  assert.equal(raw.includes('cmd:/new claude'), false);
+  assert.equal(raw.includes('cmd:/attach claude'), false);
 });
 
-test('renderAttachableSessionCard mixed 模式按每条会话 agent 生成按钮前缀', () => {
+test('REQ-004-B07: 混合列表只给 OpenCode 生成纳入按钮，旧 Claude 会话显示不可用', () => {
   const routeKey = 'feishu:oc_chat1:root:om_root1';
   const card = renderAttachableSessionCard([
     { id: 'ses_oc', title: 'opencode', cwd: 'H:\\walker', status: 'idle', agent: 'opencode' },
     { id: '11111111-1111-4111-8111-111111111111', title: 'claude', cwd: 'H:\\walker', status: 'idle', agent: 'claude' },
-  ], { managedIds: ['ses_oc'], managedClaudeIds: ['11111111-1111-4111-8111-111111111111'], routeKey, agent: 'mixed' });
+  ], { managedIds: ['ses_oc'], routeKey, agent: 'opencode' });
+  const raw = JSON.stringify(card);
   const actions = collectButtons(card).map((button) => buttonValue(button).action);
   const content = card.body.elements.filter((el) => el.tag === 'markdown').map((el) => el.content).join('\n');
   assert.ok(actions.includes('cmd:/attach ses_oc'));
-  assert.ok(actions.includes('cmd:/attach claude 11111111-1111-4111-8111-111111111111'));
+  assert.equal(actions.includes('cmd:/attach claude 11111111-1111-4111-8111-111111111111'), false);
   assert.ok(content.includes('OpenCode'));
-  assert.ok(content.includes('Claude'));
-  assert.equal(card.header.title.content, 'OpenCode / Claude 会话列表 (2)');
+  assert.ok(content.includes('Claude integration has been removed.'));
+  assert.ok(content.includes('11111111-1111-4111-8111-111111111111'));
+  assert.equal(raw.includes('cmd:/attach claude'), false);
+  assert.equal(raw.includes('cmd:/new claude'), false);
+});
+
+test('REQ-005-B01: 会话列表保留旧 agent=claude 并包含移除消息，按钮不触发接入', () => {
+  const routeKey = 'feishu:oc_chat1:root:om_root1';
+  const card = renderSessionListCard([
+    { id: 'wks_claude_list', title: 'old claude', agent: 'claude', status: 'idle', cwd: 'H:\\walker', updatedAt: 1000 },
+  ], 'wks_claude_list', routeKey);
+  const raw = JSON.stringify(card);
+  const content = card.body.elements.filter((el) => el.tag === 'markdown').map((el) => el.content).join('\n');
+  const actions = collectButtons(card).map((button) => buttonValue(button).action);
+  assert.ok(content.includes('wks_claude_list'));
+  assert.ok(content.includes('claude'));
+  assert.ok(content.includes('Claude integration has been removed.'));
+  assert.ok(actions.includes('cmd:/use wks_claude_list'));
+  assert.equal(actions.some((action) => String(action).includes('cmd:/attach claude') || String(action).includes('cmd:/new claude')), false);
+  assert.equal(raw.includes('cmd:/attach claude'), false);
+  assert.equal(raw.includes('cmd:/new claude'), false);
 });
 
 test('renderModelListCard 对完整稳定去重序列分页为 20、20、13', () => {
@@ -520,6 +536,9 @@ test('renderHelpCard 基于命令元数据生成帮助按钮', () => {
     assert.ok(text.includes('/' + name));
     assert.ok(actions.some((value) => value.action === 'cmd:/' + name && value.routeKey === routeKey));
   }
+  assert.ok(text.includes('/attach \\[session\\_id\\]'));
+  assert.equal(JSON.stringify(card).includes('cmd:/attach claude'), false);
+  assert.equal(JSON.stringify(card).includes('cmd:/new claude'), false);
 });
 
 test('renderErrorCard 显示错误信息', () => {

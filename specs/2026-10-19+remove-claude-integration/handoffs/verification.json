@@ -1,0 +1,37 @@
+{
+  "verdict": "PASS",
+  "commands": [
+    {
+      "command": "npm run lint",
+      "exit_code": 0,
+      "evidence": "evidence/verification.log"
+    },
+    {
+      "command": "npm run check",
+      "exit_code": 0,
+      "evidence": "evidence/T7-check.log",
+      "summary": "1490 pass"
+    }
+  ],
+  "concerns": [],
+  "remaining_risks": [
+    "改动尚未提交。",
+    "下一阶段是代码审查请求，审查门禁仍要人工反馈。"
+  ],
+  "status": "done",
+  "summary": "完成前验证通过。npm run lint 退出码 0。既有 npm run check 为 1490 pass、退出码 0。REQ-001 到 REQ-008 均有证据。未提交。",
+  "artifacts": [
+    "verify-report.md"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "d4a22be15362ae113cab26965dc5718280d16ead378ddddcd04eca12ad6941b3",
+    "spec.md": "7019b7d584a820b0f648d3800f6b7b76b44ce407d46cb65fc4cdb423bb9003cd",
+    "test-report.md": "ff6fcfa12367461261a01ac653c27f0ad0af657acda228816b5bc6c57c40adaa"
+  },
+  "artifact_fingerprints": {
+    "verify-report.md": "5fe25dda1bfbfeb0a5e83ae75ad1fc78d19836a3abbbb52c73a82fff9ee8ed6a"
+  },
+  "written_at": "2026-10-19T09:29:26.174Z"
+}

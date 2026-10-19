@@ -1,6 +1,5 @@
 'use strict';
 
-const path = require('node:path');
 const { createLogger } = require('../core/logger');
 
 const logger = createLogger('windows-runtime');
@@ -69,25 +68,6 @@ class WindowsRuntime {
       logger.error('openTerminal failed', { error: err.message });
       return Promise.reject(err);
     }
-  }
-
-  openClaudeAttachTerminal(runtimeId, options) {
-    const opts = options || {};
-    const env = { ...process.env, ...(opts.env || {}) };
-    const command = opts.walkerCommand || process.execPath;
-    const args = opts.walkerCommand
-      ? ['claude', 'attach', runtimeId]
-      : [path.resolve(__dirname, '..', 'index.js'), 'claude', 'attach', runtimeId];
-    if (opts.attachUrl) env.WALKER_CLAUDE_ATTACH_URL = opts.attachUrl;
-    if (opts.token) env.WALKER_CLAUDE_ATTACH_TOKEN = opts.token;
-    logger.info('windows openClaudeAttachTerminal', { runtimeId, command, cwd: opts.cwd || process.cwd(), title: opts.title || 'Claude Attach' });
-    return this.openTerminal(command, args, { cwd: opts.cwd, title: opts.title || 'Claude Attach', env })
-      .catch((err) => {
-        const wrapped = new Error('Claude attach terminal failed: ' + err.message);
-        wrapped.cause = err;
-        logger.error('openClaudeAttachTerminal failed', { runtimeId, error: err.message });
-        throw wrapped;
-      });
   }
 };
 

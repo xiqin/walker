@@ -1,0 +1,426 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1"],
+      "tests": [
+        "test/bootstrap.test.js#REQ-001-B01: 残留 Claude 配置不再注册 claude，opencode 与 codex 仍注册",
+        "test/bootstrap.test.js#REQ-001-B02: 一次和两次 stop 都不调用 Claude release",
+        "test/runtime.test.js#重复 stop 不 kill runtime 且不打开独立 claude --resume 终端",
+        "test/bootstrap.test.js#REQ-001-B03: 启动和关闭不 spawn claude，也不打开 attach 终端",
+        "test/runtime.test.js#REQ-001-B03: 不再提供 Claude attach 终端入口，调用尝试也不 spawn",
+        "test/bootstrap.test.js#REQ-001-B04: 残留 attach token 不进入启动日志或子进程环境",
+        "test/bootstrap.test.js#REQ-001-B05: src 不再 require 已删除的 Claude 模块",
+        "test/bootstrap.test.js#REQ-001-B06: createApp 不探测 claude、不监听 bridge、不建重试 timer"
+      ],
+      "evidence": ["evidence/T1-node-test.log"],
+      "behaviors": {
+        "REQ-001-B01": {
+          "tasks": ["T1"],
+          "tests": ["test/bootstrap.test.js#REQ-001-B01: 残留 Claude 配置不再注册 claude，opencode 与 codex 仍注册"],
+          "evidence": ["evidence/T1-node-test.log"]
+        },
+        "REQ-001-B02": {
+          "tasks": ["T1"],
+          "tests": [
+            "test/bootstrap.test.js#REQ-001-B02: 一次和两次 stop 都不调用 Claude release",
+            "test/bootstrap.test.js#重复 stop 不 kill runtime 且不打开独立 claude --resume 终端"
+          ],
+          "evidence": ["evidence/T1-node-test.log"]
+        },
+        "REQ-001-B03": {
+          "tasks": ["T1"],
+          "tests": [
+            "test/bootstrap.test.js#REQ-001-B03: 启动和关闭不 spawn claude，也不打开 attach 终端",
+            "test/runtime.test.js#REQ-001-B03: 不再提供 Claude attach 终端入口，调用尝试也不 spawn"
+          ],
+          "evidence": ["evidence/T1-node-test.log"]
+        },
+        "REQ-001-B04": {
+          "tasks": ["T1"],
+          "tests": ["test/bootstrap.test.js#REQ-001-B04: 残留 attach token 不进入启动日志或子进程环境"],
+          "evidence": ["evidence/T1-node-test.log"]
+        },
+        "REQ-001-B05": {
+          "tasks": ["T1"],
+          "tests": ["test/bootstrap.test.js#REQ-001-B05: src 不再 require 已删除的 Claude 模块"],
+          "evidence": ["evidence/T1-node-test.log"]
+        },
+        "REQ-001-B06": {
+          "tasks": ["T1"],
+          "tests": ["test/bootstrap.test.js#REQ-001-B06: createApp 不探测 claude、不监听 bridge、不建重试 timer"],
+          "evidence": ["evidence/T1-node-test.log"]
+        }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T1", "T2"],
+      "tests": [
+        "test/provider-catalog.test.js#REQ-002-B01: provider catalog 只返回 opencode、codex、shell",
+        "test/driver-registry.test.js#REQ-002-B01: registry provider 列表只返回 opencode、codex、shell",
+        "test/cli-removed-claude.test.js#REQ-002-B02: claude、claude attach 与 claude attach rt_1 均退出 1 且消息精确",
+        "test/provider-catalog.test.js#REQ-002-B03: doctor claude 与 Claude 返回 NOT_FOUND，空 id 保持原错误",
+        "test/driver-registry.test.js#REQ-002-B03: registry doctor claude 与 Claude 返回 NOT_FOUND，空 id 保持原错误",
+        "test/provider-catalog.test.js#REQ-002-B04: 本机存在 fake claude 时 doctor 不调用检测器或 spawn",
+        "test/driver-registry.test.js#REQ-002-B04: registry doctor 在 fake claude 可见时不探测版本",
+        "test/cli-removed-claude.test.js#REQ-002-B05: 设置 attach URL 和 token 后不连接且输出不含哨兵",
+        "test/cli-removed-claude.test.js#REQ-002-B06: help 含 providers 与 init，不含 claude attach"
+      ],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T2-node-test.log"],
+      "behaviors": {
+        "REQ-002-B01": {
+          "tasks": ["T2"],
+          "tests": [
+            "test/provider-catalog.test.js#REQ-002-B01: provider catalog 只返回 opencode、codex、shell",
+            "test/driver-registry.test.js#REQ-002-B01: registry provider 列表只返回 opencode、codex、shell"
+          ],
+          "evidence": ["evidence/T2-node-test.log"]
+        },
+        "REQ-002-B02": {
+          "tasks": ["T1"],
+          "tests": ["test/cli-removed-claude.test.js#REQ-002-B02: claude、claude attach 与 claude attach rt_1 均退出 1 且消息精确"],
+          "evidence": ["evidence/T1-node-test.log"]
+        },
+        "REQ-002-B03": {
+          "tasks": ["T2"],
+          "tests": [
+            "test/provider-catalog.test.js#REQ-002-B03: doctor claude 与 Claude 返回 NOT_FOUND，空 id 保持原错误",
+            "test/driver-registry.test.js#REQ-002-B03: registry doctor claude 与 Claude 返回 NOT_FOUND，空 id 保持原错误"
+          ],
+          "evidence": ["evidence/T2-node-test.log"]
+        },
+        "REQ-002-B04": {
+          "tasks": ["T2"],
+          "tests": [
+            "test/provider-catalog.test.js#REQ-002-B04: 本机存在 fake claude 时 doctor 不调用检测器或 spawn",
+            "test/driver-registry.test.js#REQ-002-B04: registry doctor 在 fake claude 可见时不探测版本"
+          ],
+          "evidence": ["evidence/T2-node-test.log"]
+        },
+        "REQ-002-B05": {
+          "tasks": ["T1"],
+          "tests": ["test/cli-removed-claude.test.js#REQ-002-B05: 设置 attach URL 和 token 后不连接且输出不含哨兵"],
+          "evidence": ["evidence/T1-node-test.log"]
+        },
+        "REQ-002-B06": {
+          "tasks": ["T1"],
+          "tests": ["test/cli-removed-claude.test.js#REQ-002-B06: help 含 providers 与 init，不含 claude attach"],
+          "evidence": ["evidence/T1-node-test.log"]
+        }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T3"],
+      "tests": [
+        "test/config-env.test.js#REQ-003-B01: 默认配置对象和摘要不含 Claude 字段",
+        "test/config-env.test.js#REQ-003-B02: WALKER_DEFAULT_AGENT=claude 抛出 claude_removed 且不调用 createApp",
+        "test/admin-config-event.test.js#REQ-003-B03: PATCH 只含 CLAUDE_* 时拒绝且文件哈希不变",
+        "test/config-env.test.js#REQ-003-B04: 残留 CLAUDE_* 被忽略且合法配置继续生效",
+        "test/admin-observability-config.test.js#REQ-003-B05: 摘要、错误和日志不回显 CLAUDE_* 哨兵",
+        "test/config-env.test.js#REQ-003-B06: 不根据 CLAUDE_ALLOW_BYPASS_PERMISSIONS 构造 argv 或子进程",
+        "test/config-env.test.js#REQ-003-B07: 默认 agent 改回 opencode 后即使残留 CLAUDE_* 也能加载"
+      ],
+      "evidence": ["evidence/T3-node-test.log"],
+      "behaviors": {
+        "REQ-003-B01": {
+          "tasks": ["T3"],
+          "tests": ["test/config-env.test.js#REQ-003-B01: 默认配置对象和摘要不含 Claude 字段"],
+          "evidence": ["evidence/T3-node-test.log"]
+        },
+        "REQ-003-B02": {
+          "tasks": ["T3"],
+          "tests": ["test/config-env.test.js#REQ-003-B02: WALKER_DEFAULT_AGENT=claude 抛出 claude_removed 且不调用 createApp"],
+          "evidence": ["evidence/T3-node-test.log"]
+        },
+        "REQ-003-B03": {
+          "tasks": ["T3"],
+          "tests": ["test/admin-config-event.test.js#REQ-003-B03: PATCH 只含 CLAUDE_* 时拒绝且文件哈希不变"],
+          "evidence": ["evidence/T3-node-test.log"]
+        },
+        "REQ-003-B04": {
+          "tasks": ["T3"],
+          "tests": ["test/config-env.test.js#REQ-003-B04: 残留 CLAUDE_* 被忽略且合法配置继续生效"],
+          "evidence": ["evidence/T3-node-test.log"]
+        },
+        "REQ-003-B05": {
+          "tasks": ["T3"],
+          "tests": ["test/admin-observability-config.test.js#REQ-003-B05: 摘要、错误和日志不回显 CLAUDE_* 哨兵"],
+          "evidence": ["evidence/T3-node-test.log"]
+        },
+        "REQ-003-B06": {
+          "tasks": ["T3"],
+          "tests": ["test/config-env.test.js#REQ-003-B06: 不根据 CLAUDE_ALLOW_BYPASS_PERMISSIONS 构造 argv 或子进程"],
+          "evidence": ["evidence/T3-node-test.log"]
+        },
+        "REQ-003-B07": {
+          "tasks": ["T3"],
+          "tests": ["test/config-env.test.js#REQ-003-B07: 默认 agent 改回 opencode 后即使残留 CLAUDE_* 也能加载"],
+          "evidence": ["evidence/T3-node-test.log"]
+        }
+      }
+    },
+    "REQ-004": {
+      "tasks": ["T4"],
+      "tests": [
+        "test/message-dispatcher.test.js#REQ-004-B01: /new claude 在 driver 和 createSession 之前返回 claude_removed",
+        "test/message-dispatcher.test.js#REQ-004-B01/B02: /attach claude 的 UUID、无参、分页和搜索都在 driver 前拒绝",
+        "test/message-dispatcher.test.js#REQ-004-B03: /new claude、/new Claude 与普通 /attach 走三条互不混淆的路径",
+        "test/message-dispatcher.test.js#REQ-004-B04: /new claude 不写入 store，也不改变当前 OpenCode 绑定",
+        "test/message-dispatcher.test.js#REQ-004-B05: 重复 /new claude 与 /attach claude 不累积会话",
+        "test/message-dispatcher.test.js#REQ-004-B06: 并发消息打到同一旧 Claude 会话时全部拒绝且不调用 prompt",
+        "test/message-dispatcher.test.js#REQ-004-B07: 带 cwd 的入站消息不自动绑定 Claude，源码也不再保留 attach 开关",
+        "test/integration-feishu-tui-sync.test.js#REQ-004-B07: route 仅有 cwd 时不自动绑定 Claude，也不启动 watch",
+        "test/feishu-cards.test.js#REQ-004-B07: renderAttachableSessionCard 的 Claude 列表不生成接入或新建 Claude 命令",
+        "test/message-dispatcher.test.js#REQ-004-B08: 拒绝路径不读取 ~/.claude，日志不含消息正文哨兵",
+        "test/message-dispatcher.test.js#REQ-004-B09: attach 帮助只描述 OpenCode，拒绝码稳定为 claude_removed"
+      ],
+      "evidence": ["evidence/T4-node-test.log", "evidence/T7-check.log"],
+      "behaviors": {
+        "REQ-004-B01": {
+          "tasks": ["T4"],
+          "tests": [
+            "test/message-dispatcher.test.js#REQ-004-B01: /new claude 在 driver 和 createSession 之前返回 claude_removed",
+            "test/message-dispatcher.test.js#REQ-004-B01/B02: /attach claude 的 UUID、无参、分页和搜索都在 driver 前拒绝"
+          ],
+          "evidence": ["evidence/T4-node-test.log"]
+        },
+        "REQ-004-B02": {
+          "tasks": ["T4"],
+          "tests": ["test/message-dispatcher.test.js#REQ-004-B01/B02: /attach claude 的 UUID、无参、分页和搜索都在 driver 前拒绝"],
+          "evidence": ["evidence/T4-node-test.log"]
+        },
+        "REQ-004-B03": {
+          "tasks": ["T4"],
+          "tests": ["test/message-dispatcher.test.js#REQ-004-B03: /new claude、/new Claude 与普通 /attach 走三条互不混淆的路径"],
+          "evidence": ["evidence/T4-node-test.log"]
+        },
+        "REQ-004-B04": {
+          "tasks": ["T4"],
+          "tests": ["test/message-dispatcher.test.js#REQ-004-B04: /new claude 不写入 store，也不改变当前 OpenCode 绑定"],
+          "evidence": ["evidence/T4-node-test.log"]
+        },
+        "REQ-004-B05": {
+          "tasks": ["T4"],
+          "tests": ["test/message-dispatcher.test.js#REQ-004-B05: 重复 /new claude 与 /attach claude 不累积会话"],
+          "evidence": ["evidence/T4-node-test.log"]
+        },
+        "REQ-004-B06": {
+          "tasks": ["T4"],
+          "tests": ["test/message-dispatcher.test.js#REQ-004-B06: 并发消息打到同一旧 Claude 会话时全部拒绝且不调用 prompt"],
+          "evidence": ["evidence/T4-node-test.log"]
+        },
+        "REQ-004-B07": {
+          "tasks": ["T4"],
+          "tests": [
+            "test/message-dispatcher.test.js#REQ-004-B07: 带 cwd 的入站消息不自动绑定 Claude，源码也不再保留 attach 开关",
+            "test/integration-feishu-tui-sync.test.js#REQ-004-B07: route 仅有 cwd 时不自动绑定 Claude，也不启动 watch",
+            "test/feishu-cards.test.js#REQ-004-B07: renderAttachableSessionCard 的 Claude 列表不生成接入或新建 Claude 命令"
+          ],
+          "evidence": ["evidence/T4-node-test.log", "evidence/T7-check.log"]
+        },
+        "REQ-004-B08": {
+          "tasks": ["T4"],
+          "tests": ["test/message-dispatcher.test.js#REQ-004-B08: 拒绝路径不读取 ~/.claude，日志不含消息正文哨兵"],
+          "evidence": ["evidence/T4-node-test.log"]
+        },
+        "REQ-004-B09": {
+          "tasks": ["T4"],
+          "tests": ["test/message-dispatcher.test.js#REQ-004-B09: attach 帮助只描述 OpenCode，拒绝码稳定为 claude_removed"],
+          "evidence": ["evidence/T4-node-test.log"]
+        }
+      }
+    },
+    "REQ-005": {
+      "tasks": ["T1", "T4", "T5"],
+      "tests": [
+        "test/admin-core-api.test.js#REQ-005-B01: 列表和详情保留旧 agent=claude 并包含移除消息",
+        "test/message-dispatcher.test.js#REQ-005-B01: /status、/current 和 /list 保留旧 Claude 记录并包含移除消息",
+        "test/bootstrap.test.js#REQ-005-B02: 启动不改写旧 agent=claude 记录",
+        "test/admin-core-api.test.js#REQ-005-B03: 本地 stop 只标记 stopped，且不调用注入的 claude driver",
+        "test/admin-core-api.test.js#REQ-005-B03: 本地 delete 只删除 Walker 活跃记录，且不调用注入的 claude driver",
+        "test/message-dispatcher.test.js#REQ-005-B04: 连续两次 prompt 都返回 claude_removed 且记录仍可读取",
+        "test/integration-feishu-tui-sync.test.js#REQ-005-B04: 旧 Claude 会话的入站消息在 watch 前返回 claude_removed",
+        "test/message-dispatcher-platform-event.test.js#REQ-005-B04: handlePlatformMessage 对旧 Claude 会话在 driver 前返回 claude_removed",
+        "test/question-handler.test.js#REQ-005-B04/B07: agent=claude 的提问回复在 driver 前拒绝，重复调用得到同一错误且记录不变",
+        "test/admin-core-api.test.js#REQ-005-B05: createSession 在写 store 前拒绝 agent=claude",
+        "test/admin-core-api.test.js#REQ-005-B05: 已认证 POST /api/admin/sessions 返回 claude_removed 且不写 store",
+        "test/api-v1.test.js#REQ-005-B05: POST /api/v1/sessions 对 agent=claude 返回 claude_removed 且不写 store",
+        "test/admin-core-api.test.js#REQ-005-B06: 未认证创建 agent=claude 仍返回 401 且 store 不变",
+        "test/admin-core-api.test.js#REQ-005-B07: 注入 claude driver 时 prompt、question、cancel、watch、stop、delete 调用次数为 0",
+        "test/admin-core-api.test.js#REQ-005-B07: 已认证 prompt 在 driver 之前返回 claude_removed，且不记录成功事件",
+        "test/api-v1.test.js#REQ-005-B07: POST /api/v1/prompt 对 agent=claude 返回精确 claude_removed",
+        "test/message-dispatcher.test.js#REQ-005-B07: 注入 claude driver 时 prompt、cancel、watch、stop、delete 调用次数为 0"
+      ],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T4-node-test.log", "evidence/T5-node-test.log", "evidence/T1-T5-closure.log", "evidence/T7-check.log"],
+      "behaviors": {
+        "REQ-005-B01": {
+          "tasks": ["T4", "T5"],
+          "tests": [
+            "test/admin-core-api.test.js#REQ-005-B01: 列表和详情保留旧 agent=claude 并包含移除消息",
+            "test/message-dispatcher.test.js#REQ-005-B01: /status、/current 和 /list 保留旧 Claude 记录并包含移除消息",
+            "test/feishu-cards.test.js#REQ-005-B01: 会话列表保留旧 agent=claude 并包含移除消息，按钮不触发接入"
+          ],
+          "evidence": ["evidence/T4-node-test.log", "evidence/T5-node-test.log"]
+        },
+        "REQ-005-B02": {
+          "tasks": ["T1"],
+          "tests": ["test/bootstrap.test.js#REQ-005-B02: 启动不改写旧 agent=claude 记录"],
+          "evidence": ["evidence/T1-node-test.log"]
+        },
+        "REQ-005-B03": {
+          "tasks": ["T5"],
+          "tests": [
+            "test/admin-core-api.test.js#REQ-005-B03: 本地 stop 只标记 stopped，且不调用注入的 claude driver",
+            "test/admin-core-api.test.js#REQ-005-B03: 本地 delete 只删除 Walker 活跃记录，且不调用注入的 claude driver"
+          ],
+          "evidence": ["evidence/T5-node-test.log"]
+        },
+        "REQ-005-B04": {
+          "tasks": ["T4"],
+          "tests": [
+            "test/message-dispatcher.test.js#REQ-005-B04: 连续两次 prompt 都返回 claude_removed 且记录仍可读取",
+            "test/integration-feishu-tui-sync.test.js#REQ-005-B04: 旧 Claude 会话的入站消息在 watch 前返回 claude_removed",
+            "test/message-dispatcher-platform-event.test.js#REQ-005-B04: handlePlatformMessage 对旧 Claude 会话在 driver 前返回 claude_removed",
+            "test/question-handler.test.js#REQ-005-B04/B07: agent=claude 的提问回复在 driver 前拒绝，重复调用得到同一错误且记录不变"
+          ],
+          "evidence": ["evidence/T4-node-test.log", "evidence/T7-check.log"]
+        },
+        "REQ-005-B05": {
+          "tasks": ["T5"],
+          "tests": [
+            "test/admin-core-api.test.js#REQ-005-B05: createSession 在写 store 前拒绝 agent=claude",
+            "test/admin-core-api.test.js#REQ-005-B05: 已认证 POST /api/admin/sessions 返回 claude_removed 且不写 store",
+            "test/api-v1.test.js#REQ-005-B05: POST /api/v1/sessions 对 agent=claude 返回 claude_removed 且不写 store"
+          ],
+          "evidence": ["evidence/T5-node-test.log", "evidence/T1-T5-closure.log"]
+        },
+        "REQ-005-B06": {
+          "tasks": ["T5"],
+          "tests": ["test/admin-core-api.test.js#REQ-005-B06: 未认证创建 agent=claude 仍返回 401 且 store 不变"],
+          "evidence": ["evidence/T5-node-test.log"]
+        },
+        "REQ-005-B07": {
+          "tasks": ["T4", "T5"],
+          "tests": [
+            "test/admin-core-api.test.js#REQ-005-B07: 注入 claude driver 时 prompt、question、cancel、watch、stop、delete 调用次数为 0",
+            "test/admin-core-api.test.js#REQ-005-B07: 已认证 prompt 在 driver 之前返回 claude_removed，且不记录成功事件",
+            "test/api-v1.test.js#REQ-005-B07: POST /api/v1/prompt 对 agent=claude 返回精确 claude_removed",
+            "test/message-dispatcher.test.js#REQ-005-B07: 注入 claude driver 时 prompt、cancel、watch、stop、delete 调用次数为 0",
+            "test/question-handler.test.js#REQ-005-B04/B07: agent=claude 的提问回复在 driver 前拒绝，重复调用得到同一错误且记录不变"
+          ],
+          "evidence": ["evidence/T4-node-test.log", "evidence/T5-node-test.log", "evidence/T1-T5-closure.log"]
+        }
+      }
+    },
+    "REQ-006": {
+      "tasks": ["T1", "T4", "T7"],
+      "tests": [
+        "test/message-dispatcher.test.js#REQ-006-B01: 默认 /new 与 OpenCode /attach 仍成功且不返回 claude_removed",
+        "test/bootstrap.test.js#REQ-006-B02: 真实 stubCodexDriver 仍注册，claude-sonnet-4 原样保存",
+        "test/opencode-driver.test.js#codex stub 的所有方法抛未实现错误含 agent 名",
+        "test/claude-removal-guard.test.js#REQ-006-B03: 历史规格、合规记录和记忆仍存在",
+        "test/claude-removal-guard.test.js#REQ-006-B03: OpenCode driver 相对基线无功能性 diff，且不含 Claude 接入符号"
+      ],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T4-node-test.log", "evidence/T1-T5-closure.log", "evidence/T7-guard.log", "evidence/T7-check.log"],
+      "behaviors": {
+        "REQ-006-B01": {
+          "tasks": ["T4"],
+          "tests": ["test/message-dispatcher.test.js#REQ-006-B01: 默认 /new 与 OpenCode /attach 仍成功且不返回 claude_removed"],
+          "evidence": ["evidence/T4-node-test.log"]
+        },
+        "REQ-006-B02": {
+          "tasks": ["T1"],
+          "tests": [
+            "test/bootstrap.test.js#REQ-006-B02: 真实 stubCodexDriver 仍注册，claude-sonnet-4 原样保存",
+            "test/opencode-driver.test.js#codex stub 的所有方法抛未实现错误含 agent 名"
+          ],
+          "evidence": ["evidence/T1-node-test.log", "evidence/T1-T5-closure.log"]
+        },
+        "REQ-006-B03": {
+          "tasks": ["T7"],
+          "tests": [
+            "test/claude-removal-guard.test.js#REQ-006-B03: 历史规格、合规记录和记忆仍存在",
+            "test/claude-removal-guard.test.js#REQ-006-B03: OpenCode driver 相对基线无功能性 diff，且不含 Claude 接入符号"
+          ],
+          "evidence": ["evidence/T7-guard.log", "evidence/T7-check.log"]
+        }
+      }
+    },
+    "REQ-007": {
+      "tasks": ["T5", "T6"],
+      "tests": [
+        "test/admin-core-api.test.js#REQ-007-B01 和 REQ-007-B03: 连接页不再把 Claude 列为可用接入或未来扩展点",
+        "test/claude-removal-guard.test.js#REQ-007-B02: Unreleased 记录 Claude 移除，并保留 opencode、codex、shell 诊断"
+      ],
+      "evidence": ["evidence/T5-node-test.log", "evidence/T6-doc-scan.log", "evidence/T7-guard.log"],
+      "behaviors": {
+        "REQ-007-B01": {
+          "tasks": ["T5", "T6"],
+          "tests": [
+            "test/admin-core-api.test.js#REQ-007-B01 和 REQ-007-B03: 连接页不再把 Claude 列为可用接入或未来扩展点"
+          ],
+          "evidence": ["evidence/T5-node-test.log", "evidence/T6-doc-scan.log"]
+        },
+        "REQ-007-B02": {
+          "tasks": ["T6"],
+          "tests": [
+            "test/claude-removal-guard.test.js#REQ-007-B02: Unreleased 记录 Claude 移除，并保留 opencode、codex、shell 诊断"
+          ],
+          "evidence": ["evidence/T6-doc-scan.log", "evidence/T7-guard.log"]
+        },
+        "REQ-007-B03": {
+          "tasks": ["T5", "T6"],
+          "tests": [
+            "test/admin-core-api.test.js#REQ-007-B01 和 REQ-007-B03: 连接页不再把 Claude 列为可用接入或未来扩展点"
+          ],
+          "evidence": ["evidence/T5-node-test.log", "evidence/T6-doc-scan.log"]
+        }
+      }
+    },
+    "REQ-008": {
+      "tasks": ["T1", "T7"],
+      "tests": [
+        "test/claude-removal-guard.test.js#REQ-008-B01: 守卫测试只做静态检查，不调用 npm",
+        "specs/2026-10-19+remove-claude-integration/test-report.md#REQ-008-B01",
+        "test/claude-removal-guard.test.js#REQ-008-B02: 测试不启动真实 claude，也不读取用户主目录 .claude",
+        "test/claude-removal-guard.test.js#REQ-008-B03: 已删除专用测试不存在，历史规格目录仍保留",
+        "specs/2026-10-19+remove-claude-integration/test-report.md#REQ-008-B03",
+        "test/bootstrap.test.js#REQ-008-B04: src 与 test 不再引用已删除 Claude 模块",
+        "test/claude-removal-guard.test.js#REQ-008-B04: src 与 test 不再引用已删除 Claude 模块"
+      ],
+      "evidence": ["evidence/T1-node-test.log", "evidence/T7-lint.log", "evidence/T7-guard.log", "evidence/T7-check.log"],
+      "behaviors": {
+        "REQ-008-B01": {
+          "tasks": ["T7"],
+          "tests": [
+            "test/claude-removal-guard.test.js#REQ-008-B01: 守卫测试只做静态检查，不调用 npm",
+            "specs/2026-10-19+remove-claude-integration/test-report.md#REQ-008-B01"
+          ],
+          "evidence": ["evidence/T7-lint.log", "evidence/T7-guard.log", "evidence/T7-check.log"]
+        },
+        "REQ-008-B02": {
+          "tasks": ["T7"],
+          "tests": [
+            "test/claude-removal-guard.test.js#REQ-008-B02: 测试不启动真实 claude，也不读取用户主目录 .claude"
+          ],
+          "evidence": ["evidence/T7-guard.log", "evidence/T7-check.log"]
+        },
+        "REQ-008-B03": {
+          "tasks": ["T7"],
+          "tests": [
+            "test/claude-removal-guard.test.js#REQ-008-B03: 已删除专用测试不存在，历史规格目录仍保留",
+            "specs/2026-10-19+remove-claude-integration/test-report.md#REQ-008-B03"
+          ],
+          "evidence": ["evidence/T7-guard.log", "specs/2026-10-19+remove-claude-integration/test-report.md"]
+        },
+        "REQ-008-B04": {
+          "tasks": ["T1", "T7"],
+          "tests": [
+            "test/bootstrap.test.js#REQ-008-B04: src 与 test 不再引用已删除 Claude 模块",
+            "test/claude-removal-guard.test.js#REQ-008-B04: src 与 test 不再引用已删除 Claude 模块"
+          ],
+          "evidence": ["evidence/T1-node-test.log", "evidence/T7-guard.log", "evidence/T7-check.log"]
+        }
+      }
+    }
+  }
+}

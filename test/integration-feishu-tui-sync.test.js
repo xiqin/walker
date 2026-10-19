@@ -200,18 +200,25 @@ describe('飞书-TUI 双向链路集成测试', () => {
       assert.match(errorReply.text, /OpenCode.*upstream_error|upstream_error.*OpenCode/);
     });
 
-    it('Claude watch 收到 question_asked 时推送原生问题卡片到飞书', async () => {
+    it('REQ-005-B04: 旧 Claude 会话的入站消息在 watch 前返回 claude_removed', async () => {
       const chatId = 'oc_chat_claude_question';
       const rootId = 'om_root_claude_question';
       const cwd = process.cwd();
       const routeKey = buildRouteKey({ chatId, rootId: '' }, 'thread');
-      const agentRef = { claudeSessionId: '11111111-1111-4111-8111-111111111111', cwd };
+      const claudeSessionId = '11111111-1111-4111-8111-111111111111';
+      const agentRef = { claudeSessionId, cwd };
 
-      ctx.sessionService.createSession({ route: routeKey, agent: 'claude', cwd, agentRef });
+      const created = ctx.sessionService.createSession({ route: routeKey, agent: 'claude', cwd, agentRef });
       ctx.sessionService.setRouteCwd(routeKey, cwd);
 
       const driver = makeStubDriver();
-      const driverRegistry = { get: () => driver };
+      const gets = [];
+      const driverRegistry = {
+        get: (name) => {
+          gets.push(name);
+          return driver;
+        },
+      };
 
       dispatcher = new MessageDispatcher({
         sessionService: ctx.sessionService,
@@ -221,32 +228,28 @@ describe('飞书-TUI 双向链路集成测试', () => {
         routeMode: 'thread',
       });
 
-      await dispatcher.handleIncomingMessage({
+      const result = await dispatcher.handleIncomingMessage({
         messageId: 'om_msg_claude_question_1',
         chatId,
         rootId,
         text: 'trigger claude question',
       });
 
-      const handlers = driver.getWatchHandlers();
-      assert.ok(handlers, 'watchSession 应已注册 handlers');
-
-      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
-        requestID: 'claude_req_1',
-        sessionID: '11111111-1111-4111-8111-111111111111',
-        questions: [{ question: '允许执行 Bash？', header: 'Bash', options: [] }],
-        tool: { name: 'Bash' },
-      }));
-
-      const questionCard = await waitForCall(feishuApi, (call) => {
-        return call.type === 'replyCard'
-          && call.replyCtx && call.replyCtx.chatId === chatId
-          && JSON.stringify(call.card).includes('允许执行 Bash');
-      });
-      assert.equal(questionCard.replyCtx.chatId, chatId);
+      assert.deepEqual(result, { error: 'claude_removed' });
+      assert.equal(driver.promptCalls.length, 0);
+      assert.equal(driver.getWatchHandlers(), null);
+      assert.equal(gets.includes('claude'), false);
+      const current = ctx.sessionService.getCurrent(routeKey);
+      assert.equal(current.id, created.id);
+      assert.equal(current.agent, 'claude');
+      assert.equal(current.agentRef.claudeSessionId, claudeSessionId);
+      const errorCard = feishuApi.calls.find((call) => call.type === 'sendErrorCard');
+      assert.ok(errorCard);
+      assert.equal(errorCard.message, 'Claude integration has been removed.');
+      assert.equal(feishuApi.calls.some((call) => call.type === 'replyCard'), false);
     });
 
-    it('route 仅有 cwd 时自动绑定唯一 Claude 会话并推送问题卡片', async () => {
+    it('REQ-004-B07: route 仅有 cwd 时不自动绑定 Claude，也不启动 watch', async () => {
       const chatId = 'oc_chat_claude_autobind';
       const rootId = 'om_root_claude_autobind';
       const cwd = process.cwd();
@@ -254,21 +257,26 @@ describe('飞书-TUI 双向链路集成测试', () => {
       const claudeSessionId = '11111111-1111-4111-8111-222222222222';
 
       ctx.sessionService.setRouteCwd(routeKey, cwd);
+      const before = ctx.sessionService.listSessions().length;
 
       const driver = makeStubDriver({ promptEvents: [new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' })] });
-      driver.listSessions = async (options) => [{
-        id: claudeSessionId,
-        cwd: options && options.cwd || cwd,
-        title: 'local claude',
-        updatedAt: Date.now(),
-      }];
-      driver.resumeSession = async (ref) => ({
-        claudeSessionId: ref.claudeSessionId,
-        cwd: ref.cwd,
-        transport: 'pty-attach',
-        runtimeId: 'rt_claude_autobind',
-      });
-      const driverRegistry = { get: (name) => name === 'claude' ? driver : null };
+      let listCalls = 0;
+      let resumeCalls = 0;
+      driver.listSessions = async () => {
+        listCalls += 1;
+        return [{ id: claudeSessionId, cwd, title: 'local claude', updatedAt: Date.now() }];
+      };
+      driver.resumeSession = async () => {
+        resumeCalls += 1;
+        return { claudeSessionId, cwd };
+      };
+      const gets = [];
+      const driverRegistry = {
+        get: (name) => {
+          gets.push(name);
+          return name === 'claude' ? driver : null;
+        },
+      };
 
       dispatcher = new MessageDispatcher({
         sessionService: ctx.sessionService,
@@ -285,28 +293,16 @@ describe('飞书-TUI 双向链路集成测试', () => {
         text: 'hello claude',
       });
 
-      assert.equal(result, 'prompted', '应自动绑定 Claude 会话后继续处理 prompt');
-      const current = ctx.sessionService.getCurrent(routeKey);
-      assert.ok(current, 'route 应有当前 session');
-      assert.equal(current.agent, 'claude');
-      assert.equal(current.agentRef.claudeSessionId, claudeSessionId);
-
-      const handlers = driver.getWatchHandlers();
-      assert.ok(handlers, '自动绑定后应启动 Claude watch');
-
-      handlers.onEvent(new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
-        requestID: 'claude_req_autobind',
-        sessionID: claudeSessionId,
-        questions: [{ question: '允许执行 Bash？', header: 'Bash', options: [] }],
-        tool: { name: 'Bash' },
-      }));
-
-      const questionCard = await waitForCall(feishuApi, (call) => {
-        return call.type === 'replyCard'
-          && call.replyCtx && call.replyCtx.chatId === chatId
-          && JSON.stringify(call.card).includes('允许执行 Bash');
-      });
-      assert.equal(questionCard.replyCtx.chatId, chatId);
+      assert.equal(result, 'unbound');
+      assert.equal(listCalls, 0);
+      assert.equal(resumeCalls, 0);
+      assert.equal(driver.promptCalls.length, 0);
+      assert.equal(driver.getWatchHandlers(), null);
+      assert.equal(gets.includes('claude'), false);
+      assert.equal(ctx.sessionService.getCurrent(routeKey), null);
+      assert.equal(ctx.sessionService.listSessions().length, before);
+      assert.equal(feishuApi.calls.some((call) => call.type === 'sendUnboundGuide'), true);
+      assert.equal(feishuApi.calls.some((call) => call.type === 'replyCard'), false);
     });
 
     it('thread route 无绑定 → 回退到同群根 route → prompt 和 watch 均正常', async () => {

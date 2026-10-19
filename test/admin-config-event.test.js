@@ -1,8 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { EventEmitter } = require('events');
 
 const { loadEnvConfig } = require('../src/config/env');
 const {
@@ -12,6 +14,8 @@ const {
   isSensitiveEnvKey,
 } = require('../src/admin/config');
 const { updateDotEnv } = require('../src/admin/config-editor');
+const { createConfigRoutes } = require('../src/admin/config-routes');
+const { createRouter } = require('../src/admin/router');
 const {
   createEventStore,
   recordEvent,
@@ -67,9 +71,11 @@ test('config 摘要脱敏并暴露可编辑字段 allowlist', () => {
   assert.equal(summary.values.WALKER_ADMIN_HOST, '127.0.0.1');
   assert.deepEqual(summary.editableKeys, EDITABLE_ENV_KEYS);
   assert.equal(summary.sensitiveKeys.includes('FEISHU_APP_SECRET'), true);
-  assert.equal(summary.editableKeys.includes('CLAUDE_CMD'), true);
-  assert.equal(summary.editableKeys.includes('CLAUDE_PROMPT_TIMEOUT_MS'), true);
+  assert.equal(summary.editableKeys.includes('CLAUDE_CMD'), false);
+  assert.equal(summary.editableKeys.includes('CLAUDE_PROMPT_TIMEOUT_MS'), false);
+  assert.equal(summary.editableKeys.includes('OPENCODE_CMD'), true);
   assert.equal(summary.sensitiveKeys.some((key) => key.startsWith('CLAUDE_')), false);
+  assert.equal(summary.groups.some((group) => group.id === 'claude'), false);
 });
 
 test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知键', () => {
@@ -87,7 +93,7 @@ test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知�
     WALKER_ADMIN_HOST: '0.0.0.0',
     WALKER_ADMIN_PORT: 8788,
     OPENCODE_SERVER_AUTOSTART: false,
-    CLAUDE_PROMPT_TIMEOUT_MS: 45000,
+    OPENCODE_CMD: 'opencode-custom',
   });
   const raw = fs.readFileSync(envPath, 'utf8');
 
@@ -96,7 +102,7 @@ test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知�
     'WALKER_ADMIN_HOST',
     'WALKER_ADMIN_PORT',
     'OPENCODE_SERVER_AUTOSTART',
-    'CLAUDE_PROMPT_TIMEOUT_MS',
+    'OPENCODE_CMD',
   ]);
   assert.match(raw, /^# walker config/m);
   assert.match(raw, /^FEISHU_APP_SECRET=keep-secret/m);
@@ -104,7 +110,7 @@ test('updateDotEnv 只更新 allowlist 字段并保留注释、空行和未知�
   assert.match(raw, /^WALKER_ADMIN_HOST=0\.0\.0\.0/m);
   assert.match(raw, /^WALKER_ADMIN_PORT=8788/m);
   assert.match(raw, /^OPENCODE_SERVER_AUTOSTART=false/m);
-  assert.match(raw, /^CLAUDE_PROMPT_TIMEOUT_MS=45000/m);
+  assert.match(raw, /^OPENCODE_CMD=opencode-custom/m);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -139,6 +145,76 @@ test('updateDotEnv 保留 CRLF 行尾及非目标行逐字节内容', () => {
   assert.equal(actual.toString('utf8').replace(/\r\n/g, '').includes('\n'), false);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+function sha256(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+async function callConfigRoute(routes, method, requestPath, body) {
+  const router = createRouter();
+  for (const route of routes) router.add(route.method, route.pattern, route.handler);
+  const requestUrl = new URL(requestPath, 'http://localhost');
+  const matched = router.match(method, requestUrl.pathname);
+  assert.ok(matched, `route not found: ${method} ${requestUrl.pathname}`);
+
+  const req = new EventEmitter();
+  req.method = method;
+  req.headers = {};
+  req.urlPath = requestUrl.pathname;
+  req.queryString = requestUrl.search.slice(1);
+  let statusCode = 200;
+  let responseBody;
+  const res = {
+    writeHead(code) {
+      statusCode = code;
+    },
+    end(value) {
+      const raw = Buffer.isBuffer(value) ? value.toString('utf8') : value;
+      responseBody = JSON.parse(raw);
+    },
+  };
+
+  const result = matched.handler(req, res, matched.params);
+  if (body !== undefined) req.emit('data', Buffer.from(JSON.stringify(body)));
+  req.emit('end');
+  if (result && typeof result.then === 'function') await result;
+  return { statusCode, body: responseBody };
+}
+
+test('REQ-003-B03: PATCH 只含 CLAUDE_* 时拒绝且文件哈希不变', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-req003-b03-'));
+  const envPath = path.join(tmpDir, '.env');
+  const sentinel = 'T3_B03_CLAUDE_CMD_SENTINEL';
+  const original = `FEISHU_APP_ID=cli_keep\nOPENCODE_CMD=opencode\nCLAUDE_CMD=${sentinel}\n`;
+  fs.writeFileSync(envPath, original, 'utf8');
+  const before = fs.readFileSync(envPath);
+  const beforeHash = sha256(before);
+  try {
+    assert.throws(
+      () => updateDotEnv(envPath, { CLAUDE_CMD: sentinel }),
+      (err) => {
+        assert.equal(err.message, 'Environment key CLAUDE_CMD is not editable');
+        assert.equal(err.message.includes(sentinel), false);
+        return true;
+      },
+    );
+    assert.equal(sha256(fs.readFileSync(envPath)), beforeHash);
+    assert.deepEqual(fs.readFileSync(envPath), before);
+
+    const routes = createConfigRoutes({ envPath, env: {}, eventStore: { events: [] } });
+    const response = await callConfigRoute(routes, 'PATCH', '/api/admin/config', { CLAUDE_CMD: sentinel });
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.body.ok, false);
+    assert.equal(response.body.error.code, 'BAD_REQUEST');
+    assert.equal(response.body.error.message, 'Environment key CLAUDE_CMD is not editable');
+    assert.equal(JSON.stringify(response.body).includes(sentinel), false);
+    assert.equal(response.body.error.code === 'claude_removed', false);
+    assert.equal(sha256(fs.readFileSync(envPath)), beforeHash);
+    assert.deepEqual(fs.readFileSync(envPath), before);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test('updateDotEnv 拒绝 allowlist 外字段', () => {

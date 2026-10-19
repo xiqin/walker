@@ -7,6 +7,9 @@
  */
 
 const { recordEvent, recordMetric, listEvents, timelineForSession } = require('./event-store');
+const { createLogger } = require('../core/logger');
+
+const logger = createLogger('session-admin');
 
 const NON_BUSINESS_EVENT_TYPES = new Set([
   'heartbeat',
@@ -14,6 +17,56 @@ const NON_BUSINESS_EVENT_TYPES = new Set([
   'tui.heartbeat',
   'health.heartbeat',
 ]);
+
+const CLAUDE_REMOVED_CODE = 'claude_removed';
+const CLAUDE_REMOVED_MESSAGE = 'Claude integration has been removed.';
+
+/**
+ * 只把精确小写 claude 视为已移除接入。其他大小写仍按未知 agent 处理。
+ * @param {string} agent - 会话或创建请求中的 agent 名
+ * @returns {boolean}
+ */
+function isRemovedClaudeAgent(agent) {
+  return agent === 'claude';
+}
+
+/**
+ * 统一的 Claude 移除错误。不包含 prompt 正文或 attach 信息。
+ * @returns {{ ok: false, error: { code: string, message: string } }}
+ */
+function removedClaudeError() {
+  return {
+    ok: false,
+    error: {
+      code: CLAUDE_REMOVED_CODE,
+      message: CLAUDE_REMOVED_MESSAGE,
+    },
+  };
+}
+
+/**
+ * 为旧 Claude 记录附加可诊断移除说明，不改写 store 中的 agent、agentRef 或状态。
+ * @param {Object|null} session - 已复制出的会话摘要
+ * @returns {Object|null}
+ */
+function annotateRemovedClaude(session) {
+  if (!session || !isRemovedClaudeAgent(session.agent)) return session;
+  const health = session.health && typeof session.health === 'object'
+    ? { ...session.health }
+    : { status: 'unknown', reason: null };
+  const reason = health.reason ? String(health.reason) : '';
+  return {
+    ...session,
+    statusText: CLAUDE_REMOVED_MESSAGE,
+    warning: CLAUDE_REMOVED_MESSAGE,
+    health: {
+      ...health,
+      reason: reason.includes(CLAUDE_REMOVED_MESSAGE)
+        ? reason
+        : (reason ? CLAUDE_REMOVED_MESSAGE + ' ' + reason : CLAUDE_REMOVED_MESSAGE),
+    },
+  };
+}
 
 /**
  * 列出所有未删除的会话
@@ -75,7 +128,7 @@ function withRuntimeDiagnostics(ctx, session, routes) {
   }, 0);
   const lastHeartbeatAt = runtime && runtime.lastHeartbeatAt || null;
   const lastBusinessEventAt = getLastBusinessEventAt(ctx, session.id);
-  return {
+  return annotateRemovedClaude({
     ...session,
     transport,
     runtimeId,
@@ -89,7 +142,7 @@ function withRuntimeDiagnostics(ctx, session, routes) {
     lastBusinessEventAt,
     currentTurn: currentTurn ? { ...currentTurn } : null,
     lastActiveAt: Math.max(session.updatedAt || 0, routeActivity, lastHeartbeatAt || 0) || null,
-  };
+  });
 }
 
 function getOpencodeSessionCreatedAt(session) {
@@ -159,10 +212,14 @@ function withRouteDiagnostics(session, routes) {
  * @param {string} [opts.cwd] - 工作目录
  * @param {string} [opts.route] - 要绑定的路由键
  * @param {boolean} [opts.createAgentSession] - 是否创建底层 agent session
- * @returns {Promise<Object>} 创建的会话对象
+ * @returns {Promise<Object>} 创建的会话对象；精确 agent=claude 时返回 claude_removed，且不写 store
  */
 async function createSession(ctx, opts) {
   const options = opts || {};
+  if (isRemovedClaudeAgent(options.agent)) {
+    logger.warn('claude integration removed', { code: CLAUDE_REMOVED_CODE });
+    return removedClaudeError();
+  }
   const session = ctx.sessionService.createSession({
     agent: options.agent,
     title: options.title,
@@ -236,7 +293,9 @@ async function stopSession(ctx, sessionId) {
 
   let warning = null;
 
-  if (session.agentRef) {
+  if (isRemovedClaudeAgent(session.agent)) {
+    warning = CLAUDE_REMOVED_MESSAGE;
+  } else if (session.agentRef) {
     const driver = ctx.registry.get(session.agent);
     if (driver) {
       try {
@@ -259,7 +318,7 @@ async function stopSession(ctx, sessionId) {
   });
 
   const updated = ctx.sessionService.getSession(sessionId);
-  return { ok: true, session: updated, warning };
+  return { ok: true, session: annotateRemovedClaude(updated), warning };
 }
 
 /**
@@ -276,7 +335,9 @@ async function deleteSession(ctx, sessionId) {
 
   let warning = null;
 
-  if (session.agentRef) {
+  if (isRemovedClaudeAgent(session.agent)) {
+    warning = CLAUDE_REMOVED_MESSAGE;
+  } else if (session.agentRef) {
     const driver = ctx.registry.get(session.agent);
     if (driver) {
       try {
@@ -312,6 +373,11 @@ async function sendPrompt(ctx, sessionId, text) {
   const session = ctx.sessionService.getSession(sessionId);
   if (!session) {
     return { ok: false, error: { code: 'NOT_FOUND', message: 'session not found' } };
+  }
+
+  if (isRemovedClaudeAgent(session.agent)) {
+    logger.warn('claude integration removed', { code: CLAUDE_REMOVED_CODE, sessionId });
+    return removedClaudeError();
   }
 
   if (!session.agentRef) {

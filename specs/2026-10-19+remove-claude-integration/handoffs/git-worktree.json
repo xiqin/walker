@@ -1,0 +1,25 @@
+{
+  "branch": "feature/2026-10-19-remove-claude-integration",
+  "worktree": "H:\\walker\\.worktree\\2026-10-19-remove-claude-integration",
+  "base_commit": "1ac4dc2",
+  "baseline": "npm test passed: 1585 pass, 0 fail",
+  "preserved_on_main": "main 工作区的未提交 OpenCode 改动未进入本分支",
+  "fingerprint_refresh": "executing 期间更新了 tasks/T4.md 的 owns，并勾选 tasks/T7.md。计划决策与分析结论未改，此处只刷新 tasks/ 指纹。",
+  "status": "done",
+  "summary": "已从 main 的已提交 HEAD 创建 feature/2026-10-19-remove-claude-integration，工作树为 .worktree/2026-10-19-remove-claude-integration。未带走 main 上无关的未提交改动。基线 npm test 通过：1585 pass，0 fail。executing 后仅刷新 tasks/ 指纹。",
+  "artifacts": [
+    "plan.md",
+    "tasks/"
+  ],
+  "stage": "git-worktree",
+  "task_id": "git-worktree",
+  "basis_fingerprints": {
+    "plan.md": "d4a22be15362ae113cab26965dc5718280d16ead378ddddcd04eca12ad6941b3",
+    "spec.md": "7019b7d584a820b0f648d3800f6b7b76b44ce407d46cb65fc4cdb423bb9003cd"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "d4a22be15362ae113cab26965dc5718280d16ead378ddddcd04eca12ad6941b3",
+    "tasks/": "91e1f87be664d8a53c7cd638cc17a30425d93f59f17f0a9d78d4e3975d6cb484"
+  },
+  "written_at": "2026-10-19T09:23:53.979Z"
+}

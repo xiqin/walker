@@ -24,14 +24,6 @@ function stubDriver(name) {
 }
 
 /**
- * 创建 Claude Agent 的占位驱动
- * @returns {AgentDriver} Claude 占位驱动实例
- */
-function stubClaudeDriver() {
-  return stubDriver('claude');
-}
-
-/**
  * 创建 Codex Agent 的占位驱动
  * @returns {AgentDriver} Codex 占位驱动实例
  */
@@ -39,4 +31,4 @@ function stubCodexDriver() {
   return stubDriver('codex');
 }
 
-module.exports = { stubClaudeDriver, stubCodexDriver };
+module.exports = { stubCodexDriver };

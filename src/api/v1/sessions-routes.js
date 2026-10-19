@@ -1,6 +1,7 @@
 'use strict';
 
 const sessionAdmin = require('../../admin/session-admin');
+const { error, send } = require('../../admin/response');
 const { route, readObjectBody, sendOk, sendError, sendResult } = require('./common');
 
 function createSessionRoutes(ctx) {
@@ -13,6 +14,11 @@ function createSessionRoutes(ctx) {
       const body = await readObjectBody(req, res);
       if (!body) return;
       const session = await sessionAdmin.createSession(ctx, body);
+      if (session && session.ok === false) {
+        const failure = session.error || { code: 'INTERNAL_ERROR', message: 'session creation failed' };
+        send(res, error(failure.code, failure.message));
+        return;
+      }
       sendOk(res, sanitizeSession(session));
     }),
     route('GET', '/api/v1/sessions/:id', function getSessionHandler(_req, res, params) {

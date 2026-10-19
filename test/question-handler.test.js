@@ -386,4 +386,80 @@ describe('QuestionHandler', () => {
     assert.equal(handler.requests.has(handler._key(session.agentRef, 'req_capacity_0')), false);
     assert.equal(handler.requests.has(handler._key(session.agentRef, 'req_capacity_1000')), true);
   });
+
+  it('REQ-005-B04/B07: agent=claude 的提问回复在 driver 前拒绝，重复调用得到同一错误且记录不变', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const source = fs.readFileSync(path.join(__dirname, '../src/dispatch/question-handler.js'), 'utf8');
+    assert.equal(source.includes('message-dispatcher'), false);
+    const agentRef = {
+      provider: 'claude',
+      claudeSessionId: '11111111-1111-4111-8111-111111111111',
+      runtimeId: 'rt_question',
+    };
+    const session = { id: 'wks_claude_q', agent: 'claude', status: 'idle', agentRef, routeKey: 'route_claude' };
+    const before = JSON.parse(JSON.stringify(session));
+    const counts = { replyQuestion: 0, gets: 0 };
+    const driver = { replyQuestion: async () => { counts.replyQuestion += 1; } };
+    const calls = [];
+    const feishuApi = {
+      sendErrorCard: async (ctx, message) => { calls.push({ type: 'sendErrorCard', ctx, message }); },
+      replyCard: async () => 'om_unused',
+      patchCard: async () => {},
+    };
+    const handler = new QuestionHandler({
+      feishuApi,
+      sessionService: { getSession: (id) => id === session.id ? session : null },
+      driverRegistry: { get: (name) => { counts.gets += 1; return name === 'claude' ? driver : null; } },
+    });
+    const { setLogLevel } = require('../src/core/logger');
+    const previousLevel = process.env.WALKER_LOG_LEVEL || 'info';
+    setLogLevel('info');
+    const sentinel = 'ANSWER_SENTINEL_T4_c71e';
+    const command = {
+      name: 'answer',
+      args: ['req_removed:0', '--option', sentinel, session.id],
+      messageId: 'om_answer_claude',
+      chatId: 'oc_chat_1',
+      routeKey: 'route_claude',
+      formValue: { question_custom: sentinel },
+    };
+    const originalWrite = process.stderr.write;
+    let output = '';
+    process.stderr.write = function patchedWrite(chunk, encoding, cb) {
+      output += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+      if (typeof encoding === 'function') encoding();
+      if (typeof cb === 'function') cb();
+      return true;
+    };
+    let first;
+    let second;
+    try {
+      first = await handler.handleAnswer(command);
+      second = await handler.handleAnswer(command);
+      const submitted = await handler.submitAnswers({
+        agent: 'claude',
+        walkerSessionId: session.id,
+        routeKey: 'route_claude',
+        requestID: 'req_removed',
+        answers: [[sentinel]],
+        status: 'submitting',
+      });
+      assert.equal(submitted.error, 'claude_removed');
+    } finally {
+      process.stderr.write = originalWrite;
+      setLogLevel(previousLevel);
+    }
+    assert.equal(first.error, 'claude_removed');
+    assert.equal(second.error, 'claude_removed');
+    assert.equal(counts.replyQuestion, 0);
+    assert.equal(counts.gets, 0);
+    assert.equal(session.agent, 'claude');
+    assert.equal(session.agentRef, agentRef);
+    assert.equal(session.status, before.status);
+    assert.equal(calls.filter((call) => call.type === 'sendErrorCard' && call.message === 'Claude integration has been removed.').length, 3);
+    assert.equal(output.includes(sentinel), false);
+    assert.ok(output.includes('claude_removed'));
+    assert.ok(output.includes(session.id));
+  });
 });

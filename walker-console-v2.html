@@ -433,7 +433,7 @@
           <div class="card card-flat">
             <div class="toolbar">
               <input class="search-input" placeholder="搜索 session / routeKey / cwd" oninput="filterTable(this,'full-sessions-table')">
-              <select class="select"><option>Agent：全部</option><option>opencode</option><option>claude（预留）</option><option>codex（预留）</option></select>
+              <select class="select"><option>Agent：全部</option><option>opencode</option><option>codex（stub）</option></select>
               <select class="select"><option>状态：全部</option><option>idle</option><option>running</option><option>detached</option></select>
               <select class="select"><option>Runtime：全部</option><option>windows</option><option>wsl</option></select>
             </div>
@@ -568,8 +568,7 @@
             <thead><tr><th>Agent</th><th>状态</th><th>说明</th><th>操作</th></tr></thead>
             <tbody>
               <tr><td class="mono">opencode</td><td><span class="badge badge-green">P0 已实现</span></td><td>通过 opencode serve HTTP API / SSE 控制</td><td><span class="link" onclick="showToast('设为默认 Agent（WALKER_DEFAULT_AGENT）')">设为默认</span></td></tr>
-              <tr><td class="mono">claude</td><td><span class="badge badge-gray">预留扩展点</span></td><td>Claude Code CLI，未来实现</td><td><span class="link" style="color:var(--text-muted);cursor:not-allowed;">尚未实现</span></td></tr>
-              <tr><td class="mono">codex</td><td><span class="badge badge-gray">预留扩展点</span></td><td>Codex CLI，未来实现</td><td><span class="link" style="color:var(--text-muted);cursor:not-allowed;">尚未实现</span></td></tr>
+              <tr><td class="mono">codex</td><td><span class="badge badge-gray">stub</span></td><td>Codex CLI stub；命令健康检查。HTTP、模型目录、权限和提问回复未实现</td><td><span class="link" style="color:var(--text-muted);cursor:not-allowed;">驱动方法未实现</span></td></tr>
             </tbody>
           </table>
         </div>

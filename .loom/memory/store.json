@@ -1,6 +1,53 @@
 {
   "entries": [
     {
+      "id": "8ff0bb68",
+      "type": "踩坑",
+      "content": "合规扫描会把验证报告里的失败数零和 blocker 为零误记成 passed 为 false。报告里要写明 known，且不要把误报记录从 history.json 里删掉。",
+      "author": "tianxiqin",
+      "tags": [
+        "compliance",
+        "verification"
+      ],
+      "context": "2026-10-19 移除 Claude 的验证阶段，history.json 只被追加，旧记录仍在。审查通过时决定保持现状。",
+      "source": "session",
+      "confidence": 0.9,
+      "scope": "project",
+      "expires_at": null,
+      "stage": "synced",
+      "files": [
+        ".loom/compliance/history.json"
+      ],
+      "links": {
+        "spec": "H:\\walker\\.worktree\\2026-10-19-remove-claude-integration\\specs\\2026-10-19+remove-claude-integration"
+      },
+      "created_at": "2026-10-19T09:41:43.721Z"
+    },
+    {
+      "id": "a563acda",
+      "type": "决策",
+      "content": "运行时已移除 Claude 集成。精确小写 claude 在创建、prompt 和飞书接入前返回 claude_removed，消息为 Claude integration has been removed.。OpenCode 模型名 claude-sonnet-4 保留。旧 agent=claude 记录不迁移。历史 specs 与合规旧记录保留。",
+      "author": "tianxiqin",
+      "tags": [
+        "claude",
+        "removal"
+      ],
+      "context": "方案 A：硬删除 driver、PTY、bridge、attach 与 transcript。不改用户 .env，不继续旧的 Claude 共享会话规格。本次改动未提交。",
+      "source": "review",
+      "confidence": 0.95,
+      "scope": "project",
+      "expires_at": null,
+      "stage": "synced",
+      "files": [
+        "src/dispatch/message-dispatcher.js",
+        "src/drivers/opencode-driver.js"
+      ],
+      "links": {
+        "spec": "H:\\walker\\.worktree\\2026-10-19-remove-claude-integration\\specs\\2026-10-19+remove-claude-integration"
+      },
+      "created_at": "2026-10-19T09:41:43.643Z"
+    },
+    {
       "id": "968f7566",
       "type": "踩坑",
       "content": "OpenCode CLI v2.0.32 不执行 cli.json 中的裸 JS 文件 URL。Walker V2 必须注册 walker-tui-plugin 包目录，由 tui.js 导入 ../walker-tui-bridge.js；加载证据以 CLI stage=setup 为准。无会话时看不到 /register 或 /poll，不能写成桥接连通，真实飞书往返环境不足时也必须标为未验证。",
@@ -898,46 +945,6 @@
       ],
       "links": {},
       "created_at": "2026-07-10T05:32:30.691Z"
-    },
-    {
-      "id": "fe412085",
-      "type": "踩坑",
-      "content": "server.js port=0回退bug：config.port || 8787 将测试端口0回退为8787导致EADDRINUSE冲突；修复为 config.port != null ? config.port : 8787",
-      "author": "tianxiqin",
-      "tags": [
-        "admin",
-        "bug"
-      ],
-      "context": "T7集成测试",
-      "source": "src/admin/server.js",
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [
-        "src/admin/server.js"
-      ],
-      "links": {},
-      "created_at": "2026-07-10T05:32:30.692Z"
-    },
-    {
-      "id": "f6b87a23",
-      "type": "踩坑",
-      "content": "流水线占位符检查误报：自审句中含TBD/TODO字面量会触发占位符扫描阻断，需避免在自审/结论表述中使用这些关键字",
-      "author": "tianxiqin",
-      "tags": [
-        "loom",
-        "pipeline"
-      ],
-      "context": "verify-report.md和review-request.md的自审句",
-      "source": null,
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [],
-      "links": {},
-      "created_at": "2026-07-10T05:32:30.692Z"
     }
   ],
   "sessions": []
