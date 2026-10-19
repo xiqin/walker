@@ -1,0 +1,23 @@
+{
+  "round": 1,
+  "convergence_status": "converged",
+  "behavior_coverage": "100%",
+  "blocker_count": 0,
+  "omission_hunter": "pass",
+  "omission_checked_behaviors": 45,
+  "new_tasks": [],
+  "concerns": [],
+  "status": "done",
+  "summary": "第 1 轮收敛通过：45/45 behavior 为 covered，missing/partial/contradicts/unrequested 均为 0。遗漏审查 45 项，blocker 为 0。未新增回流 task。",
+  "artifacts": [
+    "convergence-report.json"
+  ],
+  "stage": "converge",
+  "task_id": "converge",
+  "basis_fingerprints": {
+    "plan.md": "d4a22be15362ae113cab26965dc5718280d16ead378ddddcd04eca12ad6941b3",
+    "spec.md": "7019b7d584a820b0f648d3800f6b7b76b44ce407d46cb65fc4cdb423bb9003cd"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-10-19T09:29:26.146Z"
+}

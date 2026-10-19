@@ -1,6 +1,6 @@
 # Walker
 
-飞书多 Agent CLI 桥接器 — 通过飞书长连接操控本机 opencode agent 会话（架构保留 Claude Code、Codex 等扩展点）。
+飞书多 Agent CLI 桥接器 — 通过飞书长连接操控本机 opencode agent 会话。OpenCode 已实现；Codex 按当前代码注册为 stub 驱动，shell 只作为内置诊断 provider。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.11.0-brightgreen.svg)](https://nodejs.org/)
@@ -47,7 +47,7 @@ npm start
 | `walker init [--data-dir <dir>]` | 初始化数据目录、模板配置和必要本地文件；不会覆盖已有配置 |
 | `walker doctor` | 检查核心配置、飞书环境、OpenCode 和 provider 状态，输出问题与修复建议 |
 | `walker providers list` | 列出内置 provider catalog 及本机检测状态 |
-| `walker providers doctor <id>` | 诊断单个 provider，例如 `opencode`、`claude`、`codex`、`shell` |
+| `walker providers doctor <id>` | 诊断单个 provider，例如 `opencode`、`codex`、`shell` |
 | `walker help` | 显示帮助 |
 
 运行前先配置 `.env`。日志同时输出到终端；后台模式额外写入 Walker 数据目录下的 `logs/walker.out.log` / `logs/walker.err.log`（默认 `~/.walker/logs/`，可通过 `WALKER_DATA_DIR` 调整）。
@@ -227,13 +227,15 @@ Walker 启动时会更新 OpenCode TUI plugin。若更新涉及 `/clear` 等桥�
 - HTTP/SSE transport 使用独立超时：`OPENCODE_SSE_OPEN_TIMEOUT_MS`（建连）、`OPENCODE_PROMPT_REQUEST_TIMEOUT_MS`（提交）、`OPENCODE_SSE_IDLE_TIMEOUT_MS`（空闲，收到 chunk 自动续期）；均可设为 `0` 关闭。SSE 断流后自动 polling 恢复最终结果。
 - TUI Bridge 使用租约协议：`OPENCODE_TUI_LEASE_TIMEOUT_MS`（租约，heartbeat 续期）、`OPENCODE_TUI_HEARTBEAT_INTERVAL_MS`（心跳间隔）。旧 `OPENCODE_PROMPT_TIMEOUT_MS` 已废弃，仅作为 `OPENCODE_SSE_IDLE_TIMEOUT_MS` 的兼容输入。
 
-## Agent 扩展
+## Provider
 
-| Agent      | 状态       | 说明                                    |
-| ---------- | ---------- | --------------------------------------- |
-| `opencode` | P0 已实现  | 通过 `opencode serve` HTTP API/SSE 控制 |
-| `claude`   | 预留扩展点 | Claude Code CLI，未来实现               |
-| `codex`    | 预留扩展点 | Codex CLI，未来实现                     |
+OpenCode 已实现会话控制。Codex 与 shell 按当前 catalog 和驱动注册描述。
+
+| Provider   | 状态     | 说明                                                                                                                          |
+| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `opencode` | 已实现   | 通过 `opencode serve` HTTP API/SSE 与 TUI bridge 控制会话                                                                     |
+| `codex`    | stub     | Codex CLI。`stubCodexDriver` 的驱动方法未实现；catalog 将会话标为 stub 可用，健康检查为命令探测。HTTP、模型目录、权限和提问回复未实现。配置键 `CODEX_HOME` |
+| `shell`    | 内置诊断 | 不注册为 Agent 驱动，不管理 agent 会话。健康检查为 builtin，主要能力是命令执行。配置键 `SHELL`、`COMSPEC`                      |
 
 ## Runtime
 
@@ -386,8 +388,7 @@ flowchart LR
   Dispatcher --> Attachments[AttachmentService<br/>附件落盘]
 
   Registry --> OpenCodeDriver[OpencodeDriver<br/>src/drivers/opencode-driver.js]
-  Registry --> ClaudeStub[Claude Stub<br/>预留扩展]
-  Registry --> CodexStub[Codex Stub<br/>预留扩展]
+  Registry --> CodexStub[Codex Stub<br/>stubCodexDriver]
 
   OpenCodeDriver -->|HTTP API / SSE| OpenCodeServe[opencode serve<br/>localhost:4096]
   OpenCodeDriver -->|TUI bridge transport| TuiBridge[OpencodeTuiBridge<br/>src/opencode-tui-bridge/bridge.js]
@@ -441,7 +442,7 @@ flowchart TB
     DriverRegistry[DriverRegistry]
     AgentDriver[AgentDriver 抽象]
     OpencodeDriver[OpencodeDriver<br/>HTTP/SSE/TUI transport]
-    StubDrivers[Claude / Codex Stub]
+    StubDrivers[Codex Stub]
   end
 
   subgraph L5[运行时层 / Runtime]
@@ -629,7 +630,7 @@ flowchart LR
 - 1:N session 路由允许同一 routeKey 绑定多个 session，并通过焦点 session 接收普通消息。
 - OpenCode hook plugin 自动安装，用户本机启动 OpenCode 后可自动纳入 Walker，无需飞书命令干预。
 - 心跳轮询检测 OpenCode detached，并按配置自动取消 turn、移除 route 或切换焦点。
-- `AgentDriver` 抽象保留多 CLI 扩展点，当前 `opencode` 已实现，`claude`、`codex` 为预留 stub。
+- OpenCode 已实现会话控制。Codex 仍注册 `stubCodexDriver`，驱动方法未实现。shell 只出现在 provider catalog，用于内置诊断，不管理 agent 会话。
 - `ProgressCard` 支持结构化卡片实时更新，也可按配置退回 legacy 文本进度。
 
 ## 贡献

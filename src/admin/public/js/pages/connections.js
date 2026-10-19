@@ -215,11 +215,11 @@ function opencodeCard(documentRef, context, opencodeStatus = {}, opencodeAgent =
 
 function renderAgentTable(documentRef) {
   const rows = [];
-  for (const name of ['opencode', 'claude', 'codex']) {
+  for (const name of ['opencode', 'codex']) {
     rows.push({
       agent: name,
       status: name === 'opencode' ? 'P0 已实现' : '预留扩展点',
-      note: name === 'opencode' ? '通过 opencode serve HTTP API / SSE 控制' : (name === 'claude' ? 'Claude Code CLI，未来实现' : 'Codex CLI，未来实现'),
+      note: name === 'opencode' ? '通过 opencode serve HTTP API / SSE 控制' : 'Codex CLI，未来实现',
       action: name === 'opencode' ? '设为默认' : '尚未实现',
     });
   }

@@ -37,30 +37,90 @@ test('REQ-001-B03: register/unregister/clear 后 registry 与 provider metadata 
 test('REQ-001-B07: driverRegistry.list() 仍只返回已注册 driver 名称', () => {
   const registry = new DriverRegistry();
   registry.register('opencode', { name: 'opencode' });
-  registry.register('claude', { name: 'claude' });
+  registry.register('codex', { name: 'codex' });
 
-  assert.deepEqual(registry.list(), ['opencode', 'claude']);
+  assert.deepEqual(registry.list(), ['opencode', 'codex']);
   assert.ok(!registry.list().some((item) => typeof item === 'object'));
 });
 
-test('REQ-001-B02 和 REQ-008-B04: Claude provider 注册后不再呈现 stub 状态', async () => {
+test('REQ-002-B01: registry provider 列表只返回 opencode、codex、shell', () => {
+  const registry = new DriverRegistry();
+
+  assert.deepEqual(registry.listProviders().map((item) => item.id), ['opencode', 'codex', 'shell']);
+  assert.equal(registry.getProviderMetadata('claude'), null);
+  assert.equal(registry.getProviderMetadata('Claude'), null);
+});
+
+test('REQ-002-B03: registry doctor claude 与 Claude 返回 NOT_FOUND，空 id 保持原错误', async () => {
+  let resolveCalls = 0;
+  let runCalls = 0;
   const registry = new DriverRegistry({
     detectorOptions: {
-      resolveCommand: async (candidate) => candidate === 'claude' ? '/usr/bin/claude' : null,
-      runCommand: async () => ({ stdout: '2.1.196 (Claude Code)\n' }),
+      resolveCommand: async () => {
+        resolveCalls += 1;
+        return '/tmp/fake-claude';
+      },
+      runCommand: async () => {
+        runCalls += 1;
+        return { stdout: '2.1.196 (Claude Code)\n' };
+      },
+      execFile: () => {
+        runCalls += 1;
+      },
     },
   });
 
-  registry.register('claude', { name: 'claude', _isStub: false, ensureReady() {} });
-  const metadata = registry.getProviderMetadata('claude');
+  const lower = await registry.doctorProvider('claude');
+  const upper = await registry.doctorProvider('Claude');
+  const empty = await registry.doctorProvider('');
+
+  assert.equal(lower.ok, false);
+  assert.equal(lower.error.code, 'NOT_FOUND');
+  assert.equal(lower.error.message, 'unknown provider: claude');
+  assert.equal(lower.provider, undefined);
+  assert.equal(upper.ok, false);
+  assert.equal(upper.error.code, 'NOT_FOUND');
+  assert.equal(upper.error.message, 'unknown provider: Claude');
+  assert.equal(empty.ok, false);
+  assert.equal(empty.error.code, 'NOT_FOUND');
+  assert.equal(empty.error.message, 'unknown provider: ');
+  assert.notEqual(empty.error.message, 'unknown provider: claude');
+  assert.equal(resolveCalls, 0);
+  assert.equal(runCalls, 0);
+});
+
+test('REQ-002-B04: registry doctor 在 fake claude 可见时不探测版本', async () => {
+  let resolveCalls = 0;
+  let spawnCalls = 0;
+  const registry = new DriverRegistry({
+    detectorOptions: {
+      env: { PATH: '/tmp/fake-claude-bin', CLAUDE_CMD: '/tmp/fake-claude-bin/claude' },
+      resolveCommand: async (candidate) => {
+        resolveCalls += 1;
+        return candidate === 'claude' ? '/tmp/fake-claude-bin/claude' : null;
+      },
+      runCommand: async () => {
+        spawnCalls += 1;
+        return { stdout: '2.1.196 (Claude Code)\n' };
+      },
+      execFile: () => {
+        spawnCalls += 1;
+      },
+      detectProvider: async () => {
+        resolveCalls += 1;
+        return { id: 'claude', version: 'should-not-run', installed: true, healthy: true };
+      },
+    },
+  });
+
   const status = await registry.doctorProvider('claude');
 
-  assert.equal(metadata.registered, true);
-  assert.equal(status.provider.registered, true);
-  assert.equal(status.provider.driverRegistered, true);
-  assert.equal(status.provider.installed, true);
-  assert.equal(status.provider.healthy, true);
-  assert.equal(status.provider.version, '2.1.196 (Claude Code)');
+  assert.equal(status.ok, false);
+  assert.equal(status.error.code, 'NOT_FOUND');
+  assert.equal(status.error.message, 'unknown provider: claude');
+  assert.equal(status.provider, undefined);
+  assert.equal(resolveCalls, 0);
+  assert.equal(spawnCalls, 0);
 });
 
 test('REQ-001-B02: registry 查询未知 provider 返回 NOT_FOUND', async () => {

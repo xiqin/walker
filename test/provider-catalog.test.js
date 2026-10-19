@@ -2,8 +2,11 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
-const { listProviderCatalog } = require('../src/providers/provider-catalog');
+const { getProviderCatalog, listProviderCatalog } = require('../src/providers/provider-catalog');
 const { detectProvider, defaultResolveCommand, runCommand } = require('../src/providers/provider-detectors');
 const { doctorProvider, listProviderStatuses } = require('../src/providers/provider-health');
 const agentRuntimeAdmin = require('../src/admin/agent-runtime-admin');
@@ -50,61 +53,41 @@ test('REQ-001-B01: 已安装 provider 返回安装、版本、capabilities 和�
   assert.deepEqual(result.provider.problems, []);
 });
 
-test('REQ-001-B01 和 REQ-007-B03: Claude catalog 声明真实 CLI driver 能力和配置键', () => {
-  const claude = listProviderCatalog().find((item) => item.id === 'claude');
+test('REQ-002-B01: provider catalog 只返回 opencode、codex、shell', () => {
+  const providers = listProviderCatalog();
+  const ids = providers.map((item) => item.id);
+  const configKeys = providers.flatMap((item) => item.configKeys);
 
-  assert.equal(claude.driver, 'claude');
-  assert.deepEqual(claude.executableCandidates, ['claude']);
-  assert.deepEqual(claude.versionCommand.args, ['--version']);
-  assert.equal(claude.healthCheck.type, 'command');
-  assert.deepEqual(claude.capabilities, {
-    sessions: true,
-    tui: true,
-    http: false,
-    models: true,
-    permissions: false,
-    window: true,
-    questionReply: true,
-  });
-  assert.equal(claude.capabilityStatus.permissions.status, 'degraded');
-  assert.match(claude.capabilityStatus.permissions.reason, /OpenCode allow\/ask\/deny/);
-  assert.equal(claude.capabilityStatus.questionReply.status, 'degraded');
-  assert.equal(claude.capabilityStatus.models.status, 'supported');
-  assert.ok(claude.configKeys.includes('CLAUDE_CMD'));
-  assert.ok(claude.configKeys.includes('CLAUDE_MODEL'));
-  assert.ok(claude.configKeys.includes('CLAUDE_FALLBACK_MODEL'));
-  assert.ok(claude.configKeys.includes('CLAUDE_AGENT'));
-  assert.ok(claude.configKeys.includes('CLAUDE_PERMISSION_MODE'));
-  assert.ok(claude.configKeys.includes('CLAUDE_ALLOWED_TOOLS'));
-  assert.ok(claude.configKeys.includes('CLAUDE_DISALLOWED_TOOLS'));
-  assert.ok(claude.configKeys.includes('CLAUDE_CONFIG_DIR'));
-  assert.ok(claude.configKeys.includes('CLAUDE_TOOLS'));
-  assert.ok(claude.configKeys.includes('CLAUDE_AGENTS'));
-  assert.ok(claude.configKeys.includes('CLAUDE_MCP_CONFIGS'));
-  assert.ok(claude.configKeys.includes('CLAUDE_STRICT_MCP_CONFIG'));
-  assert.ok(claude.configKeys.includes('CLAUDE_SETTINGS_FILE'));
-  assert.ok(claude.configKeys.includes('CLAUDE_SETTING_SOURCES'));
-  assert.ok(claude.configKeys.includes('CLAUDE_PLUGIN_DIRS'));
-  assert.ok(claude.configKeys.includes('CLAUDE_BARE'));
-  assert.ok(claude.configKeys.includes('CLAUDE_SAFE_MODE'));
-  assert.ok(claude.configKeys.includes('CLAUDE_DISABLE_SLASH_COMMANDS'));
-  assert.ok(claude.configKeys.includes('CLAUDE_ALLOW_BYPASS_PERMISSIONS'));
-  assert.ok(claude.configKeys.includes('CLAUDE_PROMPT_TIMEOUT_MS'));
+  assert.deepEqual(ids, ['opencode', 'codex', 'shell']);
+  assert.equal(ids.includes('claude'), false);
+  assert.equal(getProviderCatalog('claude'), null);
+  assert.equal(getProviderCatalog('Claude'), null);
+  assert.equal(configKeys.some((key) => key === 'CLAUDE_CMD' || key.startsWith('CLAUDE_')), false);
+
+  const opencode = providers.find((item) => item.id === 'opencode');
+  assert.equal(opencode.healthCheck.type, 'driver');
+  assert.equal(opencode.driver, 'opencode');
+  assert.ok(providers.find((item) => item.id === 'codex'));
+  assert.ok(providers.find((item) => item.id === 'shell'));
+
+  const catalogSource = fs.readFileSync(path.join(__dirname, '../src/providers/provider-catalog.js'), 'utf8');
+  const healthSource = fs.readFileSync(path.join(__dirname, '../src/providers/provider-health.js'), 'utf8');
+  assert.equal(catalogSource.includes('CLAUDE_CMD'), false);
+  assert.equal(healthSource.includes('CLAUDE_CMD'), false);
+  assert.equal(healthSource.includes('applyConfiguredCommand'), false);
 });
 
 test('REQ-005-B05: provider capabilityStatus 区分 supported/degraded/unsupported 且 OpenCode 保持权限支持', () => {
   const providers = new Map(listProviderCatalog().map((item) => [item.id, item]));
   const opencode = providers.get('opencode');
-  const claude = providers.get('claude');
 
+  assert.equal(providers.has('claude'), false);
+  assert.ok(providers.has('codex'));
+  assert.ok(providers.has('shell'));
   assert.equal(opencode.capabilities.permissions, true);
   assert.equal(opencode.capabilities.questionReply, true);
   assert.equal(opencode.capabilityStatus.permissions.status, 'supported');
   assert.equal(opencode.capabilityStatus.questionReply.status, 'supported');
-  assert.equal(claude.capabilities.permissions, false);
-  assert.equal(claude.capabilities.questionReply, true);
-  assert.equal(claude.capabilityStatus.permissions.status, 'degraded');
-  assert.equal(claude.capabilityStatus.questionReply.status, 'degraded');
   for (const provider of providers.values()) {
     for (const detail of Object.values(provider.capabilityStatus)) {
       assert.ok(['supported', 'degraded', 'unsupported'].includes(detail.status));
@@ -125,7 +108,7 @@ test('REQ-001-B02: 未知 provider 返回明确 NOT_FOUND 且不调用检测依�
 });
 
 test('REQ-001-B04: 命令缺失、版本失败和健康失败转换为 problems 与 suggestions', async () => {
-  const missing = await doctorProvider('claude', createDetectorOptions({ claude: { missing: true } }));
+  const missing = await doctorProvider('codex', createDetectorOptions({ codex: { missing: true } }));
   assert.equal(missing.provider.installed, false);
   assert.equal(missing.provider.healthy, false);
   assert.ok(missing.provider.problems.some((item) => item.code === 'COMMAND_NOT_FOUND'));
@@ -143,19 +126,112 @@ test('REQ-001-B04: 命令缺失、版本失败和健康失败转换为 problems 
   assert.ok(healthFailed.provider.problems.some((item) => item.code === 'HEALTH_CHECK_FAILED'));
 });
 
-test('REQ-007-B03: Claude provider 检测优先使用 CLAUDE_CMD 配置命令', async () => {
-  const result = await doctorProvider('claude', {
-    ...createDetectorOptions({
-      claude: { missing: true },
-      'claude-beta': { path: '/opt/bin/claude-beta', stdout: '2.1.196 (Claude Code)\n', health: true },
-    }),
-    env: { CLAUDE_CMD: 'claude-beta' },
-  });
+/**
+ * 统计 doctor 可能触达的检测与 spawn 依赖，避免测试启动真实 claude。
+ * @returns {{calls: Object, options: Object}} 计数器与可注入选项。
+ */
+function createUnusedClaudeDetectors() {
+  const calls = { detect: 0, resolve: 0, run: 0, spawn: 0 };
+  return {
+    calls,
+    options: {
+      detectProvider: async () => {
+        calls.detect += 1;
+        throw new Error('detector must not run');
+      },
+      resolveCommand: async () => {
+        calls.resolve += 1;
+        return '/tmp/should-not-resolve-claude';
+      },
+      runCommand: async () => {
+        calls.run += 1;
+        return { stdout: 'claude 9.9.9\n', stderr: '' };
+      },
+      execFile: () => {
+        calls.spawn += 1;
+        throw new Error('spawn must not run');
+      },
+    },
+  };
+}
 
-  assert.equal(result.ok, true);
-  assert.equal(result.provider.installed, true);
-  assert.equal(result.provider.executablePath, '/opt/bin/claude-beta');
-  assert.equal(result.provider.version, '2.1.196 (Claude Code)');
+test('REQ-002-B03: doctor claude 与 Claude 返回 NOT_FOUND，空 id 保持原错误', async () => {
+  const detectors = createUnusedClaudeDetectors();
+  const claude = await doctorProvider('claude', detectors.options);
+  const titled = await doctorProvider('Claude', detectors.options);
+  const empty = await doctorProvider('', detectors.options);
+
+  assert.deepEqual(claude, { ok: false, error: { code: 'NOT_FOUND', message: 'unknown provider: claude' } });
+  assert.deepEqual(titled, { ok: false, error: { code: 'NOT_FOUND', message: 'unknown provider: Claude' } });
+  assert.equal(empty.ok, false);
+  assert.equal(empty.error.code, 'NOT_FOUND');
+  assert.equal(empty.error.message, 'unknown provider: ');
+  assert.notEqual(empty.error.message, 'unknown provider: claude');
+  assert.equal(detectors.calls.detect, 0);
+  assert.equal(detectors.calls.resolve, 0);
+  assert.equal(detectors.calls.run, 0);
+  assert.equal(detectors.calls.spawn, 0);
+});
+
+test('REQ-002-B04: 本机存在 fake claude 时 doctor 不调用检测器或 spawn', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-fake-claude-'));
+  const marker = path.join(dir, 'spawned.txt');
+  const fake = path.join(dir, process.platform === 'win32' ? 'claude.cmd' : 'claude');
+  const script = process.platform === 'win32'
+    ? '@echo off\r\necho spawned>"' + marker + '"\r\n'
+    : '#!/bin/sh\necho spawned > "' + marker + '"\n';
+  fs.writeFileSync(fake, script, { mode: 0o755 });
+  if (path.basename(fake) !== 'claude') fs.writeFileSync(path.join(dir, 'claude'), script, { mode: 0o755 });
+
+  const detectors = createUnusedClaudeDetectors();
+  let listedClaudeDetections = 0;
+  const options = {
+    ...detectors.options,
+    env: {
+      PATH: dir,
+      Path: dir,
+      PATHEXT: '.COM;.EXE;.BAT;.CMD',
+      CLAUDE_CMD: fake,
+    },
+  };
+
+  try {
+    const lower = await doctorProvider('claude', options);
+    const upper = await doctorProvider('Claude', options);
+    const statuses = await listProviderStatuses({
+      env: options.env,
+      resolveCommand: options.resolveCommand,
+      runCommand: options.runCommand,
+      execFile: options.execFile,
+      detectProvider: async (provider) => {
+        if (provider.id === 'claude') listedClaudeDetections += 1;
+        return {
+          id: provider.id,
+          installed: true,
+          healthy: true,
+          problems: [],
+          suggestions: [],
+          capabilities: provider.capabilities,
+        };
+      },
+    });
+
+    assert.equal(lower.ok, false);
+    assert.equal(lower.error.code, 'NOT_FOUND');
+    assert.equal(lower.error.message, 'unknown provider: claude');
+    assert.equal(upper.ok, false);
+    assert.equal(upper.error.code, 'NOT_FOUND');
+    assert.equal(statuses.some((item) => item.id === 'claude'), false);
+    assert.deepEqual(statuses.map((item) => item.id), ['opencode', 'codex', 'shell']);
+    assert.equal(detectors.calls.detect, 0);
+    assert.equal(detectors.calls.resolve, 0);
+    assert.equal(detectors.calls.run, 0);
+    assert.equal(detectors.calls.spawn, 0);
+    assert.equal(listedClaudeDetections, 0);
+    assert.equal(fs.existsSync(marker), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('REQ-001-B04: 默认命令解析器使用平台可执行查找命令', async () => {
@@ -354,14 +430,17 @@ test('REQ-001-B05: Admin agent 状态兼容 providerStatuses 对象映射', () =
 });
 
 test('REQ-001-B06 和 REQ-007-B05: 单 provider 异常被结构化捕获且不影响其他 provider', async () => {
+  const seen = [];
   const statuses = await listProviderStatuses({
     providers: listProviderCatalog(),
     detectProvider: async (provider) => {
-      if (provider.id === 'claude') throw new Error('detector exploded');
+      seen.push(provider.id);
+      if (provider.id === 'claude') throw new Error('catalog must not detect claude');
+      if (provider.id === 'codex') throw new Error('detector exploded');
       return {
         id: provider.id,
-        installed: provider.id === 'shell',
-        healthy: provider.id === 'shell',
+        installed: provider.id === 'shell' || provider.id === 'opencode',
+        healthy: provider.id === 'shell' || provider.id === 'opencode',
         problems: [],
         suggestions: [],
         capabilities: provider.capabilities,
@@ -369,10 +448,15 @@ test('REQ-001-B06 和 REQ-007-B05: 单 provider 异常被结构化捕获且不�
     },
   });
 
-  const claude = statuses.find((item) => item.id === 'claude');
+  const codex = statuses.find((item) => item.id === 'codex');
+  const opencode = statuses.find((item) => item.id === 'opencode');
   const shell = statuses.find((item) => item.id === 'shell');
-  assert.equal(claude.healthy, false);
-  assert.ok(claude.problems.some((item) => item.code === 'DETECTOR_EXCEPTION'));
+  assert.deepEqual(seen, ['opencode', 'codex', 'shell']);
+  assert.equal(statuses.some((item) => item.id === 'claude'), false);
+  assert.equal(codex.healthy, false);
+  assert.ok(codex.problems.some((item) => item.code === 'DETECTOR_EXCEPTION'));
+  assert.equal(opencode.installed, true);
+  assert.equal(opencode.healthy, true);
   assert.equal(shell.installed, true);
   assert.equal(shell.healthy, true);
 });

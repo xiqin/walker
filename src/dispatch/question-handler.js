@@ -2,6 +2,7 @@
 
 const { buildNativeQuestionCard, buildNativeQuestionStatusCard } = require('../platform/feishu/cards');
 const { createLogger } = require('../core/logger');
+const { rejectRemovedClaude } = require('../platform/feishu/commands');
 
 const logger = createLogger('question-handler');
 const TERMINAL_STATUSES = new Set(['replied', 'rejected', 'processed_unknown', 'feishu_unavailable']);
@@ -323,6 +324,31 @@ class QuestionHandler {
     await this._patch(cmd.messageId, card, cmd.chatId, '请求已过期');
   }
 
+  /**
+   * Claude 提问回复在 driver 调用前拒绝。不读取 transcript，日志不含答案正文。
+   * @param {Object} source
+   * @param {Object} [cmd]
+   * @returns {Promise<{error: string}>}
+   */
+  async _rejectRemovedClaudeQuestion(source, cmd) {
+    const sessionId = (source && (source.walkerSessionId || source.id)) || '';
+    const routeKey = (cmd && cmd.routeKey) || (source && source.routeKey) || '';
+    return rejectRemovedClaude({
+      sessionId,
+      routeKey,
+      log: (fields) => logger.warn('claude integration removed', fields),
+      sendErrorCard: async (message) => {
+        if (!this.feishuApi || typeof this.feishuApi.sendErrorCard !== 'function') return;
+        await this.feishuApi.sendErrorCard({
+          messageId: cmd && cmd.messageId,
+          chatId: (cmd && cmd.chatId) || (source && source.chatId) || '',
+          routeKey,
+          sessionId,
+        }, message);
+      },
+    });
+  }
+
   /** 验证原卡片上下文后收集单题答案或重试整组提交。 */
   async handleAnswer(cmd) {
     this.pruneStates();
@@ -340,6 +366,9 @@ class QuestionHandler {
       return { error: 'invalid_answer_command' };
     }
     const session = this.sessionService && typeof this.sessionService.getSession === 'function' ? this.sessionService.getSession(walkerSessionId) : null;
+    if (session && session.agent === 'claude') {
+      return this._rejectRemovedClaudeQuestion(session, cmd);
+    }
     if (!session || !session.agentRef) {
       logger.warn('native question answer rejected: session expired', { requestID: parsed.requestID, index: parsed.index, walkerSessionId, messageId: cmd.messageId });
       await this._expired(cmd, parsed);
@@ -417,6 +446,9 @@ class QuestionHandler {
 
   /** 提交权只在 collecting 到 submitting 的同步转换中获取。 */
   async submitAnswers(request) {
+    if (request && request.agent === 'claude') {
+      return this._rejectRemovedClaudeQuestion(request);
+    }
     if (request.status !== 'submitting') return { status: request.status };
     const driver = this.driverRegistry && this.driverRegistry.get(request.agent);
     if (!driver || typeof driver.replyQuestion !== 'function') {
@@ -426,8 +458,7 @@ class QuestionHandler {
     }
     try {
       if (request.status !== 'submitting') return { status: request.status };
-      if (request.agent === 'claude') await driver.replyQuestion(request.agentRef, request.requestID, request.answers, { questions: request.questions });
-      else await driver.replyQuestion(request.agentRef, request.requestID, request.answers);
+      await driver.replyQuestion(request.agentRef, request.requestID, request.answers);
       if (request.status !== 'submitting') return { status: request.status };
       this._terminal(request, 'replied');
       await this._patchAll(request, 'replied');

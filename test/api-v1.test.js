@@ -219,6 +219,68 @@ test('v1 providers/sessions/routes/events/metrics/prompt 返回稳定响应并�
   });
 });
 
+test('REQ-005-B05: POST /api/v1/sessions 对 agent=claude 返回 claude_removed 且不写 store', async () => {
+  const ctx = createContext();
+  let createCalls = 0;
+  const originalCreate = ctx.sessionService.createSession.bind(ctx.sessionService);
+  ctx.sessionService.createSession = (opts) => {
+    createCalls += 1;
+    return originalCreate(opts);
+  };
+  ctx.registry.get = (name) => {
+    if (name === 'claude') throw new Error('claude driver must not be resolved');
+    return name === 'opencode' ? ctx.driver : null;
+  };
+  await withServer(ctx, async (baseUrl) => {
+    const before = ctx.sessionService.listSessions().length;
+    const removed = await request(baseUrl, 'POST', '/api/v1/sessions', {
+      agent: 'claude',
+      title: 'must-not-create',
+      createAgentSession: true,
+    });
+    const kept = await request(baseUrl, 'POST', '/api/v1/sessions', {
+      agent: 'opencode',
+      title: 'still-created',
+    });
+
+    assert.equal(removed.status, 400);
+    assert.deepEqual(removed.body, {
+      ok: false,
+      error: { code: 'claude_removed', message: 'Claude integration has been removed.' },
+    });
+    assert.equal(removed.body.data, undefined);
+    assert.equal(kept.status, 200);
+    assert.equal(kept.body.ok, true);
+    assert.equal(kept.body.data.agent, 'opencode');
+    assert.equal(kept.body.error, undefined);
+    assert.equal(createCalls, 1);
+    assert.equal(ctx.sessionService.listSessions().length, before + 1);
+    assert.equal(ctx.sessionService.listSessions().some((session) => session.agent === 'claude'), false);
+    assert.equal(ctx.driver.promptCalls.length, 0);
+  });
+});
+
+test('REQ-005-B07: POST /api/v1/prompt 对 agent=claude 返回精确 claude_removed', async () => {
+  const ctx = createContext();
+  ctx.sessionService.createSession({ agent: 'claude', title: 'old-claude' });
+  const sentinel = 'V1_PROMPT_SENTINEL_do_not_echo';
+  await withServer(ctx, async (baseUrl) => {
+    const result = await request(baseUrl, 'POST', '/api/v1/prompt', {
+      sessionId: 'wks_two',
+      text: sentinel,
+    });
+    assert.equal(result.status, 400);
+    assert.deepEqual(result.body, {
+      ok: false,
+      error: { code: 'claude_removed', message: 'Claude integration has been removed.' },
+    });
+    assert.equal(result.body.data, undefined);
+    assert.equal(JSON.stringify(result.body).includes(sentinel), false);
+    assert.equal(ctx.driver.promptCalls.length, 0);
+    assert.equal(ctx.sessionService.getSession('wks_two').agent, 'claude');
+  });
+});
+
 test('v1 prompt 无效输入返回 BAD_REQUEST 且不调用 driver 并记录错误指标', async () => {
   const ctx = createContext();
   await withServer(ctx, async (baseUrl) => {

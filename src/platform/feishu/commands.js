@@ -1,7 +1,35 @@
+/** 已移除的 Claude 接入对用户展示的唯一英文消息。 */
+const CLAUDE_REMOVED_MESSAGE = 'Claude integration has been removed.';
+const CLAUDE_REMOVED_ERROR = 'claude_removed';
+
+/**
+ * 拒绝已移除的 Claude 接入。
+ * 只服务本产品规则，不是 provider 插件，也不读取 Claude 配置或 transcript。
+ * 日志回调只应记录错误码、session id 和 route key，不得传入消息正文。
+ * @param {Object} [options]
+ * @param {string} [options.sessionId]
+ * @param {string} [options.routeKey]
+ * @param {Function} [options.log]
+ * @param {Function} [options.sendErrorCard]
+ * @returns {Promise<{error: string}>}
+ */
+async function rejectRemovedClaude(options) {
+  const opts = options || {};
+  const sessionId = opts.sessionId || '';
+  const routeKey = opts.routeKey || '';
+  if (typeof opts.log === 'function') {
+    opts.log({ error: CLAUDE_REMOVED_ERROR, sessionId, routeKey });
+  }
+  if (typeof opts.sendErrorCard === 'function') {
+    await opts.sendErrorCard(CLAUDE_REMOVED_MESSAGE);
+  }
+  return { error: CLAUDE_REMOVED_ERROR };
+}
+
 /** Walker 支持的命令定义表，包含描述和使用方式 */
 const COMMANDS = {
   new: { desc: '创建新会话', usage: '/new [agent] [title] [--cwd <path>]' },
-  attach: { desc: '发现并纳入已有会话(OpenCode 或 Claude)', usage: '/attach | /attach claude [session_id]' },
+  attach: { desc: '发现并纳入已有 OpenCode 会话', usage: '/attach [session_id]' },
   list: { desc: '列出所有会话', usage: '/list' },
   use: { desc: '绑定当前对话到指定会话', usage: '/use <session_id> | /use off' },
   current: { desc: '查看当前绑定的会话', usage: '/current' },
@@ -63,4 +91,12 @@ function formatHelp() {
   return lines.join('\n');
 }
 
-module.exports = { parseCommand, COMMANDS, COMMAND_LIST, formatHelp };
+module.exports = {
+  parseCommand,
+  COMMANDS,
+  COMMAND_LIST,
+  formatHelp,
+  CLAUDE_REMOVED_MESSAGE,
+  CLAUDE_REMOVED_ERROR,
+  rejectRemovedClaude,
+};

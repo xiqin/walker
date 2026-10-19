@@ -4,7 +4,7 @@ const { AgentDriver } = require('../src/drivers/agent-driver');
 const { DriverRegistry } = require('../src/drivers/driver-registry');
 const { OpencodeDriver } = require('../src/drivers/opencode-driver');
 const { OpencodeTuiBridge } = require('../src/opencode-tui-bridge/bridge');
-const { stubClaudeDriver, stubCodexDriver } = require('../src/drivers/stub-drivers');
+const { stubCodexDriver } = require('../src/drivers/stub-drivers');
 
 class FakeHttpClient {
   constructor(responses, onRequest) {
@@ -54,21 +54,13 @@ describe('DriverRegistry', () => {
   it('列出已注册 driver', () => {
     const reg = new DriverRegistry();
     reg.register('opencode', new OpencodeDriver({ serverUrl: 'http://localhost:4096' }));
-    reg.register('claude', stubClaudeDriver());
+    reg.register('codex', stubCodexDriver());
     const list = reg.list();
-    assert.deepEqual(list, ['opencode', 'claude']);
+    assert.deepEqual(list, ['opencode', 'codex']);
   });
 });
 
 describe('Stub drivers', () => {
-  it('claude stub 的所有方法抛未实现错误含 agent 名', async () => {
-    const d = stubClaudeDriver();
-    await assert.rejects(() => d.createSession({}), { message: /claude/i });
-    await assert.rejects(() => d.prompt({ opencodeSessionId: 's' }, 'text'), { message: /claude/i });
-    await assert.rejects(() => d.stop({ opencodeSessionId: 's' }), { message: /claude/i });
-    await assert.rejects(() => d.delete({ opencodeSessionId: 's' }), { message: /claude/i });
-  });
-
   it('codex stub 的所有方法抛未实现错误含 agent 名', async () => {
     const d = stubCodexDriver();
     await assert.rejects(() => d.createSession({}), { message: /codex/i });

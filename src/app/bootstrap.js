@@ -5,7 +5,6 @@ const { SessionService } = require('../core/session-service');
 const { MessageDedup } = require('../core/message-dedup');
 const { DriverRegistry } = require('../drivers/driver-registry');
 const { OpencodeDriver } = require('../drivers/opencode-driver');
-const { ClaudeDriver } = require('../drivers/claude-driver');
 const { stubCodexDriver } = require('../drivers/stub-drivers');
 const { createRuntime } = require('../runtime/runtime-factory');
 const { MessageDispatcher } = require('../dispatch/message-dispatcher');
@@ -24,12 +23,48 @@ const { createHookReceiverRoutes } = require('../opencode-hook/receiver');
 const { createHealthPoller } = require('../opencode-hook/health-poller');
 const { OpencodeTuiBridge } = require('../opencode-tui-bridge/bridge');
 const { createTuiBridgeRoutes } = require('../opencode-tui-bridge/routes');
-const { ClaudeBridgeSidecar } = require('../drivers/claude-bridge-sidecar');
 const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
 
 const logger = createLogger('bootstrap');
+
+function snapshotClaudeSessions(sessionService) {
+  try {
+    if (!sessionService || !sessionService.stateStore || typeof sessionService.stateStore.read !== 'function') return [];
+    const state = sessionService.stateStore.read();
+    const sessions = state && state.sessions;
+    if (!sessions || typeof sessions !== 'object') return [];
+    return Object.keys(sessions)
+      .filter((id) => sessions[id] && sessions[id].agent === 'claude')
+      .map((id) => JSON.parse(JSON.stringify(sessions[id])));
+  } catch (_err) {
+    return [];
+  }
+}
+
+function restoreClaudeSessions(sessionService, snapshots) {
+  if (!Array.isArray(snapshots) || snapshots.length === 0) return;
+  if (!sessionService || !sessionService.stateStore || typeof sessionService.stateStore.update !== 'function') return;
+  try {
+    const current = typeof sessionService.stateStore.read === 'function' ? sessionService.stateStore.read() : null;
+    const sessions = current && current.sessions;
+    const changed = !sessions || snapshots.some((original) => {
+      if (!original || !original.id) return false;
+      return JSON.stringify(sessions[original.id]) !== JSON.stringify(original);
+    });
+    if (!changed) return;
+    sessionService.stateStore.update((state) => {
+      if (!state.sessions) state.sessions = {};
+      for (const original of snapshots) {
+        if (!original || !original.id || !state.sessions[original.id]) continue;
+        state.sessions[original.id] = JSON.parse(JSON.stringify(original));
+      }
+    });
+  } catch (err) {
+    logger.warn('claude session preserve skipped', { error: err && err.message ? err.message : String(err) });
+  }
+}
 
 function resolveDataDir(configuredDataDir, options) {
   options = options || {};
@@ -55,9 +90,7 @@ function createApp(config, deps) {
   const SessionServiceClass = deps.SessionService || SessionService;
   const JsonStoreClass = deps.JsonStore || JsonStore;
   const OpencodeDriverClass = deps.OpencodeDriver || OpencodeDriver;
-  const ClaudeDriverClass = deps.ClaudeDriver || ClaudeDriver;
   const OpencodeTuiBridgeClass = deps.OpencodeTuiBridge || OpencodeTuiBridge;
-  const ClaudeBridgeSidecarClass = deps.ClaudeBridgeSidecar || ClaudeBridgeSidecar;
   const stubCodex = deps.stubCodexDriver || stubCodexDriver;
   const DriverRegistryClass = deps.DriverRegistry || DriverRegistry;
   const createRuntimeFn = deps.createRuntime || createRuntime;
@@ -92,12 +125,6 @@ function createApp(config, deps) {
     leaseTimeoutMs: config.opencodeTuiLeaseTimeoutMs ?? 90000,
     heartbeatIntervalMs: config.opencodeTuiHeartbeatIntervalMs ?? 30000,
   });
-  const claudeBridge = deps.claudeBridge || (config.claudeBridgeEnabled === false ? null : new ClaudeBridgeSidecarClass({
-    host: config.claudeBridgeHost || '127.0.0.1',
-    port: config.claudeBridgePort == null ? 0 : config.claudeBridgePort,
-    token: config.claudeBridgeToken,
-    logger: createLogger('claude-bridge-sidecar'),
-  }));
 
   const opencodeDriver = new OpencodeDriverClass({
     serverUrl: config.opencodeServerUrl || 'http://localhost:4096',
@@ -116,37 +143,9 @@ function createApp(config, deps) {
     opencodeDbPath: config.opencodeDbPath,
     tuiBridge,
   });
-  const claudeDriver = new ClaudeDriverClass({
-    runtime,
-    cwd: config.walkerDefaultCwd || process.cwd(),
-    claudeCmd: config.claudeCmd || 'claude',
-    model: config.claudeModel,
-    fallbackModel: config.claudeFallbackModel,
-    agent: config.claudeAgent,
-    permissionMode: config.claudePermissionMode,
-    permissionModeMigrated: config.claudePermissionModeMigrated,
-    allowedTools: config.claudeAllowedTools,
-    disallowedTools: config.claudeDisallowedTools,
-    addDirs: config.claudeAddDirs || config.claudeAddDir,
-    transcriptConfigDir: config.claudeConfigDir,
-    tools: config.claudeTools,
-    agents: config.claudeAgents,
-    mcpConfigs: config.claudeMcpConfigs,
-    strictMcpConfig: config.claudeStrictMcpConfig,
-    settingsFile: config.claudeSettingsFile,
-    settingSources: config.claudeSettingSources,
-    pluginDirs: config.claudePluginDirs,
-    bare: config.claudeBare,
-    safeMode: config.claudeSafeMode,
-    disableSlashCommands: config.claudeDisableSlashCommands,
-    allowBypassPermissions: config.claudeAllowBypassPermissions,
-    promptTimeoutMs: config.claudePromptTimeoutMs ?? 120000,
-    claudeBridge,
-  });
 
   const registry = new DriverRegistryClass();
   registry.register('opencode', opencodeDriver);
-  registry.register('claude', claudeDriver);
   registry.register('codex', stubCodex());
 
   const dedupStore = new JsonStoreClass(path.join(dataDir, 'dedup.json'), {});
@@ -439,9 +438,18 @@ function createApp(config, deps) {
    * @returns {Promise<void>}
    */
   async function start() {
+    const claudeSnapshots = snapshotClaudeSessions(sessionService);
+    const claudeIds = new Set(claudeSnapshots.map((session) => session && session.id).filter(Boolean));
     logger.info('walker starting', { agent: config.walkerDefaultAgent, runtime: config.walkerDefaultRuntime, admin: adminEnabled });
-    const recovered = sessionService.recoverOnStartup();
-    const cleaned = sessionService.cleanOrphanRoutes();
+    let recovered = [];
+    let cleaned = [];
+    try {
+      const recoveredAll = sessionService.recoverOnStartup();
+      recovered = Array.isArray(recoveredAll) ? recoveredAll.filter((id) => !claudeIds.has(id)) : [];
+      cleaned = sessionService.cleanOrphanRoutes();
+    } finally {
+      restoreClaudeSessions(sessionService, claudeSnapshots);
+    }
     if (recovered.length > 0) logger.info('recovered running sessions to idle', { count: recovered.length });
     if (cleaned.length > 0) logger.info('cleaned orphan routes', { count: cleaned.length });
     const hookResult = installHookPlugin({
@@ -476,22 +484,6 @@ function createApp(config, deps) {
     logger.info('walker started successfully');
   }
 
-  async function releaseClaudeWalkerConnection(reason) {
-    if (!claudeDriver) return;
-    if (typeof claudeDriver.stopWalkerConnection === 'function') {
-      await claudeDriver.stopWalkerConnection(reason);
-      return;
-    }
-    if (claudeDriver.claudeBridge && typeof claudeDriver.claudeBridge.stopWalkerConnection === 'function') {
-      await claudeDriver.claudeBridge.stopWalkerConnection(reason);
-    }
-  }
-
-  async function stopClaudeBridgeSidecar() {
-    if (!claudeBridge || typeof claudeBridge.stop !== 'function') return;
-    await claudeBridge.stop();
-  }
-
   /**
    * 停止 Walker 应用，关闭管理端 HTTP 服务和飞书平台连接
    * 同步触发 admin server 关闭（不等待 Promise 完成），与原始飞书 stop 行为一致
@@ -506,8 +498,6 @@ function createApp(config, deps) {
         dispatcher.destroy();
       }
       if (tuiBridge && typeof tuiBridge.close === 'function') tuiBridge.close();
-      await releaseClaudeWalkerConnection('walker shutdown');
-      await stopClaudeBridgeSidecar();
     }
     await platform.stop();
     logger.info('feishu platform stopped');

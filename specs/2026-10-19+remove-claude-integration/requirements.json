@@ -1,0 +1,436 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "state", "security", "observable", "performance"],
+      "required_categories": ["happy-path", "state-transition", "forbidden-behavior", "security", "observability", "performance"],
+      "acceptance": ["应用创建和关闭不再加载 Claude 模块、注册 claude driver、监听 bridge 或启动 Claude 进程"],
+      "behaviors": [
+        {
+          "id": "REQ-001-B01",
+          "category": "happy-path",
+          "description": "createApp 只注册 opencode 与 codex，不构造 ClaudeDriver 或 ClaudeBridgeSidecar",
+          "status": "failing",
+          "acceptance": ["registry.list() 不含 claude，且 Claude 构造函数调用次数为 0"],
+          "test_plan": {"strategy": "注入构造计数的 bootstrap 测试", "inputs": ["默认 opencode 配置和可计数的 driver 工厂"], "expected": ["只注册 opencode 与 codex，Claude 工厂和 bridge 工厂调用次数为 0"]}
+        },
+        {
+          "id": "REQ-001-B02",
+          "category": "state-transition",
+          "description": "应用关闭不调用 Claude connection release 或 bridge stop，重复关闭结果稳定",
+          "status": "failing",
+          "acceptance": ["一次和两次 stop 都不调用 Claude 释放函数"],
+          "test_plan": {"strategy": "bootstrap stop 幂等测试", "inputs": ["已启动的测试 app，连续调用 stop 两次"], "expected": ["Claude release/stop 调用次数为 0，第二次 stop 不抛出新错误"]}
+        },
+        {
+          "id": "REQ-001-B03",
+          "category": "forbidden-behavior",
+          "description": "启动、关闭和 Windows runtime 不 spawn claude，也不打开 walker claude attach 终端",
+          "status": "failing",
+          "acceptance": ["spawn/execFile 记录中没有 claude 命令和 attach 参数"],
+          "test_plan": {"strategy": "替换 child_process 与终端启动器", "inputs": ["createApp、stop、以及旧 attach 终端入口的调用尝试"], "expected": ["没有 claude 可执行文件、walker claude attach 或 WALKER_CLAUDE_ATTACH_* 环境变量"]}
+        },
+        {
+          "id": "REQ-001-B04",
+          "category": "security",
+          "description": "即使配置中残留 attach URL 和 token，运行时也不读取或传递这些值",
+          "status": "failing",
+          "acceptance": ["启动日志和 spawn 环境变量不含 token 哨兵"],
+          "test_plan": {"strategy": "敏感哨兵启动测试", "inputs": ["环境变量含唯一 token 哨兵和 attach URL"], "expected": ["不监听 bridge，日志和子进程环境不含哨兵"]}
+        },
+        {
+          "id": "REQ-001-B05",
+          "category": "observability",
+          "description": "删除模块后源码不再 require 已删除的 Claude 文件",
+          "status": "failing",
+          "acceptance": ["src 下不存在 claude-driver、bridge、pty、transcript、attach-command 的 require"],
+          "test_plan": {"strategy": "静态扫描", "inputs": ["src/**/*.js"], "expected": ["没有指向已删除 Claude 模块的 require 或 import"]}
+        },
+        {
+          "id": "REQ-001-B06",
+          "category": "performance",
+          "description": "启动路径不新增 Claude 版本探测、bridge 端口或重试循环",
+          "status": "failing",
+          "acceptance": ["createApp 期间 execFile 调用次数为 0，且不创建新的监听 socket"],
+          "test_plan": {"strategy": "启动副作用计数", "inputs": ["注入 execFile、listen 计数器的 createApp"], "expected": ["Claude 探测次数、bridge listen 次数和重试 timer 数均为 0"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "input", "security", "observable"],
+      "required_categories": ["happy-path", "invalid-input", "boundary", "forbidden-behavior", "security", "observability"],
+      "acceptance": ["CLI 和 provider 目录不再接受 claude，未知 provider 不执行本机 claude"],
+      "behaviors": [
+        {
+          "id": "REQ-002-B01",
+          "category": "happy-path",
+          "description": "providers list 只返回 opencode、codex、shell",
+          "status": "failing",
+          "acceptance": ["结果 id 集合不含 claude，且包含原有三项"],
+          "test_plan": {"strategy": "catalog 与 CLI 列表测试", "inputs": ["listProviderCatalog 和 walker providers list"], "expected": ["id 恰好为 opencode、codex、shell"]}
+        },
+        {
+          "id": "REQ-002-B02",
+          "category": "invalid-input",
+          "description": "walker claude 与 walker claude attach 均以退出码 1 返回统一移除消息",
+          "status": "failing",
+          "acceptance": ["两种参数都退出 1，输出含 Claude integration has been removed."],
+          "test_plan": {"strategy": "CLI 参数测试", "inputs": ["['claude']", "['claude','attach']", "['claude','attach','rt_1']"], "expected": ["每个调用退出码为 1 且包含统一消息"]}
+        },
+        {
+          "id": "REQ-002-B03",
+          "category": "boundary",
+          "description": "doctor claude 使用未知 provider 结果，空 id 和其他未知 id 仍走原有校验",
+          "status": "failing",
+          "acceptance": ["claude 返回 NOT_FOUND；空 id 不因此被当作 claude"],
+          "test_plan": {"strategy": "provider doctor 边界测试", "inputs": ["claude", "Claude", ""], "expected": ["claude 与 Claude 都是 NOT_FOUND；空 id 保持原错误且不执行命令"]}
+        },
+        {
+          "id": "REQ-002-B04",
+          "category": "forbidden-behavior",
+          "description": "本机存在 claude 可执行文件时 doctor 和 CLI 仍不调用它",
+          "status": "failing",
+          "acceptance": ["检测器调用次数为 0，没有 spawn"],
+          "test_plan": {"strategy": "注入可执行文件探测器", "inputs": ["PATH 中可见的 fake claude，doctor claude 与 claude attach"], "expected": ["探测器和 spawn 调用次数为 0"]}
+        },
+        {
+          "id": "REQ-002-B05",
+          "category": "security",
+          "description": "attach URL 与 token 环境变量不会出现在 CLI 输出或连接尝试中",
+          "status": "failing",
+          "acceptance": ["输出不含 token 哨兵，WebSocket 构造次数为 0"],
+          "test_plan": {"strategy": "敏感环境变量 CLI 测试", "inputs": ["WALKER_CLAUDE_ATTACH_URL 和唯一 token 哨兵"], "expected": ["无连接尝试，stdout/stderr 不含哨兵"]}
+        },
+        {
+          "id": "REQ-002-B06",
+          "category": "observability",
+          "description": "帮助文本不再列出 walker claude attach",
+          "status": "failing",
+          "acceptance": ["walker help 输出不含 claude attach"],
+          "test_plan": {"strategy": "帮助文本断言", "inputs": ["walker help"], "expected": ["输出含 providers 与 init，不含 claude attach"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["functional", "input", "write", "security", "compatibility", "recovery"],
+      "required_categories": ["happy-path", "invalid-input", "atomicity", "compatibility", "security", "forbidden-behavior", "recovery"],
+      "acceptance": ["CLAUDE_* 不再被解析或编辑；默认 agent 为 claude 时配置加载失败且不改写 .env"],
+      "behaviors": [
+        {
+          "id": "REQ-003-B01",
+          "category": "happy-path",
+          "description": "默认配置对象不含 claude* 字段，管理端摘要不含 claude 分组",
+          "status": "failing",
+          "acceptance": ["loadEnvConfig 和 buildConfigSummary 都没有 Claude 键或分组"],
+          "test_plan": {"strategy": "默认配置摘要测试", "inputs": ["空环境变量"], "expected": ["无 claudeCmd 等字段，groups 不含 id=claude，allowlist 不含 CLAUDE_*"]}
+        },
+        {
+          "id": "REQ-003-B02",
+          "category": "invalid-input",
+          "description": "WALKER_DEFAULT_AGENT=claude 抛出 code=claude_removed，且不调用 createApp",
+          "status": "failing",
+          "acceptance": ["错误码和消息符合统一契约"],
+          "test_plan": {"strategy": "配置加载失败测试", "inputs": ["WALKER_DEFAULT_AGENT=claude 与有效飞书凭据"], "expected": ["抛出 claude_removed，createApp 调用次数为 0"]}
+        },
+        {
+          "id": "REQ-003-B03",
+          "category": "atomicity",
+          "description": "Admin PATCH 提交 CLAUDE_* 时拒绝且 .env 字节不变",
+          "status": "failing",
+          "acceptance": ["返回非法字段错误，文件哈希不变"],
+          "test_plan": {"strategy": "配置写入失败原子性测试", "inputs": ["临时 .env 和只含 CLAUDE_CMD 的 PATCH"], "expected": ["请求失败，原文件字节完全不变"]}
+        },
+        {
+          "id": "REQ-003-B04",
+          "category": "compatibility",
+          "description": "残留 CLAUDE_* 被忽略，其他合法配置继续生效",
+          "status": "failing",
+          "acceptance": ["OpenCode 与飞书配置仍按原值加载"],
+          "test_plan": {"strategy": "混合 .env 加载测试", "inputs": ["CLAUDE_CMD 与 OPENCODE_CMD、FEISHU_APP_ID 同文件"], "expected": ["OpenCode 和飞书值生效，结果不含 claude 字段，源文件不变"]}
+        },
+        {
+          "id": "REQ-003-B05",
+          "category": "security",
+          "description": "配置摘要、错误和日志不回显 CLAUDE_* 中的敏感哨兵",
+          "status": "failing",
+          "acceptance": ["摘要和错误文本不含哨兵"],
+          "test_plan": {"strategy": "配置脱敏测试", "inputs": ["CLAUDE_SETTINGS_FILE 和 CLAUDE_CMD 含唯一哨兵"], "expected": ["摘要、校验错误和日志不含哨兵"]}
+        },
+        {
+          "id": "REQ-003-B06",
+          "category": "forbidden-behavior",
+          "description": "加载配置不把 CLAUDE_ALLOW_BYPASS_PERMISSIONS 或其他 Claude 权限值传给任何进程",
+          "status": "failing",
+          "acceptance": ["没有根据这些键构造 argv 或子进程"],
+          "test_plan": {"strategy": "权限配置隔离测试", "inputs": ["CLAUDE_ALLOW_BYPASS_PERMISSIONS=true"], "expected": ["配置对象和 spawn argv 都不含 bypassPermissions"]}
+        },
+        {
+          "id": "REQ-003-B07",
+          "category": "recovery",
+          "description": "默认 agent 从 claude 改回 opencode 后，即使 CLAUDE_* 残留也能成功加载",
+          "status": "failing",
+          "acceptance": ["第二次加载成功且默认 agent 为 opencode"],
+          "test_plan": {"strategy": "配置修复重载测试", "inputs": ["先加载 claude 默认 agent，再改为 opencode 并保留 CLAUDE_CMD"], "expected": ["第一次失败；第二次成功且不含 claude 字段"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "status": "failing",
+      "types": ["functional", "input", "state", "security", "observable", "idempotent", "concurrent"],
+      "required_categories": ["happy-path", "invalid-input", "boundary", "state-transition", "idempotency", "concurrency", "forbidden-behavior", "security", "observability"],
+      "acceptance": ["飞书新会话、纳入、自动绑定和旧会话消息都在 driver 调用前拒绝"],
+      "behaviors": [
+        {
+          "id": "REQ-004-B01",
+          "category": "happy-path",
+          "description": "/new claude 与 /attach claude 返回 claude_removed 和统一错误卡片",
+          "status": "failing",
+          "acceptance": ["两条命令都返回错误码且发送统一消息"],
+          "test_plan": {"strategy": "命令分发测试", "inputs": ["/new claude title", "/attach claude"], "expected": ["返回 claude_removed，错误卡片含统一消息"]}
+        },
+        {
+          "id": "REQ-004-B02",
+          "category": "invalid-input",
+          "description": "/attach claude 后接 UUID、--page 或 --search 都同样拒绝",
+          "status": "failing",
+          "acceptance": ["三种参数都不进入旧 UUID 校验或分页逻辑"],
+          "test_plan": {"strategy": "attach 参数矩阵", "inputs": ["UUID", "--page 1", "--search"], "expected": ["全部 claude_removed，不调用 listSessions 或 resumeSession"]}
+        },
+        {
+          "id": "REQ-004-B03",
+          "category": "boundary",
+          "description": "精确 claude 被拒绝；Claude 按未知 agent 处理；普通 /attach 仍处理 OpenCode",
+          "status": "failing",
+          "acceptance": ["三种输入走三条互不混淆的路径"],
+          "test_plan": {"strategy": "agent 名边界测试", "inputs": ["/new claude", "/new Claude", "/attach"], "expected": ["第一个 claude_removed；第二个 driver not found；第三个进入 OpenCode attach"]}
+        },
+        {
+          "id": "REQ-004-B04",
+          "category": "state-transition",
+          "description": "拒绝新 Claude 会话时不写入 session store，也不改变当前绑定",
+          "status": "failing",
+          "acceptance": ["命令前后 session 数和 current id 相同"],
+          "test_plan": {"strategy": "状态快照比较", "inputs": ["已有一条 OpenCode current，再执行 /new claude"], "expected": ["session 数不变，current 仍是原 OpenCode 会话"]}
+        },
+        {
+          "id": "REQ-004-B05",
+          "category": "idempotency",
+          "description": "重复执行 /new claude 与 /attach claude 不累积会话或副作用",
+          "status": "failing",
+          "acceptance": ["连续两次结果相同且 store 不变"],
+          "test_plan": {"strategy": "重复命令测试", "inputs": ["同一 route 连续两次 /new claude"], "expected": ["两次都是 claude_removed，session 总数不增加"]}
+        },
+        {
+          "id": "REQ-004-B06",
+          "category": "concurrency",
+          "description": "并发消息打到同一旧 Claude 会话时全部拒绝且都不调用 driver",
+          "status": "failing",
+          "acceptance": ["每个请求都是 claude_removed，prompt 调用次数为 0"],
+          "test_plan": {"strategy": "并发 prompt 测试", "inputs": ["同一 agent=claude 会话的两个同时文本消息和注入 driver"], "expected": ["两个请求都拒绝，prompt 调用次数为 0"]}
+        },
+        {
+          "id": "REQ-004-B07",
+          "category": "forbidden-behavior",
+          "description": "不按 cwd 自动绑定 Claude，不扫描 transcript，不生成 Claude 卡片命令",
+          "status": "failing",
+          "acceptance": ["无 listSessions 扫描，卡片不含 cmd:/attach claude 或 cmd:/new claude"],
+          "test_plan": {"strategy": "自动绑定与卡片渲染测试", "inputs": ["带 cwd 的入站消息和含旧 Claude 会话的卡片数据"], "expected": ["不调用 Claude listSessions；卡片动作只指向 OpenCode 或明确不可用状态"]}
+        },
+        {
+          "id": "REQ-004-B08",
+          "category": "security",
+          "description": "拒绝路径不读取 ~/.claude，也不把用户消息正文写入日志",
+          "status": "failing",
+          "acceptance": ["文件系统读取次数为 0，日志不含消息哨兵"],
+          "test_plan": {"strategy": "文件系统和日志哨兵测试", "inputs": ["含唯一正文哨兵的 Claude 会话消息"], "expected": ["不读取 Claude 配置目录，日志只有错误码和路由标识"]}
+        },
+        {
+          "id": "REQ-004-B09",
+          "category": "observability",
+          "description": "帮助文案只描述 OpenCode attach，拒绝结果含稳定错误码",
+          "status": "failing",
+          "acceptance": ["commands.attach.usage 为 /attach [session_id]，返回 error 为 claude_removed"],
+          "test_plan": {"strategy": "帮助与返回值断言", "inputs": ["COMMANDS.attach 和 /attach claude"], "expected": ["用法不含 claude，返回码稳定"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "status": "failing",
+      "types": ["functional", "write", "state", "recovery", "compatibility", "authorization"],
+      "required_categories": ["happy-path", "compatibility", "state-transition", "recovery", "atomicity", "authorization", "forbidden-behavior"],
+      "acceptance": ["旧 Claude 记录可本地查看和删除，但任何运行时调用都被拒绝且不误伤 OpenCode"],
+      "behaviors": [
+        {
+          "id": "REQ-005-B01",
+          "category": "happy-path",
+          "description": "列表和状态可以读出旧 agent=claude 记录，并说明接入已移除",
+          "status": "failing",
+          "acceptance": ["记录仍在，状态文本含统一移除消息"],
+          "test_plan": {"strategy": "只读状态测试", "inputs": ["store 中已有 agent=claude 会话"], "expected": ["list/status 返回原 id 和 agent，并含统一消息"]}
+        },
+        {
+          "id": "REQ-005-B02",
+          "category": "compatibility",
+          "description": "启动不改写旧记录的 id、agent、agentRef 或状态",
+          "status": "failing",
+          "acceptance": ["启动前后 JSON 记录相等"],
+          "test_plan": {"strategy": "store 快照测试", "inputs": ["含 claudeSessionId 的旧记录"], "expected": ["createApp 后该记录深比较不变"]}
+        },
+        {
+          "id": "REQ-005-B03",
+          "category": "state-transition",
+          "description": "本地 stop 只标记 stopped，本地 delete 只删除 Walker 记录",
+          "status": "failing",
+          "acceptance": ["stop 后状态为 stopped；delete 后记录不存在"],
+          "test_plan": {"strategy": "本地生命周期测试", "inputs": ["旧 Claude 会话分别执行 stop 和 delete"], "expected": ["只改变 Walker store，driver stop/delete 调用次数为 0"]}
+        },
+        {
+          "id": "REQ-005-B04",
+          "category": "recovery",
+          "description": "拒绝 prompt 或提问回复后，原记录仍可再次读取并再次得到同一错误",
+          "status": "failing",
+          "acceptance": ["失败不把记录改成 running 或 error 后丢失"],
+          "test_plan": {"strategy": "失败后重试测试", "inputs": ["旧会话连续两次 prompt 和一次 question reply"], "expected": ["每次都是 claude_removed，记录 id 与 agentRef 仍可读取"]}
+        },
+        {
+          "id": "REQ-005-B05",
+          "category": "atomicity",
+          "description": "Admin 新创建 agent=claude 在写 store 前拒绝",
+          "status": "failing",
+          "acceptance": ["无新 session id，store 字节或记录数不变"],
+          "test_plan": {"strategy": "Admin createSession 前置拒绝", "inputs": ["createAgentSession=true 且 agent=claude"], "expected": ["返回 claude_removed，session 数不变"]}
+        },
+        {
+          "id": "REQ-005-B06",
+          "category": "authorization",
+          "description": "未认证 Admin 请求保持原有 401，不因 Claude 移除而创建会话",
+          "status": "failing",
+          "acceptance": ["未带 token 的创建请求返回 401 且 store 不变"],
+          "test_plan": {"strategy": "Admin 鉴权回归", "inputs": ["无 token 的 agent=claude 创建请求"], "expected": ["401，session 数不变，不返回成功 session"]}
+        },
+        {
+          "id": "REQ-005-B07",
+          "category": "forbidden-behavior",
+          "description": "即使 registry 注入名为 claude 的 driver，prompt、question、cancel、watch、stop、delete 也不调用它",
+          "status": "failing",
+          "acceptance": ["注入 driver 的所有方法调用次数为 0"],
+          "test_plan": {"strategy": "注入 driver 负向测试", "inputs": ["带计数器的 fake claude driver 和旧会话"], "expected": ["所有 Claude 方法调用次数为 0，OpenCode driver 不受影响"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "status": "failing",
+      "types": ["functional", "compatibility"],
+      "required_categories": ["happy-path", "compatibility", "forbidden-behavior"],
+      "acceptance": ["OpenCode 与 Codex 原有路径保持可用，模型名 claude-sonnet-4 不被误删"],
+      "behaviors": [
+        {
+          "id": "REQ-006-B01",
+          "category": "happy-path",
+          "description": "默认 /new 与 OpenCode /attach 仍创建或纳入 OpenCode 会话",
+          "status": "failing",
+          "acceptance": ["返回的 agent 为 opencode，且不返回 claude_removed"],
+          "test_plan": {"strategy": "OpenCode 命令回归", "inputs": ["/new", "/attach 的现有测试夹具"], "expected": ["会话 agent 为 opencode，OpenCode driver 被调用"]}
+        },
+        {
+          "id": "REQ-006-B02",
+          "category": "compatibility",
+          "description": "Codex stub 仍注册，OpenCode 模型 ID claude-sonnet-4 仍可保存",
+          "status": "failing",
+          "acceptance": ["stubCodexDriver 存在，模型对象深比较不变"],
+          "test_plan": {"strategy": "Codex 与模型兼容测试", "inputs": ["bootstrap registry 和 modelID=claude-sonnet-4"], "expected": ["codex 仍是 stub；模型 ID 原样保存"]}
+        },
+        {
+          "id": "REQ-006-B03",
+          "category": "forbidden-behavior",
+          "description": "清理不删除历史 specs、合规记录和记忆，也不修改 OpenCode HTTP/TUI 模块",
+          "status": "failing",
+          "acceptance": ["指定历史文件仍存在，OpenCode driver 差异不含 Claude 清理之外的协议改动"],
+          "test_plan": {"strategy": "保护路径检查", "inputs": ["specs/2026-07-31-claude-provider", ".loom/compliance/history.json", ".loom/memory/MEMORY.md", "src/drivers/opencode-driver.js"], "expected": ["历史文件保留；OpenCode 协议文件无本次功能性改动"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "status": "failing",
+      "types": ["functional", "observable"],
+      "required_categories": ["happy-path", "observability", "forbidden-behavior"],
+      "acceptance": ["现行文档、样例和管理界面不再把 Claude 列为可用或预留接入"],
+      "behaviors": [
+        {
+          "id": "REQ-007-B01",
+          "category": "happy-path",
+          "description": "README、CONTRIBUTING、.env.example、连接页和原型页移除 Claude 接入说明",
+          "status": "failing",
+          "acceptance": ["这些现行文件不再把 claude 列为 provider 或配置项"],
+          "test_plan": {"strategy": "文档与界面文本扫描", "inputs": ["README.md", "CONTRIBUTING.md", ".env.example", "connections.js", "walker-console-v2.html"], "expected": ["无 CLAUDE_*、无 Claude Code 接入说明、连接列表不含 claude"]}
+        },
+        {
+          "id": "REQ-007-B02",
+          "category": "observability",
+          "description": "CHANGELOG Unreleased 记录本次移除，并保留 OpenCode、Codex、shell 诊断说明",
+          "status": "failing",
+          "acceptance": ["Unreleased 有移除条目，provider 示例不再含 claude"],
+          "test_plan": {"strategy": "变更日志断言", "inputs": ["CHANGELOG.md 的 Unreleased 段"], "expected": ["含 Claude 集成移除记录，现行 provider 示例为 opencode、codex、shell"]}
+        },
+        {
+          "id": "REQ-007-B03",
+          "category": "forbidden-behavior",
+          "description": "现行说明不再承诺 Claude 为未来扩展点或可执行接入",
+          "status": "failing",
+          "acceptance": ["README 与管理端不再出现“Claude Code CLI，未来实现”"],
+          "test_plan": {"strategy": "误导文案扫描", "inputs": ["README.md", "connections.js", "walker-console-v2.html"], "expected": ["不存在未来实现或预留扩展的 Claude 接入承诺"]}
+        }
+      ]
+    },
+    {
+      "id": "REQ-008",
+      "status": "failing",
+      "types": ["functional", "security", "observable"],
+      "required_categories": ["happy-path", "security", "observability", "forbidden-behavior"],
+      "acceptance": ["专用 Claude 测试已删除，共享测试和静态扫描证明不再接入 Claude"],
+      "behaviors": [
+        {
+          "id": "REQ-008-B01",
+          "category": "happy-path",
+          "description": "相关测试与 npm test 通过，并记录命令和结果",
+          "status": "failing",
+          "acceptance": ["test-report 列出定向测试、lint 和 check 的退出码"],
+          "test_plan": {"strategy": "执行验证命令", "inputs": ["更新后的 node --test 定向集合、npm run lint、npm run check"], "expected": ["命令退出码为 0，报告记录命令和结果"]}
+        },
+        {
+          "id": "REQ-008-B02",
+          "category": "security",
+          "description": "测试不启动真实 claude 进程，也不读取用户 ~/.claude",
+          "status": "failing",
+          "acceptance": ["测试代码没有真实 claude spawn 或 homedir .claude 读取"],
+          "test_plan": {"strategy": "测试源码安全扫描", "inputs": ["test/**/*.js"], "expected": ["无 claude CLI spawn/execFile，无用户主目录 .claude 读取"]}
+        },
+        {
+          "id": "REQ-008-B03",
+          "category": "observability",
+          "description": "报告明确区分已删除的专用测试和仍保留的历史 specs",
+          "status": "failing",
+          "acceptance": ["报告列出删除的测试文件，并说明历史 specs 未删除"],
+          "test_plan": {"strategy": "报告范围审查", "inputs": ["test-report.md"], "expected": ["删除清单与保留历史清单都存在，未把历史规格改写说成运行时仍可用"]}
+        },
+        {
+          "id": "REQ-008-B04",
+          "category": "forbidden-behavior",
+          "description": "src 与 test 不再引用已删除 Claude 模块",
+          "status": "failing",
+          "acceptance": ["require 扫描结果为空"],
+          "test_plan": {"strategy": "删除后引用扫描", "inputs": ["src/**/*.js", "test/**/*.js"], "expected": ["无 claude-driver、claude-bridge-sidecar、claude-pty-broker、claude-transcript、claude-attach-server、claude-attach-command 引用"]}
+        }
+      ]
+    }
+  ]
+}

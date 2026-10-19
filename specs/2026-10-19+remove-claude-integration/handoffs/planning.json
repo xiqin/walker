@@ -1,0 +1,43 @@
+{
+  "task_split": [
+    "T1 删除运行时模块并拆除启动接线",
+    "T2 从 provider 目录移除 Claude",
+    "T3 停止解析和编辑 Claude 配置",
+    "T4 飞书命令和消息失败关闭",
+    "T5 Admin 会话本地生命周期与连接页",
+    "T6 更新现行文档和原型",
+    "T7 全量回归与保护路径证据"
+  ],
+  "dependencies": "T1–T6 无前置依赖；T7 depends_on T1–T6。",
+  "parallel_boundary": "T1–T6 owns 不交叉，可并行。T7 串行收口。executing 将两个飞书回归测试补进 T4 owns，未与其他 task 重叠。",
+  "interface_constraints": [
+    "错误码 claude_removed",
+    "消息 Claude integration has been removed.",
+    "只拒绝精确小写 claude",
+    "不改写用户 .env",
+    "不删除历史 specs、合规记录和记忆",
+    "不调用注入的 claude driver",
+    "保留 OpenCode 模型名 claude-sonnet-4"
+  ],
+  "behavior_mapping": "REQ-001→T1；REQ-002→T1/T2；REQ-003→T3；REQ-004→T4；REQ-005→T1/T4/T5；REQ-006→T1/T4/T7；REQ-007→T5/T6；REQ-008→T1/T7。45/45 behavior 已写入 traceability.json。",
+  "validation": "loom_validate_plan ok=true；loom tasks --validate 无文件冲突。frontmatter 已改为 CLI 可解析的行内数组。",
+  "fingerprint_refresh": "executing 期间更新了 tasks/T4.md 的 owns，并勾选 tasks/T7.md。计划决策与分析结论未改，此处只刷新 tasks/ 指纹。",
+  "status": "done",
+  "summary": "计划已拆成 T1–T7。T1–T6 无共享写入、可并行；T7 依赖全部前置任务。45 个 behavior 均已映射到 traceability.json。executing 后仅刷新 tasks/ 指纹。",
+  "artifacts": [
+    "plan.md",
+    "tasks/"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "d4a22be15362ae113cab26965dc5718280d16ead378ddddcd04eca12ad6941b3",
+    "spec.md": "7019b7d584a820b0f648d3800f6b7b76b44ce407d46cb65fc4cdb423bb9003cd",
+    "tasks/": "91e1f87be664d8a53c7cd638cc17a30425d93f59f17f0a9d78d4e3975d6cb484"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "d4a22be15362ae113cab26965dc5718280d16ead378ddddcd04eca12ad6941b3",
+    "tasks/": "91e1f87be664d8a53c7cd638cc17a30425d93f59f17f0a9d78d4e3975d6cb484"
+  },
+  "written_at": "2026-10-19T09:23:53.920Z"
+}

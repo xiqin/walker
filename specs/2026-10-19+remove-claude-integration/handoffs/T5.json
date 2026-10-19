@@ -1,0 +1,98 @@
+{
+  "task_id": "T5",
+  "status": "done",
+  "summary": "Admin 与公开创建接口在写 store 前拒绝精确 agent=claude，并返回不含 details 的 claude_removed 错误信封。v1 prompt 同样返回精确信封和 400，不再包进 success 或变成 500。旧记录可列出；stop 只标记 stopped，delete 只走 Walker 软删除。traceability 已补齐本任务 behavior。",
+  "traceability_updated": true,
+  "requirements": ["REQ-005", "REQ-007"],
+  "behavior_ids": [
+    "REQ-005-B01",
+    "REQ-005-B03",
+    "REQ-005-B05",
+    "REQ-005-B06",
+    "REQ-005-B07",
+    "REQ-007-B01",
+    "REQ-007-B03"
+  ],
+  "changed_files": [
+    "src/admin/session-admin.js",
+    "src/admin/public/js/pages/connections.js",
+    "test/admin-core-api.test.js"
+  ],
+  "artifacts": [
+    "src/admin/session-admin.js",
+    "src/admin/public/js/pages/connections.js",
+    "test/admin-core-api.test.js",
+    "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log",
+    "specs/2026-10-19+remove-claude-integration/handoffs/T5.json"
+  ],
+  "tests": [
+    {
+      "command": "node --test test/admin-core-api.test.js",
+      "status": "passed",
+      "exit_code": 0,
+      "summary": "73 tests passed, 0 failed",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log"
+    }
+  ],
+  "behavior_coverage": [
+    {
+      "behavior_id": "REQ-005-B01",
+      "tests": ["REQ-005-B01: 列表和详情保留旧 agent=claude 并包含移除消息"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-005-B03",
+      "tests": [
+        "REQ-005-B03: 本地 stop 只标记 stopped，且不调用注入的 claude driver",
+        "REQ-005-B03: 本地 delete 只删除 Walker 活跃记录，且不调用注入的 claude driver"
+      ],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-005-B05",
+      "tests": ["REQ-005-B05: createSession 在写 store 前拒绝 agent=claude"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-005-B06",
+      "tests": ["REQ-005-B06: 未认证创建 agent=claude 仍返回 401 且 store 不变"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-005-B07",
+      "tests": [
+        "REQ-005-B07: 注入 claude driver 时 prompt、question、cancel、watch、stop、delete 调用次数为 0",
+        "REQ-005-B07: 已认证 prompt 在 driver 之前返回 claude_removed，且不记录成功事件"
+      ],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-007-B01",
+      "tests": ["REQ-007-B01 和 REQ-007-B03: 连接页不再把 Claude 列为可用接入或未来扩展点"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-007-B03",
+      "tests": ["REQ-007-B01 和 REQ-007-B03: 连接页不再把 Claude 列为可用接入或未来扩展点"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T5-node-test.log"
+    }
+  ],
+  "design_review": {
+    "no_migration_to_opencode": true,
+    "conclusion": "旧 agent=claude 记录保持原 agent 与 agentRef，不迁移为 OpenCode。stop 只把 Walker 状态标为 stopped。delete 沿用 SessionService 软删除，活跃列表不再返回该记录，墓碑仍保留 claude 与 claudeSessionId，不调用 driver，不删除用户 transcript。精确小写 claude 才拒绝；Claude 仍走未知 agent 的 driver not found。OpenCode stop 仍调用自己的 driver。"
+  },
+  "concerns": [],
+  "known_boundaries": [
+    "session-admin 没有 question 或 watch 入口。Admin /cancel 与 v1 cancel 都调用 stopSession，因此不会调用注入 driver。question、replyQuestion、watch、watchSession 的飞书入口属于 dispatcher。测试断言这些方法在 list、prompt、stop、delete 期间调用次数为 0。"
+  ],
+  "closure_review": {
+    "verdict": "pass",
+    "checked_at": "2026-10-19T08:10:00.000Z",
+    "notes": [
+      "src/admin/core-routes.js 与 src/api/v1/sessions-routes.js 在 session.ok === false 时调用 error()，不再包进 success() 或 sendOk()。",
+      "src/api/v1/prompt-routes.js 对 claude_removed 调用 error()，不走会附加 details 的 sendError()，状态码由未知错误码映射为 400。",
+      "test/admin-core-api.test.js 与 test/api-v1.test.js 用 deepEqual 断言精确信封 { ok: false, error: { code, message } }，并断言没有 data。",
+      "这两个路由文件和 test/api-v1.test.js 已纳入 T5 owns。收口复测见 evidence/T1-T5-closure.log。"
+    ]
+  }
+}

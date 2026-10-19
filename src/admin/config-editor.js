@@ -92,10 +92,6 @@ function validateEnvValue(key, value) {
     case 'exit-action':
       if (!['cancel', 'stop', 'none'].includes(text)) throw new Error(`${key} 值无效`);
       return text;
-    case 'claude-permission-mode':
-      if (text === 'default') return '';
-      if (!['', 'acceptEdits', 'auto', 'manual', 'dontAsk', 'plan', 'bypassPermissions'].includes(text)) throw new Error(`${key} 值无效`);
-      return text;
     case 'list':
       validateListText(key, text);
       return text;

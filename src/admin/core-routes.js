@@ -113,6 +113,11 @@ function createCoreRoutes(appContext) {
           route: body.route,
           createAgentSession: body.createAgentSession,
         });
+        if (session && session.ok === false) {
+          const failure = session.error || { code: 'INTERNAL_ERROR', message: 'session creation failed' };
+          send(res, error(failure.code, failure.message));
+          return;
+        }
         send(res, success(redactValue(session, secrets)));
       } catch (err) {
         send(res, error('INTERNAL_ERROR', err.message), 500);

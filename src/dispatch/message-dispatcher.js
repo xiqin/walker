@@ -8,6 +8,7 @@ const { PromptHeartbeat } = require('./heartbeat');
 const { ProgressRenderer } = require('./progress-renderer');
 const { PermissionHandler } = require('./permission-handler');
 const { QuestionHandler } = require('./question-handler');
+const { rejectRemovedClaude, CLAUDE_REMOVED_MESSAGE } = require('../platform/feishu/commands');
 const { recordEvent, recordMetric } = require('../admin/event-store');
 const { validatePlatformEvent } = require('../platforms/platform-driver');
 
@@ -24,17 +25,6 @@ function getAgentRefId(agentRef) {
 
 function hasAgentSessionRef(agentRef) {
   return Boolean(getAgentRefId(agentRef));
-}
-
-function isUuid(value) {
-  return typeof value === 'string'
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function sanitizeErrorReason(value) {
-  return String(value || '')
-    .replace(/(token|secret|api[_-]?key|password|credential)(\s*[=:]\s*)[^\s,;]+/gi, '$1$2[redacted]')
-    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+/gi, 'Bearer [redacted]');
 }
 
 function shouldPersistAgentRef(agentRef) {
@@ -161,15 +151,7 @@ class MessageDispatcher {
     }
 
     const sourceRouteKey = event.routeKey || buildRouteKey(event, this.routeMode);
-    let target = this._resolveIncomingTarget(event, sourceRouteKey);
-    if (!target.session) {
-      let autoBound = await this._tryAutoBindClaudeRoute(target.routeKey, event);
-      if (!autoBound && this.routeMode === 'thread' && event.rootId && event.chatId) {
-        const fallbackRouteKey = buildRouteKey(Object.assign({}, event, { rootId: '' }), this.routeMode);
-        if (fallbackRouteKey !== target.routeKey) autoBound = await this._tryAutoBindClaudeRoute(fallbackRouteKey, event);
-      }
-      if (autoBound && autoBound.session) target = autoBound;
-    }
+    const target = this._resolveIncomingTarget(event, sourceRouteKey);
     const routeKey = target.routeKey;
     const current = target.session;
     const effectiveEvent = Object.assign({}, event, {
@@ -210,6 +192,10 @@ class MessageDispatcher {
       return 'unbound';
     }
 
+    if (current.agent === 'claude') {
+      return this._rejectClaudeRemoved(effectiveEvent, { sessionId: current.id, routeKey });
+    }
+
     if (routeKey && typeof this.sessionService.touchRoute === 'function') {
       this.sessionService.touchRoute(routeKey);
     }
@@ -231,11 +217,6 @@ class MessageDispatcher {
       logger.error('session has no agentRef', { sessionId: current.id });
       this._sendFeishu('sendErrorCard', [this._replyCtx(effectiveEvent), 'Session has no active agent reference']);
       return 'error';
-    }
-    if (current.agent === 'claude') {
-      const prepared = await this._prepareClaudeAgentRef(current, driver, effectiveEvent);
-      if (prepared.error) return 'error';
-      agentRef = prepared.agentRef;
     }
 
     this.sessionService.markRunning(current.id);
@@ -289,56 +270,6 @@ class MessageDispatcher {
     }
 
     return { session: null, routeKey: sourceRouteKey, routedBy: 'unbound' };
-  }
-
-  async _tryAutoBindClaudeRoute(routeKey, event) {
-    if (!routeKey || !this.sessionService || typeof this.sessionService.getRouteCwd !== 'function') return null;
-    const routeCwd = this.sessionService.getRouteCwd(routeKey);
-    if (!routeCwd) return null;
-    const driver = this.driverRegistry && this.driverRegistry.get('claude');
-    if (!driver || typeof driver.listSessions !== 'function' || typeof driver.resumeSession !== 'function') return null;
-    try {
-      if (typeof driver.ensureReady === 'function') await driver.ensureReady();
-      const remoteSessions = filterRecentAttachSessions(await driver.listSessions({ cwd: routeCwd }), Date.now());
-      const managedIds = this._managedClaudeSessionIds();
-      const candidates = remoteSessions.filter((session) => session && session.id && !managedIds.has(session.id));
-      if (candidates.length !== 1) {
-        logger.info('claude route autobind skipped', {
-          routeKey,
-          messageId: event && event.messageId,
-          candidateCount: candidates.length,
-        });
-        return null;
-      }
-      const remoteSession = candidates[0];
-      if (!isUuid(remoteSession.id)) return null;
-      const agentRef = await driver.resumeSession({
-        claudeSessionId: remoteSession.id,
-        cwd: remoteSession.cwd || routeCwd,
-      });
-      const session = this.sessionService.createSession({
-        route: routeKey,
-        agent: 'claude',
-        title: remoteSession.title || ('claude ' + String(remoteSession.id).slice(0, 12)),
-        runtime: this.runtimeType,
-        cwd: agentRef.cwd || remoteSession.cwd || routeCwd,
-        agentRef,
-      });
-      this.sessionService.markIdle(session.id);
-      logger.info('claude route autobound by cwd', {
-        routeKey,
-        sessionId: session.id,
-        claudeSessionId: remoteSession.id,
-      });
-      return { session, routeKey, routedBy: 'claude-cwd-autobind' };
-    } catch (err) {
-      logger.warn('claude route autobind failed', {
-        routeKey,
-        messageId: event && event.messageId,
-        error: err && err.message ? err.message : String(err),
-      });
-      return null;
-    }
   }
 
   _incomingFeishuLookupIds(event) {
@@ -561,12 +492,15 @@ class MessageDispatcher {
         data: { platform: cmd.platformEvent.platform, messageId: cmd.platformEvent.messageId, userId: cmd.platformEvent.userId },
       });
     }
+    if (this._isRemovedClaudeCommand(cmd)) {
+      return this._rejectClaudeRemoved(cmd, { routeKey: cmd.routeKey });
+    }
     const dedupArgs = (cmd.args || []).join(' ');
     const dedupKey = cmd.messageId ? 'cmd:' + cmd.messageId + ':' + cmd.name + ':' + dedupArgs : null;
     const isModelPage = cmd.name === 'model' && cmd.args && cmd.args[0] === '--page';
     const isListPage = cmd.name === 'list' && cmd.args && cmd.args[0] === '--page';
-    const isAttachPage = cmd.name === 'attach' && cmd.args && (cmd.args[0] === '--page' || (cmd.args[0] === 'claude' && cmd.args[1] === '--page'));
-    const isAttachSearch = cmd.name === 'attach' && cmd.args && (cmd.args[0] === '--search' || (cmd.args[0] === 'claude' && cmd.args[1] === '--search'));
+    const isAttachPage = cmd.name === 'attach' && cmd.args && cmd.args[0] === '--page';
+    const isAttachSearch = cmd.name === 'attach' && cmd.args && cmd.args[0] === '--search';
     // permit 与 answer 一样来自卡片回调，messageId 固定；失败可重试，不能按卡片消息去重后静默丢弃。
     if (cmd.name !== 'answer' && cmd.name !== 'permit' && !isModelPage && !isListPage && !isAttachPage && !isAttachSearch && dedupKey && this.dedup.isDuplicate(dedupKey)) {
       logger.info('skipping duplicate command', { command: cmd.name, messageId: cmd.messageId });
@@ -617,7 +551,10 @@ class MessageDispatcher {
       if (handler) {
         const result = await handler();
         if (cmd.name === 'answer') {
-          logger.info('answer command handled', { result, args: cmd.args, messageId: cmd.messageId, routeKey: cmd.routeKey, formKeys: cmd.formValue ? Object.keys(cmd.formValue) : [] });
+          const removed = result && result.error === 'claude_removed';
+          logger.info('answer command handled', removed
+            ? { error: 'claude_removed', sessionId: cmd.sessionId || '', messageId: cmd.messageId, routeKey: cmd.routeKey }
+            : { result, args: cmd.args, messageId: cmd.messageId, routeKey: cmd.routeKey, formKeys: cmd.formValue ? Object.keys(cmd.formValue) : [] });
         }
         return result;
       }
@@ -680,6 +617,7 @@ class MessageDispatcher {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'A prompt is still pending. Run /cancel before /clear.']);
       return { busy: true, rejected: true };
     }
+    if (current.agent !== 'opencode') return null;
     const driver = this.driverRegistry.get(current.agent);
     if (driver && typeof driver.hasClearPending === 'function' && current.agentRef && driver.hasClearPending(current.agentRef)) {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'A clear is already in progress on this TUI runtime.']);
@@ -738,14 +676,9 @@ class MessageDispatcher {
    */
   async _cmdNew(cmd) {
     const routeKey = cmd.routeKey;
-    const current = this.sessionService.getCurrent(routeKey);
-    if (current) {
-      const pendingPrompt = this._promptQueues.get(current.id);
-      if (pendingPrompt) await pendingPrompt.catch(() => {});
-    }
     const args = [];
     let cwd = this.defaultCwd;
-    for (let i = 0; i < cmd.args.length; i += 1) {
+    for (let i = 0; i < (cmd.args || []).length; i += 1) {
       if (cmd.args[i] !== '--cwd') {
         args.push(cmd.args[i]);
         continue;
@@ -759,6 +692,14 @@ class MessageDispatcher {
       i += 1;
     }
     const agentName = args[0] || this.defaultAgent;
+    if (agentName === 'claude') {
+      return this._rejectClaudeRemoved(cmd, { routeKey });
+    }
+    const current = this.sessionService.getCurrent(routeKey);
+    if (current) {
+      const pendingPrompt = this._promptQueues.get(current.id);
+      if (pendingPrompt) await pendingPrompt.catch(() => {});
+    }
     const title = args[1] || '';
     const driver = this.driverRegistry.get(agentName);
 
@@ -793,13 +734,15 @@ class MessageDispatcher {
    */
   async _cmdAttach(cmd) {
     const routeKey = cmd.routeKey;
+    const args = cmd.args || [];
+    if (args[0] === 'claude') {
+      return this._rejectClaudeRemoved(cmd, { routeKey });
+    }
     const current = this.sessionService.getCurrent(routeKey);
     if (current) {
       const pendingPrompt = this._promptQueues.get(current.id);
       if (pendingPrompt) await pendingPrompt.catch(() => {});
     }
-    const args = cmd.args || [];
-    if (args[0] === 'claude') return this._cmdAttachClaude(cmd);
     let targetOpencodeSessionId = '';
     let page;
     let search = '';
@@ -839,6 +782,7 @@ class MessageDispatcher {
     // 主动清理孤儿 session：Walker 管理中但 OpenCode 端已不存在的 session
     const remoteIds = new Set(remoteSessions.map((s) => s.id));
     for (const session of this.sessionService.listSessions()) {
+      if (session && session.agent === 'claude') continue;
       const ocId = session && session.agentRef && session.agentRef.opencodeSessionId;
       if (ocId && managedIds.has(ocId) && !remoteIds.has(ocId) && !this._isSessionRefActive(session)) {
         logger.info('proactive orphan cleanup in /attach', { sessionId: session.id, opencodeSessionId: ocId });
@@ -852,37 +796,16 @@ class MessageDispatcher {
     const candidates = remoteSessions.filter((session) => session && session.id && !managedIds.has(session.id));
 
     if (!targetOpencodeSessionId) {
-      const claudeDriver = this.driverRegistry.get('claude');
-      let claudeSessions = [];
-      let managedClaudeIds = new Set();
-      if (claudeDriver && claudeDriver !== driver && typeof claudeDriver.listSessions === 'function') {
-        if (typeof claudeDriver.ensureReady === 'function') await claudeDriver.ensureReady();
-        claudeSessions = filterRecentAttachSessions(await claudeDriver.listSessions({ extraCwds }), now);
-        managedClaudeIds = this._managedClaudeSessionIds();
-        const claudeRemoteIds = new Set(claudeSessions.map((s) => s.id));
-        for (const session of this.sessionService.listSessions()) {
-          const csId = session && session.agent === 'claude' && session.agentRef && session.agentRef.claudeSessionId;
-          if (csId && managedClaudeIds.has(csId) && !claudeRemoteIds.has(csId) && !this._isSessionRefActive(session)) {
-            logger.info('proactive orphan cleanup in /attach mixed', { sessionId: session.id, claudeSessionId: csId });
-            this.sessionService.deleteSession(session.id);
-            managedClaudeIds.delete(csId);
-          }
-        }
-      }
-      const mixedSessions = remoteSessions
-        .map((session) => ({ ...session, agent: 'opencode' }))
-        .concat(claudeSessions.map((session) => ({ ...session, agent: 'claude' })))
-        .sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
+      const listedSessions = remoteSessions.map((session) => ({ ...session, agent: 'opencode' }));
       if (this.feishuApi.sendAttachableSessionList) {
-        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), mixedSessions, {
+        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), listedSessions, {
           managedIds: Array.from(managedIds),
-          managedClaudeIds: Array.from(managedClaudeIds),
           routeKey: cmd.routeKey,
-          crossProject: new Set(mixedSessions.map((session) => session.cwd || '')).size > 1,
+          crossProject: new Set(listedSessions.map((session) => session.cwd || '')).size > 1,
           page,
           search,
           updateMessageId,
-          agent: 'mixed',
+          agent: 'opencode',
         }]);
       } else {
         await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatAttachableSessions(candidates)]);
@@ -941,6 +864,7 @@ class MessageDispatcher {
    */
   _isSessionRefActive(session) {
     if (!session || !session.agentRef) return false;
+    if (session.agent === 'claude') return true;
     const driver = this.driverRegistry.get(session.agent || 'opencode');
     if (!driver || typeof driver.isSessionRefActive !== 'function') return true;
     return driver.isSessionRefActive(session.agentRef);
@@ -964,139 +888,6 @@ class MessageDispatcher {
     this._watchSessionEvents(session, cmd, driver);
     await this._callFeishu('replyText', [this._replyCtx(cmd), 'OpenCode session attached: ' + session.id + ' (' + remoteSession.id + ')']);
     return { sessionId: session.id, agentRef };
-  }
-
-  async _cmdAttachClaude(cmd) {
-    const driver = this.driverRegistry.get('claude');
-    if (!driver) {
-      await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), 'Agent not found: claude']);
-      return { error: 'driver_not_found' };
-    }
-    const args = cmd.args || [];
-    const rest = args.slice(1);
-    let targetClaudeSessionId = '';
-    let page;
-    let search = '';
-    let updateMessageId;
-    if (rest[0] === '--page') {
-      page = rest[1];
-      updateMessageId = cmd.messageId;
-      if (rest[2] === '--search' && typeof rest[3] === 'string') search = rest[3];
-    } else if (rest[0] === '--search') {
-      updateMessageId = cmd.messageId;
-      if (cmd.formValue && typeof cmd.formValue.attach_search === 'string') search = cmd.formValue.attach_search;
-    } else {
-      targetClaudeSessionId = rest[0] || '';
-    }
-
-    if (!targetClaudeSessionId && (!rest.length || rest[0] === '--page' || rest[0] === '--search')) {
-      if (typeof driver.ensureReady === 'function') await driver.ensureReady();
-      const extraCwds = this._collectKnownSessionCwds();
-      const remoteSessions = filterRecentAttachSessions(await driver.listSessions({ extraCwds }), Date.now());
-      const managedIds = this._managedClaudeSessionIds();
-      const remoteIds = new Set(remoteSessions.map((s) => s.id));
-      // 主动清理孤儿 Claude session：Walker 管理中但本地历史已不存在的 session
-      for (const session of this.sessionService.listSessions()) {
-        const csId = session && session.agent === 'claude' && session.agentRef && session.agentRef.claudeSessionId;
-        if (csId && managedIds.has(csId) && !remoteIds.has(csId) && !this._isSessionRefActive(session)) {
-          logger.info('proactive orphan cleanup in /attach claude', { sessionId: session.id, claudeSessionId: csId });
-          this.sessionService.deleteSession(session.id);
-          managedIds.delete(csId);
-        }
-      }
-      const routeCwd = typeof this.sessionService.getRouteCwd === 'function'
-        ? this.sessionService.getRouteCwd(cmd.routeKey)
-        : '';
-      const candidates = remoteSessions.filter((session) => session && session.id && !managedIds.has(session.id));
-
-      if (candidates.length === 1 && !search && !page) {
-        return this._attachClaudeSession(cmd, driver, candidates[0]);
-      }
-      if (this.feishuApi.sendAttachableSessionList) {
-        await this._callFeishu('sendAttachableSessionList', [this._replyCtx(cmd), remoteSessions, {
-          managedIds: Array.from(managedIds),
-          routeKey: cmd.routeKey,
-          crossProject: new Set(remoteSessions.map((session) => session.cwd || '')).size > 1,
-          page,
-          search,
-          updateMessageId,
-          agent: 'claude',
-        }]);
-      } else {
-        await this._callFeishu('replyText', [this._replyCtx(cmd), this._formatAttachableSessions(candidates)]);
-      }
-      return { candidates, routeCwd: routeCwd || '' };
-    }
-
-    if (!isUuid(targetClaudeSessionId)) {
-      const message = 'Invalid or missing Claude session id: expected exact UUID for resume.';
-      await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), message]);
-      return { error: 'invalid_claude_session_id', message };
-    }
-    if (typeof driver.ensureReady === 'function') await driver.ensureReady();
-    const managedIds = this._managedClaudeSessionIds();
-    if (managedIds.has(targetClaudeSessionId)) {
-      const existing = this._findSessionByClaudeId(targetClaudeSessionId);
-      if (existing && this._isSessionRefActive(existing)) {
-        this.sessionService.bindRoute(cmd.routeKey, existing.id);
-        await this._callFeishu('replyText', [this._replyCtx(cmd), 'Bound to existing Walker session: ' + existing.id]);
-        return { bound: existing.id };
-      }
-      logger.info('existing claude session agentRef inactive, re-attaching', {
-        sessionId: existing && existing.id, claudeSessionId: targetClaudeSessionId,
-      });
-    }
-    let target = null;
-    if (typeof driver.listSessions === 'function') {
-      try {
-        const remoteSessions = await driver.listSessions({ extraCwds: this._collectKnownSessionCwds() });
-        target = remoteSessions.find((s) => s.id === targetClaudeSessionId) || null;
-      } catch (_) { target = null; }
-    }
-    return this._attachClaudeSession(cmd, driver, { id: targetClaudeSessionId, cwd: (target && target.cwd) || this.defaultCwd });
-  }
-
-  async _attachClaudeSession(cmd, driver, remoteSession) {
-    const agentRef = await driver.resumeSession({
-      claudeSessionId: remoteSession.id,
-      cwd: remoteSession.cwd || this.defaultCwd,
-    });
-    const session = this.sessionService.createSession({
-      route: cmd.routeKey,
-      agent: 'claude',
-      title: remoteSession.title || ('claude ' + String(remoteSession.id).slice(0, 12)),
-      runtime: this.runtimeType,
-      cwd: agentRef.cwd || remoteSession.cwd || this.defaultCwd,
-      agentRef,
-    });
-    this.sessionService.markIdle(session.id);
-    this._watchSessionEvents(session, cmd, driver);
-    await this._callFeishu('replyText', [this._replyCtx(cmd), 'Claude session attached: ' + session.id + ' (' + remoteSession.id + ')']);
-    return { sessionId: session.id, agentRef };
-  }
-
-  async _prepareClaudeAgentRef(session, driver, event) {
-    const agentRef = session && session.agentRef;
-    if (!isUuid(agentRef && agentRef.claudeSessionId)) {
-      const message = 'Invalid or missing Claude session id: cannot resume without exact UUID.';
-      logger.warn('claude agentRef rejected before prompt', { sessionId: session && session.id, reason: 'invalid_claude_session_id' });
-      await this._callFeishu('sendErrorCard', [this._replyCtx(event), message], null, { sessionId: session && session.id });
-      return { error: 'invalid_claude_session_id', message };
-    }
-    if (agentRef.transport === 'pty-attach' && agentRef.runtimeId) {
-      if (driver && typeof driver.isSessionRefActive === 'function' && driver.isSessionRefActive(agentRef)) return { agentRef };
-    }
-    if (!driver || typeof driver.resumeSession !== 'function') return { agentRef };
-    const resumed = await driver.resumeSession(agentRef);
-    const persisted = await this._updateCriticalSessionRuntimeField(session.id, 'agentRef', resumed);
-    if (!persisted.ok) {
-      const message = 'Failed to persist Claude runtime state before prompting. Please retry.';
-      logger.warn('claude agentRef update failed before prompt', { sessionId: session && session.id, reason: sanitizeErrorReason(persisted.error && persisted.error.message) });
-      await this._callFeishu('sendErrorCard', [this._replyCtx(event), message], null, { sessionId: session && session.id });
-      return { error: 'claude_agent_ref_update_failed', message };
-    }
-    session.agentRef = resumed;
-    return { agentRef: resumed };
   }
 
   /**
@@ -1148,7 +939,9 @@ class MessageDispatcher {
     if (!current) {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound to this conversation.']);
     } else {
-      await this._callFeishu('replyText', [this._replyCtx(cmd), 'Current session: ' + current.id + ' (' + current.agent + ', ' + current.status + ')']);
+      let text = 'Current session: ' + current.id + ' (' + current.agent + ', ' + current.status + ')';
+      if (current.agent === 'claude') text += '\n' + CLAUDE_REMOVED_MESSAGE;
+      await this._callFeishu('replyText', [this._replyCtx(cmd), text]);
     }
     return { current };
   }
@@ -1162,9 +955,11 @@ class MessageDispatcher {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session to stop.']);
       return { noSession: true };
     }
-    const driver = this.driverRegistry.get(current.agent);
-    if (driver && current.agentRef) {
-      await driver.stop(current.agentRef);
+    if (current.agent !== 'claude') {
+      const driver = this.driverRegistry.get(current.agent);
+      if (driver && current.agentRef) {
+        await driver.stop(current.agentRef);
+      }
     }
     this._stopSessionWatch(current.id);
     this.sessionService.stopSession(current.id);
@@ -1177,6 +972,9 @@ class MessageDispatcher {
     if (!current) {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'No running session to cancel.']);
       return { noSession: true };
+    }
+    if (current.agent === 'claude') {
+      return this._rejectClaudeRemoved(cmd, { sessionId: current.id, routeKey: cmd.routeKey });
     }
     const turnState = this.turnStates.get(current.id);
     if (!turnState || current.status !== 'running') {
@@ -1223,9 +1021,11 @@ class MessageDispatcher {
         return { forbidden: true };
       }
     }
-    const driver = this.driverRegistry.get(session.agent);
-    if (driver && session.agentRef) {
-      await driver.delete(session.agentRef);
+    if (session.agent !== 'claude') {
+      const driver = this.driverRegistry.get(session.agent);
+      if (driver && session.agentRef) {
+        await driver.delete(session.agentRef);
+      }
     }
     this._stopSessionWatch(session.id);
     this.sessionService.deleteSession(targetId);
@@ -1270,6 +1070,10 @@ class MessageDispatcher {
         await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound. Use /new or /attach first.']);
         return { noSession: true };
       }
+      if (current.agent === 'claude') {
+        await this._callFeishu('replyText', [this._replyCtx(cmd), '不支持模型列表']);
+        return { error: 'list_models_not_supported' };
+      }
       const driver = current.agent ? this.driverRegistry.get(current.agent) : null;
       if (!driver || typeof driver.listModels !== 'function') {
         await this._callFeishu('replyText', [this._replyCtx(cmd), '不支持模型列表']);
@@ -1304,6 +1108,10 @@ class MessageDispatcher {
     if (!current) {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound. Use /new or /attach first.']);
       return { noSession: true };
+    }
+    if (current.agent === 'claude') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '不支持模型列表']);
+      return { error: 'list_models_not_supported' };
     }
 
     const driver = current.agent ? this.driverRegistry.get(current.agent) : null;
@@ -1359,6 +1167,10 @@ class MessageDispatcher {
     if (!current) {
       await this._callFeishu('replyText', [this._replyCtx(cmd), 'No session bound to this conversation.']);
       return { noSession: true };
+    }
+    if (current.agent === 'claude') {
+      await this._callFeishu('replyText', [this._replyCtx(cmd), '当前 agent 不支持权限回复']);
+      return { error: 'driver_not_supported' };
     }
     const driver = this.driverRegistry.get(current.agent);
     if (!driver || typeof driver.replyPermission !== 'function') {
@@ -1443,23 +1255,60 @@ class MessageDispatcher {
     return sessions.map((session) => session.title + ' ' + session.id + ' [' + (session.cwd || '(未设置)') + ']').join('\n');
   }
 
-  _managedClaudeSessionIds() {
-    return new Set(this.sessionService.listSessions()
-      .filter((session) => session && session.agent === 'claude')
-      .map((session) => session && session.agentRef && session.agentRef.claudeSessionId)
-      .filter(Boolean));
+  /**
+   * 取出 /new 中显式 agent 名，跳过 --cwd 及其路径，不把缺省 agent 算进去。
+   * @param {string[]} args
+   * @returns {string}
+   */
+  _explicitNewAgent(args) {
+    const tokens = [];
+    const list = args || [];
+    for (let i = 0; i < list.length; i += 1) {
+      if (list[i] === '--cwd') {
+        i += 1;
+        continue;
+      }
+      tokens.push(list[i]);
+    }
+    return tokens[0] || '';
   }
 
-  _findSessionByClaudeId(claudeSessionId) {
-    const sessions = this.sessionService.listSessions().filter((session) => session
-      && session.agent === 'claude'
-      && session.agentRef
-      && session.agentRef.claudeSessionId === claudeSessionId);
-    if (sessions.length === 0) return null;
-    for (const session of sessions) {
-      if (this._isSessionRefActive(session)) return session;
-    }
-    return sessions[0];
+  /**
+   * 只把精确小写 claude 的 /new 与 /attach 视为已移除接入。
+   * 必须在去重和 route touch 之前判断，避免重复命令变成 duplicate。
+   * @param {Object} cmd
+   * @returns {boolean}
+   */
+  _isRemovedClaudeCommand(cmd) {
+    if (!cmd) return false;
+    const name = String(cmd.name || '').toLowerCase();
+    if (name === 'attach') return (cmd.args || [])[0] === 'claude';
+    if (name !== 'new') return false;
+    const explicit = this._explicitNewAgent(cmd.args);
+    if (explicit === 'claude') return true;
+    return explicit === '' && this.defaultAgent === 'claude';
+  }
+
+  /**
+   * 在 driver 和 session 写入之前拒绝 Claude 接入。
+   * 日志只含错误码、session id 和 route key。
+   * @param {Object} source
+   * @param {{sessionId?: string, routeKey?: string}} [ids]
+   * @param {{card?: boolean}} [options]
+   * @returns {Promise<{error: string}>}
+   */
+  async _rejectClaudeRemoved(source, ids, options) {
+    const sessionId = (ids && ids.sessionId) || (source && source.sessionId) || '';
+    const routeKey = (ids && ids.routeKey) || (source && source.routeKey) || '';
+    const sendCard = !options || options.card !== false;
+    return rejectRemovedClaude({
+      sessionId,
+      routeKey,
+      log: (fields) => logger.warn('claude integration removed', fields),
+      sendErrorCard: sendCard
+        ? (message) => this._callFeishu('sendErrorCard', [this._replyCtx(source || {}), message])
+        : undefined,
+    });
   }
 
   _formatRouteStatus(routeKey, routeCwd, focusSession, sessions) {
@@ -1472,6 +1321,9 @@ class MessageDispatcher {
       const otherSummary = others.map((s) => s.id + ' (' + (s.status || '') + ')').join(', ');
       lines.push('  Other: [' + otherSummary + ']');
     }
+    const hasRemovedClaude = (focusSession && focusSession.agent === 'claude')
+      || (sessions || []).some((session) => session && session.agent === 'claude');
+    if (hasRemovedClaude) lines.push(CLAUDE_REMOVED_MESSAGE);
     return lines.join('\n');
   }
 
@@ -1572,6 +1424,14 @@ class MessageDispatcher {
   }
 
   _watchSessionEvents(session, cmd, driver, options) {
+    if (session && session.agent === 'claude') {
+      logger.warn('claude integration removed', {
+        error: 'claude_removed',
+        sessionId: session.id || '',
+        routeKey: (cmd && cmd.routeKey) || session.route || '',
+      });
+      return;
+    }
     const chatId = (cmd && cmd.chatId) || this._chatIdFromRouteKey(session.route);
     logger.info('watchSessionEvents called', { sessionId: session.id, chatId, hasDriver: !!driver, agentRef: session.agentRef });
     if (!chatId || !driver || typeof driver.watchSession !== 'function') {
@@ -1637,7 +1497,7 @@ class MessageDispatcher {
   }
 
   _canWatchSession(session) {
-    if (!session || !session.agentRef) return false;
+    if (!session || !session.agentRef || session.agent === 'claude') return false;
     const driver = this.driverRegistry.get(session.agent || 'opencode');
     return !!(driver && typeof driver.watchSession === 'function' && hasAgentSessionRef(session.agentRef));
   }
@@ -1906,7 +1766,7 @@ class MessageDispatcher {
   }
 
   async _fetchLastCompletedText(session) {
-    if (!session || !session.agentRef || !session.agentRef.opencodeSessionId) return null;
+    if (!session || session.agent === 'claude' || !session.agentRef || !session.agentRef.opencodeSessionId) return null;
     const driver = this.driverRegistry.get(session.agent || 'opencode');
     if (!driver || typeof driver.getSessionMessages !== 'function') return null;
     try {
@@ -2166,6 +2026,7 @@ class MessageDispatcher {
   }
 
   async _currentDriverModelFallback(session) {
+    if (session && session.agent === 'claude') return null;
     const agentName = (session && session.agent) || this.defaultAgent;
     const driver = this.driverRegistry && typeof this.driverRegistry.get === 'function'
       ? this.driverRegistry.get(agentName)
@@ -2411,6 +2272,9 @@ class MessageDispatcher {
   async cancelTurnBySessionId(sessionId, reason) {
     const session = this.sessionService.getSession(sessionId);
     if (!session) return;
+    if (session.agent === 'claude') {
+      return this._rejectClaudeRemoved({ sessionId }, { sessionId }, { card: false });
+    }
     const turnState = this.turnStates.get(sessionId);
     if (!turnState || turnState.cancelled) return;
     const driver = this.driverRegistry.get(session.agent);

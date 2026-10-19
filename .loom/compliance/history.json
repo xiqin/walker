@@ -1365,5 +1365,41 @@
     "violations": [
       "blocker。 |"
     ]
+  },
+  {
+    "spec_dir": "H:\\walker\\.worktree\\2026-10-19-remove-claude-integration\\specs\\2026-10-19+remove-claude-integration",
+    "timestamp": "2026-10-19T09:29:36.821Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 数为 0，退出码 0 |",
+      "error: { code: 'claude_removed', message: 'Claude integration has been removed.' } }` |",
+      "blocker 为 0。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\.worktree\\2026-10-19-remove-claude-integration\\specs\\2026-10-19+remove-claude-integration",
+    "timestamp": "2026-10-19T09:34:24.778Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 数为 0，退出码 0 |",
+      "error: { code: 'claude_removed', message: 'Claude integration has been removed.' } }` |",
+      "blocker 为 0。"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\.worktree\\2026-10-19-remove-claude-integration\\specs\\2026-10-19+remove-claude-integration",
+    "timestamp": "2026-10-19T09:40:05.742Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "fail 数为 0，退出码 0 |",
+      "error: { code: 'claude_removed', message: 'Claude integration has been removed.' } }` |",
+      "blocker 为 0。"
+    ]
   }
 ]

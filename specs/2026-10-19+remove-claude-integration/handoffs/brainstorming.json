@@ -1,0 +1,26 @@
+{
+  "decisions": [
+    "选定方案 A：硬删除 Claude driver、PTY、bridge、attach、transcript 与配置接线",
+    "精确小写 claude 返回 claude_removed，消息为 Claude integration has been removed.",
+    "旧 agent=claude 记录不自动删除、不迁移；prompt/watch/question 不调用任何 Claude driver",
+    "残留 CLAUDE_* 忽略，不改写用户 .env；WALKER_DEFAULT_AGENT=claude 拒绝启动",
+    "保留历史 specs、合规记录和记忆；不继续 2026-08-21 Claude 流水线"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "用户已批准方案 A：硬删除 Claude 运行时接入并失败关闭。保留历史 specs、合规记录和记忆，不改 Codex/OpenCode，不改写用户 .env，不迁移旧会话。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "7019b7d584a820b0f648d3800f6b7b76b44ce407d46cb65fc4cdb423bb9003cd"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "e82344577f291f55ca00f00b8b477be5a769cc5854c02e15e030249bb901be9a",
+    "spec.md": "7019b7d584a820b0f648d3800f6b7b76b44ce407d46cb65fc4cdb423bb9003cd"
+  },
+  "written_at": "2026-10-19T06:41:46.202Z"
+}

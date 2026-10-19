@@ -1,0 +1,85 @@
+{
+  "task_id": "T7",
+  "status": "done",
+  "summary": "守卫测试、lint 和 npm run check 均退出码 0。全量检查 1490 pass、0 fail。首次 check 的 3 个 Claude 旧断言已退回 T4 修复。test-report.md 区分了已删除专用测试和仍保留的历史规格。",
+  "traceability_updated": true,
+  "requirements": ["REQ-006", "REQ-008"],
+  "behavior_ids": ["REQ-006-B03", "REQ-008-B01", "REQ-008-B02", "REQ-008-B03", "REQ-008-B04"],
+  "changed_files": [
+    "test/claude-removal-guard.test.js",
+    "specs/2026-10-19+remove-claude-integration/test-report.md",
+    "specs/2026-10-19+remove-claude-integration/traceability.json"
+  ],
+  "artifacts": [
+    "test/claude-removal-guard.test.js",
+    "specs/2026-10-19+remove-claude-integration/test-report.md",
+    "specs/2026-10-19+remove-claude-integration/evidence/T7-lint.log",
+    "specs/2026-10-19+remove-claude-integration/evidence/T7-guard.log",
+    "specs/2026-10-19+remove-claude-integration/evidence/T7-check.log",
+    "specs/2026-10-19+remove-claude-integration/handoffs/T7.json"
+  ],
+  "tests": [
+    {
+      "command": "npm run lint",
+      "status": "passed",
+      "exit_code": 0,
+      "summary": "eslint 无诊断输出",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T7-lint.log"
+    },
+    {
+      "command": "node --test test/claude-removal-guard.test.js",
+      "status": "passed",
+      "exit_code": 0,
+      "summary": "7 pass, 0 fail",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T7-guard.log"
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "exit_code": 0,
+      "summary": "1490 pass, 0 fail, 69 suites",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T7-check.log"
+    }
+  ],
+  "behavior_coverage": [
+    {
+      "behavior_id": "REQ-006-B03",
+      "tests": [
+        "REQ-006-B03: 历史规格、合规记录和记忆仍存在",
+        "REQ-006-B03: OpenCode driver 相对基线无功能性 diff，且不含 Claude 接入符号"
+      ],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T7-guard.log"
+    },
+    {
+      "behavior_id": "REQ-008-B01",
+      "tests": ["REQ-008-B01: 守卫测试只做静态检查，不调用 npm"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/test-report.md"
+    },
+    {
+      "behavior_id": "REQ-008-B02",
+      "tests": ["REQ-008-B02: 测试不启动真实 claude，也不读取用户主目录 .claude"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T7-guard.log"
+    },
+    {
+      "behavior_id": "REQ-008-B03",
+      "tests": ["REQ-008-B03: 已删除专用测试不存在，历史规格目录仍保留"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/test-report.md"
+    },
+    {
+      "behavior_id": "REQ-008-B04",
+      "tests": ["REQ-008-B04: src 与 test 不再引用已删除 Claude 模块"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T7-guard.log"
+    }
+  ],
+  "regression_returned_to_t4": [
+    "test/integration-feishu-tui-sync.test.js",
+    "test/message-dispatcher-platform-event.test.js"
+  ],
+  "concerns": [],
+  "known_boundaries": [
+    "守卫测试用分段拼接模块名，避免 bootstrap 的删除模块扫描命中测试源码本身。",
+    "OpenCode driver 的永久断言是相对 HEAD 无未提交 diff。相对 1ac4dc2 的空 diff 只在 HEAD 仍等于该基线时断言。",
+    "REQ-007-B02 的守卫断言写在 T7 测试文件中，任务归属仍是 T6。",
+    "未提交，未修改 H:\\walker 主工作区。"
+  ]
+}

@@ -1,6 +1,7 @@
 'use strict';
 
 const sessionAdmin = require('../../admin/session-admin');
+const { error, send } = require('../../admin/response');
 const { route, readObjectBody, sendOk, sendError, isNonEmptyString, recordApiEvent, recordApiMetric } = require('./common');
 
 function createPromptRoutes(ctx) {
@@ -40,6 +41,10 @@ function createPromptRoutes(ctx) {
       const result = await sessionAdmin.sendPrompt(ctx, sessionId, body.text);
       if (!result.ok) {
         const err = result.error || { code: 'INTERNAL_ERROR', message: 'prompt failed' };
+        if (err.code === 'claude_removed') {
+          send(res, error(err.code, err.message));
+          return;
+        }
         sendError(res, err.code, err.message, err.code === 'NOT_FOUND' ? 404 : err.code === 'BAD_REQUEST' ? 400 : 500);
         return;
       }

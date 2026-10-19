@@ -1,0 +1,145 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "已删除 Claude 运行时模块和专用测试，启动、关闭、Windows 终端和 CLI 不再连接 Claude。walker claude 任意子命令只输出精确移除文案并退出 1。test/opencode-driver.test.js 不再依赖 stubClaudeDriver。traceability 已补齐本任务 behavior。",
+  "traceability_updated": true,
+  "requirements": ["REQ-001", "REQ-002", "REQ-005", "REQ-006", "REQ-008"],
+  "behavior_ids": [
+    "REQ-001-B01",
+    "REQ-001-B02",
+    "REQ-001-B03",
+    "REQ-001-B04",
+    "REQ-001-B05",
+    "REQ-001-B06",
+    "REQ-002-B02",
+    "REQ-002-B05",
+    "REQ-002-B06",
+    "REQ-005-B02",
+    "REQ-006-B02",
+    "REQ-008-B04"
+  ],
+  "artifacts": [
+    "src/app/bootstrap.js",
+    "src/index.js",
+    "src/runtime/windows-runtime.js",
+    "src/drivers/stub-drivers.js",
+    "test/bootstrap.test.js",
+    "test/runtime.test.js",
+    "test/cli-removed-claude.test.js",
+    "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log",
+    "specs/2026-10-19+remove-claude-integration/handoffs/T1.json"
+  ],
+  "deleted": [
+    "src/drivers/claude-driver.js",
+    "src/drivers/claude-pty-runtime.js",
+    "src/drivers/claude-pty-broker.js",
+    "src/drivers/claude-bridge-sidecar.js",
+    "src/drivers/claude-attach-server.js",
+    "src/drivers/claude-transcript.js",
+    "src/cli/claude-attach-command.js",
+    "test/claude-attach-command.test.js",
+    "test/claude-attach.test.js",
+    "test/claude-bridge-sidecar.test.js",
+    "test/claude-driver.test.js",
+    "test/claude-pty-broker.test.js",
+    "test/claude-transcript.test.js",
+    "test/claude-tui-reconnect.integration.test.js",
+    "test/claude-tool-parity.integration.test.js",
+    "test/cli-claude-attach.test.js"
+  ],
+  "tests": [
+    {
+      "command": "node --test test/bootstrap.test.js test/runtime.test.js test/cli-removed-claude.test.js",
+      "status": "passed",
+      "exit_code": 0,
+      "summary": "62 tests passed, 0 failed",
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    }
+  ],
+  "behavior_coverage": [
+    {
+      "behavior_id": "REQ-001-B01",
+      "tests": ["REQ-001-B01: 残留 Claude 配置不再注册 claude，opencode 与 codex 仍注册"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-001-B02",
+      "tests": [
+        "REQ-001-B02: 一次和两次 stop 都不调用 Claude release",
+        "重复 stop 不 kill runtime 且不打开独立 claude --resume 终端"
+      ],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-001-B03",
+      "tests": [
+        "REQ-001-B03: 启动和关闭不 spawn claude，也不打开 attach 终端",
+        "REQ-001-B03: 不再提供 Claude attach 终端入口，调用尝试也不 spawn"
+      ],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-001-B04",
+      "tests": ["REQ-001-B04: 残留 attach token 不进入启动日志或子进程环境"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-001-B05",
+      "tests": ["REQ-001-B05: src 不再 require 已删除的 Claude 模块"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-001-B06",
+      "tests": ["REQ-001-B06: createApp 不探测 claude、不监听 bridge、不建重试 timer"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-002-B02",
+      "tests": ["REQ-002-B02: claude、claude attach 与 claude attach rt_1 均退出 1 且消息精确"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-002-B05",
+      "tests": ["REQ-002-B05: 设置 attach URL 和 token 后不连接且输出不含哨兵"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-002-B06",
+      "tests": ["REQ-002-B06: help 含 providers 与 init，不含 claude attach"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-005-B02",
+      "tests": ["REQ-005-B02: 启动不改写旧 agent=claude 记录"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-006-B02",
+      "tests": ["REQ-006-B02: 真实 stubCodexDriver 仍注册，claude-sonnet-4 原样保存"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    },
+    {
+      "behavior_id": "REQ-008-B04",
+      "tests": ["REQ-008-B04: src 与 test 不再引用已删除 Claude 模块"],
+      "evidence": "specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log"
+    }
+  ],
+  "design_review": {
+    "no_claude_bridge_factory": true,
+    "no_attach_extension": true,
+    "no_test_only_constructor_params": true,
+    "exact_lowercase_claude_only": true,
+    "conclusion": "createApp 不再读取 ClaudeDriver、ClaudeBridgeSidecar 或 claudeBridge，也不注册 claude。stop 不调用 Claude release，重复 stop 不打开 claude --resume。WindowsRuntime 已删除 openClaudeAttachTerminal。CLI 的 claude 分支不打印错误码，用户可见消息精确为 Claude integration has been removed.。只有精确小写 agent===claude 会在通用 recovery 后被恢复；Claude 与带空格的值仍走原有 recovery。真实文件测试使用 mkdtempSync。未改写用户 .env，未删除历史 specs、合规记录或记忆，未启动真实 claude，未读取用户主目录 .claude。"
+  },
+  "concerns": [],
+  "closure_review": {
+    "verdict": "pass",
+    "checked_at": "2026-10-19T08:10:00.000Z",
+    "notes": [
+      "test/opencode-driver.test.js 只解构 stubCodexDriver，源码中不再出现 stubClaudeDriver。",
+      "该文件已纳入 T1 owns。定向复测见 evidence/T1-T5-closure.log，165 pass，0 fail。",
+      "src/drivers/opencode-driver.js 相对基线 1ac4dc2 无 diff。"
+    ]
+  },
+  "notes": "未知子命令与大写 Claude 由 test/cli-removed-claude.test.js「未知子命令与大写 Claude 走未知命令且不执行 claude」覆盖，不执行本机 claude。证据：specs/2026-10-19+remove-claude-integration/evidence/T1-node-test.log，退出码 0，62 pass，0 fail。收口复测：evidence/T1-T5-closure.log。"
+}
