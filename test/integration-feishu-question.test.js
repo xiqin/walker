@@ -130,6 +130,7 @@ async function createFixture(options) {
     navigate: (_name, params) => { route.current = { name: 'session', params }; },
   };
   let sessionBusy = false;
+  let currentReply = null;
   let dispose;
   let heldQuestionReply;
   let heldPrompt;
@@ -201,7 +202,7 @@ async function createFixture(options) {
         path: { directory: CWD },
         session: {
           status: () => ({ type: sessionBusy ? 'busy' : 'idle' }),
-          messages: () => [{ id: 'msg_final', role: 'assistant' }],
+          messages: () => (currentReply ? [currentReply] : []),
         },
         part: () => [{ type: 'text', text: '完成' }],
       },
@@ -298,6 +299,13 @@ async function createFixture(options) {
     resolveHeldQuestionReply() { if (heldQuestionReply) heldQuestionReply({ data: null }); },
     resolveHeldPrompt() { if (heldPrompt) heldPrompt({ data: null }); },
     setBusy(value) { sessionBusy = value; },
+    publishCurrentReply() {
+      currentReply = {
+        id: 'msg_final_' + Date.now().toString(36),
+        role: 'assistant',
+        time: { completed: Date.now() },
+      };
+    },
     async close() {
       if (heldQuestionReply) heldQuestionReply({ data: null });
       if (heldPrompt) heldPrompt({ data: null });
@@ -502,6 +510,7 @@ describe('集成测试: 原生 question/permission protocol v5', () => {
       await waitFor(() => fixture.requests.some((request) => request.url.endsWith('/events')
         && request.body.deliveryId === parentDeliveryId && request.body.deliveryState === 'heartbeat'));
       fixture.setBusy(false);
+      fixture.publishCurrentReply();
       await fixture.handlers.get('session.idle')({ properties: { sessionID: 'ses_native_question' } });
       await parent;
       assert.ok(fixture.requests.some((request) => request.url.endsWith('/events')
@@ -539,6 +548,7 @@ describe('集成测试: 原生 question/permission protocol v5', () => {
       });
       await waitFor(() => fixture.sdk.promptCalls.length === 1);
       fixture.setBusy(false);
+      fixture.publishCurrentReply();
       await fixture.handlers.get('session.idle')({ properties: { sessionID: 'ses_native_question' } });
       assert.equal(await prompt, 'prompted');
 

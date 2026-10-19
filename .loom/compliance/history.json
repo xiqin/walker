@@ -1335,5 +1335,35 @@
     "skill": "loom-verification-before-completion",
     "passed": true,
     "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-10-19-opencode-v2-cli-plugin-fixes",
+    "timestamp": "2026-10-19T06:11:00.109Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker。 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-10-19-opencode-v2-cli-plugin-fixes",
+    "timestamp": "2026-10-19T06:14:30.104Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker。 |"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-10-19-opencode-v2-cli-plugin-fixes",
+    "timestamp": "2026-10-19T06:17:35.748Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "blocker。 |"
+    ]
   }
 ]

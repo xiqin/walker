@@ -1,0 +1,27 @@
+{
+  "status": "done",
+  "summary": "回归 98 项、lint 和全量 1598 项通过。v2.0.32 已执行包目录入口 setup。register/poll 未观察到，真实飞书往返未验证。测试报告已补 git 证据绑定。未提交。",
+  "artifacts": [
+    "probe-opencode-v2-cli-load.mjs",
+    "test-report.md",
+    "traceability.json",
+    "evidence/T2-cli-load.json",
+    "evidence/T2-node-test.log",
+    "evidence/T2-lint.log",
+    "evidence/T2-check.log"
+  ],
+  "task_id": "T2",
+  "basis_fingerprints": {
+    "plan.md": "ad3702b763008a105063aaa903bf9bf73ae2147f2c0c49a5365ce73b74ba2d02",
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3",
+    "tasks/T2.md": "18e4fa2d49e08b80c2995b894e982792a3da341e1b9aa69faff17413573c6826"
+  },
+  "artifact_fingerprints": {
+    "evidence/T2-check.log": "22b8e35fb970f42fbdd7e93a7dc8307d1097d850931a60ceba5e19ef45d30d5e",
+    "evidence/T2-cli-load.json": "079f2dbe2828ebaa91274cb7ca619b5925d54762d873c7ee28314d3c911a3c31",
+    "evidence/T2-lint.log": "db109dbf42d030a230ebfd971b09c768893f1ad272205ccec27be0d2cc393a32",
+    "evidence/T2-node-test.log": "b12b15cfee93dd43b96823969d7eb93e354220acca18861f90b8963bb0aa4713",
+    "test-report.md": "c6e9461c35268fda0513dd2769e5c05156cbed34e19c2250a2214f10dab9fb04"
+  },
+  "written_at": "2026-10-19T06:10:59.091Z"
+}

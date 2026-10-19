@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "codegraph 索引已是最新。新增踩坑 968f7566：v2.0.32 必须注册包目录。入口文档无需更新。未提交，真实飞书往返仍未验证。",
+  "artifacts": [
+    "index-update-report.md",
+    ".loom/memory/MEMORY.md"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "ad3702b763008a105063aaa903bf9bf73ae2147f2c0c49a5365ce73b74ba2d02",
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/MEMORY.md": "fed9331ce99f4ad64bda86375e41ead62ee02b26028fef03bd255fa2dfee5554"
+  },
+  "written_at": "2026-10-19T06:18:39.354Z"
+}

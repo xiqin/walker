@@ -1,0 +1,83 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "state", "concurrent", "recovery"],
+      "required_categories": ["happy-path", "state-transition", "concurrency", "forbidden-behavior", "recovery"],
+      "acceptance": ["完成事件只终结当前 delivery 的本轮助手回复，缓存未同步时不发送旧内容"],
+      "behaviors": [
+        {"id": "REQ-001-B01", "category": "happy-path", "description": "同步缓存后提取当前助手消息的文本、工具及用量并终结当前 delivery", "status": "failing", "acceptance": ["V2 完成事件的 final 带当前消息 ID 和内容"], "test_plan": {"strategy": "V2 完成事件模拟", "inputs": ["当前助手回复和已同步消息缓存"], "expected": ["final 含当前消息 ID、文本、工具及用量"]}},
+        {"id": "REQ-001-B02", "category": "concurrency", "description": "完成事件早于缓存更新时不选取上一轮已完成消息", "status": "failing", "acceptance": ["含旧回复的测试不发旧消息"], "test_plan": {"strategy": "控制缓存更新顺序", "inputs": ["旧回复已缓存，新回复延迟到达，先触发完成事件"], "expected": ["不发送旧回复；缓存同步后发送本轮回复"]}},
+        {"id": "REQ-001-B03", "category": "forbidden-behavior", "description": "重复完成事件和报告失败不得永久丢失本轮回执或重复下发旧内容", "status": "failing", "acceptance": ["重复和网络失败注入后无错发、可恢复"], "test_plan": {"strategy": "重复事件及网络失败注入", "inputs": ["同一轮重复完成事件，首次 final 上报失败"], "expected": ["不发送旧回复；恢复后本轮可完成且不会重复下发"]}},
+        {"id": "REQ-001-B04", "category": "recovery", "description": "空消息、无完成标记与缓存同步失败时保留可恢复状态", "status": "failing", "acceptance": ["未取得有效当前回复时不报告错误完成"], "test_plan": {"strategy": "缓存故障与后续恢复模拟", "inputs": ["空缓存，无完成标记，首次同步失败后重试"], "expected": ["故障期间不报告完成；恢复后仍可报告本轮回复"]}},
+        {"id": "REQ-001-B05", "category": "state-transition", "description": "仅在当前 delivery 的本轮助手回复成功上报后将其标记为已终结", "status": "failing", "acceptance": ["缓存未同步或 final 上报失败时 delivery 可再次处理，成功后重复事件不再上报"], "test_plan": {"strategy": "状态转换与失败注入测试", "inputs": ["未同步缓存、上报失败、上报成功后的重复事件"], "expected": ["前两种保持待完成；成功后仅终结一次"]}}
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "external", "recovery"],
+      "required_categories": ["happy-path", "compatibility", "external-failure", "recovery"],
+      "acceptance": ["V2 真实 API 导入失败显式报错，V1 独立入口继续桥接"],
+      "behaviors": [
+        {"id": "REQ-002-B01", "category": "happy-path", "description": "V2 独立插件入口使用 @opencode/plugin/tui 的 Plugin.define", "status": "failing", "acceptance": ["真实 V2 CLI 加载可观测且启动桥接"], "test_plan": {"strategy": "隔离配置下真实 CLI 加载探针", "inputs": ["仅注册 V2 入口的 cli.json 和本机 V2 CLI"], "expected": ["真实 Plugin.define 入口被加载并启动桥接"]}},
+        {"id": "REQ-002-B02", "category": "compatibility", "description": "V1 独立入口仍可执行既有通信协议与清理", "status": "failing", "acceptance": ["V1 桥接回归测试通过"], "test_plan": {"strategy": "V1 接口回归模拟", "inputs": ["V1 入口与 register/poll/events/dispose 事件"], "expected": ["通信和清理流程保持可用"]}},
+        {"id": "REQ-002-B03", "category": "external-failure", "description": "V2 包不可用或接口不匹配时不得退回伪定义", "status": "failing", "acceptance": ["导入失败产生诊断且不启动桥接"], "test_plan": {"strategy": "隔离模块加载故障注入", "inputs": ["缺少 @opencode/plugin/tui、导出接口不匹配"], "expected": ["明确报错且没有注册或轮询副作用"]}},
+        {"id": "REQ-002-B04", "category": "recovery", "description": "修复 V2 插件包或导出接口后重新加载真实入口可恢复桥接，且此前的失败未留下活跃轮询", "status": "failing", "acceptance": ["首次加载失败无轮询；修复依赖后重载只建立一条桥接"], "test_plan": {"strategy": "加载失败后恢复测试", "inputs": ["先模拟缺包，再提供有效 V2 插件包并重新加载"], "expected": ["失败时无活跃轮询；重新加载后仅启动一条桥接"]}}
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "status": "failing",
+      "types": ["functional", "input", "state"],
+      "required_categories": ["happy-path", "boundary", "invalid-input", "state-transition"],
+      "acceptance": ["V2 表单回填与发给飞书的可见字段一一对应且保持原始类型"],
+      "behaviors": [
+        {"id": "REQ-003-B01", "category": "happy-path", "description": "可见字段按键回填选项标签、多选及布尔值", "status": "failing", "acceptance": ["SDK 收到正确的 answer 字典"], "test_plan": {"strategy": "混合表单回复模拟", "inputs": ["选项标签、多选、布尔值的 form.created 和 question_reply"], "expected": ["Form.Answer 按字段 key 映射并保留选项、多选和布尔类型"]}},
+        {"id": "REQ-003-B02", "category": "boundary", "description": "前中后隐藏字段与条件字段不改变答案对应关系", "status": "failing", "acceptance": ["答案只对应已发出的可见字段"], "test_plan": {"strategy": "隐藏字段位置参数化测试", "inputs": ["首位、中间、末位隐藏字段及条件可见字段"], "expected": ["仅已发送的可见字段按 key 接收各自答案，无错位"]}},
+        {"id": "REQ-003-B03", "category": "invalid-input", "description": "数值和整数转为合法数字，非法值及缺少字段不能当作成功回复", "status": "failing", "acceptance": ["非法回填返回可诊断失败，不提交错误 Form.Answer"], "test_plan": {"strategy": "数字边界及缺失值测试", "inputs": ["合法数值、合法整数、非数字、非整数、缺失可见字段"], "expected": ["合法值转换为数字；非法及缺失值不提交错误 Form.Answer"]}},
+        {"id": "REQ-003-B04", "category": "state-transition", "description": "只有收到覆盖全部可见字段的有效回复后才将待答表单标记为已回复", "status": "failing", "acceptance": ["非法或缺少可见字段时待答状态仍可重试，成功回填后不再待答"], "test_plan": {"strategy": "表单状态转换测试", "inputs": ["缺字段回复、非法数字回复、随后完整有效回复"], "expected": ["前两次不完成表单；最后一次仅提交正确答案"]}}
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "status": "failing",
+      "types": ["functional", "input", "write", "idempotent"],
+      "required_categories": ["happy-path", "invalid-input", "atomicity", "idempotency", "compatibility"],
+      "acceptance": ["正确选择配置目录，保留其他插件，非法配置不写入，重复安装不产生重复注册"],
+      "behaviors": [
+        {"id": "REQ-004-B01", "category": "happy-path", "description": "显式目录优先，否则 XDG_CONFIG_HOME 优先于用户默认目录", "status": "failing", "acceptance": ["目标 cli.json 位于正确目录"], "test_plan": {"strategy": "隔离环境路径测试", "inputs": ["显式目录、设置 XDG_CONFIG_HOME、仅设置 HOME"], "expected": ["按显式目录、XDG 目录、默认目录优先级安装"]}},
+        {"id": "REQ-004-B02", "category": "invalid-input", "description": "非数组 plugins 不被静默替换", "status": "failing", "acceptance": ["返回错误且原配置字节和插件文件不变"], "test_plan": {"strategy": "非法配置失败用例", "inputs": ["cli.json.plugins 为对象、字符串或 null"], "expected": ["返回可诊断错误，配置字节和现有插件文件不变"]}},
+        {"id": "REQ-004-B03", "category": "atomicity", "description": "安装失败不能误删现有 Walker 入口或其他用户插件", "status": "failing", "acceptance": ["失败注入后旧配置仍可用"], "test_plan": {"strategy": "安装读写失败注入", "inputs": ["已有 Walker 和第三方插件，安装过程读写故障"], "expected": ["原有配置及入口文件仍可用，无半成品注册"]}},
+        {"id": "REQ-004-B04", "category": "idempotency", "description": "多次安装只注册目标入口一次并保留其他用户设置", "status": "failing", "acceptance": ["二次安装不重复插件、不重写无关字段"], "test_plan": {"strategy": "重复安装对比", "inputs": ["含第三方插件和其他配置项的 cli.json，连续安装两次"], "expected": ["Walker 入口恰好一次，第三方插件及其他设置不变"]}},
+        {"id": "REQ-004-B05", "category": "compatibility", "description": "V1 已有 Walker 配置使用 V1 入口，V2 cli.json 使用 V2 入口，不误删其他同名路径", "status": "failing", "acceptance": ["两类安装配置均加载正确入口"], "test_plan": {"strategy": "V1/V2 注册迁移测试", "inputs": ["可识别的 V1 Walker 注册、V2 注册及相似路径第三方插件"], "expected": ["V1 和 V2 各自加载对应入口，第三方插件不被移除"]}}
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "status": "failing",
+      "types": ["security", "observable"],
+      "required_categories": ["security", "observability", "forbidden-behavior"],
+      "acceptance": ["安装及执行日志不包含任何飞书消息正文、服务密码或 Walker 令牌"],
+      "behaviors": [
+        {"id": "REQ-005-B01", "category": "security", "description": "接收 delivery 时不把消息正文打印在插件日志", "status": "failing", "acceptance": ["带哨兵正文的日志中找不到该哨兵"], "test_plan": {"strategy": "捕获插件日志", "inputs": ["携带唯一哨兵正文的 delivery"], "expected": ["运行日志没有哨兵正文"]}},
+        {"id": "REQ-005-B02", "category": "observability", "description": "去敏日志仍能追踪 delivery ID、类型及失败阶段", "status": "failing", "acceptance": ["日志无正文且保留必要诊断字段"], "test_plan": {"strategy": "检查成功与失败路径日志", "inputs": ["可识别 delivery ID、类型和失败阶段的事件"], "expected": ["只记录必要元数据，不包含正文或凭据"]}},
+        {"id": "REQ-005-B03", "category": "forbidden-behavior", "description": "错误消息与配置输出不得回显令牌和密码", "status": "failing", "acceptance": ["敏感哨兵不在日志或返回值中"], "test_plan": {"strategy": "异常注入和配置输出检查", "inputs": ["唯一哨兵服务密码、Walker 令牌及包含它们的异常"], "expected": ["日志、返回值和可编辑配置不含敏感哨兵"]}}
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "status": "failing",
+      "types": ["functional", "external", "observable"],
+      "required_categories": ["happy-path", "compatibility", "external-failure", "observability"],
+      "acceptance": ["回归测试和真实加载证据分别记录；未验证的飞书往返不冒充成功"],
+      "behaviors": [
+        {"id": "REQ-006-B01", "category": "happy-path", "description": "相关与全量检查通过，包含新增失败用例的 red/green 记录", "status": "failing", "acceptance": ["测试报告列明命令和结果"], "test_plan": {"strategy": "专项与全量命令运行", "inputs": ["新增失败用例、专项 node --test、npm run lint、npm run check"], "expected": ["测试报告记录 red/green 命令、退出码及检查结果"]}},
+        {"id": "REQ-006-B02", "category": "compatibility", "description": "隔离配置验证真实 OpenCode V2 CLI 加载 V2 插件", "status": "failing", "acceptance": ["加载日志或可见状态证明插件被加载"], "test_plan": {"strategy": "真实 V2 CLI 隔离加载探针", "inputs": ["隔离 XDG_CONFIG_HOME，注册目标 V2 插件的 cli.json"], "expected": ["本机真实 CLI 的加载日志或可见状态证明入口执行"]}},
+        {"id": "REQ-006-B03", "category": "observability", "description": "实际飞书往返若无法执行，在报告中标记为未验证", "status": "failing", "acceptance": ["报告区分模拟与实际往返"], "test_plan": {"strategy": "报告证据范围审查", "inputs": ["模拟集成测试结果及真实飞书环境可用性"], "expected": ["报告明确区分模拟往返与实际飞书往返；未验证不写成通过"]}},
+        {"id": "REQ-006-B04", "category": "external-failure", "description": "真实 V2 CLI 加载或飞书外部服务不可用时保留失败诊断并将该项标为阻塞或未验证", "status": "failing", "acceptance": ["探针启动失败有退出码或日志；无飞书认证时报告不得声称真实往返通过"], "test_plan": {"strategy": "外部环境失败路径检查", "inputs": ["CLI 加载失败证据、缺少安全可用的飞书认证环境"], "expected": ["报告记录真实加载失败原因；真实飞书往返标记未验证"]}}
+      ]
+    }
+  ]
+}

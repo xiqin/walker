@@ -1,0 +1,23 @@
+{
+  "expanded_behaviors": [
+    "REQ-001-B05",
+    "REQ-002-B04",
+    "REQ-003-B04",
+    "REQ-006-B04"
+  ],
+  "blocked_behaviors": [],
+  "status": "done",
+  "summary": "6 项需求的 21 项既有行为已补结构化测试计划，另补 4 项状态转换/恢复/外部失败行为；共 25 项，行为细化校验通过。",
+  "artifacts": [
+    "requirements.json"
+  ],
+  "stage": "detail-expansion",
+  "task_id": "detail-expansion",
+  "basis_fingerprints": {
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "dc638ba56f11786a81d3493de32c3cbd590a1ac7232f6cb27ceb16d76dd9dc94"
+  },
+  "written_at": "2026-10-19T01:46:11.386Z"
+}

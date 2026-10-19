@@ -1,6 +1,32 @@
 {
   "entries": [
     {
+      "id": "968f7566",
+      "type": "踩坑",
+      "content": "OpenCode CLI v2.0.32 不执行 cli.json 中的裸 JS 文件 URL。Walker V2 必须注册 walker-tui-plugin 包目录，由 tui.js 导入 ../walker-tui-bridge.js；加载证据以 CLI stage=setup 为准。无会话时看不到 /register 或 /poll，不能写成桥接连通，真实飞书往返环境不足时也必须标为未验证。",
+      "author": "tianxiqin",
+      "tags": [
+        "opencode",
+        "tui",
+        "plugin",
+        "v2"
+      ],
+      "context": "隔离探针先证明裸 walker-tui-plugin.js 文件 URL 阶段为 entry-not-executed。改为包目录后 v2.0.32 执行了 setup。Windows 需调用 opencode.exe；where.exe 可能返回无扩展名或 cmd，再解析同级 node_modules/@opencode/cli/bin/opencode.exe。",
+      "source": "session",
+      "confidence": 1,
+      "scope": "project",
+      "expires_at": null,
+      "stage": "synced",
+      "files": [
+        "src/opencode-hook/installer.js",
+        "src/opencode-hook/plugin-template.js"
+      ],
+      "links": {
+        "spec": "specs/2026-10-19-opencode-v2-cli-plugin-fixes"
+      },
+      "created_at": "2026-10-19T06:18:22.275Z"
+    },
+    {
       "id": "1efa911d",
       "type": "决策",
       "content": "飞书引用回复会话路由采用消息级持久索引：SessionService 维护 platformMessages.feishu，出站飞书消息绑定 sessionId/routeKey/chatId，入站 parentId 命中时一次性投递到映射会话且不切换 route 焦点；未命中保持当前焦点与 thread root fallback。",
@@ -910,28 +936,6 @@
       "expires_at": null,
       "stage": null,
       "files": [],
-      "links": {},
-      "created_at": "2026-07-10T05:32:30.692Z"
-    },
-    {
-      "id": "5d43c4ab",
-      "type": "踩坑",
-      "content": "前后端API路径对齐是必须同步完成的：spec定义的API路径、HTTP方法和字段名必须与后端路由和前端app.js一致，否则功能不可用",
-      "author": "tianxiqin",
-      "tags": [
-        "admin",
-        "api"
-      ],
-      "context": "code-review-request预审查发现15项API不匹配",
-      "source": "src/admin/",
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [
-        "src/admin/core-routes.js",
-        "src/admin/public/app.js"
-      ],
       "links": {},
       "created_at": "2026-07-10T05:32:30.692Z"
     }

@@ -1,0 +1,23 @@
+{
+  "status": "done",
+  "summary": "计划仍是串行 T1/T2，25 项行为映射未变。T2.md 仅在执行后勾选完成，不改变任务范围、依赖或 owns。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "traceability.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "ad3702b763008a105063aaa903bf9bf73ae2147f2c0c49a5365ce73b74ba2d02",
+    "spec.md": "978f9baa7694679554f04f0d154ba4ff881290d8fad04c24f55625f6a6414aa3",
+    "tasks/": "9002cab61de3a187e477e36456123abd6b5e0a4f3021abb089f56651ec5b17d5"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "ad3702b763008a105063aaa903bf9bf73ae2147f2c0c49a5365ce73b74ba2d02",
+    "tasks/T1.md": "9db8a074e333886f4af999cba57f60c4808da002c486d9e104199a67299bd17b",
+    "tasks/T2.md": "18e4fa2d49e08b80c2995b894e982792a3da341e1b9aa69faff17413573c6826"
+  },
+  "written_at": "2026-10-19T05:58:45.477Z"
+}
