@@ -1401,5 +1401,29 @@
       "error: { code: 'claude_removed', message: 'Claude integration has been removed.' } }` |",
       "blocker 为 0。"
     ]
+  },
+  {
+    "spec_dir": "C:\\Users\\tianxiqin\\.local\\share\\opencode\\worktree\\ee4c5e\\feature\\2026-10-20-session-prompt-concurrency\\specs\\2026-10-20-session-prompt-concurrency",
+    "timestamp": "2026-10-20T02:32:43.360Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "C:\\Users\\tianxiqin\\.local\\share\\opencode\\worktree\\ee4c5e\\feature\\2026-10-20-session-prompt-concurrency\\specs\\2026-10-20-session-prompt-concurrency",
+    "timestamp": "2026-10-20T02:36:40.188Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "C:\\Users\\tianxiqin\\.local\\share\\opencode\\worktree\\ee4c5e\\feature\\2026-10-20-session-prompt-concurrency\\specs\\2026-10-20-session-prompt-concurrency",
+    "timestamp": "2026-10-20T02:45:46.512Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
   }
 ]

@@ -1,0 +1,27 @@
+{
+  "status": "done",
+  "summary": "T1 完成：路由锁仅保护入队；223 项定向、1511 项全量测试通过；测试报告含 PASS 判定、日志哈希及版本绑定收据。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js",
+    "test-report.md",
+    "traceability.json",
+    "evidence/T1-node-test.log",
+    "evidence/T1-npm-test.log"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405",
+    "tasks/": "c1243dea9ee78c3bd79be268a68d559263431e0e5223806f55691924acff7187"
+  },
+  "artifact_fingerprints": {
+    "evidence/T1-node-test.log": "78e6f51fcd5c7bca72018deb7bae8d05fd1abc6fbe9f732db6d6495fc9fa18bc",
+    "evidence/T1-npm-test.log": "cd52880fd902a01016d11d7a69aaa3a6a9b1df313e79101ee78e87c965c14da8",
+    "src/dispatch/message-dispatcher.js": "803a26a9532aae1d7c121b698cdf25439fee5adff762123b44ce27e1547a90e7",
+    "test-report.md": "b467af8a4e52bd668cc57826bd520521a4d8444f1fd9b0aeb1e83ed8ad7fa0d1",
+    "test/message-dispatcher.test.js": "fa932ef914640fc81b4b05a85ff17f05015e6dc4b805f6bca39e3665e24e67e8"
+  },
+  "written_at": "2026-10-20T02:32:10.267Z"
+}

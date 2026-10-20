@@ -1,0 +1,27 @@
+{
+  "status": "done",
+  "summary": "REQ-001/REQ-002 九个行为覆盖；定向 223/223、全量 1511/1511；测试及验证报告 PASS 收据绑定日志、Git 树与差异；真实飞书和 Agent 未接入。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json",
+    "evidence/verification.log",
+    "evidence/T1-node-test.log",
+    "evidence/T1-npm-test.log"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405",
+    "test-report.md": "b467af8a4e52bd668cc57826bd520521a4d8444f1fd9b0aeb1e83ed8ad7fa0d1"
+  },
+  "artifact_fingerprints": {
+    "evidence/T1-node-test.log": "78e6f51fcd5c7bca72018deb7bae8d05fd1abc6fbe9f732db6d6495fc9fa18bc",
+    "evidence/T1-npm-test.log": "cd52880fd902a01016d11d7a69aaa3a6a9b1df313e79101ee78e87c965c14da8",
+    "evidence/verification.log": "b6fb6268e397fe78f60cb30eff720c9ad67f0462c1fe65ee0d3c2346e3a1f292",
+    "test-report.md": "b467af8a4e52bd668cc57826bd520521a4d8444f1fd9b0aeb1e83ed8ad7fa0d1",
+    "verify-report.md": "877aea878a05c3ef41583911d5cd75a111ce586f981be6e40513d11cba769bff"
+  },
+  "written_at": "2026-10-20T02:32:14.700Z"
+}

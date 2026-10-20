@@ -1,0 +1,20 @@
+{
+  "expanded_behaviors": [
+    "REQ-002-B05"
+  ],
+  "blocked_behaviors": [],
+  "status": "done",
+  "summary": "2 个需求、9 个行为义务，必需维度与测试计划全部齐备；新增 REQ-002 正常路径行为。",
+  "artifacts": [
+    "requirements.json"
+  ],
+  "stage": "detail-expansion",
+  "task_id": "detail-expansion",
+  "basis_fingerprints": {
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "b9508ea4b6e2b288025e993c7a64c5df7e1d1832e56ba2462c95506cd71d82fa"
+  },
+  "written_at": "2026-10-20T02:02:37.830Z"
+}

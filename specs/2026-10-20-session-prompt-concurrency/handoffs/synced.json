@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "已记录路由锁入队架构决策；当前工作树 CodeGraph 未初始化，图同步按降级规则跳过；无需更改入口文档；产物校验通过。",
+  "artifacts": [
+    "index-update-report.md",
+    ".loom/memory/store.json"
+  ],
+  "stage": "synced",
+  "task_id": "synced",
+  "basis_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405"
+  },
+  "artifact_fingerprints": {
+    ".loom/memory/store.json": "9c00e17a3eaa89aceccf509ab0d24a09c95a1054ac37fa844fa53f246e1a5886"
+  },
+  "written_at": "2026-10-20T02:47:40.930Z"
+}

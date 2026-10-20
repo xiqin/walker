@@ -1,0 +1,29 @@
+{
+  "task_ids": [
+    "T1"
+  ],
+  "requirements": [
+    "REQ-001",
+    "REQ-002"
+  ],
+  "blocked_behaviors": [],
+  "status": "done",
+  "summary": "单一任务 T1 独占调度器与调度测试；先调整锁的 Promise 等待边界，再做受控并发/命令互斥行为测试。REQ-001/002 全部九个行为映射至 T1，计划校验无告警。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "traceability.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405",
+    "tasks/": "c1243dea9ee78c3bd79be268a68d559263431e0e5223806f55691924acff7187"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "tasks/T1.md": "f3fc0bee6534d56d096c7e87027b1283a35aa8a6fe45ee68c9e52bf45932f17e"
+  },
+  "written_at": "2026-10-20T02:05:16.881Z"
+}

@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "已在独立 feature 分支工作树创建并复制批准的规格；npm ci 成功，基线 npm test 通过（1505/1505）。",
+  "artifacts": [
+    "plan.md",
+    "traceability.json"
+  ],
+  "stage": "git-worktree",
+  "task_id": "git-worktree",
+  "basis_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1"
+  },
+  "written_at": "2026-10-20T02:12:04.063Z"
+}

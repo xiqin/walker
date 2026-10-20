@@ -1,0 +1,31 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "status": "failing",
+      "types": ["functional", "concurrent", "performance"],
+      "required_categories": ["happy-path", "concurrency", "performance", "forbidden-behavior"],
+      "acceptance": ["同一路由下会话 A 的提示词未完成时，会话 B 能开始并完成且 A 不被取消"],
+      "behaviors": [
+        {"id": "REQ-001-B01", "category": "happy-path", "description": "会话 A 和 B 同属一路由时，各自的消息进入对应的提示词队列", "status": "failing", "acceptance": ["两个 driver 调用携带各自的会话引用与消息内容"], "test_plan": {"strategy": "调度器受控延迟集成测试", "inputs": ["同一路由、两条指向不同会话的消息"], "expected": ["两次 prompt 分别属于正确会话"]}},
+        {"id": "REQ-001-B02", "category": "concurrency", "description": "会话 A 提示词悬而未决时，会话 B 的提示词无需等待 A 即可开始并完成", "status": "failing", "acceptance": ["B 在 A 挂起期间返回处理完成，A 仍挂起"], "test_plan": {"strategy": "用手动释放的 Promise 挂起 A", "inputs": ["同 route 的 A、B 会话并发消息"], "expected": ["B 完成而 A 未完成"]}},
+        {"id": "REQ-001-B03", "category": "performance", "description": "解除跨会话提示词等待，不添加等待整个 driver 完成的新路由锁", "status": "failing", "acceptance": ["B 的完成不依赖释放 A 的 Promise"], "test_plan": {"strategy": "确定性非计时并发断言", "inputs": ["A 的 prompt 永不主动完成，B 正常完成"], "expected": ["断言 B 已完成时 A 仍挂起"]}},
+        {"id": "REQ-001-B04", "category": "forbidden-behavior", "description": "前一个会话失败或等待时不得影响其他会话的消息处理结果", "status": "failing", "acceptance": ["A 失败后 B 的调用及结果仍独立"], "test_plan": {"strategy": "挂起并拒绝 A 的 driver Promise", "inputs": ["共享 route 的 A、B 消息"], "expected": ["B 成功、A 错误互不串扰"]}}
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "status": "failing",
+      "types": ["functional", "concurrent", "state"],
+      "required_categories": ["concurrency", "compatibility", "state-transition", "forbidden-behavior"],
+      "acceptance": ["同会话继续串行；路由级命令与入队维持顺序和互斥；对外返回值不变"],
+      "behaviors": [
+        {"id": "REQ-002-B01", "category": "concurrency", "description": "同一个会话的第二条消息只能在第一条完成后启动", "status": "failing", "acceptance": ["第一条挂起时只有一次同会话 driver.prompt 调用"], "test_plan": {"strategy": "同会话连续提交消息", "inputs": ["A1 延迟、A2 立即到达"], "expected": ["A1 释放前 A2 不启动，释放后 A2 启动"]}},
+        {"id": "REQ-002-B02", "category": "compatibility", "description": "现有引用消息生效路由加锁及路由级命令互斥不变", "status": "failing", "acceptance": ["引用路由锁回归通过；入队阶段的路由锁仍可阻止冲突命令"], "test_plan": {"strategy": "调度器路由锁回归", "inputs": ["被引用的非焦点会话、/new 或 /clear 等路由命令"], "expected": ["使用生效 routeKey，加锁入队阶段与命令有序"]}},
+        {"id": "REQ-002-B03", "category": "state-transition", "description": "提示词失败或完成后释放该会话队列，并保留消息处理完成后的返回值语义", "status": "failing", "acceptance": ["失败后同会话下一条仍能执行；结果并非入队即提前返回"], "test_plan": {"strategy": "串行队列故障注入", "inputs": ["A1 失败、A2 成功"], "expected": ["A1 返回错误且 A2 随后成功"]}},
+        {"id": "REQ-002-B04", "category": "forbidden-behavior", "description": "不得移除路由锁或允许同会话提示词并发", "status": "failing", "acceptance": ["入队顺序仍受路由锁控制且同会话没有重叠 prompt"], "test_plan": {"strategy": "路由锁与单会话并发回归", "inputs": ["共享路由的同会话消息和命令"], "expected": ["入队顺序正确、同会话调用不重叠"]}},
+        {"id": "REQ-002-B05", "category": "happy-path", "description": "同会话消息依次执行并在各自的提示词及结果处理完成后返回原有结果", "status": "failing", "acceptance": ["第一条完成后才启动第二条，两个调用均在各自处理完成后返回对应结果"], "test_plan": {"strategy": "受控 Promise 的同会话消息回归测试", "inputs": ["同会话依次到达的两条消息"], "expected": ["调用顺序为第一条再第二条，各自返回正确的处理结果且不提前完成"]}}
+      ]
+    }
+  ]
+}
