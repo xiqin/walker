@@ -348,7 +348,35 @@ test('health 端点 URL 正确拼接', async () => {
   const calls = httpClient.getCalls();
   assert.ok(calls.length >= 1);
   assert.equal(calls[0].method, 'GET');
-  assert.match(calls[0].url, /\/global\/health/);
+  assert.match(calls[0].url, /\/api\/info$/);
+  poller.stop();
+});
+
+test('401 视为不健康，连续失败后判定 detached', async () => {
+  const httpClient = createMockHttpClient([
+    { resp: { status: 401 } },
+    { resp: { status: 401 } },
+  ]);
+  const sessionService = createMockSessionService({
+    sessions: { s401: { id: 's401', agent: 'opencode', agentRef: { opencodeSessionId: 'op401', serverUrl: 'http://localhost:4096' } } },
+    routes: { r401: { focusSessionId: 's401', sessions: ['s401'], cwd: 'C:\\p401' } },
+  });
+  const dispatcher = createMockDispatcher();
+  dispatcher.turnStates.set('s401', { token: 't401', cancelled: false, driver: null });
+  const poller = createHealthPoller({
+    sessionService,
+    driverRegistry: createMockDriverRegistry(),
+    dispatcher,
+    pollIntervalMs: 10,
+    exitAction: 'cancel',
+    httpClient,
+  });
+  poller.start();
+  poller.track('s401', { opencodeSessionId: 'op401', serverUrl: 'http://localhost:4096' });
+  await sleep(80);
+  const cancels = dispatcher.actions.filter((action) => action.type === 'cancelTurn');
+  assert.ok(cancels.length >= 1, '401 should count as unhealthy');
+  assert.match(httpClient.getCalls()[0].url, /\/api\/info$/);
   poller.stop();
 });
 

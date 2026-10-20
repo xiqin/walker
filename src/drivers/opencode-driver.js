@@ -13,8 +13,9 @@ const { OpencodeSessionWatcher } = require('./opencode-session-watcher');
 const {
   DefaultHttpClient, DefaultSSEClient, buildUrl, summarizeResponse,
   extractModelList, extractSessionList, extractMessageList,
-  extractProjectList, normalizeSessionSummary,
+  extractProjectList, normalizeSessionSummary, normalizeOpencodeMessage,
 } = require('./opencode-http-client');
+const { readServiceRecord, resolveOpencodeEndpoint, basicAuthHeader } = require('./opencode-service');
 
 const logger = createLogger('opencode-driver');
 
@@ -39,11 +40,15 @@ class OpencodeDriver extends AgentDriver {
     super('opencode');
     this.httpClient = options.httpClient || new DefaultHttpClient();
     this.sseClient = options.sseClient || new DefaultSSEClient();
-    this.serverUrl = options.serverUrl || '';
-    if (!this.serverUrl) {
+    this.configuredServerUrl = options.serverUrl || '';
+    this.serverPassword = options.serverPassword || '';
+    this._readServiceRecord = options.readServiceRecord || readServiceRecord;
+    this.autostart = options.autostart !== undefined ? options.autostart : true;
+    this._configureEndpoint();
+    if (!this.serverUrl && this.autostart === false) {
       throw new Error('opencode-driver requires serverUrl');
     }
-    this.autostart = options.autostart !== undefined ? options.autostart : true;
+    this._applyAuthHeaders();
     this.runtime = options.runtime || null;
     this.opencodeCmd = options.opencodeCmd || 'opencode';
     this.pollInterval = options.pollInterval || 500;
@@ -71,8 +76,38 @@ class OpencodeDriver extends AgentDriver {
     });
   }
 
+  _configureEndpoint() {
+    const resolved = resolveOpencodeEndpoint({
+      configuredUrl: this.configuredServerUrl,
+      configuredPassword: this.serverPassword,
+      serviceRecord: this._readServiceRecord(),
+    });
+    this.serverUrl = resolved.serverUrl || '';
+    this._authPassword = resolved.password || '';
+    this._discoveredService = resolved.discovered;
+    this._manageSharedService = !this.configuredServerUrl;
+  }
+
+  _refreshDiscoveredEndpoint() {
+    if (!this._manageSharedService) return;
+    const previousUrl = this.serverUrl;
+    const previousPassword = this._authPassword;
+    this._configureEndpoint();
+    if (this.serverUrl !== previousUrl || this._authPassword !== previousPassword) {
+      this._applyAuthHeaders();
+    }
+  }
+
+  _applyAuthHeaders() {
+    const value = basicAuthHeader(this._authPassword);
+    for (const client of [this.httpClient, this.sseClient]) {
+      if (client && typeof client.setHeader === 'function') client.setHeader('Authorization', value);
+    }
+  }
+
   async ensureReady() {
-    if (await this._checkHealth()) {
+    if (this._manageSharedService) this._refreshDiscoveredEndpoint();
+    if (this.serverUrl && await this._checkHealth()) {
       logger.info('opencode server already ready');
       return true;
     }
@@ -86,7 +121,8 @@ class OpencodeDriver extends AgentDriver {
 
     for (let i = 0; i < this.maxPolls; i++) {
       await this._sleep(this.pollInterval);
-      if (await this._checkHealth()) {
+      if (this._manageSharedService) this._refreshDiscoveredEndpoint();
+      if (this.serverUrl && await this._checkHealth()) {
         logger.info('opencode server started successfully');
         return true;
       }
@@ -233,22 +269,52 @@ class OpencodeDriver extends AgentDriver {
 
   async _getSessionMessagesHttp(sessionRef) {
     const sessionId = sessionRef.opencodeSessionId;
-    const url = this._buildUrl('/session/' + sessionId + '/message', {}, sessionRef);
+    const url = this._buildUrl('/api/session/' + encodeURIComponent(sessionId) + '/message', {}, sessionRef);
     const resp = await this.httpClient.request('GET', url);
-    return this._extractMessageList(resp);
+    return this._extractMessageList(resp).map((message) => normalizeOpencodeMessage(message));
   }
 
   async _getSessionMessagesFromLocalDb(sessionId, options) {
     const limit = this._messageLimit(options && options.limit, 20);
+    try {
+      const messages = await this._queryLocalMessageTable(sessionId, limit, 'session_message');
+      if (messages.length > 0) return messages;
+    } catch (err) {
+      logger.debug('session_message query failed, falling back to message', {
+        sessionId,
+        error: err && err.message,
+      });
+    }
+    return this._queryLocalMessageTable(sessionId, limit, 'message');
+  }
+
+  async _queryLocalMessageTable(sessionId, limit, table) {
     const escaped = String(sessionId).replace(/'/g, "''");
-    const sql = 'select data from message where session_id=\'' + escaped + '\' order by time_created desc limit ' + limit + ';';
+    const sql = table === 'session_message'
+      ? 'select id || char(31) || type || char(31) || data from session_message where session_id=\'' + escaped + '\' order by time_created desc limit ' + limit + ';'
+      : 'select data from message where session_id=\'' + escaped + '\' order by time_created desc limit ' + limit + ';';
     const result = await this.execFile(this.sqliteCmd, ['-batch', '-noheader', this.opencodeDbPath, sql], { encoding: 'utf8' });
     const stdout = typeof result === 'string' ? result : (result && result.stdout) || '';
-    return stdout.split(/\r?\n/)
+    return this._parseLocalMessageRows(stdout);
+  }
+
+  _parseLocalMessageRows(stdout) {
+    const separator = String.fromCharCode(31);
+    return String(stdout || '').split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean)
       .map((line) => {
-        try { return JSON.parse(line); } catch (_) { return null; }
+        const first = line.indexOf(separator);
+        const second = first >= 0 ? line.indexOf(separator, first + 1) : -1;
+        try {
+          if (second < 0) return normalizeOpencodeMessage(JSON.parse(line));
+          return normalizeOpencodeMessage(JSON.parse(line.slice(second + 1)), {
+            id: line.slice(0, first),
+            type: line.slice(first + 1, second),
+          });
+        } catch (_) {
+          return null;
+        }
       })
       .filter(Boolean)
       .reverse();
@@ -298,16 +364,19 @@ class OpencodeDriver extends AgentDriver {
     if (completedAt === null) return null;
     const tokenUsage = this._tokenUsageFromTokens(message.tokens);
     if (!tokenUsage) return null;
+    const modelSource = message.model && typeof message.model === 'object'
+      ? message.model
+      : { providerID: message.providerID || message.provider, modelID: message.modelID || message.modelId || message.model };
     return {
       completedAt,
-      model: this._normalizeModelRef({ providerID: message.providerID || message.provider, modelID: message.modelID || message.modelId || message.model }),
+      model: this._normalizeModelRef(modelSource),
       contextSize: tokenUsage.totalTokens,
       tokenUsage,
     };
   }
 
   _messageCompletedAt(message) {
-    const time = message && message.time;
+    const time = (message && message.info && message.info.time) || (message && message.time);
     const completed = time && (time.completed || time.completedAt || time.completed_at);
     const value = completed || message.completedAt || message.completed_at || message.timeCompleted;
     const number = Number(value);
@@ -479,19 +548,12 @@ class OpencodeDriver extends AgentDriver {
 
     const sessionId = sessionRef.opencodeSessionId;
     this._sessionWatcher.suspend(sessionRef);
-    const promptUrl = this._buildUrl('/session/' + sessionId + '/prompt_async', { directory: sessionRef.cwd }, sessionRef);
-    const body = { parts: [{ type: 'text', text }] };
-    if (options && options.model) {
-      const m = options.model;
-      if (typeof m === 'string') {
-        body.model = { modelID: m };
-      } else {
-        body.model = m;
-      }
-    }
+    const promptUrl = this._buildUrl('/api/session/' + encodeURIComponent(sessionId) + '/prompt', {}, sessionRef);
+    const body = { text };
+    const promptStartedAt = Date.now();
 
     const events = [];
-    const sseUrl = this._buildUrl('/event', { directory: sessionRef.cwd }, sessionRef);
+    const sseUrl = this._buildUrl('/api/event', {}, sessionRef);
     let markSSEOpen;
     const sseOpened = new Promise((resolve) => { markSSEOpen = resolve; });
 
@@ -557,7 +619,11 @@ class OpencodeDriver extends AgentDriver {
       });
 
       const requestTimeoutMs = this.promptRequestTimeoutMs > 0 ? this.promptRequestTimeoutMs : undefined;
-      const promptResp = await this.httpClient.request('POST', promptUrl, body, requestTimeoutMs ? { timeoutMs: requestTimeoutMs } : undefined);
+      const requestOptions = requestTimeoutMs ? { timeoutMs: requestTimeoutMs } : undefined;
+      if (options && options.model) {
+        await this._setSessionModel(sessionRef, options.model, requestOptions);
+      }
+      const promptResp = await this.httpClient.request('POST', promptUrl, body, requestOptions);
       logger.info('opencode prompt posted', { sessionId, promptUrl, status: promptResp && promptResp.status });
       if (promptResp && promptResp.status && (promptResp.status < 200 || promptResp.status >= 300)) {
         throw new Error('opencode prompt failed with HTTP ' + promptResp.status);
@@ -571,6 +637,7 @@ class OpencodeDriver extends AgentDriver {
           if (event) events.push(event);
           if (event && event.type === AgentEvent.TYPE_DONE) break;
         }
+        await this._supplementTextEvents(sessionRef, sessionId, baselineId, promptStartedAt, events);
         promptCompleted = true;
         logger.info('opencode sse completed', { sessionId, eventCount: events.length });
       } catch (sseErr) {
@@ -630,6 +697,70 @@ class OpencodeDriver extends AgentDriver {
     return events;
   }
 
+  async _setSessionModel(sessionRef, model, requestOptions) {
+    const apiModel = this._modelRefToApiModel(model);
+    if (!apiModel) return;
+    const url = this._buildUrl(
+      '/api/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/model',
+      {},
+      sessionRef,
+    );
+    const resp = await this.httpClient.request('POST', url, { model: apiModel }, requestOptions);
+    if (resp && typeof resp.status === 'number' && (resp.status < 200 || resp.status >= 300)) {
+      throw new Error('opencode model update failed with HTTP ' + resp.status);
+    }
+  }
+
+  async _supplementTextEvents(sessionRef, sessionId, baselineId, promptStartedAt, events) {
+    if (events.some((event) => event && event.type === AgentEvent.TYPE_TEXT && event.data && event.data.text)) return;
+    try {
+      const messages = await this.getSessionMessages(sessionRef, { access: 'watcher', limit: 20 });
+      const fresh = this._assistantMessagesAfter(messages, baselineId, promptStartedAt);
+      if (fresh.length === 0) return;
+      const textEvents = [];
+      for (const message of fresh) {
+        for (const part of message.parts || []) {
+          if (part && part.type === 'text' && part.text) {
+            textEvents.push(new AgentEvent(AgentEvent.TYPE_TEXT, { text: part.text }));
+          }
+        }
+      }
+      if (textEvents.length === 0) return;
+      const doneIndex = events.findIndex((event) => event && event.type === AgentEvent.TYPE_DONE);
+      if (doneIndex >= 0) events.splice(doneIndex, 0, ...textEvents);
+      else events.push(...textEvents);
+      const last = fresh[fresh.length - 1];
+      const lastId = last.info ? last.info.id : last.id;
+      if (lastId) this._sessionWatcher.setLastPolledMessageId(sessionId, lastId);
+    } catch (err) {
+      logger.debug('failed to supplement text from opencode messages', {
+        sessionId,
+        error: err && err.message,
+      });
+    }
+  }
+
+  _assistantMessagesAfter(messages, baselineId, promptStartedAt) {
+    const list = Array.isArray(messages) ? messages : [];
+    let source = list;
+    if (baselineId) {
+      const index = list.findIndex((message) => {
+        const id = message && (message.info ? message.info.id : message.id);
+        return id === baselineId;
+      });
+      if (index >= 0) source = list.slice(index + 1);
+    }
+    const completed = source.filter((message) => {
+      const role = message && (message.info ? message.info.role : message.role);
+      const completedAt = this._messageCompletedAt(message);
+      if (role !== 'assistant' || !completedAt) return false;
+      if (!baselineId && promptStartedAt && completedAt < promptStartedAt - 2000) return false;
+      return true;
+    });
+    if (!baselineId && completed.length > 1) return completed.slice(-1);
+    return completed;
+  }
+
   async _recoverFromDisconnection(sessionRef, sessionId, baselineId, signal) {
     const pollIntervalMs = this._sessionWatcher.pollIntervalMs;
     const maxRecoveryMs = this.recoveryWindowMs;
@@ -650,7 +781,7 @@ class OpencodeDriver extends AgentDriver {
             continue;
           }
           const role = m.info ? m.info.role : m.role;
-          const completed = m.info && m.info.time && m.info.time.completed;
+          const completed = this._messageCompletedAt(m);
           if (role === 'assistant' && completed) {
             newCompleted.push(m);
           }
@@ -710,7 +841,7 @@ class OpencodeDriver extends AgentDriver {
       throw new Error('stop requires sessionRef with opencodeSessionId');
     }
     if (this._isTuiBridge(sessionRef)) return this.tuiBridge.stop(sessionRef);
-    const url = this._buildUrl('/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/stop', {}, sessionRef);
+    const url = this._buildUrl('/api/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/interrupt', {}, sessionRef);
     try {
       await this.httpClient.request('POST', url, {});
       logger.info('opencode session stopped', { sessionId: sessionRef.opencodeSessionId });
@@ -738,7 +869,7 @@ class OpencodeDriver extends AgentDriver {
       throw new Error('delete requires sessionRef with opencodeSessionId');
     }
     if (this._isTuiBridge(sessionRef)) return this.tuiBridge.delete(sessionRef);
-    const url = this._buildUrl('/session/' + encodeURIComponent(sessionRef.opencodeSessionId), {}, sessionRef);
+    const url = this._buildUrl('/api/session/' + encodeURIComponent(sessionRef.opencodeSessionId), {}, sessionRef);
     try {
       await this.httpClient.request('DELETE', url, null);
       logger.info('opencode session deleted', { sessionId: sessionRef.opencodeSessionId });
@@ -764,11 +895,11 @@ class OpencodeDriver extends AgentDriver {
       return this.tuiBridge.replyPermission(sessionRef, permissionId, response, remember);
     }
     const url = this._buildUrl(
-      '/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/permissions/' + encodeURIComponent(permissionId),
+      '/api/session/' + encodeURIComponent(sessionRef.opencodeSessionId) + '/permission/' + encodeURIComponent(permissionId) + '/reply',
       {},
       sessionRef,
     );
-    const body = { response: response, remember: remember !== undefined ? remember : false };
+    const body = { decision: permissionDecision(response, remember) };
     try {
       await this.httpClient.request('POST', url, body);
       logger.info('opencode permission replied', { sessionId: sessionRef.opencodeSessionId, permissionId, response });
@@ -836,7 +967,8 @@ class OpencodeDriver extends AgentDriver {
 
   async _checkHealth() {
     try {
-      const resp = await this.httpClient.request('GET', this._buildUrl('/api/health', {}), null);
+      const resp = await this.httpClient.request('GET', this._buildUrl('/api/info', {}), null);
+      if (!resp || resp.status === 401) return false;
       if (resp.status === 200) return true;
       if (resp.status >= 500) {
         logger.warn('opencode server unhealthy but running', { status: resp.status });
@@ -852,8 +984,9 @@ class OpencodeDriver extends AgentDriver {
     if (!this.runtime) {
       throw new Error('runtime not configured for autostart');
     }
-    const port = this._extractPort();
-    const args = ['serve', '--hostname', '127.0.0.1', '--port', String(port)];
+    const args = this._manageSharedService
+      ? ['service', 'start']
+      : ['serve', '--hostname', '127.0.0.1', '--port', String(this._extractPort())];
     const proc = this.runtime.spawn(this.opencodeCmd, args, { detached: true, stdio: 'ignore' });
     if (proc && proc.unref) proc.unref();
     logger.info('opencode server process spawned', { pid: proc ? proc.pid : null });
@@ -906,7 +1039,7 @@ class OpencodeDriver extends AgentDriver {
   _summarizeResponse(resp) { return summarizeResponse(resp); }
 
   async _listSessionsForDirectory(cwd) {
-    const url = this._buildUrl('/session', { directory: cwd });
+    const url = this._buildUrl('/api/session', { directory: cwd });
     try {
       const resp = await this.httpClient.request('GET', url, null);
       const sessions = this._extractSessionList(resp)
@@ -921,11 +1054,11 @@ class OpencodeDriver extends AgentDriver {
 
   async _listAllSessions(extraCwds) {
     try {
-      const projectUrl = this._buildUrl('/project', {});
+      const projectUrl = this._buildUrl('/api/project', {});
       const projectResp = await this.httpClient.request('GET', projectUrl, null);
       const projects = this._extractProjectList(projectResp);
       const directories = projects
-        .map((p) => p.worktree || p.path || p.directory)
+        .map((p) => p.canonical || p.worktree || p.path || p.directory || (p.location && p.location.directory))
         .filter((d) => d && d !== '/');
       const extra = (Array.isArray(extraCwds) ? extraCwds : [])
         .filter((d) => d && directories.indexOf(d) === -1);
@@ -954,6 +1087,13 @@ class OpencodeDriver extends AgentDriver {
 }
 
 module.exports = { OpencodeDriver };
+
+function permissionDecision(response, remember) {
+  const value = String(response || '').trim().toLowerCase();
+  if (remember === true || value === 'always') return 'always';
+  if (value === 'deny' || value === 'reject') return 'reject';
+  return 'once';
+}
 
 function questionReplyError(message, code) {
   return Object.assign(new Error(message), {

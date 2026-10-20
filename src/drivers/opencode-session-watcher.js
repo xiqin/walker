@@ -30,7 +30,7 @@ class OpencodeSessionWatcher {
     if (this.watchers.has(sessionId)) return this.watchers.get(sessionId).stop;
 
     const controller = new AbortController();
-    const sseUrl = this.buildUrl('/event', { directory: sessionRef.cwd }, sessionRef);
+    const sseUrl = this.buildUrl('/api/event', {}, sessionRef);
     logger.info('opencode watchSession starting', { sessionId, sseUrl, cwd: sessionRef.cwd });
 
     let watchTimer = null;

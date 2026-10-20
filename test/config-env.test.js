@@ -488,3 +488,9 @@ test('REQ-003-B07: 默认 agent 改回 opencode 后即使残留 CLAUDE_* 也能�
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('OPENCODE_SERVER_PASSWORD 可读且不在管理端可编辑白名单', () => {
+  assert.equal(loadEnvConfig({ env: {} }).opencodeServerPassword, '');
+  assert.equal(loadEnvConfig({ env: { OPENCODE_SERVER_PASSWORD: 'secret-value' } }).opencodeServerPassword, 'secret-value');
+  assert.equal(EDITABLE_ENV_KEYS.includes('OPENCODE_SERVER_PASSWORD'), false);
+});

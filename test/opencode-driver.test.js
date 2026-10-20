@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { AgentDriver } = require('../src/drivers/agent-driver');
 const { DriverRegistry } = require('../src/drivers/driver-registry');
 const { OpencodeDriver } = require('../src/drivers/opencode-driver');
+const { basicAuthHeader } = require('../src/drivers/opencode-service');
 const { OpencodeTuiBridge } = require('../src/opencode-tui-bridge/bridge');
 const { stubCodexDriver } = require('../src/drivers/stub-drivers');
 
@@ -70,7 +71,7 @@ describe('Stub drivers', () => {
 
 describe('OpencodeDriver ensureReady', () => {
   it('server 已可用时直接返回', async () => {
-    const http = new FakeHttpClient({ 'GET http://localhost:4096/api/health': { status: 200, data: { ok: true } } });
+    const http = new FakeHttpClient({ 'GET http://localhost:4096/api/info': { status: 200, data: { ok: true } } });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', autostart: false });
     const result = await driver.ensureReady();
     assert.equal(result, true);
@@ -82,7 +83,7 @@ describe('OpencodeDriver ensureReady', () => {
       calls: [],
       async request(method, url, body) {
         this.calls.push({ method, url, body });
-        if (url === 'http://localhost:4096/api/health') {
+        if (url === 'http://localhost:4096/api/info') {
           healthCallIndex++;
           if (healthCallIndex > 1) return { status: 200, data: { ok: true } };
           throw new Error('ECONNREFUSED');
@@ -107,7 +108,7 @@ describe('OpencodeDriver ensureReady', () => {
   });
 
   it('server 不可用且 autostart=false 时抛错含诊断信息', async () => {
-    const http = new FakeHttpClient({ 'GET http://localhost:4096/api/health': { error: new Error('ECONNREFUSED') } });
+    const http = new FakeHttpClient({ 'GET http://localhost:4096/api/info': { error: new Error('ECONNREFUSED') } });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096', autostart: false });
     await assert.rejects(() => driver.ensureReady(), { message: /opencode server|ECONNREFUSED|serverUrl/i });
   });
@@ -363,9 +364,10 @@ describe('OpencodeDriver prompt with SSE', () => {
 
     const events = await driver.prompt(sessionRef, '请帮我分析代码');
 
-    assert.equal(http.calls[0].url, 'http://localhost:4096/session/ses_abc/prompt_async?directory=%2Fhome%2Fuser%2Fproject');
+    assert.equal(http.calls[0].url, 'http://localhost:4096/api/session/ses_abc/prompt');
+    assert.deepEqual(http.calls[0].body, { text: '请帮我分析代码' });
     assert.equal(sse.calls.length, 1);
-    assert.equal(sse.calls[0].url, 'http://localhost:4096/event?directory=%2Fhome%2Fuser%2Fproject');
+    assert.equal(sse.calls[0].url, 'http://localhost:4096/api/event');
     assert.equal(typeof sse.calls[0].options.shouldClose, 'function');
     assert.equal(sse.calls[0].options.idleTimeoutMs, 300000);
     assert.equal(events.length, 3);
@@ -382,7 +384,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       { type: 'session.status', properties: { sessionID: 'ses_abc', status: { type: 'idle' } } },
     ];
     const http = new FakeHttpClient({
-      'GET http://localhost:4096/session/ses_abc/message': {
+      'GET http://localhost:4096/api/session/ses_abc/message': {
         status: 200,
         data: [
           { id: 'msg1', role: 'assistant', time: { completed: Date.now() }, parts: [{ type: 'text', text: 'Hello world' }] },
@@ -408,8 +410,8 @@ describe('OpencodeDriver prompt with SSE', () => {
 
     await driver.prompt(remoteRef, 'hello');
 
-    assert.equal(http.calls[0].url, 'http://127.0.0.1:54321/session/ses_abc/prompt_async?directory=%2Fhome%2Fuser%2Fproject');
-    assert.equal(sse.calls[0].url, 'http://127.0.0.1:54321/event?directory=%2Fhome%2Fuser%2Fproject');
+    assert.equal(http.calls[0].url, 'http://127.0.0.1:54321/api/session/ses_abc/prompt');
+    assert.equal(sse.calls[0].url, 'http://127.0.0.1:54321/api/event');
   });
 
   it('先建立 SSE 订阅再提交 prompt，避免错过短生命周期事件', async () => {
@@ -586,7 +588,7 @@ describe('OpencodeDriver prompt with SSE', () => {
 
     const stopWatch = driver.watchSession(sessionRef, { onEvent: (event) => delivered.push(event) });
 
-    assert.equal(sse.calls[0].url, 'http://localhost:4096/event?directory=%2Fhome%2Fuser%2Fproject');
+    assert.equal(sse.calls[0].url, 'http://localhost:4096/api/event');
     assert.equal(sse.calls[0].options.collectEvents, false);
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].data.text, '终端回复');
@@ -606,7 +608,7 @@ describe('OpencodeDriver prompt with SSE', () => {
 
     const stopWatch = driver.watchSession(remoteRef, { onEvent: () => {} });
 
-    assert.equal(sse.calls[0].url, 'http://127.0.0.1:54321/event?directory=%2Fhome%2Fuser%2Fproject');
+    assert.equal(sse.calls[0].url, 'http://127.0.0.1:54321/api/event');
     if (typeof stopWatch === 'function') stopWatch();
   });
 
@@ -635,7 +637,7 @@ describe('OpencodeDriver prompt with SSE', () => {
   it('watchSession 已通过 SSE 投递的 assistant 消息不会被轮询重复投递', async () => {
     const delivered = [];
     const http = new FakeHttpClient({
-      'GET http://localhost:4096/session/ses_abc/message': {
+      'GET http://localhost:4096/api/session/ses_abc/message': {
         status: 200,
         data: [
           { info: { id: 'msg0', role: 'user', time: { completed: Date.now() } }, parts: [{ type: 'text', text: '用户输入' }] },
@@ -672,7 +674,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       calls: [],
       async request(method, url, body) {
         this.calls.push({ method, url, body });
-        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+        if (method === 'GET' && url === 'http://localhost:4096/api/session/ses_abc/message') {
           return { status: 200, data: messages };
         }
         return { status: 200, data: {} };
@@ -720,7 +722,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       calls: [],
       async request(method, url, body) {
         this.calls.push({ method, url, body });
-        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+        if (method === 'GET' && url === 'http://localhost:4096/api/session/ses_abc/message') {
           return { status: 200, data: messages };
         }
         return { status: 200, data: {} };
@@ -780,7 +782,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       calls: [],
       async request(method, url, body) {
         this.calls.push({ method, url, body });
-        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+        if (method === 'GET' && url === 'http://localhost:4096/api/session/ses_abc/message') {
           pollCount++;
           return { status: 200, data: messages };
         }
@@ -825,7 +827,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       calls: [],
       async request(method, url, body) {
         this.calls.push({ method, url, body });
-        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+        if (method === 'GET' && url === 'http://localhost:4096/api/session/ses_abc/message') {
           return { status: 200, data: messages };
         }
         return { status: 200, data: {} };
@@ -870,7 +872,7 @@ describe('OpencodeDriver prompt with SSE', () => {
     ];
     const http = {
       async request(method, url) {
-        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+        if (method === 'GET' && url === 'http://localhost:4096/api/session/ses_abc/message') {
           return { status: 200, data: messages };
         }
         return { status: 200, data: {} };
@@ -906,7 +908,7 @@ describe('OpencodeDriver prompt with SSE', () => {
       calls: [],
       async request(method, url, body) {
         this.calls.push({ method, url, body });
-        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+        if (method === 'GET' && url === 'http://localhost:4096/api/session/ses_abc/message') {
           return { status: 200, data: messages };
         }
         return { status: 200, data: {} };
@@ -995,9 +997,9 @@ describe('OpencodeDriver prompt with SSE', () => {
     let pollCount = 0;
     const http = {
       async request(method, url) {
-        if (method === 'GET' && url === 'http://localhost:4096/session/ses_abc/message') {
+        if (method === 'GET' && url === 'http://localhost:4096/api/session/ses_abc/message') {
           pollCount++;
-          throw new Error('GET http://localhost:4096/session/ses_abc/message response body exceeded 10485760 bytes');
+          throw new Error('GET http://localhost:4096/api/session/ses_abc/message response body exceeded 10485760 bytes');
         }
         return { status: 200, data: {} };
       },
@@ -1029,46 +1031,46 @@ describe('OpencodeDriver prompt with SSE', () => {
 describe('OpencodeDriver stop and delete', () => {
   const sessionRef = { opencodeSessionId: 'ses_abc', serverUrl: 'http://localhost:4096' };
 
-  it('stop 调用 POST /session/:id/stop', async () => {
+  it('stop 调用 POST /api/session/:id/interrupt', async () => {
     const http = new FakeHttpClient({
-      'POST http://localhost:4096/session/ses_abc/stop': { status: 204, data: null },
+      'POST http://localhost:4096/api/session/ses_abc/interrupt': { status: 204, data: null },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
     await driver.stop(sessionRef);
     assert.equal(http.calls[0].method, 'POST');
-    assert.ok(http.calls[0].url.includes('/session/ses_abc/stop'));
+    assert.equal(http.calls[0].url, 'http://localhost:4096/api/session/ses_abc/interrupt');
   });
 
-  it('delete 调用 DELETE /session/:id', async () => {
+  it('delete 调用 DELETE /api/session/:id', async () => {
     const http = new FakeHttpClient({
-      'DELETE http://localhost:4096/session/ses_abc': { status: 204, data: null },
+      'DELETE http://localhost:4096/api/session/ses_abc': { status: 204, data: null },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
     await driver.delete(sessionRef);
     assert.equal(http.calls[0].method, 'DELETE');
-    assert.ok(http.calls[0].url.includes('/session/ses_abc'));
+    assert.equal(http.calls[0].url, 'http://localhost:4096/api/session/ses_abc');
   });
 
-  it('replyPermission 调用 POST /session/:id/permissions/:permissionId', async () => {
+  it('replyPermission 调用 POST /api/session/:id/permission/:permissionId/reply', async () => {
     const http = new FakeHttpClient({
-      'POST http://localhost:4096/session/ses_abc/permissions/perm_123': { status: 200, data: {} },
+      'POST http://localhost:4096/api/session/ses_abc/permission/perm_123/reply': { status: 200, data: {} },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
     await driver.replyPermission(sessionRef, 'perm_123', 'allow');
     assert.equal(http.calls[0].method, 'POST');
-    assert.ok(http.calls[0].url.includes('/session/ses_abc/permissions/perm_123'));
-    assert.equal(http.calls[0].body.response, 'allow');
-    assert.equal(http.calls[0].body.remember, false);
+    assert.equal(http.calls[0].url, 'http://localhost:4096/api/session/ses_abc/permission/perm_123/reply');
+    assert.deepEqual(http.calls[0].body, { decision: 'once' });
   });
 
-  it('replyPermission remember 参数传递', async () => {
-    const http = new FakeHttpClient({
-      'POST http://localhost:4096/session/ses_abc/permissions/perm_123': { status: 200, data: {} },
-    });
+  it('replyPermission remember 或 always 映射为 always，deny 映射为 reject', async () => {
+    const http = new FakeHttpClient({});
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
     await driver.replyPermission(sessionRef, 'perm_123', 'deny', true);
-    assert.equal(http.calls[0].body.response, 'deny');
-    assert.equal(http.calls[0].body.remember, true);
+    await driver.replyPermission(sessionRef, 'perm_123', 'deny');
+    await driver.replyPermission(sessionRef, 'perm_123', 'always');
+    assert.deepEqual(http.calls[0].body, { decision: 'always' });
+    assert.deepEqual(http.calls[1].body, { decision: 'reject' });
+    assert.deepEqual(http.calls[2].body, { decision: 'always' });
   });
 
   it('replyPermission 缺少 sessionRef 抛错', async () => {
@@ -1083,7 +1085,7 @@ describe('OpencodeDriver stop and delete', () => {
 
   it('replyPermission HTTP 失败时抛错', async () => {
     const http = new FakeHttpClient({
-      'POST http://localhost:4096/session/ses_abc/permissions/perm_123': { error: new Error('server error') },
+      'POST http://localhost:4096/api/session/ses_abc/permission/perm_123/reply': { error: new Error('server error') },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
     await assert.rejects(() => driver.replyPermission(sessionRef, 'perm_123', 'allow'), { message: /server error/ });
@@ -1092,9 +1094,9 @@ describe('OpencodeDriver stop and delete', () => {
   it('session scoped 请求使用 sessionRef.serverUrl', async () => {
     const remoteRef = { opencodeSessionId: 'ses_abc', serverUrl: 'http://127.0.0.1:54321', cwd: '/tmp/project' };
     const http = new FakeHttpClient({
-      'GET http://127.0.0.1:54321/session/ses_abc/message': { status: 200, data: [] },
-      'POST http://127.0.0.1:54321/session/ses_abc/stop': { status: 204, data: null },
-      'DELETE http://127.0.0.1:54321/session/ses_abc': { status: 204, data: null },
+      'GET http://127.0.0.1:54321/api/session/ses_abc/message': { status: 200, data: [] },
+      'POST http://127.0.0.1:54321/api/session/ses_abc/interrupt': { status: 204, data: null },
+      'DELETE http://127.0.0.1:54321/api/session/ses_abc': { status: 204, data: null },
     });
     const driver = new OpencodeDriver({ httpClient: http, serverUrl: 'http://localhost:4096' });
 
@@ -1119,7 +1121,7 @@ describe('OpencodeDriver resumeSession', () => {
 describe('OpencodeDriver listSessions', () => {
   it('调用 GET /session 并规范化会话摘要', async () => {
     const http = new FakeHttpClient({
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2Fproject': {
         status: 200,
         data: [
           { id: 'ses_abc', title: 'terminal session', status: { type: 'idle' }, directory: '/home/user/project' },
@@ -1131,7 +1133,7 @@ describe('OpencodeDriver listSessions', () => {
     const sessions = await driver.listSessions({ cwd: '/home/user/project' });
 
     assert.equal(http.calls[0].method, 'GET');
-    assert.equal(http.calls[0].url, 'http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject');
+    assert.equal(http.calls[0].url, 'http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2Fproject');
     assert.equal(sessions.length, 1);
     assert.deepEqual(sessions[0], {
       id: 'ses_abc',
@@ -1144,7 +1146,7 @@ describe('OpencodeDriver listSessions', () => {
 
   it('支持 sessions 包装响应', async () => {
     const http = new FakeHttpClient({
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fproject': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2Fproject': {
         status: 200,
         data: { sessions: [{ sessionID: 'ses_wrapped', name: 'wrapped' }] },
       },
@@ -1160,18 +1162,18 @@ describe('OpencodeDriver listSessions', () => {
 
   it('listSessions({}) 聚合 /project 所有目录的会话', async () => {
     const http = new FakeHttpClient({
-      'GET http://localhost:4096/project': {
+      'GET http://localhost:4096/api/project': {
         status: 200,
         data: [
           { path: '/home/user/projectA' },
           { path: '/home/user/projectB' },
         ],
       },
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectA': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2FprojectA': {
         status: 200,
         data: [{ id: 'ses_a1', title: 'a1', directory: '/home/user/projectA' }],
       },
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectB': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2FprojectB': {
         status: 200,
         data: [{ id: 'ses_b1', title: 'b1', directory: '/home/user/projectB' }],
       },
@@ -1187,15 +1189,15 @@ describe('OpencodeDriver listSessions', () => {
 
   it('listSessions({}) 用 extraCwds 补查 /project 未返回的新项目目录', async () => {
     const http = new FakeHttpClient({
-      'GET http://localhost:4096/project': {
+      'GET http://localhost:4096/api/project': {
         status: 200,
         data: [{ path: '/home/user/projectA' }],
       },
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectA': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2FprojectA': {
         status: 200,
         data: [{ id: 'ses_a1', title: 'a1', directory: '/home/user/projectA' }],
       },
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2Fnewproject': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2Fnewproject': {
         status: 200,
         data: [{ id: 'ses_new1', title: 'new1', directory: '/home/user/newproject' }],
       },
@@ -1211,11 +1213,11 @@ describe('OpencodeDriver listSessions', () => {
 
   it('listSessions({}) 对 extraCwds 与 /project 重复的目录去重，不重复请求', async () => {
     const http = new FakeHttpClient({
-      'GET http://localhost:4096/project': {
+      'GET http://localhost:4096/api/project': {
         status: 200,
         data: [{ path: '/home/user/projectA' }],
       },
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectA': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2FprojectA': {
         status: 200,
         data: [{ id: 'ses_a1', title: 'a1', directory: '/home/user/projectA' }],
       },
@@ -1231,15 +1233,15 @@ describe('OpencodeDriver listSessions', () => {
 
   it('listSessions({}) 对跨目录重复的 session id 去重', async () => {
     const http = new FakeHttpClient({
-      'GET http://localhost:4096/project': {
+      'GET http://localhost:4096/api/project': {
         status: 200,
         data: [{ path: '/home/user/projectA' }],
       },
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectA': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2FprojectA': {
         status: 200,
         data: [{ id: 'ses_dup', title: 'a', directory: '/home/user/projectA' }],
       },
-      'GET http://localhost:4096/session?directory=%2Fhome%2Fuser%2FprojectB': {
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2FprojectB': {
         status: 200,
         data: [{ id: 'ses_dup', title: 'b', directory: '/home/user/projectB' }],
       },
@@ -1941,5 +1943,193 @@ describe('OpencodeDriver prompt timeout and recovery', () => {
     const events = await driver.prompt(sessionRef, 'hello');
     assert.ok(sseResolved, 'SSE 应正常完成而不被 open timeout 中断');
     assert.ok(events.some((e) => e.type === 'done'));
+  });
+});
+
+describe('OpencodeDriver V2 服务发现与鉴权', () => {
+  function createHeaderClient(responses) {
+    return {
+      headers: {},
+      calls: [],
+      responses: responses || {},
+      setHeader(name, value) {
+        if (!value) delete this.headers[name];
+        else this.headers[name] = value;
+      },
+      async request(method, url, body) {
+        this.calls.push({ method, url, body });
+        const resp = this.responses[method + ' ' + url] || { status: 200, data: {} };
+        if (resp.error) throw resp.error;
+        return resp;
+      },
+    };
+  }
+
+  it('显式 4096 不被 service.json 覆盖，且不一致时不附带发现到的密码', () => {
+    const http = createHeaderClient();
+    const sse = { headers: {}, setHeader(name, value) { if (!value) delete this.headers[name]; else this.headers[name] = value; } };
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      autostart: false,
+      readServiceRecord: () => ({ url: 'http://127.0.0.1:45278', password: 'discovered-secret' }),
+    });
+
+    assert.equal(driver.serverUrl, 'http://localhost:4096');
+    assert.equal(http.headers.Authorization, undefined);
+    assert.equal(sse.headers.Authorization, undefined);
+  });
+
+  it('显式 URL 与发现结果指向同一服务时才附带密码', () => {
+    const http = createHeaderClient();
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:45278',
+      autostart: false,
+      readServiceRecord: () => ({ url: 'http://127.0.0.1:45278/', password: 'discovered-secret' }),
+    });
+
+    assert.equal(driver.serverUrl, 'http://localhost:45278');
+    assert.equal(http.headers.Authorization, basicAuthHeader('discovered-secret'));
+  });
+
+  it('未配置 URL 时采用 service.json，autostart 启动共享服务', async () => {
+    let checks = 0;
+    const http = createHeaderClient();
+    http.request = async function request(method, url, body) {
+      this.calls.push({ method, url, body });
+      checks += 1;
+      if (checks === 1) throw new Error('ECONNREFUSED');
+      return { status: 200, data: {} };
+    };
+    const spawnCalls = [];
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: '',
+      autostart: true,
+      readServiceRecord: () => ({ url: 'http://127.0.0.1:45278', password: 'discovered-secret' }),
+      runtime: {
+        spawn: (cmd, args) => {
+          spawnCalls.push({ cmd, args });
+          return { pid: 7, unref() {} };
+        },
+      },
+      pollInterval: 5,
+      maxPolls: 3,
+    });
+
+    assert.equal(await driver.ensureReady(), true);
+    assert.equal(driver.serverUrl, 'http://127.0.0.1:45278');
+    assert.equal(http.headers.Authorization, basicAuthHeader('discovered-secret'));
+    assert.deepEqual(spawnCalls, [{ cmd: 'opencode', args: ['service', 'start'] }]);
+  });
+
+  it('空 URL 且没有可发现服务、autostart=false 时要求 serverUrl', () => {
+    assert.throws(
+      () => new OpencodeDriver({
+        serverUrl: '',
+        autostart: false,
+        readServiceRecord: () => null,
+      }),
+      /opencode-driver requires serverUrl/,
+    );
+  });
+
+  it('GET /api/info 返回 401 视为不健康', async () => {
+    const http = createHeaderClient({
+      'GET http://localhost:4096/api/info': { status: 401, data: {} },
+    });
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:4096',
+      autostart: false,
+      readServiceRecord: () => null,
+    });
+
+    await assert.rejects(() => driver.ensureReady(), /not available/);
+  });
+});
+
+describe('OpencodeDriver V2 prompt 与项目目录', () => {
+  const sessionRef = { opencodeSessionId: 'ses_abc', serverUrl: 'http://localhost:4096', cwd: '/home/user/project' };
+  const missingOpencodeDbPath = 'H:\\walker\\does-not-exist-opencode.db';
+
+  it('已有会话换模型走 /model，prompt 只提交 text', async () => {
+    const http = new FakeHttpClient({});
+    const sse = new FakeSSEClient([
+      { type: 'session.status', properties: { sessionID: 'ses_abc', status: { type: 'idle' } } },
+    ]);
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      opencodeDbPath: missingOpencodeDbPath,
+      readServiceRecord: () => null,
+    });
+
+    await driver.prompt(sessionRef, 'hello', { model: { providerID: 'anthropic', modelID: 'claude' } });
+
+    const posts = http.calls.filter((call) => call.method === 'POST');
+    assert.equal(posts[0].url, 'http://localhost:4096/api/session/ses_abc/model');
+    assert.deepEqual(posts[0].body, { model: { id: 'claude', providerID: 'anthropic' } });
+    assert.equal(posts[1].url, 'http://localhost:4096/api/session/ses_abc/prompt');
+    assert.deepEqual(posts[1].body, { text: 'hello' });
+  });
+
+  it('SSE 没有文本时，只补 prompt 开始后完成的 assistant 文本', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/api/session/ses_abc/message': {
+        status: 200,
+        data: {
+          data: [
+            { id: 'msg_hist', type: 'assistant', time: { completed: 1 }, content: '历史回复' },
+            { id: 'msg_user', type: 'user', time: { completed: Date.now() }, content: '用户刚说的' },
+            { id: 'msg_new', type: 'assistant', time: { completed: Date.now() + 1000 }, content: '本次回复' },
+          ],
+        },
+      },
+    });
+    const sse = new FakeSSEClient([
+      { id: 'evt_idle', type: 'session.idle', data: { sessionID: 'ses_abc' } },
+    ]);
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      sseClient: sse,
+      serverUrl: 'http://localhost:4096',
+      opencodeDbPath: missingOpencodeDbPath,
+      readServiceRecord: () => null,
+    });
+
+    const events = await driver.prompt(sessionRef, '继续');
+    const texts = events.filter((event) => event.type === 'text').map((event) => event.data.text);
+
+    assert.deepEqual(texts, ['本次回复']);
+    assert.equal(events[events.length - 1].type, 'done');
+    assert.equal(events.some((event) => event.data && event.data.text === '历史回复'), false);
+  });
+
+  it('listSessions 优先使用 project.canonical', async () => {
+    const http = new FakeHttpClient({
+      'GET http://localhost:4096/api/project': {
+        status: 200,
+        data: { data: [{ canonical: '/home/user/canon', path: '/home/user/other' }] },
+      },
+      'GET http://localhost:4096/api/session?directory=%2Fhome%2Fuser%2Fcanon': {
+        status: 200,
+        data: [{ id: 'ses_c', title: 'canon', directory: '/home/user/canon' }],
+      },
+    });
+    const driver = new OpencodeDriver({
+      httpClient: http,
+      serverUrl: 'http://localhost:4096',
+      readServiceRecord: () => null,
+    });
+
+    const sessions = await driver.listSessions({});
+
+    assert.deepEqual(sessions.map((session) => session.id), ['ses_c']);
+    assert.equal(http.calls.some((call) => call.url.includes('/home%2Fuser%2Fcanon') || call.url.includes('%2Fhome%2Fuser%2Fcanon')), true);
+    assert.equal(http.calls.some((call) => call.url.includes('other')), false);
   });
 });

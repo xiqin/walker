@@ -98,10 +98,11 @@ function createHealthPoller(options) {
   async function _checkHealth(agentRef) {
     const serverUrl = (agentRef && agentRef.serverUrl) || '';
     if (!serverUrl) return false;
-    const url = serverUrl.replace(/\/+$/, '') + '/global/health';
+    const url = serverUrl.replace(/\/+$/, '') + '/api/info';
     try {
       const resp = await httpClient.request('GET', url, null);
-      return !!(resp && resp.status >= 200 && resp.status < 300);
+      if (!resp || resp.status === 401) return false;
+      return !!(resp.status >= 200 && resp.status < 300);
     } catch (err) {
       logger.debug('health check error', { url, err: err && err.message ? err.message : String(err) });
       return false;

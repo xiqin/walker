@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { AgentEvent } = require('../src/drivers/agent-driver');
-const { mapSSEEvent } = require('../src/drivers/opencode-sse-adapter');
+const { mapSSEEvent, isTerminalSSEEvent } = require('../src/drivers/opencode-sse-adapter');
 
 function makeEvent(type, properties) {
   return { type, properties };
@@ -242,4 +242,46 @@ test('未知事件类型返回 null', () => {
 test('跨 session 事件被过滤', () => {
   const ev = mapSSEEvent(makeEvent('session.compacted', { sessionID: 'other' }), 'mySession');
   assert.equal(ev, null);
+});
+
+test('V2 SSE 信封把 data 当作 properties', () => {
+  const ev = mapSSEEvent({
+    id: 'evt_1',
+    type: 'message.part.updated',
+    data: { sessionID: 's1', part: { type: 'text', text: '信封文本' } },
+  }, 's1');
+  assert.equal(ev.type, 'text');
+  assert.equal(ev.data.text, '信封文本');
+});
+
+test('permission.asked 映射到 TYPE_PERMISSION', () => {
+  const ev = mapSSEEvent({
+    id: 'evt_perm',
+    type: 'permission.asked',
+    data: { requestID: 'perm_9', permission: 'bash', sessionID: 's1', messageID: 'm1' },
+  }, 's1');
+  assert.equal(ev.type, 'permission');
+  assert.equal(ev.data.id, 'perm_9');
+  assert.equal(ev.data.type, 'bash');
+  assert.equal(ev.data.title, 'bash');
+  assert.equal(ev.data.sessionID, 's1');
+});
+
+test('session.idle 与 session.execution 成功或失败作为结束事件', () => {
+  const idle = mapSSEEvent({ id: 'e1', type: 'session.idle', data: { sessionID: 's1' } }, 's1');
+  const succeeded = mapSSEEvent({ id: 'e2', type: 'session.execution.succeeded', data: { sessionID: 's1' } }, 's1');
+  const failed = mapSSEEvent({ id: 'e3', type: 'session.execution.failed', data: { sessionID: 's1', error: 'boom' } }, 's1');
+
+  assert.equal(idle.type, 'done');
+  assert.equal(idle.data.reason, 'idle');
+  assert.equal(succeeded.type, 'done');
+  assert.equal(succeeded.data.reason, 'succeeded');
+  assert.equal(failed.type, 'error');
+  assert.equal(failed.data.message, 'boom');
+
+  assert.equal(isTerminalSSEEvent({ type: 'session.idle', data: { sessionID: 's1' } }, 's1'), true);
+  assert.equal(isTerminalSSEEvent({ type: 'session.execution.succeeded', data: { sessionID: 's1' } }, 's1'), true);
+  assert.equal(isTerminalSSEEvent({ type: 'session.execution.failed', data: { sessionID: 's1', error: 'boom' } }, 's1'), true);
+  assert.equal(isTerminalSSEEvent({ type: 'session.idle', data: { sessionID: 'other' } }, 's1'), false);
+  assert.equal(isTerminalSSEEvent({ type: 'session.status', data: { sessionID: 's1', status: { type: 'idle' } } }, 's1'), true);
 });

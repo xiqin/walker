@@ -127,7 +127,9 @@ function createApp(config, deps) {
   });
 
   const opencodeDriver = new OpencodeDriverClass({
-    serverUrl: config.opencodeServerUrl || 'http://localhost:4096',
+    serverUrl: config.opencodeServerUrl || '',
+    serverPassword: config.opencodeServerPassword || '',
+    readServiceRecord: deps.readOpencodeService,
     autostart: config.opencodeServerAutostart,
     runtime,
     opencodeCmd: config.opencodeCmd || 'opencode',
@@ -356,7 +358,9 @@ function createApp(config, deps) {
     const hookReceiverRoutes = createHookReceiverRoutes({
       sessionService,
       config: adminConfig,
-      defaultOpencodeUrl: config.opencodeServerUrl || 'http://localhost:4096',
+      get defaultOpencodeUrl() {
+        return opencodeDriver.serverUrl || config.opencodeServerUrl || '';
+      },
       onSessionEnrolled: ({ sessionId, routeKey: _routeKey }) => {
         dispatcher.ensureWatchForSession(sessionId, { refresh: true });
         const session = sessionService.getSession(sessionId);

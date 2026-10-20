@@ -5,8 +5,10 @@ const { createLogger } = require('../core/logger');
 const logger = createLogger('opencode-sse-adapter');
 
 function normalizeSSEEvent(raw) {
-  if (raw && raw.payload && raw.payload.type) return raw.payload;
-  return raw;
+  if (raw && raw.payload && raw.payload.type) raw = raw.payload;
+  if (!raw || typeof raw !== 'object') return raw;
+  if (raw.properties || !raw.data || typeof raw.data !== 'object' || Array.isArray(raw.data)) return raw;
+  return Object.assign({}, raw, { properties: raw.data });
 }
 
 function eventBelongsToSession(props, sessionId) {
@@ -32,6 +34,17 @@ function mapSSEEvent(raw, sessionId) {
 
   if (type === 'session.idle') {
     return new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' });
+  }
+
+  if (type === 'session.execution.succeeded') {
+    return new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'succeeded' });
+  }
+
+  if (type === 'session.execution.failed') {
+    const errMsg = typeof props.error === 'string'
+      ? props.error
+      : (props.error && props.error.message) || props.message || 'session execution failed';
+    return new AgentEvent(AgentEvent.TYPE_ERROR, { message: errMsg });
   }
 
   if (type === 'session.busy') {
@@ -103,11 +116,11 @@ function mapSSEEvent(raw, sessionId) {
     return new AgentEvent(AgentEvent.TYPE_ERROR, { message: errMsg });
   }
 
-  if (type === 'permission.updated') {
+  if (type === 'permission.updated' || type === 'permission.asked') {
     return new AgentEvent(AgentEvent.TYPE_PERMISSION, {
-      id: props.id || props.permissionId || '',
-      type: props.type || '',
-      title: props.title || '',
+      id: props.id || props.requestID || props.permissionId || '',
+      type: props.type || props.permission || '',
+      title: props.title || props.permission || '',
       metadata: props.metadata || null,
       sessionID: props.sessionID || props.sessionId || '',
       messageID: props.messageID || props.messageId || '',
@@ -199,7 +212,8 @@ function isTerminalSSEEvent(raw, sessionId) {
   const props = raw.properties;
   const eventSessionId = props.sessionID || props.sessionId || (props.session && props.session.id);
   if (sessionId && eventSessionId !== sessionId) return false;
-  if (raw.type === 'session.error') return true;
+  if (raw.type === 'session.error' || raw.type === 'session.execution.failed') return true;
+  if (raw.type === 'session.idle' || raw.type === 'session.execution.succeeded') return true;
   if (raw.type !== 'session.status') return false;
   return props.status && props.status.type === 'idle';
 }

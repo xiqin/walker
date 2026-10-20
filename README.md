@@ -132,11 +132,11 @@ WALKER_OPENCODE_NON_FOCUS_OUTPUT=true
 
 ## OpenCode 自动纳入
 
-Walker 启动时自动安装 TUI bridge plugin 到 `~/.config/opencode/walker-tui-plugin.js`，并注册到 `~/.config/opencode/tui.json` 的 `plugin` 数组；已存在且内容一致则跳过，内容变化时更新。
+Walker 启动时自动安装 TUI bridge plugin 到 `~/.config/opencode/walker-tui-plugin.js`，并注册到 `~/.config/opencode/cli.json` 的 `plugins` 数组；已存在且内容一致则跳过，内容变化时更新。
 
 工作流程：
 
-1. Walker 启动时写入 plugin 文件并更新 `tui.json`（内容一致则跳过，避免无谓写盘）；同时清理旧版 hook plugin。
+1. Walker 启动时写入 plugin 文件并更新 `cli.json`（内容一致则跳过，避免无谓写盘）；同时清理旧版 hook plugin。
 2. 用户在本机终端照常启动 `opencode`。
 3. OpenCode 加载全局 plugin，触发 `session.created` 事件。
 4. plugin 上报 `{ opencodeBaseUrl, sessionId, cwd }` 给 Walker 的 `POST /opencode/hook/session-created` 端点。
@@ -573,7 +573,7 @@ sequenceDiagram
   participant HP as HealthPoller
 
   W->>I: installHookPlugin()
-  I->>T: 写入 walker-tui-plugin.js / 更新 tui.json
+  I->>T: 写入 walker-tui-plugin.js / 更新 cli.json
 
   T->>A: POST /opencode/hook/session-created
   A->>H: createHookReceiverRoutes handler

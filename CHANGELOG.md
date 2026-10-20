@@ -57,7 +57,7 @@ Walker 飞书多 Agent CLI 桥接器的首个完整功能版本，实现通过�
 - 非焦点 session SSE 事件主动回卡片到群里，带 `[session: wks_N]` 标识
 
 #### OpenCode 自动纳入（Hook 机制）
-- 启动时自动安装 TUI bridge plugin 到 `~/.config/opencode/walker-tui-plugin.js`，并注册到 `~/.config/opencode/tui.json` 的 `plugin` 数组
+- 启动时自动安装 TUI bridge plugin 到 `~/.config/opencode/walker-tui-plugin.js`，并注册到 `~/.config/opencode/cli.json` 的 `plugins` 数组
 - 内容一致则跳过写盘，内容变化时更新；旧版 `plugins/walker-hook.js` 自动清理
 - 只接受本机 loopback 请求，复用 admin token 保护
 - 心跳轮询 `/global/health` 检测 session 存活，连续 2 次失败判定 detached

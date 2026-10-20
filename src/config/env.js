@@ -155,6 +155,7 @@ function loadEnvConfig(options) {
     walkerDefaultCwd: env.WALKER_DEFAULT_CWD || '',
     walkerWslDistro: env.WALKER_WSL_DISTRO || 'Ubuntu-24.04',
     opencodeServerUrl: env.OPENCODE_SERVER_URL || '',
+    opencodeServerPassword: env.OPENCODE_SERVER_PASSWORD || '',
     opencodeServerAutostart: parseBool(env.OPENCODE_SERVER_AUTOSTART, true),
     opencodeCmd: env.OPENCODE_CMD || 'opencode',
     opencodeModel: env.OPENCODE_MODEL || '',
