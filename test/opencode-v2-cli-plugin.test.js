@@ -12,6 +12,42 @@ function createTempConfigDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'walker-hook-v2-'));
 }
 
+test('手动 TUI 会话的上游失败即使没有 Walker delivery 也上报', async () => {
+  const plugin = await import('data:text/javascript;base64,' + Buffer.from(getPluginSource(8787, 'token-test')).toString('base64'));
+  const handlers = new Map();
+  const reports = [];
+  const originalFetch = global.fetch;
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    if (String(url).endsWith('/events')) reports.push(body);
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: {} }) };
+  };
+  let dispose;
+  try {
+    dispose = await plugin.default.setup({
+      app: { version: '2.0.32' }, location: { directory: 'H:\\walker', workspaceID: 'ws_1' },
+      ui: { router: { current: () => ({ type: 'session', sessionID: 'ses_manual' }) } },
+      data: { on: (type, handler) => { handlers.set(type, handler); return () => handlers.delete(type); },
+        session: { status: () => 'idle', message: { list: () => [] } } },
+    });
+    await handlers.get('session.error')({ type: 'session.error', data: {
+      sessionID: 'ses_manual', error: [{ message: '', type: 'upstream_error' },
+        { message: 'Upstream HTTP/2 stream failed', code: 'upstream_http2_stream_error' }],
+    } });
+    assert.equal(reports.length, 1);
+    assert.equal(reports[0].deliveryId, undefined);
+    assert.match(reports[0].error.message, /Upstream HTTP\/2 stream failed/);
+    await handlers.get('session.execution.failed')({ data: { sessionID: 'ses_manual', error: 'same turn' } });
+    assert.equal(reports.length, 1, '重复错误事件不得重复上报');
+    await handlers.get('session.status')({ data: { sessionID: 'ses_manual', status: { type: 'busy' } } });
+    await handlers.get('session.error')({ data: { sessionID: 'ses_manual', error: 'new turn failed' } });
+    assert.equal(reports.length, 2, '新一轮会话的错误仍需上报');
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
 async function waitFor(predicate, timeoutMs) {
   const deadline = Date.now() + (timeoutMs || 2000);
   while (!predicate()) {

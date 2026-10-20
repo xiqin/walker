@@ -443,6 +443,18 @@ describe('飞书-TUI 双向链路集成测试', () => {
       bridge.reportEvents({
         runtimeId,
         sessionId: opencodeSessionId,
+        error: [{ message: '', type: 'upstream_error' },
+          { message: 'Upstream HTTP/2 stream failed', type: 'upstream_error', code: 'upstream_http2_stream_error' }],
+      });
+      const manualError = await waitForCall(feishuApi, (call) => {
+        return call.type === 'sendMarkdown' && call.chatId === chatId
+          && (call.text || '').includes('Upstream HTTP/2 stream failed');
+      }, 2000);
+      assert.match(manualError.text, /OpenCode error/);
+
+      bridge.reportEvents({
+        runtimeId,
+        sessionId: opencodeSessionId,
         events: [
           {
             type: AgentEvent.TYPE_PERMISSION,

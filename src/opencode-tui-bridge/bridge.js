@@ -511,7 +511,7 @@ class OpencodeTuiBridge {
     }
     if (data.error) {
       for (const handler of handlers) {
-        if (handler && handler.onError) handler.onError(new Error(errorMessage(data.error)));
+        notifyWatchError(handler, data.error);
       }
       this._rememberAssistantMessage(sessionId, assistantMessageId);
       return { delivered: true };
@@ -730,7 +730,7 @@ class OpencodeTuiBridge {
       if (!handlers) continue;
       if (pending.error) {
         for (const handler of handlers) {
-          if (handler && handler.onError) handler.onError(new Error(errorMessage(pending.error)));
+          notifyWatchError(handler, pending.error);
         }
       } else {
         for (const event of pending.events) {
@@ -1278,8 +1278,29 @@ function watchKey(runtimeId, sessionId) {
 
 function errorMessage(value) {
   if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = errorMessage(item);
+      if (message && message !== 'OpenCode TUI bridge error' && message !== 'upstream_error') return message;
+    }
+    return value.length ? errorMessage(value[0]) : 'OpenCode TUI bridge error';
+  }
   if (value && typeof value.message === 'string') return value.message;
+  if (value && value.data) return errorMessage(value.data);
+  if (value && value.error) return errorMessage(value.error);
+  if (value && typeof value.type === 'string') return value.type;
   return 'OpenCode TUI bridge error';
+}
+
+function notifyWatchError(handler, error) {
+  if (!handler) return;
+  const message = errorMessage(error);
+  if (handler.onEvent) {
+    handler.onEvent(new AgentEvent(AgentEvent.TYPE_ERROR, { message }));
+    handler.onEvent(new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'error' }));
+  } else if (handler.onError) {
+    handler.onError(new Error(message));
+  }
 }
 
 function questionDeliveryKey(runtimeId, sessionId) {

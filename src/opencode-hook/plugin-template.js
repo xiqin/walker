@@ -129,6 +129,13 @@ function pickPermissionRequest(properties) {
 function errorMessage(value) {
   if (typeof value === 'string' && value) return value;
   if (!value || typeof value !== 'object') return value ? String(value) : 'OpenCode session error';
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = errorMessage(item);
+      if (message && message !== 'OpenCode session error' && message !== 'upstream_error') return message;
+    }
+    return value.length ? errorMessage(value[0]) : 'OpenCode session error';
+  }
   if (typeof value.message === 'string' && value.message) return value.message;
   for (const nested of [value.data, value.error, value.cause]) {
     if (nested && nested !== value) {
@@ -384,6 +391,7 @@ async function setup(api) {
   const activeDeliveries = new Map();
   let activeQuestionDelivery = null;
   const sentAssistantIds = new Set();
+  const completedPromptSessions = new Set();
   let stopped = false;
   let busy = false;
   let activeSessionId = currentSessionId(api);
@@ -809,6 +817,7 @@ async function setup(api) {
     } catch (error) {
       stopHeartbeat(sessionId);
       activeDeliveries.delete(sessionId);
+      completedPromptSessions.add(sessionId);
       bridgeLog(delivery.deliveryId, deliveryType, 'prompt');
       await report(sessionId, delivery.deliveryId, [], { message: error.message || String(error) }, null, 'final').catch(() => {});
     }
@@ -1148,6 +1157,7 @@ async function setup(api) {
       sentAssistantIds.add(result.messageId);
       stopHeartbeat(sessionId);
       activeDeliveries.delete(sessionId);
+      completedPromptSessions.add(sessionId);
       bridgeLog(entry.deliveryId, deliveryType, 'final');
     } catch (_) {
       entry.reporting = false;
@@ -1157,16 +1167,37 @@ async function setup(api) {
   onPluginEvent('session.idle', handleSessionIdle);
   onPluginEvent('session.execution.succeeded', handleSessionIdle);
 
+  function markManualTurn(event) {
+    const properties = eventProperties(event);
+    const sessionId = properties.sessionID || properties.sessionId;
+    if (sessionId && !activeDeliveries.has(sessionId)) completedPromptSessions.delete(sessionId);
+  }
+  onPluginEvent('session.busy', markManualTurn);
+  onPluginEvent('session.status', (event) => {
+    if (eventProperties(event).status && eventProperties(event).status.type === 'busy') markManualTurn(event);
+  });
+
   async function handleSessionError(event) {
     const properties = eventProperties(event);
     const sessionId = properties.sessionID || properties.sessionId || activeSessionId;
     if (!sessionId) return;
     const entry = activeDeliveries.get(sessionId);
-    if (!entry) return;
+    if (!entry) {
+      if (sessionId === activeSessionId && !completedPromptSessions.has(sessionId)) {
+        completedPromptSessions.add(sessionId);
+        try {
+          await report(sessionId, '', [], { message: errorMessage(properties.error) }, null, null);
+        } catch (_) {
+          completedPromptSessions.delete(sessionId);
+        }
+      }
+      return;
+    }
     const deliveryId = entry.deliveryId;
     const deliveryState = 'final';
     stopHeartbeat(sessionId);
     activeDeliveries.delete(sessionId);
+    if (deliveryId) completedPromptSessions.add(sessionId);
     const error = { message: errorMessage(properties.error) };
     await report(sessionId, deliveryId, [], error, null, deliveryState).catch(() => {});
   }

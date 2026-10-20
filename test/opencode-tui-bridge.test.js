@@ -55,6 +55,26 @@ function createHarness() {
 }
 
 describe('OpencodeTuiBridge', () => {
+  it('未绑定投递的 TUI 上游错误通过 watcher 输出，且保留错误详情', () => {
+    const h = createHarness();
+    try {
+      h.bridge.register({ runtimeId: 'runtime-upstream', sessionId: 'ses_upstream', cwd: 'H:\\walker' });
+      const received = [];
+      h.bridge.watchSession({ transport: 'tui-bridge', runtimeId: 'runtime-upstream', opencodeSessionId: 'ses_upstream' }, {
+        onEvent: (event) => received.push(event),
+      });
+      h.bridge.reportEvents({
+        runtimeId: 'runtime-upstream', sessionId: 'ses_upstream',
+        error: [{ message: '', type: 'upstream_error' },
+          { message: 'Upstream HTTP/2 stream failed', type: 'upstream_error', code: 'upstream_http2_stream_error' }],
+      });
+      assert.deepEqual(received.map((event) => event.type), [AgentEvent.TYPE_ERROR, AgentEvent.TYPE_DONE]);
+      assert.match(received[0].data.message, /Upstream HTTP\/2 stream failed/);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('runtime 快照默认参数下区分刚注册、临期和到期', () => {
     const h = createHarness();
     const originalNow = Date.now;
