@@ -1,0 +1,21 @@
+{
+  "status": "done",
+  "summary": "跨产物一致性通过：2 个需求、9 个行为、全部追踪映射完整，无发现项；工具 required_category_coverage 原报 0% 属误报，人工核对 8/8 并在报告标注修正，细化检查通过。下一阶段为人工计划批准 gate。",
+  "artifacts": [
+    "artifact-analysis.json",
+    "plan.md",
+    "tasks/T1.md",
+    "traceability.json"
+  ],
+  "stage": "analyze-artifacts",
+  "task_id": "analyze-artifacts",
+  "basis_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "tasks/T1.md": "f3fc0bee6534d56d096c7e87027b1283a35aa8a6fe45ee68c9e52bf45932f17e"
+  },
+  "written_at": "2026-10-20T02:06:22.082Z"
+}

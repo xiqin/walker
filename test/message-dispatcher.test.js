@@ -70,6 +70,24 @@ function makeMocks() {
   return { sessionService, driver, driverRegistry, feishuApi, dedup };
 }
 
+/** 创建可手动完成的 Promise，用于控制提示词及命令的执行顺序。 */
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+/** 推进事件循环，让已入队的异步任务完成，不依赖墙钟时间判断并发。 */
+async function flushDispatch() {
+  for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve));
+}
+
+/** 创建使用同一生效路由键的焦点消息或引用消息。 */
+function routedMessage(messageId, text, parentId = '') {
+  return { messageId, text, chatId: 'oc_chat1', routeKey: 'route:shared', parentId, createTime: Date.now() };
+}
+
 async function captureUnhandledRejections(action) {
   const unhandled = [];
   const onUnhandled = (reason) => { unhandled.push(reason); };
@@ -164,6 +182,202 @@ describe('MessageDispatcher unbound route', () => {
 });
 
 describe('MessageDispatcher bound route prompt', () => {
+  it('REQ-001-B01/B02/B03: 同一路由引用到不同会话的消息互不等待且分别返回结果', async () => {
+    const mocks = makeMocks();
+    const a = { id: 'wks_a', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_a' } };
+    const b = { id: 'wks_b', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_b' } };
+    const aPending = deferred();
+    const aStarted = deferred();
+    const calls = [];
+    mocks.sessionService.getCurrent = () => b;
+    mocks.sessionService.getSession = (id) => id === a.id ? a : b;
+    mocks.sessionService.resolveSessionByPlatformMessage = (_platform, id) => id === 'quoted_a'
+      ? { session: a, routeKey: 'route:shared' } : null;
+    mocks.driver.prompt = (ref, text) => {
+      calls.push({ ref, text });
+      if (ref === a.agentRef) { aStarted.resolve(); return aPending.promise; }
+      return Promise.resolve([]);
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, progressStyle: 'text' });
+    const first = dispatcher.handleIncomingMessage(routedMessage('message_a', '给 A', 'quoted_a'));
+    let firstDone = false;
+    first.then(() => { firstDone = true; });
+    try {
+      await aStarted.promise;
+      const second = dispatcher.handleIncomingMessage(routedMessage('message_b', '给 B'));
+      let secondResult;
+      second.then((result) => { secondResult = result; });
+      await flushDispatch();
+      assert.equal(secondResult, 'prompted');
+      assert.equal(firstDone, false);
+      assert.deepEqual(calls, [{ ref: a.agentRef, text: '给 A' }, { ref: b.agentRef, text: '给 B' }]);
+      assert.equal(dispatcher._routeLocks.size, 0);
+      aPending.resolve([]);
+      assert.equal(await first, 'prompted');
+      assert.equal(await second, 'prompted');
+    } finally {
+      aPending.resolve([]);
+    }
+  });
+
+  it('REQ-001-B04: A 延迟失败不阻塞 B，也不改变两条消息各自的结果', async () => {
+    const mocks = makeMocks();
+    const a = { id: 'wks_a', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_a' } };
+    const b = { id: 'wks_b', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_b' } };
+    const failure = deferred();
+    const started = deferred();
+    mocks.sessionService.getCurrent = () => b;
+    mocks.sessionService.getSession = (id) => id === a.id ? a : b;
+    mocks.sessionService.resolveSessionByPlatformMessage = (_platform, id) => id === 'quoted_a'
+      ? { session: a, routeKey: 'route:shared' } : null;
+    mocks.driver.prompt = (ref) => {
+      if (ref === a.agentRef) { started.resolve(); return failure.promise; }
+      return Promise.resolve([]);
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, progressStyle: 'text' });
+    const first = dispatcher.handleIncomingMessage(routedMessage('failed_a', 'A', 'quoted_a'));
+    try {
+      await started.promise;
+      const second = dispatcher.handleIncomingMessage(routedMessage('success_b', 'B'));
+      let result;
+      second.then((value) => { result = value; });
+      await flushDispatch();
+      assert.equal(result, 'prompted');
+      failure.reject(new Error('A failed'));
+      assert.equal(await first, 'error');
+      assert.equal(await second, 'prompted');
+    } finally {
+      failure.resolve([]);
+    }
+  });
+
+  it('REQ-002-B01/B03/B05: 同会话串行且失败后继续，调用方等待各自处理结果', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_a', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_a' } };
+    const firstPending = deferred();
+    const secondPending = deferred();
+    const firstStarted = deferred();
+    const secondStarted = deferred();
+    const calls = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.driver.prompt = (_ref, text) => {
+      calls.push(text);
+      if (text === 'A1') { firstStarted.resolve(); return firstPending.promise; }
+      secondStarted.resolve();
+      return secondPending.promise;
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, progressStyle: 'text' });
+    const first = dispatcher.handleIncomingMessage(routedMessage('same_a1', 'A1'));
+    let firstResult;
+    first.then((result) => { firstResult = result; });
+    try {
+      await firstStarted.promise;
+      const second = dispatcher.handleIncomingMessage(routedMessage('same_a2', 'A2'));
+      let secondResult;
+      second.then((result) => { secondResult = result; });
+      await flushDispatch();
+      assert.deepEqual(calls, ['A1']);
+      assert.equal(firstResult, undefined);
+      assert.equal(secondResult, undefined);
+      firstPending.reject(new Error('A1 failed'));
+      assert.equal(await first, 'error');
+      await secondStarted.promise;
+      assert.deepEqual(calls, ['A1', 'A2']);
+      assert.equal(secondResult, undefined);
+      secondPending.resolve([]);
+      assert.equal(await second, 'prompted');
+      assert.equal(dispatcher._promptQueues.size, 0);
+    } finally {
+      firstPending.resolve([]);
+      secondPending.resolve([]);
+    }
+  });
+
+  it('REQ-002-B05: 同会话两条成功消息均只在各自处理完成后返回', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_a', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_a' } };
+    const pending = deferred();
+    const started = deferred();
+    const calls = [];
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.driver.prompt = (_ref, text) => {
+      calls.push(text);
+      if (text === 'A1') { started.resolve(); return pending.promise; }
+      return Promise.resolve([]);
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, progressStyle: 'text' });
+    const first = dispatcher.handleIncomingMessage(routedMessage('success_a1', 'A1'));
+    try {
+      await started.promise;
+      const second = dispatcher.handleIncomingMessage(routedMessage('success_a2', 'A2'));
+      let secondResult;
+      second.then((result) => { secondResult = result; });
+      await flushDispatch();
+      assert.deepEqual(calls, ['A1']);
+      assert.equal(secondResult, undefined);
+      pending.resolve([]);
+      assert.equal(await first, 'prompted');
+      assert.equal(await second, 'prompted');
+      assert.deepEqual(calls, ['A1', 'A2']);
+    } finally {
+      pending.resolve([]);
+    }
+  });
+
+  it('REQ-002-B04: 已入队的消息先于后续路由命令，命令等待当前会话完成', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_a', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_a' } };
+    const pending = deferred();
+    const started = deferred();
+    let commandStarted = false;
+    mocks.sessionService.getCurrent = () => session;
+    mocks.sessionService.getSession = () => session;
+    mocks.driver.prompt = () => { started.resolve(); return pending.promise; };
+    mocks.driver.ensureReady = async () => { commandStarted = true; };
+    const dispatcher = new MessageDispatcher({ ...mocks, progressStyle: 'text' });
+    const message = dispatcher.handleIncomingMessage(routedMessage('before_command', 'A'));
+    try {
+      await started.promise;
+      const command = dispatcher.handleCommand({ name: 'new', args: [], routeKey: 'route:shared', messageId: 'new_after', chatId: 'oc_chat1' });
+      await flushDispatch();
+      assert.equal(commandStarted, false);
+      pending.resolve([]);
+      assert.equal(await message, 'prompted');
+      assert.equal((await command).sessionId, 'wks_new1');
+      assert.equal(commandStarted, true);
+    } finally {
+      pending.resolve([]);
+    }
+  });
+
+  it('REQ-002-B02/B04: 路由命令占锁期间引用消息不得入队，释放后才启动', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_b', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_b' } };
+    const commandPending = deferred();
+    const commandStarted = deferred();
+    mocks.sessionService.getCurrent = () => null;
+    mocks.sessionService.getSession = () => session;
+    mocks.sessionService.resolveSessionByPlatformMessage = () => ({ session, routeKey: 'route:shared' });
+    mocks.driver.ensureReady = () => { commandStarted.resolve(); return commandPending.promise; };
+    const dispatcher = new MessageDispatcher({ ...mocks, progressStyle: 'text' });
+    const command = dispatcher.handleCommand({ name: 'new', args: [], routeKey: 'route:shared', messageId: 'cmd_new', chatId: 'oc_chat1' });
+    try {
+      await commandStarted.promise;
+      const message = dispatcher.handleIncomingMessage(routedMessage('after_command', 'B', 'quoted_b'));
+      await flushDispatch();
+      assert.equal(mocks.driver.promptCalls.length, 0);
+      assert.equal(dispatcher._promptQueues.size, 0);
+      commandPending.resolve();
+      assert.equal((await command).sessionId, 'wks_new1');
+      assert.equal(await message, 'prompted');
+      assert.equal(mocks.driver.promptCalls.length, 1);
+    } finally {
+      commandPending.resolve();
+    }
+  });
+
   it('REQ-004-B06: 并发消息打到同一旧 Claude 会话时全部拒绝且不调用 prompt', async () => {
     const mocks = makeMocks();
     const agentRef = {

@@ -1,0 +1,27 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1"],
+      "tests": ["test/message-dispatcher.test.js"],
+      "evidence": ["evidence/T1-node-test.log"],
+      "behaviors": {
+        "REQ-001-B01": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-001-B02": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-001-B03": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-001-B04": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T1"],
+      "tests": ["test/message-dispatcher.test.js"],
+      "evidence": ["evidence/T1-node-test.log"],
+      "behaviors": {
+        "REQ-002-B01": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-002-B02": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-002-B03": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-002-B04": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] },
+        "REQ-002-B05": { "tasks": ["T1"], "tests": ["test/message-dispatcher.test.js"], "evidence": ["evidence/T1-node-test.log"] }
+      }
+    }
+  }
+}

@@ -1,6 +1,30 @@
 {
   "entries": [
     {
+      "id": "65f4edff",
+      "type": "adr",
+      "content": "消息调度的路由锁仅保护会话提示词入队；入队完成即释放路由锁，实际执行仍由会话队列串行，同一路由命令继续互斥。",
+      "author": "tianxiqin",
+      "tags": [
+        "消息调度",
+        "并发",
+        "路由锁"
+      ],
+      "context": "先前路由锁等待提示词执行完成，导致不同会话相互阻塞。缩短锁范围而不移除路由锁，保留消息路由规则与 handleIncomingMessage 等待当前消息处理结果的外部行为。",
+      "source": "session",
+      "confidence": 1,
+      "scope": "file",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/dispatch/message-dispatcher.js"
+      ],
+      "links": {
+        "spec": "specs/2026-10-20-session-prompt-concurrency"
+      },
+      "created_at": "2026-10-20T02:47:17.683Z"
+    },
+    {
       "id": "8ff0bb68",
       "type": "踩坑",
       "content": "合规扫描会把验证报告里的失败数零和 blocker 为零误记成 passed 为 false。报告里要写明 known，且不要把误报记录从 history.json 里删掉。",

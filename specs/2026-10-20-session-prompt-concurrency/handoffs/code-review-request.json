@@ -1,0 +1,20 @@
+{
+  "status": "done",
+  "summary": "以 HEAD 为基线完成双轴预审查及九项行为遗漏自审；审查材料已交付用户，用户明确确认审查通过；工作区未提交，未发起外部审查。",
+  "artifacts": [
+    "review-request.md",
+    "findings/omission-hunter.json",
+    "verify-report.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "33d0769a7e7755765cfc04854565cd76f648acee207b7e202559f3d786897ba1",
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405"
+  },
+  "artifact_fingerprints": {
+    "review-request.md": "c498d5f5f3a503c873131d6ff75d4abd836ff933089e3fc0130e73d26ad92452",
+    "verify-report.md": "877aea878a05c3ef41583911d5cd75a111ce586f981be6e40513d11cba769bff"
+  },
+  "written_at": "2026-10-20T02:44:46.289Z"
+}

@@ -235,7 +235,11 @@ class MessageDispatcher {
       claudeSessionId: agentRef.claudeSessionId,
     });
 
-    return this._enqueueRouteLock(routeKey, () => this._enqueuePrompt(current, effectiveEvent, driver, agentRef));
+    // 路由锁只保护入队；用普通对象封装 Promise，避免锁任务同化并等待提示词执行。
+    const { prompt } = await this._enqueueRouteLock(routeKey, () => ({
+      prompt: this._enqueuePrompt(current, effectiveEvent, driver, agentRef),
+    }));
+    return prompt;
   }
 
   _resolveIncomingTarget(event, sourceRouteKey) {

@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "用户确认缩短路由锁至会话提示词入队；保持同会话串行与路由命令互斥，并批准规格。后续 detail-expansion 补全 requirements.json 行为义务。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "b9508ea4b6e2b288025e993c7a64c5df7e1d1832e56ba2462c95506cd71d82fa",
+    "spec.md": "9a09c1be07bf5d7200a6293cf5953032a94540e339fc230ffa25a1aab7f83405"
+  },
+  "written_at": "2026-10-20T02:03:25.536Z"
+}
