@@ -1,6 +1,128 @@
 {
   "entries": [
     {
+      "id": "907f11fd",
+      "type": "踩坑",
+      "content": "OpenCode v2 助手正文推不到飞书，是因为没有 session.busy/session.idle，reportManualFinal 没有 baseline 就直接返回。修复是用 session.execution.started 建本轮基线，抽取前调用 message.sync；缓存抽不到或 started 晚于已完成消息时，用 session.text.* / session.reasoning.* / session.step.ended 兜底，不把流式 delta 实时推到飞书。插件版本 20，需重启 Walker 重装后再重启 OpenCode 才生效。",
+      "author": "tianxiqin",
+      "tags": [
+        "opencode",
+        "v2",
+        "feishu",
+        "tui",
+        "plugin"
+      ],
+      "context": "本机 opencode v2.1.1。完成事件是 session.execution.started/succeeded，正文在 event.data（sessionID、assistantMessageID、ordinal、delta/text）。抽取失败只 console.warn，不会进 walker.log。已安装的 walker-tui-bridge.js 在 Walker 重装前仍是版本 19。不重放旧回复，同一 assistantMessageId 不重复上报。",
+      "source": "session",
+      "confidence": 0.95,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/opencode-hook/plugin-template.js",
+        "test/opencode-v2-cli-plugin.test.js"
+      ],
+      "links": {},
+      "created_at": "2026-11-13T01:26:54.774Z"
+    },
+    {
+      "id": "efa497e4",
+      "type": "踩坑",
+      "content": "OpenCode 2 之后，飞书收不到助手正文不是因为 TUI 插件没加载。V1 hook/SSE 已停用；V2 插件能 register，也能上报 compacted/question，但正文只在 session.idle 或 session.execution.succeeded 后用旧消息结构抽取。V2 不发 session.idle，抽取失败只打 console.warn，所以 walker.log 没有 text/done。",
+      "author": "tianxiqin",
+      "tags": [
+        "opencode",
+        "v2",
+        "feishu",
+        "tui",
+        "plugin"
+      ],
+      "context": "本机 opencode v2.1.1。cli.json 已注册 walker-tui-plugin 包目录，tui.json plugin 为空。walker.log 自 2026-10-28 插件安装后只有 compacted/question，没有 text/done。上游 issue 55358：session.idle 在 V2 声明但不发送。",
+      "source": "session",
+      "confidence": 0.9,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/opencode-hook/plugin-template.js",
+        "src/drivers/opencode-sse-adapter.js"
+      ],
+      "links": {},
+      "created_at": "2026-11-13T01:09:12.328Z"
+    },
+    {
+      "id": "6ccfd05c",
+      "type": "踩坑",
+      "content": "同一 OpenCode 项目的 session 事件会广播给全部 TUI。无 deliveryId 的 watch 事件若 sessionId 不等于 runtime.currentSessionId，必须忽略且禁止 _rebindRuntimeSession；合法切换只走 register()。否则一个 compacted 会给多个飞书会话发「处理中」。",
+      "author": "tianxiqin",
+      "tags": [
+        "tui-bridge",
+        "feishu",
+        "fanout",
+        "compacted"
+      ],
+      "context": "2026-11-12 18:06 三个飞书会话同时显示「悟空: 处理中」。日志 2026-11-12T10:06:16Z 三个 runtime 都上报了 ses_e313c58c3ffe7pkojdr3F1YOlc 的 compacted。旧插件在 OpenCode 重载前仍会广播，Walker 侧过滤即可挡住。deliveryId 路径（prompt final、heartbeat、clear、permission/question reply）不能被这次过滤误伤。",
+      "source": "session",
+      "confidence": 0.95,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/opencode-tui-bridge/bridge.js",
+        "test/opencode-tui-bridge.test.js"
+      ],
+      "links": {},
+      "created_at": "2026-11-12T10:30:55.159Z"
+    },
+    {
+      "id": "4da81ce1",
+      "type": "踩坑",
+      "content": "问题卡必须经 runtimeFor 把会话模型传给 replyCard/patchCard；watch 进度卡缺上下文时才补查 getLatestSessionRuntime，不能放进通用 _feishuRuntimeContext，否则手工 DONE 的 sendMarkdown 会被拖住。",
+      "author": "tianxiqin",
+      "tags": [
+        "飞书",
+        "问题卡",
+        "进度卡",
+        "runtime"
+      ],
+      "context": "2026-11-12 进度卡主路径修好后，问题卡仍直接调飞书 API，页脚模型为 unknown；压缩事件不带用量，进度卡上下文也是 unknown。补查只挂在 watch 进度卡发送/更新前。",
+      "source": "session",
+      "confidence": 1,
+      "scope": "file",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/dispatch/question-handler.js",
+        "src/dispatch/message-dispatcher.js"
+      ],
+      "links": {},
+      "created_at": "2026-11-12T09:46:28.803Z"
+    },
+    {
+      "id": "6394dbc0",
+      "type": "踩坑",
+      "content": "watch 进度卡调用 sendProgressCard 必须保留 initialEvent 占位，否则 _withFeishuRuntime 追加的 runtime 会落到第 3 参，页脚变成 unknown；生产返回的完整响应必须先抽出 message_id 再 updateProgressCard，且不能丢掉 new_message 失败策略。",
+      "author": "tianxiqin",
+      "tags": [
+        "飞书",
+        "进度卡",
+        "runtime",
+        "watch"
+      ],
+      "context": "2026-11-12 飞书进度卡停在思考中、模型/上下文为 unknown。提示词路径已有占位和 message_id 提取，watch 实时路径漏了。",
+      "source": "session",
+      "confidence": 1,
+      "scope": "file",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/dispatch/message-dispatcher.js",
+        "src/app/bootstrap.js"
+      ],
+      "links": {},
+      "created_at": "2026-11-12T09:30:50.057Z"
+    },
+    {
       "id": "65f4edff",
       "type": "adr",
       "content": "消息调度的路由锁仅保护会话提示词入队；入队完成即释放路由锁，实际执行仍由会话队列串行，同一路由命令继续互斥。",
@@ -875,100 +997,6 @@
       "files": [],
       "links": {},
       "created_at": "2026-07-11T13:32:23.678Z"
-    },
-    {
-      "id": "f084b3b4",
-      "type": "踩坑",
-      "content": "loom verification artifact checker script failed because local opencode skill install lacks src/core/artifact-checker.js; mitigated by fresh npm run check evidence receipt, placeholder scan, task-state check, and manual artifact verification.",
-      "author": "tianxiqin",
-      "tags": [],
-      "context": null,
-      "source": null,
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [],
-      "links": {},
-      "created_at": "2026-07-10T01:29:07.390Z"
-    },
-    {
-      "id": "d705def4",
-      "type": "状态",
-      "content": "project-health-sweep completed: hardened Feishu API/platform, JsonStore/HTTP/SSE, SessionService, MessageDispatcher, OpenCode driver, and Windows/WSL runtime boundaries; final verification npm run check passed with 192 tests.",
-      "author": "tianxiqin",
-      "tags": [],
-      "context": null,
-      "source": null,
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [],
-      "links": {},
-      "created_at": "2026-07-10T01:29:07.126Z"
-    },
-    {
-      "id": "85d60627",
-      "type": "决策",
-      "content": "setInterval 保活方案：当前使用 setInterval(callback, interval) 作为进程保活 hack，审查建议优化为优雅保活方案（如 SIGUSR1 handler），暂保留现有方案待后续优化",
-      "author": "tianxiqin",
-      "tags": [],
-      "context": null,
-      "source": null,
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [],
-      "links": {},
-      "created_at": "2026-07-09T12:24:22.628Z"
-    },
-    {
-      "id": "2801a8d4",
-      "type": "踩坑",
-      "content": "飞书 WSClient 参数兼容性：Lark SDK WSClient 构造参数使用 appId（非 appID），eventDispatcher 应传入 start() 而非构造函数；路径：src/platform/feishu/platform.js",
-      "author": "tianxiqin",
-      "tags": [],
-      "context": null,
-      "source": null,
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [],
-      "links": {},
-      "created_at": "2026-07-09T12:24:17.698Z"
-    },
-    {
-      "id": "init",
-      "type": "状态",
-      "content": "项目初始化完成",
-      "author": "loom-init-project",
-      "tags": [],
-      "context": "[TODO: 技术栈摘要]",
-      "created_at": "2026-07-09T00:00:00.000Z"
-    },
-    {
-      "id": "1904b8aa",
-      "type": "决策",
-      "content": "Web管理端选型：方案A（在Walker单进程内增加AdminServer），复用现有service/driver/runtime/卡片渲染，默认127.0.0.1:8787，WALKER_ADMIN_ENABLED控制开关，token鉴权",
-      "author": "tianxiqin",
-      "tags": [
-        "admin",
-        "architecture"
-      ],
-      "context": "spec.md 方案对比后选定A",
-      "source": "specs/2026-07-10-web-admin-console/spec.md",
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [
-        "src/admin/"
-      ],
-      "links": {},
-      "created_at": "2026-07-10T05:32:30.691Z"
     }
   ],
   "sessions": []
