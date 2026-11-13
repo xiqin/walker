@@ -48,6 +48,252 @@ test('手动 TUI 会话的上游失败即使没有 Walker delivery 也上报', a
   }
 });
 
+test('手动 TUI 会话完成后把助手回复作为旁路上报，且不重放旧消息', async () => {
+  const messages = [completedMessage('msg_old', 'OLD_REPLY_SENTINEL', 1)];
+  const harness = createV2Harness('ses_manual_ok', { messages });
+  const originalFetch = global.fetch;
+  global.fetch = harness.fetchImpl;
+  let dispose;
+  try {
+    const plugin = await import(pluginDataUrl());
+    dispose = await plugin.default.setup(harness.api);
+    await waitFor(() => harness.state.requests.some((request) => request.url.endsWith('/register')));
+
+    await fireIdle(harness.state.handlers, 'ses_manual_ok');
+    assert.equal(manualFinals(harness.state.requests).length, 0, '未开始的本地回合不得推送历史回复');
+
+    await harness.state.handlers.get('session.status')({
+      data: { sessionID: 'ses_manual_ok', status: { type: 'busy' } },
+    });
+    await fireIdle(harness.state.handlers, 'ses_manual_ok');
+    assert.equal(manualFinals(harness.state.requests).length, 0, '本轮尚未完成时不得推送旧回复');
+
+    messages.push(completedMessage('msg_manual', 'MANUAL_REPLY', Date.now()));
+    await fireIdle(harness.state.handlers, 'ses_manual_ok');
+    await waitFor(() => manualFinals(harness.state.requests).length === 1);
+    const reported = manualFinals(harness.state.requests)[0];
+    assert.equal(reported.body.deliveryId, undefined);
+    assert.equal(reported.body.assistantMessageId, 'msg_manual');
+    assert.equal(reported.body.events.some((event) => event.type === 'text' && event.data.text === 'MANUAL_REPLY'), true);
+    assert.equal(reported.body.events.some((event) => event.type === 'done'), true);
+    assert.equal(harness.state.requests.some((request) => JSON.stringify(request.body).includes('OLD_REPLY_SENTINEL')), false);
+
+    await fireIdle(harness.state.handlers, 'ses_manual_ok');
+    assert.equal(manualFinals(harness.state.requests).length, 1, '同一条助手消息不得重复上报');
+
+    await harness.state.handlers.get('session.busy')({ data: { sessionID: 'ses_manual_ok' } });
+    messages.push(completedMessage('msg_manual_2', 'SECOND_REPLY', Date.now()));
+    await fireIdle(harness.state.handlers, 'ses_manual_ok');
+    await waitFor(() => manualFinals(harness.state.requests).length === 2);
+    assert.equal(manualFinals(harness.state.requests)[1].body.assistantMessageId, 'msg_manual_2');
+    assert.equal(manualFinals(harness.state.requests)[1].body.events.some((event) => event.type === 'text' && event.data.text === 'SECOND_REPLY'), true);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('v2 没有 session.busy 时，execution.started 加 execution.succeeded 上报本轮正文且不重放旧回复', async () => {
+  const messages = [completedMessage('msg_old', 'OLD_REPLY_SENTINEL', 1)];
+  const harness = createV2Harness('ses_v2_manual', { messages });
+  const originalFetch = global.fetch;
+  global.fetch = harness.fetchImpl;
+  let dispose;
+  try {
+    const plugin = await import(pluginDataUrl());
+    dispose = await plugin.default.setup(harness.api);
+    await waitFor(() => harness.state.requests.some((request) => request.url.endsWith('/register')));
+
+    await fireIdle(harness.state.handlers, 'ses_v2_manual');
+    assert.equal(manualFinals(harness.state.requests).length, 0, '未开始的本地回合不得推送历史回复');
+
+    await fireStarted(harness.state.handlers, 'ses_v2_manual');
+    await fireIdle(harness.state.handlers, 'ses_v2_manual');
+    assert.equal(manualFinals(harness.state.requests).length, 0, '本轮尚未完成时不得推送旧回复');
+
+    messages.push(completedMessage('msg_v2', 'V2_MANUAL_REPLY', Date.now()));
+    await fireIdle(harness.state.handlers, 'ses_v2_manual');
+    await waitFor(() => manualFinals(harness.state.requests).length === 1);
+    const reported = manualFinals(harness.state.requests)[0];
+    assert.equal(reported.body.deliveryId, undefined);
+    assert.equal(reported.body.assistantMessageId, 'msg_v2');
+    assert.equal(reported.body.events.some((event) => event.type === 'text' && event.data.text === 'V2_MANUAL_REPLY'), true);
+    assert.equal(reported.body.events.some((event) => event.type === 'done'), true);
+    assert.equal(harness.state.requests.some((request) => JSON.stringify(request.body).includes('OLD_REPLY_SENTINEL')), false);
+
+    await fireIdle(harness.state.handlers, 'ses_v2_manual');
+    assert.equal(manualFinals(harness.state.requests).length, 1, '同一条助手消息不得重复上报');
+
+    await fireStarted(harness.state.handlers, 'ses_v2_manual');
+    messages.push(completedMessage('msg_v2_2', 'SECOND_V2_REPLY', Date.now()));
+    await fireIdle(harness.state.handlers, 'ses_v2_manual');
+    await waitFor(() => manualFinals(harness.state.requests).length === 2);
+    assert.equal(manualFinals(harness.state.requests)[1].body.assistantMessageId, 'msg_v2_2');
+    assert.equal(manualFinals(harness.state.requests)[1].body.events.some((event) => event.type === 'text' && event.data.text === 'SECOND_V2_REPLY'), true);
+    assert.equal(harness.state.requests.some((request) => JSON.stringify(request.body).includes('OLD_REPLY_SENTINEL')), false);
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('v2 完成事件晚于正文且缓存已含本轮消息时，仍上报本轮正文且不重放旧回复', async () => {
+  const messages = [completedMessage('msg_old', 'OLD_REPLY_SENTINEL', 1)];
+  const harness = createV2Harness('ses_v2_late', { messages });
+  const originalFetch = global.fetch;
+  global.fetch = harness.fetchImpl;
+  let dispose;
+  try {
+    const plugin = await import(pluginDataUrl());
+    dispose = await plugin.default.setup(harness.api);
+    await waitFor(() => harness.state.requests.some((request) => request.url.endsWith('/register')));
+    messages.push(completedMessage('msg_late', 'LATE_REPLY', Date.now()));
+    await fireText(harness.state.handlers, 'session.text.ended', {
+      sessionID: 'ses_v2_late',
+      assistantMessageID: 'msg_late',
+      ordinal: 0,
+      text: 'LATE_REPLY',
+    });
+    assert.equal(manualFinals(harness.state.requests).length, 0, '正文结束本身不得提前推送');
+
+    await fireStarted(harness.state.handlers, 'ses_v2_late');
+    await fireIdle(harness.state.handlers, 'ses_v2_late');
+    await waitFor(() => manualFinals(harness.state.requests).length === 1);
+    const reported = manualFinals(harness.state.requests)[0];
+    assert.equal(reported.body.assistantMessageId, 'msg_late');
+    assert.equal(reported.body.events.some((event) => event.type === 'text' && event.data.text === 'LATE_REPLY'), true);
+    assert.equal(reported.body.events.some((event) => event.type === 'done'), true);
+    assert.equal(harness.state.requests.some((request) => JSON.stringify(request.body).includes('OLD_REPLY_SENTINEL')), false);
+
+    await fireIdle(harness.state.handlers, 'ses_v2_late');
+    assert.equal(manualFinals(harness.state.requests).length, 1, '同一条助手消息不得重复上报');
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('v2 消息缓存没有本轮回复时，用 session.text 事件上报正文且不重放旧回复', async () => {
+  const messages = [completedMessage('msg_old', 'OLD_REPLY_SENTINEL', 1)];
+  const harness = createV2Harness('ses_v2_stream', { messages });
+  const originalFetch = global.fetch;
+  global.fetch = harness.fetchImpl;
+  let dispose;
+  try {
+    const plugin = await import(pluginDataUrl());
+    dispose = await plugin.default.setup(harness.api);
+    await waitFor(() => harness.state.requests.some((request) => request.url.endsWith('/register')));
+
+    await fireText(harness.state.handlers, 'session.text.delta', {
+      sessionID: 'ses_v2_stream', assistantMessageID: 'msg_stream', ordinal: 0, delta: 'HEL',
+    });
+    await fireText(harness.state.handlers, 'session.text.delta', {
+      sessionID: 'ses_v2_stream', assistantMessageID: 'msg_stream', ordinal: 0, delta: 'LO',
+    });
+    await fireText(harness.state.handlers, 'session.step.ended', {
+      sessionID: 'ses_v2_stream',
+      assistantMessageID: 'msg_stream',
+      finish: 'stop',
+      cost: 0,
+      tokens: { input: 1, output: 2, reasoning: 0, cache: { read: 0, write: 0 } },
+    });
+    assert.equal(manualFinals(harness.state.requests).length, 0, '流式正文不得在回合完成前推送');
+
+    await fireIdle(harness.state.handlers, 'ses_v2_stream');
+    await waitFor(() => manualFinals(harness.state.requests).length === 1);
+    const reported = manualFinals(harness.state.requests)[0];
+    assert.equal(reported.body.assistantMessageId, 'msg_stream');
+    assert.equal(reported.body.events.some((event) => event.type === 'text' && event.data.text === 'HELLO'), true);
+    assert.equal(reported.body.events.some((event) => event.type === 'done' && event.data.usage && event.data.usage.outputTokens === 2), true);
+    assert.equal(harness.state.requests.some((request) => JSON.stringify(request.body).includes('OLD_REPLY_SENTINEL')), false);
+
+    await fireIdle(harness.state.handlers, 'ses_v2_stream');
+    assert.equal(manualFinals(harness.state.requests).length, 1, '同一条助手消息不得重复上报');
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('v2 完成时先同步消息缓存再抽取本轮正文，且不重放旧回复', async () => {
+  const stale = [completedMessage('msg_old', 'OLD_REPLY_SENTINEL', 1)];
+  const fresh = stale.concat([completedMessage('msg_sync', 'SYNC_REPLY', Date.now())]);
+  let synced = false;
+  const harness = createV2Harness('ses_v2_sync', {
+    list() { return synced ? fresh : stale; },
+  });
+  harness.api.data.session.message.sync = async (sessionId) => {
+    assert.equal(sessionId, 'ses_v2_sync');
+    synced = true;
+  };
+  const originalFetch = global.fetch;
+  global.fetch = harness.fetchImpl;
+  let dispose;
+  try {
+    const plugin = await import(pluginDataUrl());
+    dispose = await plugin.default.setup(harness.api);
+    await waitFor(() => harness.state.requests.some((request) => request.url.endsWith('/register')));
+    await fireStarted(harness.state.handlers, 'ses_v2_sync');
+    await fireIdle(harness.state.handlers, 'ses_v2_sync');
+    await waitFor(() => manualFinals(harness.state.requests).length === 1);
+    const reported = manualFinals(harness.state.requests)[0];
+    assert.equal(synced, true);
+    assert.equal(reported.body.assistantMessageId, 'msg_sync');
+    assert.equal(reported.body.events.some((event) => event.type === 'text' && event.data.text === 'SYNC_REPLY'), true);
+    assert.equal(harness.state.requests.some((request) => JSON.stringify(request.body).includes('OLD_REPLY_SENTINEL')), false);
+    await fireIdle(harness.state.handlers, 'ses_v2_sync');
+    assert.equal(manualFinals(harness.state.requests).length, 1, '同一条助手消息不得重复上报');
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
+test('v2 飞书回合在消息缓存未更新时仍上报本轮正文且不重放旧回复', async () => {
+  const messages = [completedMessage('msg_old', 'OLD_REPLY_SENTINEL', 1)];
+  const harness = createV2Harness('ses_v2_delivery', { messages });
+  const originalFetch = global.fetch;
+  global.fetch = harness.fetchImpl;
+  let dispose;
+  try {
+    const plugin = await import(pluginDataUrl());
+    dispose = await plugin.default.setup(harness.api);
+    await waitFor(() => harness.state.requests.some((request) => request.url.endsWith('/register')));
+    harness.state.delivery = {
+      deliveryId: 'del_v2_text', type: 'prompt', sessionId: 'ses_v2_delivery', text: '飞书问题',
+    };
+    await waitFor(() => harness.state.promptCalls.length === 1);
+    await fireText(harness.state.handlers, 'session.text.ended', {
+      sessionID: 'ses_v2_delivery',
+      assistantMessageID: 'msg_delivery',
+      ordinal: 1,
+      text: 'DELIVERY_REPLY',
+    });
+    await fireText(harness.state.handlers, 'session.text.ended', {
+      sessionID: 'ses_v2_delivery',
+      assistantMessageID: 'msg_delivery',
+      ordinal: 0,
+      text: 'BEFORE_REPLY',
+    });
+
+    await fireIdle(harness.state.handlers, 'ses_v2_delivery');
+    await waitFor(() => finalReports(harness.state.requests, 'del_v2_text').length === 1);
+    const reported = finalReports(harness.state.requests, 'del_v2_text')[0];
+    assert.equal(reported.body.assistantMessageId, 'msg_delivery');
+    assert.equal(reported.body.deliveryState, 'final');
+    const textEvents = reported.body.events.filter((event) => event.type === 'text');
+    assert.deepEqual(textEvents.map((event) => event.data.text), ['BEFORE_REPLY', 'DELIVERY_REPLY']);
+    assert.equal(reported.body.events.some((event) => event.type === 'done'), true);
+    assert.equal(harness.state.requests.some((request) => JSON.stringify(request.body).includes('OLD_REPLY_SENTINEL')), false);
+
+    await fireIdle(harness.state.handlers, 'ses_v2_delivery');
+    assert.equal(finalReports(harness.state.requests, 'del_v2_text').length, 1, '同一条助手消息不得重复上报');
+  } finally {
+    if (dispose) await dispose();
+    global.fetch = originalFetch;
+  }
+});
+
 async function waitFor(predicate, timeoutMs) {
   const deadline = Date.now() + (timeoutMs || 2000);
   while (!predicate()) {
@@ -424,6 +670,13 @@ function pluginDataUrl(token, heartbeatMs) {
   return 'data:text/javascript;base64,' + Buffer.from(getPluginSource(8787, token || 'token-test', heartbeatMs)).toString('base64');
 }
 
+function manualFinals(requests) {
+  return requests.filter((request) => request.url.endsWith('/events')
+    && request.body
+    && request.body.assistantMessageId
+    && !request.body.deliveryId);
+}
+
 function finalReports(requests, deliveryId) {
   return requests.filter((request) => request.url.endsWith('/events')
     && request.body
@@ -503,6 +756,18 @@ async function fireIdle(handlers, sessionId) {
     type: 'session.execution.succeeded',
     data: { sessionID: sessionId },
   });
+}
+
+function fireStarted(handlers, sessionId) {
+  const handler = handlers.get('session.execution.started');
+  assert.equal(typeof handler, 'function', 'v2 必须监听 session.execution.started');
+  return handler({ type: 'session.execution.started', data: { sessionID: sessionId } });
+}
+
+function fireText(handlers, type, data) {
+  const handler = handlers.get(type);
+  assert.equal(typeof handler, 'function', 'v2 必须监听 ' + type);
+  return handler({ type, data });
 }
 
 function completedMessage(id, text, completedAt) {

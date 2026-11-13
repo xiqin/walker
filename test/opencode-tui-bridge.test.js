@@ -262,7 +262,7 @@ describe('OpencodeTuiBridge', () => {
     }
   });
 
-  it('reportEvents 在同 runtime 切换 opencode sessionId 时更新 watcher 并投递', () => {
+  it('合法会话切换先 register，未注册的其他 session 事件不重绑不投递', () => {
     const h = createHarness();
     try {
       h.sessionService.createSession({ route: 'feishu:oc_bridge_session_switch:om_root', cwd: 'H:\\walker' });
@@ -272,6 +272,30 @@ describe('OpencodeTuiBridge', () => {
       const received = [];
       const stop = h.bridge.watchSession(session.agentRef, { onEvent: (event) => received.push(event) });
 
+      const ignored = h.bridge.reportEvents({
+        runtimeId: 'runtime-session-switch',
+        sessionId: 'ses_new',
+        events: [
+          { type: 'text', data: { text: 'broadcast must not switch' } },
+          { type: 'done', data: { reason: 'idle' } },
+        ],
+      });
+
+      assert.deepEqual(ignored, { delivered: false, ignored: true });
+      assert.equal(received.length, 0, '未 register 的广播事件不应投递');
+      assert.equal(h.sessionService.getSession(enrolled.sessionId).agentRef.opencodeSessionId, 'ses_old');
+      assert.equal(h.bridge.runtimes.get('runtime-session-switch').currentSessionId, 'ses_old');
+      assert.equal(h.bridge.watchers.has('runtime-session-switch:ses_old'), true);
+      assert.equal(h.bridge.watchers.has('runtime-session-switch:ses_new'), false);
+
+      const switched = h.bridge.register({
+        runtimeId: 'runtime-session-switch', sessionId: 'ses_new', cwd: 'H:\\walker',
+      });
+      const switchedSession = h.sessionService.getSession(switched.sessionId);
+      const switchedReceived = [];
+      const stopSwitched = h.bridge.watchSession(switchedSession.agentRef, {
+        onEvent: (event) => switchedReceived.push(event),
+      });
       const result = h.bridge.reportEvents({
         runtimeId: 'runtime-session-switch',
         sessionId: 'ses_new',
@@ -281,13 +305,88 @@ describe('OpencodeTuiBridge', () => {
         ],
       });
 
-      assert.equal(result.delivered, true, '同 runtime 的新 opencode sessionId 事件不应丢弃');
-      assert.deepEqual(received.map((event) => event.type), ['text', 'done']);
-      assert.equal(received[0].data.text, 'switched session delivered');
-      assert.equal(h.sessionService.getSession(enrolled.sessionId).agentRef.opencodeSessionId, 'ses_new');
-      assert.equal(h.bridge.watchers.has('runtime-session-switch:ses_old'), false);
-      assert.equal(h.bridge.watchers.has('runtime-session-switch:ses_new'), true);
+      assert.equal(result.delivered, true, 'register 后的当前会话事件应投递');
+      assert.deepEqual(switchedReceived.map((event) => event.type), ['text', 'done']);
+      assert.equal(switchedReceived[0].data.text, 'switched session delivered');
+      assert.equal(switchedSession.agentRef.opencodeSessionId, 'ses_new');
+      assert.equal(h.bridge.runtimes.get('runtime-session-switch').currentSessionId, 'ses_new');
+      assert.equal(h.sessionService.getSession(enrolled.sessionId).agentRef.opencodeSessionId, 'ses_old',
+        'register 新会话不应改写旧 walker 会话');
       stop();
+      stopSwitched();
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('同一项目事件只投给当前会话，不扇出到其他飞书会话', () => {
+    const h = createHarness();
+    try {
+      function bind(chatId, runtimeId, sessionId, cwdName) {
+        const dir = path.join(h.tmpDir, cwdName);
+        fs.mkdirSync(dir, { recursive: true });
+        const cwd = fs.realpathSync(dir);
+        const route = 'feishu:' + chatId + ':root:' + chatId;
+        h.sessionService.createSession({ route, cwd });
+        h.sessionService.setRouteCwd(route, cwd);
+        const enrolled = h.bridge.register({ runtimeId, sessionId, cwd });
+        const session = h.sessionService.getSession(enrolled.sessionId);
+        const received = [];
+        const stop = h.bridge.watchSession(session.agentRef, {
+          onEvent: (event) => received.push(event),
+        });
+        return { route, enrolled, received, stop };
+      }
+
+      const owner = bind('oc_owner', 'runtime-owner', 'ses_compacted', 'owner');
+      const stale = bind('oc_stale', 'runtime-stale', 'ses_stale_focus', 'stale');
+      const unbound = bind('oc_unbound', 'runtime-unbound', 'ses_unbound_focus', 'unbound');
+      const staleForeign = [];
+      h.bridge.watchSession({
+        transport: 'tui-bridge',
+        runtimeId: 'runtime-stale',
+        opencodeSessionId: 'ses_compacted',
+      }, { onEvent: (event) => staleForeign.push(event) });
+
+      const compacted = [{ type: 'compacted', data: { sessionID: 'ses_compacted' } }];
+      const ownerResult = h.bridge.reportEvents({
+        runtimeId: 'runtime-owner', sessionId: 'ses_compacted', events: compacted,
+      });
+      const staleResult = h.bridge.reportEvents({
+        runtimeId: 'runtime-stale', sessionId: 'ses_compacted', events: compacted,
+      });
+      const unboundResult = h.bridge.reportEvents({
+        runtimeId: 'runtime-unbound', sessionId: 'ses_compacted', events: compacted,
+      });
+
+      assert.equal(owner.enrolled.routeKey, owner.route);
+      assert.equal(stale.enrolled.routeKey, stale.route);
+      assert.equal(unbound.enrolled.routeKey, unbound.route);
+      assert.equal(ownerResult.delivered, true, '当前会话应收到自己的 compacted');
+      assert.deepEqual(owner.received.map((event) => event.type), ['compacted']);
+
+      assert.deepEqual(staleResult, { delivered: false, ignored: true });
+      assert.equal(staleForeign.length, 0, '陈旧 watcher 不应把同一项目事件投到另一个飞书会话');
+      assert.equal(stale.received.length, 0);
+      assert.equal(
+        h.sessionService.getSession(stale.enrolled.sessionId).agentRef.opencodeSessionId,
+        'ses_stale_focus',
+      );
+      assert.equal(h.bridge.runtimes.get('runtime-stale').currentSessionId, 'ses_stale_focus');
+
+      assert.deepEqual(unboundResult, { delivered: false, ignored: true });
+      assert.equal(unbound.received.length, 0, '没有 watcher 时也不应重绑后投递');
+      assert.equal(
+        h.sessionService.getSession(unbound.enrolled.sessionId).agentRef.opencodeSessionId,
+        'ses_unbound_focus',
+        '非当前会话的广播事件不应改写 agentRef',
+      );
+      assert.equal(h.bridge.runtimes.get('runtime-unbound').currentSessionId, 'ses_unbound_focus');
+      assert.equal(h.bridge.watchers.has('runtime-unbound:ses_compacted'), false);
+
+      owner.stop();
+      stale.stop();
+      unbound.stop();
     } finally {
       h.cleanup();
     }

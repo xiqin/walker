@@ -480,6 +480,18 @@ class OpencodeTuiBridge {
       return this._handleFinal(data.deliveryId, runtimeId, sessionId, data, events);
     }
 
+    // OpenCode 把同一项目的 session 事件广播给全部 TUI。无 deliveryId 的 watch
+    // 事件只属于当前聚焦会话；合法切换必须先 register()，不能靠广播重绑。
+    if (sessionId !== runtime.currentSessionId) {
+      logger.info('tui reportEvents ignored for non-current session', {
+        runtimeId,
+        sessionId,
+        currentSessionId: runtime.currentSessionId || '',
+        eventTypes: events.map((event) => event.type).join(','),
+      });
+      return { delivered: false, ignored: true };
+    }
+
     if (assistantMessageId) {
       if (this._hasAssistantMessage(sessionId, assistantMessageId)) {
         return { delivered: true, duplicate: true };
