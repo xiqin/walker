@@ -16,7 +16,7 @@ const logger = createLogger('message-dispatcher');
 const DEFAULT_HEARTBEAT_INITIAL_MS = 30000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 60000;
 const DEFAULT_HEARTBEAT_STUCK_MS = 300000;
-const ATTACH_RECENT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+const ATTACH_RECENT_WINDOW_MS = 15 * 24 * 60 * 60 * 1000;
 
 function getAgentRefId(agentRef) {
   if (!agentRef || typeof agentRef !== 'object') return '';
@@ -35,12 +35,23 @@ function shouldPersistAgentRef(agentRef) {
 
 function isRecentAttachSession(session, now) {
   const updatedAt = Number(session && session.updatedAt);
-  if (!Number.isFinite(updatedAt) || updatedAt <= 0) return true;
+  if (!Number.isFinite(updatedAt) || updatedAt <= 0 || !Number.isFinite(new Date(updatedAt).getTime())) return false;
   return updatedAt >= now - ATTACH_RECENT_WINDOW_MS;
 }
 
 function filterRecentAttachSessions(sessions, now) {
-  return (sessions || []).filter((session) => isRecentAttachSession(session, now));
+  return (sessions || [])
+    .filter((session) => isRecentAttachSession(session, now))
+    .sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
+}
+
+function latestOpencodeTitle(remote) {
+  if (!remote || remote.id === undefined || remote.id === null || remote.id === '') return '';
+  const title = typeof remote.title === 'string' ? remote.title.trim() : '';
+  if (!title) return '';
+  const fallback = 'opencode ' + String(remote.id).slice(0, 12);
+  if (title === fallback || title === 'opencode session') return '';
+  return title;
 }
 
 /**
@@ -124,6 +135,12 @@ class MessageDispatcher {
       feishuApi: this.feishuApi,
       sessionService: this.sessionService,
       driverRegistry: this.driverRegistry,
+      runtimeFor: (request) => this._feishuRuntimeContext({
+        session: request && request.session,
+        sessionId: request && request.walkerSessionId,
+        routeKey: request && request.routeKey,
+        chatId: request && request.chatId,
+      }),
     });
   }
 
@@ -242,7 +259,7 @@ class MessageDispatcher {
     return prompt;
   }
 
-  _resolveIncomingTarget(event, sourceRouteKey) {
+  _resolveIncomingTarget(event, sourceRouteKey, preserveRoutes = false) {
     if (event && this.sessionService && typeof this.sessionService.resolveSessionByPlatformMessage === 'function') {
       for (const messageId of this._incomingFeishuLookupIds(event)) {
         const resolved = this.sessionService.resolveSessionByPlatformMessage('feishu', messageId, { chatId: event.chatId });
@@ -255,13 +272,13 @@ class MessageDispatcher {
       }
     }
 
-    const current = this.sessionService.getCurrent(sourceRouteKey);
+    const current = preserveRoutes ? this._getCurrentWithoutCleanup(sourceRouteKey) : this.sessionService.getCurrent(sourceRouteKey);
     if (current) return { session: current, routeKey: sourceRouteKey, routedBy: 'route-focus' };
 
     if (this.routeMode === 'thread' && event.rootId && event.chatId) {
       const fallbackRouteKey = buildRouteKey(Object.assign({}, event, { rootId: '' }), this.routeMode);
       if (fallbackRouteKey !== sourceRouteKey) {
-        const fallbackCurrent = this.sessionService.getCurrent(fallbackRouteKey);
+        const fallbackCurrent = preserveRoutes ? this._getCurrentWithoutCleanup(fallbackRouteKey) : this.sessionService.getCurrent(fallbackRouteKey);
         if (fallbackCurrent) {
           logger.info('thread route unbound, falling back to chat root route', {
             messageId: event.messageId,
@@ -274,6 +291,16 @@ class MessageDispatcher {
     }
 
     return { session: null, routeKey: sourceRouteKey, routedBy: 'unbound' };
+  }
+
+  _getCurrentWithoutCleanup(routeKey) {
+    if (typeof this.sessionService.listRoutes !== 'function' || typeof this.sessionService.getSession !== 'function') {
+      return this.sessionService.getCurrent(routeKey);
+    }
+    const route = this.sessionService.listRoutes()[routeKey];
+    const id = typeof route === 'string' ? route : route && route.focusSessionId;
+    const session = id && this.sessionService.getSession(id);
+    return session && session.status !== 'deleted' ? session : null;
   }
 
   _incomingFeishuLookupIds(event) {
@@ -578,7 +605,7 @@ class MessageDispatcher {
 
   _resolveCommandTarget(cmd) {
     const sourceRouteKey = cmd.routeKey || '';
-    const target = this._resolveIncomingTarget(cmd, sourceRouteKey);
+    const target = this._resolveIncomingTarget(cmd, sourceRouteKey, cmd.name === 'list');
     return Object.assign({}, cmd, {
       routeKey: target.routeKey,
       sessionId: target.session && target.session.id,
@@ -742,7 +769,7 @@ class MessageDispatcher {
     if (args[0] === 'claude') {
       return this._rejectClaudeRemoved(cmd, { routeKey });
     }
-    const current = this.sessionService.getCurrent(routeKey);
+    const current = this._getCurrentWithoutCleanup(routeKey);
     if (current) {
       const pendingPrompt = this._promptQueues.get(current.id);
       if (pendingPrompt) await pendingPrompt.catch(() => {});
@@ -781,19 +808,9 @@ class MessageDispatcher {
     await driver.ensureReady();
     const extraCwds = this._collectKnownSessionCwds();
     const now = Date.now();
-    const remoteSessions = filterRecentAttachSessions(await driver.listSessions({ extraCwds }), now);
+    const allRemoteSessions = await driver.listSessions({ extraCwds });
+    const remoteSessions = filterRecentAttachSessions(allRemoteSessions, now);
     const managedIds = this._managedOpencodeSessionIds();
-    // 主动清理孤儿 session：Walker 管理中但 OpenCode 端已不存在的 session
-    const remoteIds = new Set(remoteSessions.map((s) => s.id));
-    for (const session of this.sessionService.listSessions()) {
-      if (session && session.agent === 'claude') continue;
-      const ocId = session && session.agentRef && session.agentRef.opencodeSessionId;
-      if (ocId && managedIds.has(ocId) && !remoteIds.has(ocId) && !this._isSessionRefActive(session)) {
-        logger.info('proactive orphan cleanup in /attach', { sessionId: session.id, opencodeSessionId: ocId });
-        this.sessionService.deleteSession(session.id);
-        managedIds.delete(ocId);
-      }
-    }
     const routeCwd = typeof this.sessionService.getRouteCwd === 'function'
       ? this.sessionService.getRouteCwd(routeKey)
       : '';
@@ -817,27 +834,14 @@ class MessageDispatcher {
       return { candidates, routeCwd: routeCwd || '' };
     }
 
-    const target = remoteSessions.find((session) => session.id === targetOpencodeSessionId);
+    const target = (allRemoteSessions || []).find((session) => session && session.id === targetOpencodeSessionId);
     if (!target) {
-      // OpenCode 端找不到此 session，检查是否已在 Walker 管理中（孤儿检测）
       if (managedIds.has(targetOpencodeSessionId)) {
         const existing = this._findSessionByOpencodeId(targetOpencodeSessionId);
-        if (existing) {
-          if (this._isSessionRefActive(existing)) {
-            this.sessionService.bindRoute(routeKey, existing.id);
-            await this._callFeishu('replyText', [this._replyCtx(cmd), 'Bound to existing Walker session: ' + existing.id]);
-            return { bound: existing.id };
-          }
-          // OpenCode 端已丢失，清理 Walker 中的孤儿引用
-          logger.info('orphaned opencode session detected, cleaning up', {
-            sessionId: existing.id,
-            opencodeSessionId: targetOpencodeSessionId,
-          });
-          this.sessionService.deleteSession(existing.id);
-          await this._callFeishu('sendErrorCard', [this._replyCtx(cmd),
-            'OpenCode session not found (orphan cleaned): ' + targetOpencodeSessionId
-            + '\n已自动清理失效引用，请发送 /attach 重新绑定新会话。']);
-          return { orphanCleaned: true };
+        if (existing && this._isSessionRefActive(existing)) {
+          this.sessionService.bindRoute(routeKey, existing.id);
+          await this._callFeishu('replyText', [this._replyCtx(cmd), 'Bound to existing Walker session: ' + existing.id]);
+          return { bound: existing.id };
         }
       }
       await this._callFeishu('sendErrorCard', [this._replyCtx(cmd), 'OpenCode session not found: ' + targetOpencodeSessionId]);
@@ -898,8 +902,10 @@ class MessageDispatcher {
    * /list 命令：显示当前 route 下的 session 列表卡片（支持分页）
    */
   async _cmdList(cmd) {
-    const sessions = this.sessionService.listSessionsInRoute(cmd.routeKey);
-    const currentSession = this.sessionService.getCurrent(cmd.routeKey);
+    const sessions = await this._overlayOpencodeTitles(
+      filterRecentAttachSessions(this.sessionService.listSessionsInRoute(cmd.routeKey), Date.now()),
+    );
+    const currentSession = this._getCurrentWithoutCleanup(cmd.routeKey);
     const args = cmd.args || [];
     const isPageRequest = args[0] === '--page';
     const options = { routeKey: cmd.routeKey };
@@ -909,6 +915,40 @@ class MessageDispatcher {
     }
     await this._callFeishu('sendSessionList', [this._replyCtx(cmd), sessions, currentSession ? currentSession.id : null, options]);
     return { sessions };
+  }
+
+  /**
+   * 仅生成 /list 展示副本。OpenCode 有明确标题时优先使用；查询失败、缺失或驱动生成的占位标题都保留 Walker 原标题。
+   * @param {Object[]} sessions
+   * @returns {Promise<Object[]>}
+   */
+  async _overlayOpencodeTitles(sessions) {
+    const listed = (sessions || []).map((session) => (session && typeof session === 'object' ? { ...session } : session));
+    const needsLookup = listed.some((session) => session
+      && session.agent !== 'claude'
+      && session.agentRef
+      && session.agentRef.opencodeSessionId);
+    if (!needsLookup || !this.driverRegistry || typeof this.driverRegistry.get !== 'function') return listed;
+    const driver = this.driverRegistry.get('opencode');
+    if (!driver || typeof driver.listSessions !== 'function') return listed;
+    let remoteSessions = [];
+    try {
+      remoteSessions = await driver.listSessions({ extraCwds: this._collectKnownSessionCwds() });
+    } catch (err) {
+      logger.warn('failed to load opencode titles for /list', { error: err && err.message });
+      return listed;
+    }
+    const titles = new Map();
+    for (const remote of remoteSessions || []) {
+      const title = latestOpencodeTitle(remote);
+      if (remote && remote.id && title) titles.set(remote.id, title);
+    }
+    if (titles.size === 0) return listed;
+    return listed.map((session) => {
+      if (!session || session.agent === 'claude' || !session.agentRef) return session;
+      const title = titles.get(session.agentRef.opencodeSessionId);
+      return title ? { ...session, title } : session;
+    });
   }
 
   /**
@@ -1703,12 +1743,69 @@ class MessageDispatcher {
   async _updateWatchProgressCard(session, chatId, agentEvent) {
     let cardId = this.sessionWatchProgressCards.get(session.id);
     if (!cardId) {
-      cardId = await this._callFeishu('sendProgressCard', [{ chatId }, session.id], null, { sessionId: session.id });
+      cardId = await this._sendWatchProgressCard(session, chatId);
       if (!cardId) return;
       if (this._isTurnSuppressed(session.id) || !this.sessionWatchBuffers.has(session.id)) return;
       this.sessionWatchProgressCards.set(session.id, cardId);
     }
-    await this._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null, { sessionId: session.id });
+    const rendered = await this._callFeishu('updateProgressCard', [cardId, session.id, agentEvent], null, await this._watchProgressContext(session));
+    if (rendered && rendered.strategy === 'new_message') {
+      const newCardId = await this._sendWatchProgressCard(session, chatId, agentEvent);
+      if (newCardId) this.sessionWatchProgressCards.set(session.id, newCardId);
+    }
+  }
+
+  async _sendWatchProgressCard(session, chatId, initialEvent) {
+    const result = await this._callFeishu(
+      'sendProgressCard',
+      [{ chatId }, session.id, initialEvent],
+      null,
+      await this._watchProgressContext(session),
+    );
+    return this._watchProgressCardId(result);
+  }
+
+  async _watchProgressContext(session) {
+    await this._fillMissingWatchProgressRuntime(session);
+    return { sessionId: session && session.id, session };
+  }
+
+  async _fillMissingWatchProgressRuntime(session) {
+    if (!session || !session.id) return;
+    if (this._hasRuntimeTokenValue(session.contextTokens)
+      || this._hasRuntimeTokenValue(session.contextSize)
+      || this._hasRuntimeTokenValue(session.tokenUsage)) {
+      return;
+    }
+    const agentName = session.agent || this.defaultAgent;
+    const driver = this.driverRegistry && typeof this.driverRegistry.get === 'function'
+      ? this.driverRegistry.get(agentName)
+      : null;
+    if (!driver || typeof driver.getLatestSessionRuntime !== 'function') return;
+    try {
+      const fallback = await driver.getLatestSessionRuntime(session.agentRef);
+      if (!fallback || typeof fallback !== 'object') return;
+      if (!this._hasRuntimeTokenValue(session.contextTokens) && this._hasRuntimeTokenValue(fallback.contextSize)) {
+        session.contextTokens = fallback.contextSize;
+        this._updateSessionRuntimeField(session.id, 'contextTokens', fallback.contextSize);
+      }
+      if (!this._hasRuntimeTokenValue(session.tokenUsage) && this._hasRuntimeTokenValue(fallback.tokenUsage)) {
+        session.tokenUsage = fallback.tokenUsage;
+        this._updateSessionRuntimeField(session.id, 'tokenUsage', fallback.tokenUsage);
+      }
+    } catch (err) {
+      logger.debug('failed to read latest session runtime for progress card', {
+        sessionId: session.id,
+        error: err && err.message,
+      });
+    }
+  }
+
+  _watchProgressCardId(result) {
+    if (!result) return null;
+    if (typeof result === 'string') return result;
+    if (typeof result === 'object') return this._extractFeishuMessageIds(result)[0] || null;
+    return null;
   }
 
   async _renderWatchProgressCard(session, chatId, displayEvents, progressCardId) {
@@ -1720,9 +1817,9 @@ class MessageDispatcher {
       if (agentEvent.type === AgentEvent.TYPE_MESSAGE_REMOVED || agentEvent.type === AgentEvent.TYPE_SESSION_LIFECYCLE || agentEvent.type === AgentEvent.TYPE_SERVER_CONNECTED) continue;
       if (agentEvent.type === AgentEvent.TYPE_STEP || agentEvent.type === AgentEvent.TYPE_SESSION_DIFF) continue;
       if (agentEvent.type === AgentEvent.TYPE_FILE_EDITED) continue;
-      const rendered = await this._callFeishu('updateProgressCard', [progressCardId, session.id, agentEvent], null, { sessionId: session.id });
+      const rendered = await this._callFeishu('updateProgressCard', [progressCardId, session.id, agentEvent], null, await this._watchProgressContext(session));
       if (rendered && rendered.strategy === 'new_message') {
-        const newCardId = await this._callFeishu('sendProgressCard', [{ chatId }, session.id, agentEvent], null, { sessionId: session.id });
+        const newCardId = await this._sendWatchProgressCard(session, chatId, agentEvent);
         if (newCardId) {
           progressCardId = newCardId;
           this.sessionWatchProgressCards.set(session.id, newCardId);
@@ -1730,9 +1827,9 @@ class MessageDispatcher {
       }
     }
     const doneEvent = new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'watch' });
-    const doneRendered = await this._callFeishu('updateProgressCard', [progressCardId, session.id, doneEvent], null, { sessionId: session.id });
+    const doneRendered = await this._callFeishu('updateProgressCard', [progressCardId, session.id, doneEvent], null, await this._watchProgressContext(session));
     if (doneRendered && doneRendered.strategy === 'new_message') {
-      const newCardId = await this._callFeishu('sendProgressCard', [{ chatId }, session.id, doneEvent], null, { sessionId: session.id });
+      const newCardId = await this._sendWatchProgressCard(session, chatId, doneEvent);
       if (newCardId) {
         progressCardId = newCardId;
         this.sessionWatchProgressCards.set(session.id, newCardId);

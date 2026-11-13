@@ -1,0 +1,18 @@
+{
+  "status": "done",
+  "summary": "已核对三项需求的十三项行为及测试计划；补齐状态、原子性与安全维度声明。",
+  "artifacts": [
+    "requirements.json"
+  ],
+  "stage": "detail-expansion",
+  "task_id": "detail-expansion",
+  "basis_fingerprints": {
+    "requirements.json": "53dab144b8aef567473dd7443243272c29ddd292c7a6947fb5ea7d4adcfb597d",
+    "sources/": "3c8d40cfb8699a62c483b009e05d8d82f295757e45e4223ac57bf64e813ada29",
+    "spec.md": "5d33217c3e021a210801e2f2090126e157069b45d4b9c2623f277c3fe9625d74"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "53dab144b8aef567473dd7443243272c29ddd292c7a6947fb5ea7d4adcfb597d"
+  },
+  "written_at": "2026-10-28T01:07:18.165Z"
+}

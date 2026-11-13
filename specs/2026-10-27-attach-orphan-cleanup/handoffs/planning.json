@@ -1,0 +1,25 @@
+{
+  "status": "done",
+  "summary": "两项独立任务：T1 修复调度器及回归，T2 只读恢复评估；全部需求和十三项行为已映射，计划已补全任务文件引用；恢复写入须另行确认。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "traceability.json"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "0d03b8f65e7b12eca8ae7622abf8c2e60617226265e63d6ac9f3378d8fa9f33e",
+    "requirements.json": "53dab144b8aef567473dd7443243272c29ddd292c7a6947fb5ea7d4adcfb597d",
+    "sources/": "3c8d40cfb8699a62c483b009e05d8d82f295757e45e4223ac57bf64e813ada29",
+    "spec.md": "5d33217c3e021a210801e2f2090126e157069b45d4b9c2623f277c3fe9625d74",
+    "tasks/": "955b9b20a81f295404831441894fb136c71f4cbea5af80501caa7ffd6679abcf"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "0d03b8f65e7b12eca8ae7622abf8c2e60617226265e63d6ac9f3378d8fa9f33e",
+    "tasks/T1.md": "6939fe485179624f8ebd34d1038bf4ba93a38db8418421b753bdab23855ed4db",
+    "tasks/T2.md": "897b9e91625152fb60e4b97fed48c02caf2bfd993451680063d4e7d7d439ddba"
+  },
+  "written_at": "2026-10-28T01:10:34.625Z"
+}

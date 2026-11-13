@@ -12,10 +12,11 @@ const MAX_TERMINAL_REQUESTS = 1000;
 
 /** 原生问题状态机，独占飞书卡片和整组答案提交。 */
 class QuestionHandler {
-  constructor({ feishuApi, sessionService, driverRegistry, now }) {
+  constructor({ feishuApi, sessionService, driverRegistry, now, runtimeFor }) {
     this.feishuApi = feishuApi;
     this.sessionService = sessionService;
     this.driverRegistry = driverRegistry;
+    this.runtimeFor = runtimeFor;
     this.now = now || (() => Date.now());
     this.requests = new Map();
   }
@@ -105,6 +106,7 @@ class QuestionHandler {
         routeKey,
         chatId,
         walkerSessionId: session.id,
+        session,
         questions: data.questions,
         answers: Array(data.questions.length).fill(null),
         selections: Array.from({ length: data.questions.length }, () => []),
@@ -117,6 +119,7 @@ class QuestionHandler {
       };
       this.requests.set(key, request);
     }
+    request.session = session;
     if (request.sendPromise) return request.sendPromise;
     if (request.status !== 'sending_cards') return { status: request.status };
     request.sendPromise = this._sendCards(request);
@@ -151,7 +154,11 @@ class QuestionHandler {
       while (!sent && request.cardAttempts[index] < 2) {
         request.cardAttempts[index]++;
         try {
-          const cardId = await this.feishuApi.replyCard({ chatId: request.chatId }, buildNativeQuestionCard(this._requestOptions(request, index)));
+          const cardId = await this.feishuApi.replyCard(
+            { chatId: request.chatId },
+            buildNativeQuestionCard(this._requestOptions(request, index)),
+            await this._runtime(request),
+          );
           if (!cardId) throw new Error('feishu replyCard returned no message id');
           request.cards[index] = cardId;
           request.cardStates[index] = 'sent';
@@ -194,11 +201,26 @@ class QuestionHandler {
     return Number.isInteger(index) && index >= 0 ? { requestID, index } : null;
   }
 
+  /** 取问题卡页脚 runtime。解析失败时仍发卡片，避免页脚查询阻断提问。 */
+  async _runtime(request) {
+    if (!request || typeof this.runtimeFor !== 'function') return undefined;
+    try {
+      return await this.runtimeFor(request);
+    } catch (err) {
+      logger.debug('native question runtime unavailable', {
+        requestID: request.requestID,
+        error: err && err.message,
+      });
+      return undefined;
+    }
+  }
+
   /** patch 飞书卡片，失败时降级向原会话发送一次文本（同一请求同一卡片只降级一次）。 */
   async _patch(cardId, card, chatId, text, request, index) {
     if (!cardId || !this.feishuApi || typeof this.feishuApi.patchCard !== 'function') return;
+    const runtime = await this._runtime(request);
     try {
-      await this.feishuApi.patchCard(cardId, card);
+      await this.feishuApi.patchCard(cardId, card, runtime);
     } catch (err) {
       logger.warn('native question card patch failed', { cardId, error: err && err.message });
       if (chatId && typeof this.feishuApi.sendText === 'function' && request) {
@@ -206,7 +228,7 @@ class QuestionHandler {
         if (!request.patchFallbackSent) request.patchFallbackSent = new Set();
         if (request.patchFallbackSent.has(fallbackKey)) return;
         request.patchFallbackSent.add(fallbackKey);
-        try { await this.feishuApi.sendText(chatId, text); } catch (_) {}
+        try { await this.feishuApi.sendText(chatId, text, runtime); } catch (_) {}
       }
     }
   }

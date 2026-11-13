@@ -3,7 +3,13 @@ const assert = require('node:assert/strict');
 const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
 const { MessageDedup } = require('../src/core/message-dedup');
 const { AgentEvent } = require('../src/drivers/agent-driver');
+const { ProgressCard } = require('../src/platform/feishu/progress-card');
 const { createEventStore } = require('../src/admin/event-store');
+const { SessionService } = require('../src/core/session-service');
+const { JsonStore } = require('../src/core/json-store');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 function makeMocks() {
   const sessionService = {
@@ -76,6 +82,24 @@ function deferred() {
   let reject;
   const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
   return { promise, resolve, reject };
+}
+
+/** 按生产页脚格式给进度卡片加上模型和上下文，缺 runtime 时为 unknown。 */
+function withWatchRuntimeFooter(card, runtime) {
+  const model = runtime && runtime.model;
+  const modelText = model && typeof model === 'object' && model.providerID && model.modelID
+    ? model.providerID + '/' + model.modelID
+    : 'unknown';
+  const size = runtime && typeof runtime.contextSize === 'number' && Number.isFinite(runtime.contextSize)
+    ? Math.round(runtime.contextSize) + ' tokens'
+    : 'unknown';
+  const cloned = JSON.parse(JSON.stringify(card));
+  cloned.body.elements.push({ tag: 'markdown', content: '---\n模型：' + modelText + '\n上下文：' + size });
+  return cloned;
+}
+
+function cardText(card) {
+  return ((card && card.body && card.body.elements) || []).map((element) => element.content || '').join('\n');
 }
 
 /** 推进事件循环，让已入队的异步任务完成，不依赖墙钟时间判断并发。 */
@@ -2947,6 +2971,132 @@ describe('MessageDispatcher turn lifecycle commands', () => {
     assert.equal(dispatcher.sessionWatchProgressCards.has(session.id), false, 'done 后应清理进度卡片 id');
   });
 
+  it('watch 进度卡片使用生产响应时抽出 message_id、带上模型页脚，且不丢失败策略', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_watch_runtime_card',
+      agent: 'opencode',
+      status: 'idle',
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+      contextTokens: 128000,
+      agentRef: { opencodeSessionId: 'ses_watch_runtime_card' },
+    };
+    mocks.sessionService.getSession = (id) => (id === session.id ? session : null);
+    const progressCards = new Map();
+    let nextCard = 1;
+    let forceStrategy = false;
+    mocks.feishuApi.sendProgressCard = async (replyCtx, sessionId, initialEvent, runtime) => {
+      const card = new ProgressCard({ sessionId });
+      if (initialEvent) card.append(initialEvent);
+      const rendered = withWatchRuntimeFooter(card.render(), runtime);
+      const messageId = 'om_watch_runtime_' + nextCard;
+      nextCard += 1;
+      progressCards.set(messageId, { card, rendered });
+      mocks.feishuApi.calls.push({
+        type: 'sendProgressCard', replyCtx, sessionId, initialEvent, runtime, messageId, rendered,
+      });
+      return { code: 0, data: { message_id: messageId } };
+    };
+    mocks.feishuApi.updateProgressCard = async (cardId, sessionId, agentEvent, runtime) => {
+      const entry = typeof cardId === 'string' ? progressCards.get(cardId) : null;
+      mocks.feishuApi.calls.push({
+        type: 'updateProgressCard', cardId, sessionId, agentEvent, runtime, patched: Boolean(entry),
+      });
+      if (forceStrategy || !entry) return { strategy: 'new_message' };
+      entry.card.append(agentEvent);
+      entry.rendered = withWatchRuntimeFooter(entry.card.render(), runtime);
+      return null;
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_COMPACTED, { sessionID: session.agentRef.opencodeSessionId }));
+    await dispatcher.sessionWatchProgressPromises.get(session.id);
+
+    const send = mocks.feishuApi.calls.find((call) => call.type === 'sendProgressCard');
+    assert.ok(send, '应发送进度卡片');
+    assert.deepEqual(send.runtime && send.runtime.model, session.model, 'runtime 必须作为 sendProgressCard 的第 4 参，不能被当成 initialEvent');
+    assert.equal(send.runtime.contextSize, 128000, '上下文大小应随 runtime 传给进度卡片');
+    const update = mocks.feishuApi.calls.find((call) => call.type === 'updateProgressCard');
+    assert.equal(update && update.cardId, 'om_watch_runtime_1', '完整响应必须抽出 message_id 后再更新');
+    assert.equal(update.patched, true, '更新必须打到已发送的卡片，而不是把响应对象当消息 ID');
+    assert.deepEqual(update.runtime && update.runtime.model, session.model);
+    assert.equal(dispatcher.sessionWatchProgressCards.get(session.id), 'om_watch_runtime_1');
+    const visible = cardText(progressCards.get('om_watch_runtime_1').rendered);
+    assert.match(visible, /上下文已压缩/);
+    assert.match(visible, /模型：cpa\/gpt-5\.5/);
+    assert.match(visible, /上下文：128000 tokens/);
+    assert.equal(visible.includes('模型：unknown'), false);
+    assert.equal(visible.includes('上下文：unknown'), false);
+    assert.equal(progressCards.get('om_watch_runtime_1').rendered.header.title.content === '思考中...', false);
+
+    forceStrategy = true;
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_COMMAND_EXECUTED, { command: 'npm test', exitCode: 0 }));
+    await dispatcher.sessionWatchProgressPromises.get(session.id);
+
+    const sends = mocks.feishuApi.calls.filter((call) => call.type === 'sendProgressCard');
+    assert.equal(sends.length, 2, 'updateProgressCard 返回 new_message 时必须补发新卡片');
+    assert.equal(sends[1].initialEvent && sends[1].initialEvent.type, AgentEvent.TYPE_COMMAND_EXECUTED);
+    assert.deepEqual(sends[1].runtime && sends[1].runtime.model, session.model, '补发卡片时 runtime 仍必须是第 4 参');
+    assert.equal(dispatcher.sessionWatchProgressCards.get(session.id), sends[1].messageId);
+    assert.equal(typeof dispatcher.sessionWatchProgressCards.get(session.id), 'string');
+    const replacement = cardText(progressCards.get(sends[1].messageId).rendered);
+    assert.match(replacement, /npm test/);
+    assert.match(replacement, /模型：cpa\/gpt-5\.5/);
+    assert.equal(replacement.includes('模型：unknown'), false);
+  });
+
+  it('watch 进度卡缺少上下文时补查 driver runtime，且手工 DONE 文本不等待补查', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_watch_ctx_lookup',
+      agent: 'opencode',
+      status: 'idle',
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+      agentRef: { transport: 'tui-bridge', runtimeId: 'rt_ctx', opencodeSessionId: 'ses_watch_ctx' },
+    };
+    mocks.sessionService.getSession = (id) => (id === session.id ? session : null);
+    let runtimeReads = 0;
+    mocks.driver.getLatestSessionRuntime = async (agentRef) => {
+      runtimeReads += 1;
+      assert.deepEqual(agentRef, session.agentRef);
+      return {
+        model: session.model,
+        contextSize: 88000,
+        tokenUsage: { totalTokens: 88000 },
+      };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread', progressStyle: 'card' });
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_COMPACTED, { sessionID: 'ses_watch_ctx' }));
+    await dispatcher.sessionWatchProgressPromises.get(session.id);
+
+    const send = mocks.feishuApi.calls.find((call) => call.type === 'sendProgressCard');
+    const update = mocks.feishuApi.calls.find((call) => call.type === 'updateProgressCard');
+    assert.ok(send, '压缩事件应先建进度卡片');
+    assert.ok(update, '压缩事件应更新进度卡片');
+    assert.equal(send.runtime && send.runtime.contextSize, 88000, '建卡时上下文不能停在 unknown');
+    assert.equal(update.runtime && update.runtime.contextSize, 88000, '更新时上下文不能停在 unknown');
+    assert.deepEqual(update.runtime && update.runtime.model, session.model);
+    assert.ok(runtimeReads >= 1, '会话没有上下文用量时，进度卡应补查 driver runtime');
+
+    mocks.driver.getLatestSessionRuntime = () => new Promise(() => {});
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_TEXT, { text: 'watch ctx answer' }));
+    const done = dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'idle' }));
+    let markdown;
+    const deadline = Date.now() + 500;
+    while (Date.now() < deadline) {
+      markdown = mocks.feishuApi.calls.find((call) => call.type === 'sendMarkdown' && call.text === 'watch ctx answer');
+      if (markdown) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.ok(markdown, '手工 DONE 文本不能等 driver runtime 补查');
+    const settled = await Promise.race([
+      done.then(() => 'done'),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 500)),
+    ]);
+    assert.equal(settled, 'done', '手工 DONE 处理不能等 driver runtime 补查');
+  });
+
   it('watch progressStyle 非 card 时不建进度卡片', async () => {
     const mocks = makeMocks();
     const session = { id: 'wks_watch_prog2', agent: 'opencode', status: 'idle', agentRef: { opencodeSessionId: 'ses_watch_prog2' } };
@@ -2989,6 +3139,85 @@ describe('MessageDispatcher turn lifecycle commands', () => {
 });
 
 describe('MessageDispatcher /attach command', () => {
+  it('两个列表在分页前按 15 天边界筛选并倒序，不展示无效时间', async (t) => {
+    const now = 1800000000000;
+    t.mock.method(Date, 'now', () => now);
+    const mocks = makeMocks();
+    const boundary = now - 15 * 24 * 60 * 60 * 1000;
+    const sessions = [
+      { id: 'boundary', updatedAt: boundary },
+      { id: 'old', updatedAt: boundary - 1 },
+      { id: 'new', updatedAt: now - 1 },
+      { id: 'missing' },
+      { id: 'invalid', updatedAt: 'invalid' },
+      { id: 'out-of-range', updatedAt: 1e100 },
+      { id: 'middle', updatedAt: now - 1000 },
+    ];
+    mocks.driver.listSessions = async () => sessions;
+    mocks.sessionService.listSessionsInRoute = () => sessions;
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    for (const name of ['attach', 'list']) {
+      await dispatcher.handleCommand({ name, args: ['--page', '2'], routeKey: 'route:test', messageId: 'page-' + name, chatId: 'chat' });
+      const call = mocks.feishuApi.calls.find((item) => item.type === (name === 'attach' ? 'sendAttachableSessionList' : 'sendSessionList'));
+      assert.deepEqual(call.sessions.map((s) => s.id), ['new', 'middle', 'boundary']);
+      assert.equal(call.options.page, '2');
+    }
+  });
+
+  it('远端列表不完整、指定缺失会话及查询失败均保留会话、路由和消息关联', async (t) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-attach-'));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const stateStore = new JsonStore(path.join(dir, 'state.json'), {});
+    const service = new SessionService({ stateStore });
+    const routeKey = 'feishu:chat:root';
+    const session = service.createSession({ route: routeKey, agent: 'opencode', agentRef: { opencodeSessionId: 'ses_missing' } });
+    service.recordPlatformMessage('feishu', 'message', { sessionId: session.id, routeKey });
+    const mocks = makeMocks();
+    mocks.driver.isSessionRefActive = () => false;
+    mocks.driver.listSessions = async () => [];
+    const dispatcher = new MessageDispatcher({ ...mocks, sessionService: service, routeMode: 'thread' });
+    const before = stateStore.read();
+    for (const [index, args] of [[], ['ses_missing']].entries()) {
+      await dispatcher.handleCommand({ name: 'attach', args, routeKey, messageId: 'attach-' + index, chatId: 'chat' });
+    }
+    mocks.driver.listSessions = async () => { throw new Error('查询失败'); };
+    const failed = await dispatcher.handleCommand({ name: 'attach', args: [], routeKey, messageId: 'attach-error', chatId: 'chat' });
+    assert.equal(failed.error, 'command_failed');
+    const after = stateStore.read();
+    assert.deepEqual(after.sessions, before.sessions);
+    assert.deepEqual(after.platformMessages, before.platformMessages);
+    assert.deepEqual(after.routes[routeKey].sessions, before.routes[routeKey].sessions);
+    assert.equal(after.routes[routeKey].focusSessionId, before.routes[routeKey].focusSessionId);
+  });
+
+  it('指定超过 15 天的会话仍可绑定', async () => {
+    const mocks = makeMocks();
+    mocks.driver.listSessions = async () => [{ id: 'ses_old', updatedAt: Date.now() - 16 * 24 * 60 * 60 * 1000 }];
+    mocks.sessionService.listSessions = () => [{ id: 'wks_old', agent: 'opencode', agentRef: { opencodeSessionId: 'ses_old' } }];
+    const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
+    const result = await dispatcher.handleCommand({ name: 'attach', args: ['ses_old'], routeKey: 'route:test', messageId: 'attach-old', chatId: 'chat' });
+    assert.equal(result.bound, 'wks_old');
+    assert.equal(mocks.sessionService.bindRouteCalls[0].sessionId, 'wks_old');
+  });
+
+  it('两个命令不会删除焦点缺失的路由或其余成员', async (t) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-route-'));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const store = new JsonStore(path.join(dir, 'state.json'), {});
+    const service = new SessionService({ stateStore: store });
+    const routeKey = 'feishu:chat:root';
+    const member = service.createSession({ route: routeKey, agent: 'opencode' });
+    store.update((state) => { state.routes[routeKey].focusSessionId = 'wks_missing'; });
+    const mocks = makeMocks();
+    const dispatcher = new MessageDispatcher({ ...mocks, sessionService: service, routeMode: 'thread' });
+    for (const name of ['attach', 'list']) {
+      await dispatcher.handleCommand({ name, args: [], routeKey, messageId: 'missing-' + name, chatId: 'chat' });
+      const route = store.read().routes[routeKey];
+      assert.equal(route.focusSessionId, 'wks_missing');
+      assert.deepEqual(route.sessions, [member.id]);
+    }
+  });
+
   it('REQ-004-B01/B02: /attach claude 的 UUID、无参、分页和搜索都在 driver 前拒绝', async () => {
     const mocks = makeMocks();
     const counts = { listSessions: 0, resumeSession: 0, ensureReady: 0, gets: [] };
@@ -3036,7 +3265,7 @@ describe('MessageDispatcher /attach command', () => {
     const mocks = makeMocks();
     mocks.driver.serverUrl = 'http://localhost:4096';
     mocks.driver.listSessions = async () => [
-      { id: 'ses_existing1', title: 'terminal session', cwd: 'H:\\walker', status: 'idle' },
+      { id: 'ses_existing1', title: 'terminal session', cwd: 'H:\\walker', status: 'idle', updatedAt: Date.now() },
     ];
     mocks.driver.resumeSession = async (ref) => Object.assign({}, ref, { resumed: true });
     mocks.sessionService.listSessions = () => [];
@@ -3060,14 +3289,14 @@ describe('MessageDispatcher /attach command', () => {
     assert.equal(result.candidates.length, 1);
     assert.ok(cardCall);
     assert.equal(cardCall.options.agent, 'opencode');
-    assert.deepEqual(cardCall.sessions, [{ id: 'ses_existing1', title: 'terminal session', cwd: 'H:\\walker', status: 'idle', agent: 'opencode' }]);
+    assert.deepEqual(cardCall.sessions, [{ ...result.candidates[0], agent: 'opencode' }]);
   });
 
   it('/attach 多个候选时发送可纳入列表卡片', async () => {
     const mocks = makeMocks();
     mocks.driver.listSessions = async () => [
-      { id: 'ses_a', title: 'A', cwd: 'H:\\walker', status: 'idle' },
-      { id: 'ses_b', title: 'B', cwd: 'H:\\walker', status: 'running' },
+      { id: 'ses_a', title: 'A', cwd: 'H:\\walker', status: 'idle', updatedAt: Date.now() },
+      { id: 'ses_b', title: 'B', cwd: 'H:\\walker', status: 'running', updatedAt: Date.now() },
     ];
     mocks.sessionService.listSessions = () => [];
     const dispatcher = new MessageDispatcher({
@@ -3411,9 +3640,9 @@ describe('MessageDispatcher /attach command', () => {
   it('/attach 列表包含已纳入会话并传入 managedIds 供卡片标记', async () => {
     const mocks = makeMocks();
     mocks.driver.listSessions = async () => [
-      { id: 'ses_managed', title: 'managed', cwd: 'H:\\walker', status: 'idle' },
-      { id: 'ses_free1', title: 'free1', cwd: 'H:\\walker', status: 'idle' },
-      { id: 'ses_free2', title: 'free2', cwd: 'H:\\walker', status: 'idle' },
+      { id: 'ses_managed', title: 'managed', cwd: 'H:\\walker', status: 'idle', updatedAt: Date.now() },
+      { id: 'ses_free1', title: 'free1', cwd: 'H:\\walker', status: 'idle', updatedAt: Date.now() },
+      { id: 'ses_free2', title: 'free2', cwd: 'H:\\walker', status: 'idle', updatedAt: Date.now() },
     ];
     mocks.sessionService.listSessions = () => [
       { id: 'wks1', agent: 'opencode', status: 'idle', cwd: 'H:\\walker', agentRef: { opencodeSessionId: 'ses_managed' } },
@@ -4361,11 +4590,11 @@ describe('MessageDispatcher 1:N route commands', () => {
     assert.equal(removeCalls.length, 0);
   });
 
-  it('/list 列出 route 下多 session（焦点在前）', async () => {
+  it('/list 列出 route 下近期 session', async () => {
     const mocks = makeMocks();
     const sessions = [
-      { id: 'wks_focus1', agent: 'opencode', status: 'idle' },
-      { id: 'wks_other1', agent: 'opencode', status: 'running' },
+      { id: 'wks_focus1', agent: 'opencode', status: 'idle', updatedAt: Date.now() },
+      { id: 'wks_other1', agent: 'opencode', status: 'running', updatedAt: Date.now() - 1 },
     ];
     mocks.sessionService.listSessionsInRoute = (_routeKey) => sessions;
     mocks.sessionService.getCurrent = () => sessions[0];
@@ -4390,6 +4619,66 @@ describe('MessageDispatcher 1:N route commands', () => {
     assert.equal(cardCall.currentId, 'wks_focus1');
     assert.equal(cardCall.options.routeKey, 'feishu:oc_chat1:om_root1');
     assert.deepEqual(mocks.sessionService.touchRouteCalls, ['feishu:oc_chat1:om_root1']);
+  });
+
+  it('/list 优先显示 OpenCode 最新标题，失败或无标题时保留原标题且不写回', async (t) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-list-title-'));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const store = new JsonStore(path.join(dir, 'state.json'), {});
+    const service = new SessionService({ stateStore: store });
+    const routeKey = 'feishu:chat:root';
+    const now = Date.now();
+    const named = service.createSession({
+      route: routeKey, agent: 'opencode', title: 'Walker 旧标题', cwd: 'H:\\walker',
+      agentRef: { opencodeSessionId: 'ses_named' },
+    });
+    const synthetic = service.createSession({
+      route: routeKey, agent: 'opencode', title: '保持原标题',
+      agentRef: { opencodeSessionId: 'ses_plain' },
+    });
+    const absent = service.createSession({
+      route: routeKey, agent: 'opencode', title: '远端没有该会话',
+      agentRef: { opencodeSessionId: 'ses_absent' },
+    });
+    const claude = service.createSession({ route: routeKey, agent: 'claude', title: '旧 Claude' });
+    store.update((state) => {
+      for (const id of [named.id, synthetic.id, absent.id, claude.id]) state.sessions[id].updatedAt = now;
+    });
+    const mocks = makeMocks();
+    let lookups = 0;
+    mocks.driver.listSessions = async () => {
+      lookups += 1;
+      if (lookups > 1) throw new Error('查询失败');
+      return [
+        { id: 'ses_named', title: '  OpenCode 最新标题  ', updatedAt: now },
+        { id: 'ses_plain', title: 'opencode ses_plain', updatedAt: now },
+        { id: 'ses_blank', title: '   ', updatedAt: now },
+      ];
+    };
+    const updates = [];
+    service.updateSessionField = (...args) => { updates.push(args); };
+    const dispatcher = new MessageDispatcher({ ...mocks, sessionService: service, routeMode: 'thread' });
+    const beforeSessions = store.read().sessions;
+
+    const shown = await dispatcher.handleCommand({
+      name: 'list', args: [], routeKey, messageId: 'list-title', chatId: 'chat',
+    });
+    const titles = Object.fromEntries(shown.sessions.map((session) => [session.id, session.title]));
+    assert.equal(titles[named.id], 'OpenCode 最新标题');
+    assert.equal(titles[synthetic.id], '保持原标题');
+    assert.equal(titles[absent.id], '远端没有该会话');
+    assert.equal(titles[claude.id], '旧 Claude');
+    assert.equal(store.read().sessions[named.id].title, 'Walker 旧标题');
+    assert.deepEqual(store.read().sessions, beforeSessions);
+    assert.deepEqual(updates, []);
+
+    const fallback = await dispatcher.handleCommand({
+      name: 'list', args: [], routeKey, messageId: 'list-title-failed', chatId: 'chat',
+    });
+    assert.equal(fallback.sessions.find((session) => session.id === named.id).title, 'Walker 旧标题');
+    assert.equal(store.read().sessions[named.id].title, 'Walker 旧标题');
+    assert.deepEqual(store.read().sessions, beforeSessions);
+    assert.equal(lookups, 2);
   });
 
   it('/status 显示多 session 状态', async () => {
@@ -5544,6 +5833,59 @@ describe('MessageDispatcher 原生 question 路由', () => {
     dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_QUESTION_REJECTED, { requestID: 'req_2', sessionID: 'ses_q2' }));
     assert.deepEqual(calls, [AgentEvent.TYPE_QUESTION_REPLIED, AgentEvent.TYPE_QUESTION_REJECTED]);
   });
+
+  it('原生问题卡片发送和更新时带上会话模型，且不补查 driver runtime', async () => {
+    const mocks = makeMocks();
+    const session = {
+      id: 'wks_q_runtime',
+      agent: 'opencode',
+      model: { providerID: 'cpa', modelID: 'gpt-5.5' },
+      contextTokens: 128000,
+      agentRef: { transport: 'tui-bridge', runtimeId: 'rt_q', opencodeSessionId: 'ses_q_runtime' },
+    };
+    mocks.sessionService.getRouteForSession = () => 'feishu:oc_chat1:root:om_root1';
+    mocks.sessionService.getSession = (id) => (id === session.id ? session : null);
+    let runtimeReads = 0;
+    mocks.driver.getLatestSessionRuntime = async () => {
+      runtimeReads += 1;
+      throw new Error('question card should not query driver runtime');
+    };
+    const dispatcher = new MessageDispatcher(mocks);
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
+      requestID: 'req_runtime',
+      sessionID: 'ses_q_runtime',
+      questions: [{ header: '选择', question: '请选择', options: [{ label: 'A', description: '' }] }],
+    }));
+    let reply;
+    const replyDeadline = Date.now() + 500;
+    while (Date.now() < replyDeadline) {
+      reply = mocks.feishuApi.calls.find((call) => call.type === 'replyCard');
+      if (reply) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.ok(reply, '问题卡应发出');
+    assert.deepEqual(reply.runtime && reply.runtime.model, session.model, '问题卡 replyCard 必须带上会话模型');
+    assert.equal(reply.runtime.contextSize, 128000, '会话已有上下文时应原样带上，不能变成 unknown');
+    assert.equal(runtimeReads, 0, '问题卡不应补查 driver runtime');
+
+    dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_QUESTION_REPLIED, {
+      requestID: 'req_runtime',
+      sessionID: 'ses_q_runtime',
+      answers: [['A']],
+    }));
+    let patch;
+    const patchDeadline = Date.now() + 500;
+    while (Date.now() < patchDeadline) {
+      patch = mocks.feishuApi.calls.find((call) => call.type === 'patchCard');
+      if (patch) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.ok(patch, '问题已处理应更新原卡片');
+    assert.deepEqual(patch.runtime && patch.runtime.model, session.model, '问题卡 patchCard 必须带上会话模型');
+    assert.equal(patch.runtime.contextSize, 128000);
+    assert.equal(runtimeReads, 0, '更新问题卡也不应补查 driver runtime');
+  });
 });
 
 describe('MessageDispatcher watch buffer 空时从历史补取完成回答', () => {
@@ -5800,7 +6142,7 @@ describe('MessageDispatcher Claude integration removed', () => {
       if (name === 'Claude') return null;
       return mocks.driver;
     };
-    mocks.driver.listSessions = async () => [{ id: 'ses_oc', title: 'oc', cwd: 'H:\\walker', status: 'idle' }];
+    mocks.driver.listSessions = async () => [{ id: 'ses_oc', title: 'oc', cwd: 'H:\\walker', status: 'idle', updatedAt: Date.now() }];
     const dispatcher = new MessageDispatcher({ ...mocks, routeMode: 'thread' });
     const defaultDispatcher = new MessageDispatcher({
       ...mocks,
@@ -5989,6 +6331,7 @@ describe('MessageDispatcher Claude integration removed', () => {
       agent: 'claude',
       status: 'idle',
       title: 'old claude',
+      updatedAt: Date.now(),
       agentRef: { claudeSessionId: '11111111-1111-4111-8111-111111111111' },
     };
     const before = JSON.parse(JSON.stringify(session.agentRef));

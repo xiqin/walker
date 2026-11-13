@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "sources": [{"id":"SRC-001","version":1,"kind":"user-request","artifact":"sources/SRC-001/v1.txt","sha256":"7bc3cd1eb3bc5031acaffcdb3bc2b5e7b4d2b93ffed122053c1a0d3356d4ef87"}],
+  "requirements": [
+    {
+      "id":"REQ-001", "status":"failing", "types":["functional","state","write"], "required_categories":["happy-path","forbidden-behavior","external-failure","state-transition","atomicity"],
+      "acceptance":["两个命令及相关列表分支不删除或清理会话、路由及消息关联"],
+      "behaviors":[
+        {"id":"REQ-001-B01","category":"forbidden-behavior","description":"列表、查询失败和缺失会话不触发删除或清理","status":"failing","acceptance":["不因清理改变会话、路由、消息关联"],"test_plan":{"strategy":"调度器接口回归","inputs":["列表不完整和查询失败"],"expected":["无删除调用"]}},
+        {"id":"REQ-001-B02","category":"happy-path","description":"正常列表请求保留现有展示能力","status":"failing","acceptance":["两个命令正常展示符合条件的会话"],"test_plan":{"strategy":"调度器接口回归","inputs":["有效近期会话"],"expected":["正常展示"]}},
+        {"id":"REQ-001-B03","category":"external-failure","description":"外部会话查询失败时不执行清理","status":"failing","acceptance":["查询失败不删除会话或关联"],"test_plan":{"strategy":"模拟驱动查询失败","inputs":["驱动抛出错误"],"expected":["无清理调用"]}},
+        {"id":"REQ-001-B04","category":"state-transition","description":"正常绑定和切换仍可进行，列表操作不产生删除状态变化","status":"failing","acceptance":["保留正常绑定和切换；不标记会话删除"],"test_plan":{"strategy":"调度器状态回归","inputs":["列表请求及有效绑定请求"],"expected":["无删除状态变化且正常绑定"]}},
+        {"id":"REQ-001-B05","category":"atomicity","description":"查询不完整或失败不会造成部分清理","status":"failing","acceptance":["不发生会话和关联的部分删除"],"test_plan":{"strategy":"检查请求前后状态","inputs":["部分列表或查询错误"],"expected":["所有原有会话和关联保留"]}}
+      ],
+      "intent":{"origin":"explicit","source_refs":[{"id":"SRC-001","version":1,"quote":"attach和list都不清理会话，仅展示近15天的会话列表，时间倒序。"}],"decision":{"status":"approved","actor":"requester","reason":"用户批准规格草案。"},"examples":[{"kind":"negative","given":"列表缺少已有会话","when":"执行 attach","then":"不清理会话"}],"non_goals":["清理历史会话"],"invariants":["列表操作不得删除会话关联"],"assumptions":[],"questions":[]}
+    },
+    {
+      "id":"REQ-002", "status":"failing", "types":["functional","input","compatibility"], "required_categories":["happy-path","boundary","invalid-input","compatibility"],
+      "acceptance":["两个列表按最后更新时间筛选近15天并倒序，缺失无效时间不展示"],
+      "behaviors":[
+        {"id":"REQ-002-B01","category":"happy-path","description":"展示近15天会话并按最后更新时间倒序","status":"failing","acceptance":["筛选排序在分页之前"],"test_plan":{"strategy":"调度器列表回归","inputs":["时间不同的会话"],"expected":["只显示范围内会话并倒序"]}},
+        {"id":"REQ-002-B02","category":"boundary","description":"包含恰好15天前的记录，排除更早记录","status":"failing","acceptance":["窗口为连续15个24小时且下界包含"],"test_plan":{"strategy":"固定时钟边界测试","inputs":["边界时刻及其前一毫秒"],"expected":["边界包含、更早排除"]}},
+        {"id":"REQ-002-B03","category":"invalid-input","description":"缺失或无效更新时间的会话不展示但不清理","status":"failing","acceptance":["无效时间记录未显示且未删除"],"test_plan":{"strategy":"调度器列表回归","inputs":["缺失或无效更新时间"],"expected":["不展示且不清理"]}},
+        {"id":"REQ-002-B04","category":"compatibility","description":"手动指定超过15天的已有会话仍可绑定","status":"failing","acceptance":["时间窗口不限制指定ID绑定"],"test_plan":{"strategy":"指定ID绑定回归","inputs":["超过15天的已有会话ID"],"expected":["绑定成功且无清理"]}}
+      ],
+      "intent":{"origin":"explicit","source_refs":[{"id":"SRC-001","version":1,"quote":"attach和list都不清理会话，仅展示近15天的会话列表，时间倒序。"}],"decision":{"status":"approved","actor":"requester","reason":"用户批准规格草案。"},"examples":[{"kind":"positive","given":"会话在1天前更新","when":"请求列表","then":"展示该会话"},{"kind":"negative","given":"会话在16天前更新","when":"请求列表","then":"不展示该会话但仍保留"}],"non_goals":["限制用户指定旧会话ID"],"invariants":["窗口使用最后更新时间","恰好15天前的时间包含在窗口内"],"assumptions":[],"questions":[]}
+    },
+    {
+      "id":"REQ-003", "status":"failing", "types":["recovery","state","security"], "required_categories":["recovery","forbidden-behavior","state-transition","security"],
+      "acceptance":["只读核查误清理影响，恢复前展示证据并取得用户确认"],
+      "behaviors":[
+        {"id":"REQ-003-B01","category":"recovery","description":"分析受影响记录与恢复证据","status":"failing","acceptance":["提供可恢复范围及不确定性"],"test_plan":{"strategy":"备份与日志只读核对","inputs":["状态备份与清理日志"],"expected":["不修改真实状态并报告证据"]}},
+        {"id":"REQ-003-B02","category":"forbidden-behavior","description":"未经用户明确同意不恢复或覆盖实际状态","status":"failing","acceptance":["只读分析期间不写入实际状态"],"test_plan":{"strategy":"核查操作和状态哈希","inputs":["未批准恢复"],"expected":["不执行恢复写入"]}},
+        {"id":"REQ-003-B03","category":"state-transition","description":"恢复前展示范围、依据、风险及备份并取得明确同意","status":"failing","acceptance":["恢复操作须另行确认"],"test_plan":{"strategy":"审查恢复方案与确认记录","inputs":["恢复建议"],"expected":["先展示证据并等待确认"]}},
+        {"id":"REQ-003-B04","category":"security","description":"核查和报告不暴露认证信息或无关敏感数据","status":"failing","acceptance":["报告不含认证凭据"],"test_plan":{"strategy":"审查核查命令及报告","inputs":["服务注册信息及状态"],"expected":["不输出认证凭据"]}}
+      ],
+      "intent":{"origin":"inferred","source_refs":[{"id":"SRC-001","version":1,"quote":"attach和list都不清理会话，仅展示近15天的会话列表，时间倒序。"}],"rationale":"既有会话误清理后的恢复分析来自此前用户确认继续处理，恢复前需另行确认以避免覆盖数据。","decision":{"status":"approved","actor":"requester","reason":"用户批准包含只读恢复分析及单独确认边界的规格草案。"},"examples":[{"kind":"negative","given":"清理前状态无法证实","when":"分析恢复","then":"不擅自覆盖或重建关联"}],"non_goals":["未经确认写入实际会话状态"],"invariants":["保留现有备份和用户数据"],"assumptions":[],"questions":[]}
+    }
+  ]
+}

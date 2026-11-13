@@ -1,0 +1,8 @@
+{
+  "stage": "brainstorming",
+  "status": "done",
+  "summary": "用户批准规格：两个命令不清理会话，列表按最后更新时间筛选近15天并倒序；恢复实际数据前需另行确认。",
+  "artifacts": ["spec.md", "requirements.json"],
+  "decisions": ["缺失或无效更新时间不展示、不清理", "手动指定旧会话仍允许绑定", "恰好15天前包含在内，筛选和排序先于分页"],
+  "next_steps": ["压缩已结束阶段上下文后推进至 detail-expansion", "只读核查恢复证据，任何恢复写入需另行确认"]
+}

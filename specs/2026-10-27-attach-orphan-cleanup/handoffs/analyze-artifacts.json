@@ -1,0 +1,17 @@
+{
+  "status": "done",
+  "summary": "产物分析通过，无发现；需求与行为覆盖率均为 100%，此前已补全计划中的任务文件名引用。恢复操作须另行获得明确授权。",
+  "artifacts": [
+    "artifact-analysis.json"
+  ],
+  "stage": "analyze-artifacts",
+  "task_id": "analyze-artifacts",
+  "basis_fingerprints": {
+    "plan.md": "0d03b8f65e7b12eca8ae7622abf8c2e60617226265e63d6ac9f3378d8fa9f33e",
+    "requirements.json": "53dab144b8aef567473dd7443243272c29ddd292c7a6947fb5ea7d4adcfb597d",
+    "sources/": "3c8d40cfb8699a62c483b009e05d8d82f295757e45e4223ac57bf64e813ada29",
+    "spec.md": "5d33217c3e021a210801e2f2090126e157069b45d4b9c2623f277c3fe9625d74"
+  },
+  "artifact_fingerprints": {},
+  "written_at": "2026-10-28T01:10:01.236Z"
+}
