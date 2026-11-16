@@ -4,6 +4,7 @@ const { MessageDispatcher } = require('../src/dispatch/message-dispatcher');
 const { MessageDedup } = require('../src/core/message-dedup');
 const { AgentEvent } = require('../src/drivers/agent-driver');
 const { ProgressCard } = require('../src/platform/feishu/progress-card');
+const { FeishuApi } = require('../src/platform/feishu/api');
 const { createEventStore } = require('../src/admin/event-store');
 const { SessionService } = require('../src/core/session-service');
 const { JsonStore } = require('../src/core/json-store');
@@ -563,6 +564,73 @@ describe('MessageDispatcher bound route prompt', () => {
     });
     assert.equal(Object.hasOwn(mocks.feishuApi.calls[2], 'runtime'), false);
     assert.equal(listModelsCalls, 0);
+  });
+
+  it('会话页脚 REQ-001-B01/B03/B04：关联会话优先于焦点且发送链路不新增查询或写入', async () => {
+    const mocks = makeMocks();
+    const session = Object.freeze({ id: 'wks_title_a', title: '会话甲', agent: 'opencode', model: 'p/m', contextTokens: 123 });
+    const focus = Object.freeze({ id: 'wks_title_b', title: '会话乙', model: 'p/b', contextTokens: 456 });
+    const reads = [];
+    mocks.sessionService.getSession = id => { reads.push(['会话', id]); return id === session.id ? session : null; };
+    mocks.sessionService.getCurrent = key => { reads.push(['焦点', key]); return focus; };
+    mocks.sessionService.updateSessionField = () => assert.fail('不能写入会话');
+    mocks.driver.getCurrentModel = () => assert.fail('已有模型不应查询');
+    mocks.driver.getLatestSessionRuntime = () => assert.fail('不应补查运行时');
+    mocks.driver.getSession = () => assert.fail('不应远端查询标题');
+    const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+    api.token = 'tenant-token';
+    api.tokenExpiresAt = Date.now() + 60000;
+    const requests = [];
+    api._request = async (method, host, url, body) => {
+      requests.push(JSON.parse(body));
+      return { code: 0, data: { message_id: 'om_title' } };
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, feishuApi: api });
+    await dispatcher._callFeishu('replyText', [{ messageId: 'om_parent' }, '正文'], null, { session, sessionId: focus.id, routeKey: 'route' });
+    assert.deepEqual(reads, []);
+    await dispatcher._callFeishu('replyCard', [{ messageId: 'om_parent' }, { body: { elements: [{ tag: 'markdown', content: '正文' }] } }], null, { sessionId: session.id, routeKey: 'route' });
+    assert.deepEqual(reads, [['会话', session.id]]);
+    const footer = '---\n会话：会话甲\n模型：p/m\n上下文：123 tokens';
+    assert.equal(JSON.parse(requests[0].content).text, '正文\n\n' + footer);
+    assert.equal(JSON.parse(requests[1].content).body.elements.at(-1).content, footer);
+    const runtime = await dispatcher._feishuRuntimeContext({ routeKey: 'route' });
+    assert.equal(runtime.sessionTitle, '会话乙');
+    assert.deepEqual(reads.at(-1), ['焦点', 'route']);
+    const systemRuntime = await dispatcher._feishuRuntimeContext({});
+    assert.equal(Object.hasOwn(systemRuntime, 'sessionTitle'), false);
+    assert.equal(reads.length, 2, '无关联消息不读取焦点');
+  });
+
+  it('会话页脚 REQ-001-B01/B04：备用进度卡创建正确保留可选初始事件及运行时位置', async () => {
+    const mocks = makeMocks();
+    const session = { id: 'wks_progress_title', title: '进度所属会话', model: 'p/m', contextTokens: 123 };
+    const api = new FeishuApi({ appId: 'cli_a', appSecret: 'sec' });
+    api.token = 'tenant-token';
+    api.tokenExpiresAt = Date.now() + 60000;
+    const cards = [];
+    api._request = async (method, host, url, body) => {
+      cards.push(JSON.parse(JSON.parse(body).content));
+      return { code: 0, data: { message_id: 'om_progress_title' } };
+    };
+    const initialEvents = [];
+    mocks.feishuApi.sendProgressCard = async (replyCtx, sessionId, initialEvent, runtime) => {
+      initialEvents.push(initialEvent);
+      const card = new ProgressCard({ sessionId });
+      if (initialEvent) card.append(initialEvent);
+      return api.replyCard(replyCtx, card.render(), runtime);
+    };
+    const dispatcher = new MessageDispatcher({ ...mocks, progressStyle: 'card' });
+    await dispatcher._renderEvents(session, { messageId: 'om_parent' }, [], null);
+    const initialEvent = new AgentEvent(AgentEvent.TYPE_TOOL_USE, { name: '读取文件', status: 'done' });
+    const args = [{ messageId: 'om_parent' }, session.id, initialEvent];
+    await dispatcher._callFeishu('sendProgressCard', args, null, { session });
+    assert.equal(args.length, 3, '不能修改调用方参数数组');
+    assert.deepEqual(initialEvents, [undefined, initialEvent]);
+    assert.equal(cards.length, 2);
+    for (const card of cards) {
+      assert.equal(card.body.elements.at(-1).content, '---\n会话：进度所属会话\n模型：p/m\n上下文：123 tokens');
+    }
+    assert.ok(cardText(cards[1]).includes('读取文件'), '显式初始事件应正常渲染');
   });
 
   it('_callFeishu 在 session 无模型时直接用 driver 当前模型填充 runtime', async () => {
@@ -1185,6 +1253,7 @@ describe('MessageDispatcher bound route prompt', () => {
     const tokenUsage = { totalTokens: 58520 };
     const session = {
       id: 'wks_card_runtime1', agent: 'opencode', status: 'idle',
+      title: '进度所属会话',
       model: { providerID: 'cpa', modelID: 'gpt-5.5' },
       contextTokens: 58520,
       tokenUsage,
@@ -1215,6 +1284,7 @@ describe('MessageDispatcher bound route prompt', () => {
     const doneUpdate = mocks.feishuApi.calls.find(c => c.type === 'updateProgressCard' && c.agentEvent.type === AgentEvent.TYPE_DONE);
     assert.ok(doneUpdate, 'DONE 应更新一次进度卡片');
     assert.equal(doneUpdate.runtime.contextSize, 58520);
+    assert.equal(doneUpdate.runtime.sessionTitle, '进度所属会话');
     assert.equal(doneUpdate.runtime.tokenUsage, tokenUsage);
   });
 
@@ -5834,10 +5904,11 @@ describe('MessageDispatcher 原生 question 路由', () => {
     assert.deepEqual(calls, [AgentEvent.TYPE_QUESTION_REPLIED, AgentEvent.TYPE_QUESTION_REJECTED]);
   });
 
-  it('原生问题卡片发送和更新时带上会话模型，且不补查 driver runtime', async () => {
+  it('原生问题卡片发送和更新时带上会话模型与标题，且不补查 driver runtime', async () => {
     const mocks = makeMocks();
     const session = {
       id: 'wks_q_runtime',
+      title: '问题所属会话',
       agent: 'opencode',
       model: { providerID: 'cpa', modelID: 'gpt-5.5' },
       contextTokens: 128000,
@@ -5867,6 +5938,7 @@ describe('MessageDispatcher 原生 question 路由', () => {
     assert.ok(reply, '问题卡应发出');
     assert.deepEqual(reply.runtime && reply.runtime.model, session.model, '问题卡 replyCard 必须带上会话模型');
     assert.equal(reply.runtime.contextSize, 128000, '会话已有上下文时应原样带上，不能变成 unknown');
+    assert.equal(reply.runtime.sessionTitle, '问题所属会话');
     assert.equal(runtimeReads, 0, '问题卡不应补查 driver runtime');
 
     dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_QUESTION_REPLIED, {
@@ -5884,6 +5956,7 @@ describe('MessageDispatcher 原生 question 路由', () => {
     assert.ok(patch, '问题已处理应更新原卡片');
     assert.deepEqual(patch.runtime && patch.runtime.model, session.model, '问题卡 patchCard 必须带上会话模型');
     assert.equal(patch.runtime.contextSize, 128000);
+    assert.equal(patch.runtime.sessionTitle, '问题所属会话');
     assert.equal(runtimeReads, 0, '更新问题卡也不应补查 driver runtime');
   });
 });
@@ -5985,6 +6058,25 @@ describe('MessageDispatcher watch buffer 空时从历史补取完成回答', () 
 
     const sends = mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown');
     assert.equal(sends.length, 0, '正文已由 prompt 回复时，watcher 不应因 history footer 差异重复发送');
+  });
+
+  it('会话页脚 REQ-002-B02：标题变化与新旧页脚均不触发重复完成消息', async () => {
+    const mocks = makeMocks();
+    const session = makeSession({ title: '新标题', model: 'p/m' });
+    let history = '正文\n\n---\n会话：旧标题\n模型：p/old\n上下文：1 tokens';
+    mocks.driver.getSessionMessages = async () => ([
+      { info: { id: 'msg_1', role: 'assistant', time: { completed: 123 } }, parts: [{ type: 'text', text: history }] },
+    ]);
+    const dispatcher = new MessageDispatcher(mocks);
+    dispatcher._rememberDeliveredText(session.id, '正文\n\n---\n模型：p/m\n上下文：2 tokens');
+    for (const footer of ['---\n会话：旧标题\n模型：m\n上下文：3 tokens', '---\n会话：新标题\n模型：m', '---\n模型：m']) {
+      history = '正文\n\n' + footer;
+      await dispatcher._handleWatchedSessionEvent(session, 'oc_chat1', new AgentEvent(AgentEvent.TYPE_DONE, { reason: 'polled' }));
+    }
+    assert.equal(mocks.feishuApi.calls.filter(c => c.type === 'sendMarkdown').length, 0);
+    for (const text of ['正文\n会话：普通标题\n模型：正文', '正文\n---\n会话：标题\n上下文：正文', '正文\n---\n会话：标题\n模型：正文\n额外正文', '正文\n---\n模型：正文\n上下文：正文\n后续正文']) {
+      assert.equal(dispatcher._normalizeDeliveredText(text), text);
+    }
   });
 
   it('正文末尾的模型和上下文文字没有分隔符时不应被当作 footer', () => {
