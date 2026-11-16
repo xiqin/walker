@@ -3,8 +3,8 @@ const { createLogger } = require('../../core/logger');
 
 const logger = createLogger('feishu-api');
 const MAX_TEXT_CHARS = 3500;
-const RUNTIME_FOOTER_RE = /\n*---\n模型：[^\n]*(?:\n上下文：[^\n]*)?\s*$/;
-const RUNTIME_FOOTER_FIELD_RE = /(?:^|\n)---\n模型：[^\n]*(?:\n上下文：[^\n]*)?(?:\n|$)/;
+const RUNTIME_FOOTER_RE = /(?:^|\n+)---\n(?:会话：[^\n]*\n)?模型：[^\n]*(?:\n上下文：[^\n]*)?\s*$/;
+const RUNTIME_FOOTER_FIELD_RE = /(?:^|\n)---\n(?:会话：[^\n]*\n)?模型：[^\n]*(?:\n上下文：[^\n]*)?\s*$/;
 
 function splitTextChunks(text, maxChars) {
   const value = text == null ? '' : String(text);
@@ -84,14 +84,28 @@ function formatContextCandidate(value) {
   return '';
 }
 
-function buildRuntimeFooter(runtime) {
-  return '---\n模型：' + formatModelRef(safeRead(runtime, 'model'), safeRead(runtime, 'defaultModel')) + '\n上下文：' + formatContextSize(runtime);
+/** 将运行时标题规范为单行文本；卡片模式下转义格式及飞书标签字符。 */
+function formatSessionTitle(runtime, markdown) {
+  const title = safeRead(runtime, 'sessionTitle');
+  if (typeof title !== 'string') return '';
+  const text = title.replace(/\s+/g, ' ').trim();
+  if (!markdown) return text;
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/[\\`*_\[\]()~!|#]/g, '\\$&');
 }
 
-function appendRuntimeFooter(text, runtime) {
+/** 根据运行时信息生成页脚，markdown 参数表示是否用于卡片。 */
+function buildRuntimeFooter(runtime, markdown) {
+  const title = formatSessionTitle(runtime, markdown);
+  return '---\n' + (title ? '会话：' + title + '\n' : '')
+    + '模型：' + formatModelRef(safeRead(runtime, 'model'), safeRead(runtime, 'defaultModel')) + '\n上下文：' + formatContextSize(runtime);
+}
+
+/** 为正文替换或追加运行时页脚，markdown 参数控制标题的展示转义。 */
+function appendRuntimeFooter(text, runtime, markdown) {
   const value = text == null ? '' : String(text);
   const body = value.replace(RUNTIME_FOOTER_RE, '').trimEnd();
-  const footer = buildRuntimeFooter(runtime || {});
+  const footer = buildRuntimeFooter(runtime || {}, markdown);
   return (body ? body + '\n\n' : '') + footer;
 }
 
@@ -99,12 +113,12 @@ function withRuntimeFooterCard(card, runtime) {
   const cloned = card && typeof card === 'object' ? JSON.parse(JSON.stringify(card)) : {};
   if (!cloned.body || typeof cloned.body !== 'object') cloned.body = {};
   if (!Array.isArray(cloned.body.elements)) cloned.body.elements = [];
-  const footer = buildRuntimeFooter(runtime || {});
+  const footer = buildRuntimeFooter(runtime || {}, true);
   let replaced = false;
   cloned.body.elements = cloned.body.elements.map((element) => {
     if (!replaced && element && element.tag === 'markdown' && typeof element.content === 'string' && RUNTIME_FOOTER_FIELD_RE.test(element.content)) {
       replaced = true;
-      return Object.assign({}, element, { content: footer });
+      return Object.assign({}, element, { content: appendRuntimeFooter(element.content, runtime, true) });
     }
     return element;
   });
@@ -228,7 +242,7 @@ class FeishuApi {
   async replyMarkdown(replyCtx, text, runtime) {
     if (typeof replyCtx === 'string') replyCtx = { messageId: replyCtx };
     const token = await this.getTenantToken();
-    const chunks = splitTextChunks(appendRuntimeFooter(text, runtime));
+    const chunks = splitTextChunks(appendRuntimeFooter(text, runtime, true));
     const buildCard = (content) => ({ schema: '2.0', body: { elements: [{ tag: 'markdown', content }] } });
     const results = [];
     if (replyCtx && replyCtx.messageId) {
@@ -270,7 +284,7 @@ class FeishuApi {
     const token = await this.getTenantToken();
     const results = [];
     const buildCard = (content) => ({ schema: '2.0', body: { elements: [{ tag: 'markdown', content }] } });
-    for (const chunk of splitTextChunks(appendRuntimeFooter(text, runtime))) {
+    for (const chunk of splitTextChunks(appendRuntimeFooter(text, runtime, true))) {
       results.push(await this._request('POST', 'open.feishu.cn', '/open-apis/im/v1/messages?receive_id_type=chat_id', JSON.stringify({
         receive_id: chatId,
         msg_type: 'interactive',

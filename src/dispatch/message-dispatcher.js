@@ -1923,10 +1923,12 @@ class MessageDispatcher {
     const lines = normalized.split(/\r?\n/);
     for (let i = lines.length - 1; i >= Math.max(0, lines.length - 6); i--) {
       const line = (lines[i] || '').trim();
-      const next = (lines[i + 1] || '').trim();
-      const afterNext = (lines[i + 2] || '').trim();
-      if (line === '---' && /^模型：/.test(next)
-        && (i + 2 === lines.length || (i + 3 === lines.length && /^上下文：/.test(afterNext)))) {
+      let modelIndex = i + 1;
+      if (/^会话：/.test((lines[modelIndex] || '').trim())) modelIndex++;
+      const modelLine = (lines[modelIndex] || '').trim();
+      const contextLine = (lines[modelIndex + 1] || '').trim();
+      if (line === '---' && /^模型：/.test(modelLine)
+        && (modelIndex + 1 === lines.length || (modelIndex + 2 === lines.length && /^上下文：/.test(contextLine)))) {
         return lines.slice(0, i).join('\n').trim();
       }
     }
@@ -2097,7 +2099,10 @@ class MessageDispatcher {
     if (!/^(replyText|sendText|replyMarkdown|sendMarkdown|patchCard|replyCard|sendProgressCard|updateProgressCard)$/.test(methodName)) {
       return args;
     }
-    return (args || []).concat([await this._feishuRuntimeContext(context || this._feishuContextFromArgs(args))]);
+    const businessArgs = (args || []).slice();
+    // 创建进度卡时初始事件可省略，但运行时始终占第四个参数。
+    if (methodName === 'sendProgressCard' && businessArgs.length === 2) businessArgs.push(undefined);
+    return businessArgs.concat([await this._feishuRuntimeContext(context || this._feishuContextFromArgs(args))]);
   }
 
   _feishuContextFromArgs(args) {
@@ -2119,6 +2124,7 @@ class MessageDispatcher {
       this._updateSessionRuntimeField(session.id, 'model', model);
     }
     return {
+      ...(session && typeof session.title === 'string' ? { sessionTitle: session.title } : {}),
       model,
       defaultModel: this.defaultModel,
       contextSize: this._firstRuntimeValue(context, session, ['contextSize', 'contextTokens', 'tokens']),
