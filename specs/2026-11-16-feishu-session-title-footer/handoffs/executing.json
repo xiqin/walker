@@ -1,0 +1,28 @@
+{
+  "worktree_root": "C:/Users/tianxiqin/.local/share/opencode/worktree/ee4c5e/feature/2026-11-16-feishu-session-title-footer",
+  "branch": "feature/2026-11-16-feishu-session-title-footer",
+  "next_action": "压缩后推进converge，运行引用检查，引用独立语义复审，后续verification及review-gate。",
+  "status": "done",
+  "summary": "T1、T2串行完成，仅修改两个源文件及其测试。独立审查发现并修复进度卡备用创建参数错位F1，第二轮九项行为全部covered且七维质量通过。定向318、完整1533项通过，behavior级测试证据已补齐。未提交、推送或重启。用户已重新批准执行状态更新，规格语义未变；刷新交接依据。",
+  "artifacts": [
+    "test-report.md",
+    "traceability.json",
+    "handoffs/T1.json",
+    "handoffs/T2.json",
+    "findings/independent-review-round-1.md",
+    "findings/independent-review-round-2.md"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "0380ba62c5999f53c2ae9f255797455f658c38cb8a599921d3472ef95bd6842c",
+    "requirements.json": "80ff4145008321567cde0ddf4ef5e4c27175366798fc055803615724c2b68262",
+    "sources/": "8fb4ef7d5b04dd09d19d2eee0cc668ef9b464c39a057220ebb2b83adb9cbe611",
+    "spec.md": "bc8f2b8222a56fb01e77c451e22bd297883f5d19ac1dc3d1c4f62218f3889f58",
+    "tasks/": "7dd04df30d4bb6c7202df420ede4d9fac2557055708c82642286dfb4ef7d83e0"
+  },
+  "artifact_fingerprints": {
+    "test-report.md": "9dbef9d0321dc0908b485b16f09b9cd0b8f4b72dc6d56c4cae8ae18359aabdcc"
+  },
+  "written_at": "2026-11-16T11:44:05.419Z"
+}

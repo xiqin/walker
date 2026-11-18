@@ -1,0 +1,34 @@
+{
+  "category_check": {
+    "command": "node 独立读取 requirements.json，逐 REQ 检查 required_categories 是否存在同 category 的 behavior",
+    "covered": 9,
+    "total": 9,
+    "missing": [],
+    "reported_coverage": "0%",
+    "verified_coverage": "100%"
+  },
+  "next_action": "压缩后仅推进 approved 人工审批门，展示 T1 统一页脚兼容与安全展示、T2 关联会话标题透传及去重两个串行任务，等待用户明确批准实现计划。不得开始实现，不重复确认规格。",
+  "status": "done",
+  "summary": "跨产物分析通过，无 findings 或阻断项；需求、行为及追溯映射均为100%。工具维度覆盖率返回0%，独立按每项 required_categories 对照 behaviors.category 核验实际9/9覆盖，作为工具报告差异记录，不修改业务或框架。用户已重新批准执行状态更新，规格语义未变；刷新交接依据。",
+  "artifacts": [
+    "artifact-analysis.json",
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "traceability.json"
+  ],
+  "stage": "analyze-artifacts",
+  "task_id": "analyze-artifacts",
+  "basis_fingerprints": {
+    "plan.md": "0380ba62c5999f53c2ae9f255797455f658c38cb8a599921d3472ef95bd6842c",
+    "requirements.json": "80ff4145008321567cde0ddf4ef5e4c27175366798fc055803615724c2b68262",
+    "sources/": "8fb4ef7d5b04dd09d19d2eee0cc668ef9b464c39a057220ebb2b83adb9cbe611",
+    "spec.md": "bc8f2b8222a56fb01e77c451e22bd297883f5d19ac1dc3d1c4f62218f3889f58"
+  },
+  "artifact_fingerprints": {
+    "plan.md": "0380ba62c5999f53c2ae9f255797455f658c38cb8a599921d3472ef95bd6842c",
+    "tasks/T1.md": "31047b81ce2dae907aad94eab09c5092ff94acafbda2c851e71beb2538e93825",
+    "tasks/T2.md": "24b41d8108b790ae6ca9836cc3873f32247b5d90744ee96466f2d776870566f9"
+  },
+  "written_at": "2026-11-16T11:44:05.172Z"
+}

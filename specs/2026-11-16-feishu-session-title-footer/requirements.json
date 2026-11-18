@@ -1,0 +1,31 @@
+{
+  "schema_version": 2,
+  "sources": [{"id":"SRC-001","version":1,"kind":"user-request","artifact":"sources/SRC-001/v1.txt","sha256":"82f1a52f38cee032274d69d4b8c5d0ab31fc5de733ae50238bf5007c210d446c","locator":"当前对话中用户的两条需求原文"}],
+  "requirements": [
+    {
+      "id":"REQ-001","status":"passing","types":["functional","input","observable"],
+      "required_categories":["happy-path","invalid-input","forbidden-behavior","observability"],
+      "acceptance":["消息所属会话标题显示在模型、上下文同一页脚内；无标题时保留原格式；不新增查询或持久化写入"],
+      "behaviors":[
+        {"id":"REQ-001-B04","category":"observability","description":"发送的页脚同时可见会话标题、模型与上下文","status":"passing","acceptance":["最终文本和卡片均含三行可读信息"],"test_plan":{"strategy":"检查飞书发送请求体","inputs":["有效标题、模型、上下文"],"expected":["会话行位于模型及上下文之前"],"coverage_target":"REQ-001-B04"}},
+        {"id":"REQ-001-B01","category":"happy-path","description":"文本和卡片从消息实际关联会话取得标题，按会话、模型、上下文排序","status":"passing","acceptance":["会话甲的消息在焦点为乙时仍显示甲的标题"],"test_plan":{"strategy":"调度器与飞书 API 单元测试","inputs":["会话甲标题、不同焦点会话乙、模型和上下文"],"expected":["文本和卡片页脚显示甲标题且模型上下文保持不变"],"coverage_target":"REQ-001-B01"}},
+        {"id":"REQ-001-B02","category":"invalid-input","description":"标题不存在、非字符串或空白时省略会话行","status":"passing","acceptance":["无有效标题的消息仍正常发送并保留旧页脚格式"],"test_plan":{"strategy":"参数化单元测试","inputs":["null","数值42","空字符串","纯空白"],"expected":["无会话行；模型和上下文正常"],"coverage_target":"REQ-001-B02"}},
+        {"id":"REQ-001-B03","category":"forbidden-behavior","description":"标题展示不新增外部请求或写入会话数据","status":"passing","acceptance":["仅使用现有会话记录中的标题"],"test_plan":{"strategy":"调度器依赖调用断言","inputs":["已有模型、上下文和标题的会话"],"expected":["不调用标题查询或持久化接口"],"coverage_target":"REQ-001-B03"}}
+      ],
+      "intent":{"origin":"explicit","source_refs":[{"id":"SRC-001","version":1,"quote":"放在页脚，和模型，上下文一起"}],"rationale":"将用户指定展示位置落实到现有统一页脚；使用 Walker 当前可用的会话标题，缺失时省略会话行；不新增远端标题同步。","decision":{"status":"approved","actor":"requester","reason":"用户在规格摘要展示后明确回复确认。"},"examples":[{"kind":"positive","given":"会话标题为飞书桥接修复","when":"发送助手回复","then":"页脚显示会话标题、模型和上下文"}],"non_goals":["远端标题实时同步","新增标题消息"],"invariants":["正文和路由不变"],"assumptions":[],"questions":[]}
+    },
+    {
+      "id":"REQ-002","status":"passing","types":["functional","input","security"],
+      "required_categories":["happy-path","invalid-input","compatibility","idempotency","security"],
+      "acceptance":["兼容新旧页脚替换和回复去重；多行标题规范为普通单行展示文本"],
+      "behaviors":[
+        {"id":"REQ-002-B04","category":"happy-path","description":"普通标题首次渲染产生一个页脚","status":"passing","acceptance":["正文保持不变，页脚仅出现一次"],"test_plan":{"strategy":"文本和卡片单元测试","inputs":["普通正文及标题"],"expected":["生成唯一页脚"],"coverage_target":"REQ-002-B04"}},
+        {"id":"REQ-002-B05","category":"invalid-input","description":"标题包含换行时折叠为单行","status":"passing","acceptance":["标题不能添加额外模型或上下文字段"],"test_plan":{"strategy":"参数化单元测试","inputs":["含回车、换行的标题"],"expected":["会话字段保持单行且字段数量稳定"],"coverage_target":"REQ-002-B05"}},
+        {"id":"REQ-002-B01","category":"compatibility","description":"旧模型页脚和带标题的新页脚均能替换","status":"passing","acceptance":["文本追加及卡片更新均只保留一个最新页脚"],"test_plan":{"strategy":"飞书 API 回归测试","inputs":["旧页脚","新页脚及变更标题"],"expected":["旧页脚被替换而非重复追加"],"coverage_target":"REQ-002-B01"}},
+        {"id":"REQ-002-B02","category":"idempotency","description":"回复正文去重忽略新旧运行时页脚","status":"passing","acceptance":["相同正文不同标题不会补发重复回复；正文自身模型文字保留"],"test_plan":{"strategy":"调度器去重回归测试","inputs":["相同正文配不同标题页脚","无分隔符的模型文字"],"expected":["前者去重，后者不被误删"],"coverage_target":"REQ-002-B02"}},
+        {"id":"REQ-002-B03","category":"security","description":"多行及含格式字符的标题仅作为单行展示文本","status":"passing","acceptance":["换行不能注入新的页脚字段，格式字符不能改变卡片结构"],"test_plan":{"strategy":"飞书 API 边界测试","inputs":["标题含换行、模型字段、Markdown 或飞书标签字符"],"expected":["标题保持普通单行文本且页脚可重复替换"],"coverage_target":"REQ-002-B03"}}
+      ],
+      "intent":{"origin":"inferred","source_refs":[{"id":"SRC-001","version":1,"quote":"放在页脚，和模型，上下文一起"}],"rationale":"现有页脚参与追加替换和正文去重，增加标题必须兼容这些行为，避免重复推送或标题格式注入。","decision":{"status":"approved","actor":"requester","reason":"用户在包含旧页脚与回复去重兼容的规格摘要展示后明确回复确认。"},"examples":[{"kind":"negative","given":"同一正文的会话标题变更","when":"watch 收到重复完成事件","then":"不再次推送正文"}],"non_goals":["修改正文去重策略"],"invariants":["旧页脚仍可识别","不改变正文内容"],"assumptions":[],"questions":[]}
+    }
+  ]
+}

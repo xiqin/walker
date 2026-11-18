@@ -1,0 +1,7 @@
+{
+  "task_id": "T2",
+  "status": "done",
+  "summary": "透传实际关联会话标题，兼容新旧页脚去重；补齐进度卡可选初始事件的位置，保留其他方法契约。独立复审关闭F1，九项行为均covered。",
+  "artifacts": ["src/dispatch/message-dispatcher.js", "test/message-dispatcher.test.js", "traceability.json", "test-report.md", "findings/independent-review-round-2.md"],
+  "breaking_changes": []
+}

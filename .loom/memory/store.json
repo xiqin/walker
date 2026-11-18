@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "b5461449",
+      "type": "踩坑",
+      "content": "飞书运行时代理追加参数时，sendProgressCard 省略可选 initialEvent 会使 runtime 错占第三参数；须补 undefined 后再把 runtime 放在第四参数，并保持调用方参数数组不变。",
+      "author": "tianxiqin",
+      "tags": [],
+      "context": null,
+      "source": "代码审查与回归测试",
+      "confidence": 1,
+      "scope": "project",
+      "expires_at": null,
+      "stage": null,
+      "files": [
+        "src/dispatch/message-dispatcher.js",
+        "test/message-dispatcher.test.js"
+      ],
+      "links": {
+        "spec": "H:/walker/specs/2026-11-16-feishu-session-title-footer"
+      },
+      "created_at": "2026-11-16T11:49:46.342Z"
+    },
+    {
       "id": "907f11fd",
       "type": "踩坑",
       "content": "OpenCode v2 助手正文推不到飞书，是因为没有 session.busy/session.idle，reportManualFinal 没有 baseline 就直接返回。修复是用 session.execution.started 建本轮基线，抽取前调用 message.sync；缓存抽不到或 started 晚于已完成消息时，用 session.text.* / session.reasoning.* / session.step.ended 兜底，不把流式 delta 实时推到飞书。插件版本 20，需重启 Walker 重装后再重启 OpenCode 才生效。",
@@ -981,22 +1002,6 @@
       "files": [],
       "links": {},
       "created_at": "2026-07-13T03:50:28.254Z"
-    },
-    {
-      "id": "93b9fbfc",
-      "type": "状态",
-      "content": "Walker 短期演进已完成并验证：新增可配置飞书进度卡片心跳、/cancel、/status 与 /ps、WALKER_MAX_TURN_TIME_MINS 单轮超时取消，并补强取消/超时残留输出和重复推送防护；验证 npm test 504/504 通过，CodeGraph 已同步。",
-      "author": "tianxiqin",
-      "tags": [],
-      "context": null,
-      "source": null,
-      "confidence": null,
-      "scope": "project",
-      "expires_at": null,
-      "stage": null,
-      "files": [],
-      "links": {},
-      "created_at": "2026-07-11T13:32:23.678Z"
     }
   ],
   "sessions": []

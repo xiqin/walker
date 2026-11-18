@@ -1,0 +1,8 @@
+{
+  "task_id": "T1",
+  "status": "done",
+  "summary": "统一文本与卡片会话标题页脚，兼容新旧替换、多行及格式字符、嵌入正文的连续更新和标题移除。独立审查复审通过。",
+  "artifacts": ["src/platform/feishu/api.js", "test/feishu-api.test.js", "traceability.json", "findings/independent-review-round-2.md"],
+  "exported_interfaces": [{"name":"runtime.sessionTitle","path":"src/platform/feishu/api.js","signature":"可选字符串；平台负责单行化与卡片转义"}],
+  "breaking_changes": []
+}

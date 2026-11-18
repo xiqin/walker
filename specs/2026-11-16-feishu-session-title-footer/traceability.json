@@ -1,0 +1,23 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1", "T2"], "tests": ["test/feishu-api.test.js", "test/message-dispatcher.test.js"], "evidence": ["evidence/targeted.log", "evidence/full.log"],
+      "behaviors": {
+        "REQ-001-B01": {"tasks": ["T1", "T2"], "tests": ["test/feishu-api.test.js#会话页脚 REQ-001-B01/B04", "test/message-dispatcher.test.js#会话页脚 REQ-001-B01/B03/B04", "test/message-dispatcher.test.js#会话页脚 REQ-001-B01/B04：备用进度卡创建"], "evidence": ["evidence/targeted.log"]},
+        "REQ-001-B02": {"tasks": ["T1"], "tests": ["test/feishu-api.test.js#会话页脚 REQ-001-B02"], "evidence": ["evidence/targeted.log"]},
+        "REQ-001-B03": {"tasks": ["T2"], "tests": ["test/message-dispatcher.test.js#会话页脚 REQ-001-B01/B03/B04"], "evidence": ["evidence/targeted.log"]},
+        "REQ-001-B04": {"tasks": ["T1", "T2"], "tests": ["test/feishu-api.test.js#会话页脚 REQ-001-B01/B04", "test/message-dispatcher.test.js#会话页脚 REQ-001-B01/B03/B04", "test/message-dispatcher.test.js#会话页脚 REQ-001-B01/B04：备用进度卡创建"], "evidence": ["evidence/targeted.log"]}
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T1", "T2"], "tests": ["test/feishu-api.test.js", "test/message-dispatcher.test.js"], "evidence": ["evidence/targeted.log", "evidence/full.log"],
+      "behaviors": {
+        "REQ-002-B01": {"tasks": ["T1"], "tests": ["test/feishu-api.test.js#会话页脚 REQ-002-B01"], "evidence": ["evidence/targeted.log"]},
+        "REQ-002-B02": {"tasks": ["T2"], "tests": ["test/message-dispatcher.test.js#会话页脚 REQ-002-B02"], "evidence": ["evidence/targeted.log"]},
+        "REQ-002-B03": {"tasks": ["T1"], "tests": ["test/feishu-api.test.js#会话页脚 REQ-002-B03/B05"], "evidence": ["evidence/targeted.log"]},
+        "REQ-002-B04": {"tasks": ["T1"], "tests": ["test/feishu-api.test.js#会话页脚 REQ-001-B01/B04"], "evidence": ["evidence/targeted.log"]},
+        "REQ-002-B05": {"tasks": ["T1"], "tests": ["test/feishu-api.test.js#会话页脚 REQ-002-B03/B05"], "evidence": ["evidence/targeted.log"]}
+      }
+    }
+  }
+}

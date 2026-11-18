@@ -1425,5 +1425,49 @@
     "skill": "loom-verification-before-completion",
     "passed": true,
     "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-11-16-feishu-session-title-footer",
+    "timestamp": "2026-11-16T11:42:11.477Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": false,
+    "violations": [
+      "需求执行状态更新导致审批指纹失效；用户已明确重新批准，回到原审批门禁记录"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-11-16-feishu-session-title-footer",
+    "timestamp": "2026-11-16T11:44:18.100Z",
+    "stage": "git-worktree",
+    "skill": "loom-using-git-worktrees",
+    "passed": false,
+    "violations": [
+      "重新审批已记录；已有独立工作树、实现及验证证据，恢复至原verification阶段重新运行门禁校验，不重复实现"
+    ]
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-11-16-feishu-session-title-footer",
+    "timestamp": "2026-11-16T11:44:29.816Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-11-16-feishu-session-title-footer",
+    "timestamp": "2026-11-16T11:46:35.629Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
+  },
+  {
+    "spec_dir": "H:\\walker\\specs\\2026-11-16-feishu-session-title-footer",
+    "timestamp": "2026-11-16T11:49:23.427Z",
+    "stage": "verification",
+    "skill": "loom-verification-before-completion",
+    "passed": true,
+    "violations": []
   }
 ]
