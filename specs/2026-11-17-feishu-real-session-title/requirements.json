@@ -1,0 +1,176 @@
+{
+  "schema_version": 2,
+  "sources": [
+    { "id": "SRC-001", "version": 1, "kind": "user-request", "artifact": "sources/SRC-001/v1.txt", "sha256": "ecd6a2fa2a1ac50d994d115d853105af3f6399a1242cc5b651403dbf0f62f5db", "locator": "会话原始反馈文字；截图保留于会话附件" },
+    { "id": "SRC-002", "version": 1, "kind": "user-request", "artifact": "sources/SRC-002/v1.txt", "sha256": "2dd5dce18ab2904b4aaaa45fc96cf54f62cd8ea9e5d43d77922823a00234e290", "locator": "用户补充一对多会话绑定约束" },
+    { "id": "SRC-003", "version": 1, "kind": "user-request", "artifact": "sources/SRC-003/v1.txt", "sha256": "caf5bf24bc0705f61b390653919c8cccb4f04f8a7d68b5c13482679b776218b4", "locator": "用户明确同意推荐方案并要求实施" }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001", "status": "failing",
+      "types": ["functional", "input", "security"],
+      "required_categories": ["happy-path", "invalid-input", "security"],
+      "acceptance": ["所有统一页脚入口显示所属 OpenCode 真实标题，而非 Walker 默认名称；不改变模型和上下文。"],
+      "intent": {
+        "origin": "explicit",
+        "source_refs": [
+          { "id": "SRC-001", "version": 1, "quote": "会话标题不对，这是会话id。正常应该是[Image 1]" },
+          { "id": "SRC-003", "version": 1, "quote": "实施吧" }
+        ],
+        "decision": { "status": "approved", "actor": "用户", "reason": "用户针对真实标题读取推荐方案明确要求实施。" },
+        "examples": [
+          { "kind": "positive", "given": "本地名称为 session wks_M7A3D1RA，关联 OpenCode 标题为合成示例甲", "when": "发送该会话回复", "then": "页脚显示合成示例甲，模型和上下文不变" },
+          { "kind": "negative", "given": "只有 Walker 自动默认名称", "when": "真实标题不可用", "then": "不把默认名称显示为真实标题" }
+        ],
+        "non_goals": ["不猜测截图中被截断的完整标题", "不改历史消息或远端标题"],
+        "invariants": ["页脚仍使用既有格式化与安全转义", "仅查询明确关联的 OpenCode 会话"],
+        "assumptions": [], "questions": []
+      },
+      "behaviors": [
+        {
+          "id": "REQ-001-B01", "category": "happy-path", "status": "failing", "applicability": "applicable",
+          "description": "默认本地名称的已关联会话可从驱动取得真实标题并进入各统一页脚入口。",
+          "acceptance": ["文本、Markdown、进度卡、问题卡包含真实标题，不包含默认名称。"],
+          "test_plan": { "strategy": "驱动只读边界与真实发送边界验证", "inputs": ["本地默认名称；关联会话有有效真实标题"], "expected": ["页脚显示真实标题；模型和上下文原样保留"], "coverage_target": "标题源到页脚" }
+        },
+        {
+          "id": "REQ-001-B02", "category": "invalid-input", "status": "failing", "applicability": "applicable",
+          "description": "空值、非字符串及自动占位名称不得被作为真实标题。",
+          "acceptance": ["无有效标题时省略会话行，正文和其他页脚字段仍发送。"],
+          "test_plan": { "strategy": "输入矩阵与发送边界验证", "inputs": ["空白、非字符串、自动 session/opencode 短ID名称"], "expected": ["不显示伪标题；发送不失败"] }
+        },
+        {
+          "id": "REQ-001-B03", "category": "security", "status": "failing", "applicability": "applicable",
+          "description": "精确 ID 查询只读且安全，标题按既有规则进行展示转义。",
+          "acceptance": ["SQL ID 安全转义并只读；HTTP 不修改远端；多行及标签字符不改变卡片结构。"],
+          "test_plan": { "strategy": "捕获 SQL、HTTP 请求及卡片结构", "inputs": ["含引号的会话ID；多行与飞书标签标题"], "expected": ["只读精确查询；无额外SQL或远端写入；标题展示安全"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-002", "status": "failing",
+      "types": ["functional", "state", "performance"],
+      "required_categories": ["happy-path", "concurrency", "state-transition", "performance", "boundary"],
+      "acceptance": ["一对多绑定不串标题；缓存按连接和会话隔离，同键合并读取，30秒过期后的下一次发送更新。"],
+      "intent": {
+        "origin": "explicit",
+        "source_refs": [
+          { "id": "SRC-002", "version": 1, "quote": "一个飞书会话进程会绑定多个opencode session id" },
+          { "id": "SRC-003", "version": 1, "quote": "实施吧" }
+        ],
+        "decision": { "status": "approved", "actor": "用户", "reason": "已向用户解释按消息所属会话及连接隔离缓存，用户随后要求实施。" },
+        "examples": [
+          { "kind": "positive", "given": "同一飞书聊天绑定A与B，焦点在B", "when": "A迟到回复与B回复并发发送", "then": "各自显示自己的标题" },
+          { "kind": "boundary", "given": "会话标题变化且缓存满30秒", "when": "下一次发送", "then": "重新读取同一关联会话的新标题" }
+        ],
+        "non_goals": ["不按飞书聊天或进程共享一个标题", "不改变焦点或消息路由"],
+        "invariants": ["关联身份优先于当前焦点", "连接变更不得复用旧身份的标题"],
+        "assumptions": [], "questions": []
+      },
+      "behaviors": [
+        {
+          "id": "REQ-002-B01", "category": "happy-path", "status": "failing", "applicability": "applicable",
+          "description": "同一聊天多个会话输出分别采用各自关联ID的标题。",
+          "acceptance": ["焦点切换不影响其他会话迟到消息的标题。"],
+          "test_plan": { "strategy": "A/B多会话发送集成验证", "inputs": ["同聊天同cwd的A/B不同标题；焦点切B后A输出"], "expected": ["A只显示A标题，B只显示B标题"] }
+        },
+        {
+          "id": "REQ-002-B02", "category": "concurrency", "status": "failing", "applicability": "applicable",
+          "description": "同身份并发读取合并，不同会话、端点或runtime相互隔离。",
+          "acceptance": ["同键并发仅一次读取；异键并发不会使用对方的结果；旧连接读取晚于新连接完成时不得覆盖新连接结果。"],
+          "test_plan": { "strategy": "可控Promise并发与请求计数", "inputs": ["同键并发；同ID不同端点或runtime；旧连接结果逆序返回"], "expected": ["同键合并；异键结果独立；连接变更后不串标题；旧连接结果不污染新连接缓存"] }
+        },
+        {
+          "id": "REQ-002-B03", "category": "state-transition", "status": "failing", "applicability": "applicable",
+          "description": "成功和失败缓存最多保留30秒，过期后下一次发送刷新标题。",
+          "acceptance": ["标题变更在过期后重新读取；缓存未过期不重复查询。"],
+          "test_plan": { "strategy": "可控时钟验证缓存边界", "inputs": ["初始标题甲、更新乙；29.999秒与30秒"], "expected": ["期限内使用缓存；到期下一次读取乙"] }
+        },
+        {
+          "id": "REQ-002-B04", "category": "performance", "status": "failing", "applicability": "applicable",
+          "description": "缓存有界，重复进度更新不重复读取，调度器销毁后释放缓存。",
+          "acceptance": ["缓存容量有明确上限与淘汰规则，进行中请求也不得无界积累；销毁清理且迟到结果不重新填充缓存；期限内重复发送不增加读取次数。"],
+          "test_plan": { "strategy": "计数与容量边界测试", "inputs": ["同键连续进度更新；超容量身份与挂起请求；销毁后读取才完成"], "expected": ["读取一次；缓存和进行中条目容量受限；销毁清空且不被迟到结果重新填充"] }
+        },
+        {
+          "id": "REQ-002-B05", "category": "boundary", "status": "failing", "applicability": "applicable",
+          "description": "缓存到期与容量边界不破坏身份隔离，容量饱和时仍能有界降级发送。",
+          "acceptance": ["29.999秒不刷新、30秒可刷新；容量上限和上限加一均不超过计划规定上限，不能通过复用其他身份条目降级。"],
+          "test_plan": { "strategy": "可控时钟与容量边界验证", "inputs": ["缓存年龄29999和30000毫秒；容量上限与上限加一；全部槽位仍在读取"], "expected": ["到期才刷新；缓存及请求数有界；饱和时发送可继续且不借用其他会话标题"] }
+        }
+      ]
+    },
+    {
+      "id": "REQ-003", "status": "failing",
+      "types": ["functional", "recovery", "performance", "observable"],
+      "required_categories": ["happy-path", "external-failure", "compatibility", "forbidden-behavior", "recovery", "performance", "observability", "authorization"],
+      "acceptance": ["2秒读取预算内降级，不阻断发送；旧会话可补读；无状态写入及无关联时的焦点猜测。"],
+      "intent": {
+        "origin": "inferred",
+        "source_refs": [
+          { "id": "SRC-001", "version": 1, "quote": "会话标题不对，这是会话id。" },
+          { "id": "SRC-003", "version": 1, "quote": "实施吧" }
+        ],
+        "rationale": "为修复现有默认名称记录并避免新增查询影响发消息，推荐方案明确包含旧会话兼容、缓存及失败不阻断；用户确认该方案。",
+        "decision": { "status": "approved", "actor": "用户", "reason": "用户确认已展示的推荐方案及其失败降级、旧会话兼容边界。" },
+        "examples": [
+          { "kind": "negative", "given": "标题源超时且仅有自动默认名", "when": "发送消息", "then": "2秒预算内降级发送，不显示会话行；不写状态" },
+          { "kind": "positive", "given": "已纳入旧会话从未保存真实标题", "when": "标题源恢复后缓存到期再次发送", "then": "无需重新纳入即可显示真实标题" }
+        ],
+        "non_goals": ["不改插件协议", "不自动提交、推送、合并、部署或重启"],
+        "invariants": ["正文、模型、上下文和路由保持既有语义", "显式所属会话解析失败不得借用焦点会话"],
+        "assumptions": [], "questions": []
+      },
+      "behaviors": [
+        {
+          "id": "REQ-003-B01", "category": "external-failure", "status": "failing", "applicability": "applicable",
+          "description": "HTTP错误、超时和数据库不可用在2秒预算内降级且不阻断发送。",
+          "acceptance": ["使用同身份最近有效标题或非默认本地标题，否则省略；真实请求或子进程有超时控制。"],
+          "test_plan": { "strategy": "故障注入与真实超时参数验证", "inputs": ["非成功HTTP、挂起读取、数据库命令失败"], "expected": ["发送成功；不显示自动名称；无遗留无限等待任务"] }
+        },
+        {
+          "id": "REQ-003-B02", "category": "compatibility", "status": "failing", "applicability": "applicable",
+          "description": "已纳入旧会话无需插件升级即可补读，既有页脚格式与去重保持兼容。",
+          "acceptance": ["旧会话读取成功后显示真实标题；既有页脚替换、卡片参数补位和正文去重测试通过。"],
+          "test_plan": { "strategy": "旧会话集成、既有定向测试与完整测试", "inputs": ["只有旧agentRef和默认名的记录；新旧页脚；省略initialEvent"], "expected": ["标题正确；无重复正文或页脚；卡片参数正确"] }
+        },
+        {
+          "id": "REQ-003-B03", "category": "forbidden-behavior", "status": "failing", "applicability": "applicable",
+          "description": "只读标题获取不写会话状态、不枚举猜测、不借用其他焦点会话。",
+          "acceptance": ["无关联或显式ID失效不查询其他会话；本地与远端标题均不被改写。"],
+          "test_plan": { "strategy": "冻结状态与禁止调用断言", "inputs": ["无会话；失效显式sessionId且焦点有效；标题更新"], "expected": ["不借用焦点；无更新状态或远端写请求；仅精确ID读取"] }
+        },
+        {
+          "id": "REQ-003-B04", "category": "happy-path", "status": "failing", "applicability": "applicable",
+          "description": "标题源不可用时按同身份历史真实标题、非默认本地标题、无标题的顺序降级。",
+          "acceptance": ["降级顺序确定，正文及模型与上下文仍正确。"],
+          "test_plan": { "strategy": "真实发送边界验证降级组合", "inputs": ["已缓存真实标题后失败；仅有有效本地标题；仅有占位名"], "expected": ["分别显示历史真实标题、本地有效标题或省略会话行"] }
+        },
+        {
+          "id": "REQ-003-B05", "category": "recovery", "status": "failing", "applicability": "applicable",
+          "description": "失败缓存过期后可重读并恢复真实标题，不永久记住失败。",
+          "acceptance": ["失败缓存期限内不重复查询；过期后恢复读取，无需重新纳入会话。"],
+          "test_plan": { "strategy": "可控时钟与故障恢复", "inputs": ["先失败、期限内重复、过期后成功"], "expected": ["期限内复用失败结果；到期恢复真实标题"] }
+        },
+        {
+          "id": "REQ-003-B06", "category": "performance", "status": "failing", "applicability": "applicable",
+          "description": "标题获取总预算2秒，实际HTTP请求或数据库子进程具备终止约束。",
+          "acceptance": ["挂起标题源不会无限等待；多来源降级共用总预算。"],
+          "test_plan": { "strategy": "超时与取消边界测试", "inputs": ["挂起HTTP；挂起数据库进程；多来源依次失败"], "expected": ["2秒预算内结束标题等待；底层超时或取消受控"] }
+        },
+        {
+          "id": "REQ-003-B07", "category": "observability", "status": "failing", "applicability": "applicable",
+          "description": "失败可诊断且不在日志泄漏凭据或正文，缓存防止失败日志随每次进度更新放大。",
+          "acceptance": ["日志可定位关联身份和失败类型，不包含认证头及消息正文。"],
+          "test_plan": { "strategy": "日志捕获与重复故障计数", "inputs": ["带认证上下文的故障；同键重复发送"], "expected": ["可诊断且无凭据正文；缓存期限内不重复执行失败查询"] }
+        },
+        {
+          "id": "REQ-003-B08", "category": "authorization", "status": "failing", "applicability": "applicable",
+          "description": "标题读取沿用关联连接现有认证与数据库访问权限，权限失败不得改用其他连接或会话查询。",
+          "acceptance": ["复用现有HTTP客户端认证语义；401、403或数据库权限拒绝仅按既定顺序降级，不枚举连接、切换焦点或启动服务绕过。"],
+          "test_plan": { "strategy": "关联HTTP客户端请求捕获与权限故障注入", "inputs": ["现有认证连接；HTTP 401/403；数据库只读权限拒绝"], "expected": ["不新增认证机制或泄漏凭据；只查询原关联身份；失败仍发送且不尝试其他身份"] }
+        }
+      ]
+    }
+  ]
+}

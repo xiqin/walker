@@ -1,0 +1,37 @@
+{
+  "decisions": [
+    "用户在收到一对多绑定说明后明确要求实施方案A。",
+    "不改插件协议；不自动提交合并推送或重启。"
+  ],
+  "open_questions": [],
+  "next_action": "继续以当前detail-expansion交接为准，压缩后进入planning；不得重新推进brainstorming。",
+  "notes": [
+    "更新原因：压缩前校验发现requirements.json经detail-expansion修改导致原交接指纹过期；已对照spec和原交接复核业务意图无变更。",
+    "原14项行为未删除，新增容量边界与沿用权限约束，全部属于原规格工程边界。",
+    "loom intent check与loom_detail_expansion_check均通过；不是行为已实现的证明。",
+    "保留基线失败证据，不启动服务，不提交合并推送，不修改人工审批结论。"
+  ],
+  "status": "done",
+  "summary": "原方案A及一对多绑定决议保持不变：按消息关联会话精确只读取标题，连接与会话隔离，30秒缓存、2秒预算、失败降级，不写状态。原14项初始行为由detail-expansion合法扩展为16项；已重核对来源、意图、非目标均未改变，意图校验通过。仅刷新共享账本变更后的交接指纹，不重新审批或推进旧阶段。",
+  "artifacts": [
+    "spec.md",
+    "requirements.json",
+    "design-proposal.md",
+    "evidence/title-source-probe.cjs",
+    "evidence/baseline.json"
+  ],
+  "stage": "brainstorming",
+  "task_id": "brainstorming",
+  "basis_fingerprints": {
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5"
+  },
+  "artifact_fingerprints": {
+    "evidence/baseline.json": "f54c6620c7daddda30505e28ce334570f3d762a4b442d5225367439db1ff3c65",
+    "evidence/title-source-probe.cjs": "db77ecfa061ccf34aca8eb6efb164322045c31f48ced035940f93db1c4aad839",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5"
+  },
+  "written_at": "2026-11-17T06:43:58.744Z"
+}

@@ -1,0 +1,32 @@
+{
+  "stage": "planning",
+  "business_code_changed": false,
+  "requirements": 3,
+  "behaviors": 16,
+  "tasks": 3,
+  "checks": [
+    {
+      "name": "loom_validate_plan",
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "command": "loom tasks --spec-dir specs/2026-11-17-feishu-real-session-title",
+      "exit_code": 0,
+      "schedule": [["T1"], ["T2"], ["T3"]]
+    },
+    {
+      "command": "loom tasks --spec-dir specs/2026-11-17-feishu-real-session-title --validate",
+      "exit_code": 1,
+      "reason": "严格全局读写检查报告3组已声明顺序的上下游读写交集，无写写交集；实际调度严格串行，计划校验通过。不删除真实reads以绕过检查。",
+      "ordered_overlaps": [
+        {"producer": "T1", "consumer": "T2", "paths": ["src/drivers/opencode-driver.js"]},
+        {"producer": "T1", "consumer": "T3", "paths": ["src/drivers/opencode-driver.js", "test/opencode-driver.test.js", "specs/2026-11-17-feishu-real-session-title/evidence/driver-validation.md"]},
+        {"producer": "T2", "consumer": "T3", "paths": ["src/dispatch/message-dispatcher.js", "test/message-dispatcher.test.js", "specs/2026-11-17-feishu-real-session-title/evidence/dispatch-validation.md"]}
+      ]
+    }
+  ],
+  "not_run": ["修复后原探针", "业务定向测试", "完整npm test", "实机飞书验收"],
+  "next": "压缩规划阶段后进入analyze-artifacts；分析通过后到approved等待人工审批，不提前创建实施工作树或修改业务代码。"
+}

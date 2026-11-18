@@ -1,0 +1,13 @@
+{
+  "human_verdict": "PASS",
+  "source": "用户对本审查请求回复：通过",
+  "request_sha256": "dce2b75d9eaa0b81047c2e69303f757c098bedf1e22b6fd46f5fe21d8260f016",
+  "product_diff_sha256": "1b2d948de4e821383b1d0bceee3fe5aec1a2038bbf976995f0e7bf30f06be2de",
+  "current_stage": "code-review-request",
+  "formal_gate_approved": false,
+  "compression_requested": false,
+  "compression_confirmed_set": false,
+  "tests_rerun": false,
+  "feedback_file": "review-feedback.md",
+  "feedback_sha256": "e89fbcbf97d931eb04ce252b5e5f478a37a6961dfe418133a45d1c5bebf22ee3"
+}

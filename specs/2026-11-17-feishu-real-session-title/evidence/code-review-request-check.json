@@ -1,0 +1,12 @@
+{
+  "review_request_sha256": "dce2b75d9eaa0b81047c2e69303f757c098bedf1e22b6fd46f5fe21d8260f016",
+  "checked_behaviors": 16,
+  "pre_review_sections_present": true,
+  "request_whitespace_passed": true,
+  "diff_check_exit_code": 0,
+  "current_stage": "code-review-request",
+  "tests_rerun": false,
+  "compression_requested": false,
+  "advance_called": false,
+  "passed": true
+}

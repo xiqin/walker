@@ -1,0 +1,828 @@
+{"isolated_home":"C:\\Users\\tianxiqin\\AppData\\Local\\Temp\\opencode\\walker-isolated-bhAbKc","command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--test","--test-concurrency=1","test/integration-feishu-tui-sync.test.js","test/feishu-api.test.js"]}
+TAP version 13
+# {"ts":"2026-11-17T08:24:45.879Z","level":"info","scope":"feishu-api","message":"tenant token refreshed","expireIn":7200}
+# {"ts":"2026-11-17T08:24:45.881Z","level":"warn","scope":"feishu-api","message":"reply card failed, fallback to chat message","messageId":"om_bad","chatId":"oc_chat1","status":400,"error":"feishu api http error: POST /open-apis/im/v1/messages/om_bad/reply status=400"}
+# {"ts":"2026-11-17T08:24:45.882Z","level":"warn","scope":"feishu-api","message":"add reaction failed","messageId":"om_1","emoji":"DONE","error":"reaction rejected"}
+# Subtest: 会话页脚 REQ-001-B01/B04、REQ-002-B04：文本、Markdown 与卡片入口显示标题且保留正文
+ok 1 - 会话页脚 REQ-001-B01/B04、REQ-002-B04：文本、Markdown 与卡片入口显示标题且保留正文
+  ---
+  duration_ms: 1.7991
+  ...
+# Subtest: 真实标题源兼容：历史页脚在远端标题失效后省略会话行，文本和卡片均不留下默认名
+ok 2 - 真实标题源兼容：历史页脚在远端标题失效后省略会话行，文本和卡片均不留下默认名
+  ---
+  duration_ms: 0.3425
+  ...
+# Subtest: 会话页脚 REQ-001-B02：无效标题及异常读取保留旧页脚
+ok 3 - 会话页脚 REQ-001-B02：无效标题及异常读取保留旧页脚
+  ---
+  duration_ms: 1.2599
+  ...
+# Subtest: 会话页脚 REQ-002-B01：新旧页脚重复更新及移除标题均仅保留最新页脚
+ok 4 - 会话页脚 REQ-002-B01：新旧页脚重复更新及移除标题均仅保留最新页脚
+  ---
+  duration_ms: 0.7707
+  ...
+# Subtest: 会话页脚 REQ-002-B03/B05：多行与格式字符仅作为单行展示且可重复替换
+ok 5 - 会话页脚 REQ-002-B03/B05：多行与格式字符仅作为单行展示且可重复替换
+  ---
+  duration_ms: 0.2218
+  ...
+# Subtest: FeishuApi _request 遇到 HTTP 错误时带上下文失败
+ok 6 - FeishuApi _request 遇到 HTTP 错误时带上下文失败
+  ---
+  duration_ms: 1.4041
+  ...
+# Subtest: FeishuApi _request 遇到飞书业务 code 非 0 时带上下文失败
+ok 7 - FeishuApi _request 遇到飞书业务 code 非 0 时带上下文失败
+  ---
+  duration_ms: 0.6361
+  ...
+# Subtest: FeishuApi replyCard 缺少真实 message_id 时失败
+ok 8 - FeishuApi replyCard 缺少真实 message_id 时失败
+  ---
+  duration_ms: 1.9529
+  ...
+# Subtest: FeishuApi replyCard 回复消息失败时用 chatId 发送新卡片兜底
+ok 9 - FeishuApi replyCard 回复消息失败时用 chatId 发送新卡片兜底
+  ---
+  duration_ms: 0.5694
+  ...
+# Subtest: FeishuApi addReaction 捕获异步失败
+ok 10 - FeishuApi addReaction 捕获异步失败
+  ---
+  duration_ms: 0.5226
+  ...
+# Subtest: FeishuApi addReaction 使用飞书要求的 emoji_type 字段
+ok 11 - FeishuApi addReaction 使用飞书要求的 emoji_type 字段
+  ---
+  duration_ms: 0.1989
+  ...
+# Subtest: FeishuApi sendText 将超长文本拆成多条消息完整发送
+ok 12 - FeishuApi sendText 将超长文本拆成多条消息完整发送
+  ---
+  duration_ms: 0.2847
+  ...
+# Subtest: FeishuApi replyText 将超长回复拆成首条回复和后续群消息
+ok 13 - FeishuApi replyText 将超长回复拆成首条回复和后续群消息
+  ---
+  duration_ms: 0.1979
+  ...
+# Subtest: FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚
+ok 14 - FeishuApi 文本和 Markdown 消息统一追加模型与上下文页脚
+  ---
+  duration_ms: 0.5309
+  ...
+# Subtest: FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown
+ok 15 - FeishuApi 页脚幂等追加并在缺失或异常输入时展示 unknown
+  ---
+  duration_ms: 0.147
+  ...
+# Subtest: FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息
+ok 16 - FeishuApi replyCard 和 patchCard 在 body.elements 末尾幂等追加运行信息
+  ---
+  duration_ms: 0.1799
+  ...
+# {"ts":"2026-11-17T08:24:46.433Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJK0H0FEE802YY","agent":"opencode","route":"feishu:oc_same_chat"}
+# Subtest: 真实标题源到飞书页脚的跨层验证
+    # Subtest: 数据库路径守卫接受夹具普通路径与只读URI，拒绝目录穿越及相似前缀
+    ok 1 - 数据库路径守卫接受夹具普通路径与只读URI，拒绝目录穿越及相似前缀
+      ---
+      duration_ms: 2.7574
+      ...
+# {"ts":"2026-11-17T08:24:46.470Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_source_title","sessionID":"ses_A","questionCount":1,"walkerSessionId":"wks_M7M9QJK0H0FEE802YY","routeKey":"feishu:oc_same_chat","chatId":"oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.471Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_source_title","questionCount":1,"walkerSessionId":"wks_M7M9QJK0H0FEE802YY","routeKey":"feishu:oc_same_chat","chatId":"oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.471Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_source_title","questionCount":1,"walkerSessionId":"wks_M7M9QJK0H0FEE802YY","routeKey":"feishu:oc_same_chat","chatId":"oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.473Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:46.477Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJMCTSXY6TT6KD","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.495Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJMX9EXNXG4QK5","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.507Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_same_chat","sessionId":"wks_M7M9QJMCTSXY6TT6KD"}
+    # Subtest: HTTP官方响应经真实驱动进入文本、Markdown、进度与问题卡，认证和本地记录保持
+    ok 2 - HTTP官方响应经真实驱动进入文本、Markdown、进度与问题卡，认证和本地记录保持
+      ---
+      duration_ms: 60.9253
+      ...
+# {"ts":"2026-11-17T08:24:46.515Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_same_chat","sessionId":"wks_M7M9QJMX9EXNXG4QK5"}
+# {"ts":"2026-11-17T08:24:46.521Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# (node:25156) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# {"ts":"1970-01-01T00:00:01.000Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_000000Z8BR2W05A7EM","agent":"opencode","route":"feishu:oc_same_chat"}
+    # Subtest: 同聊天A/B的真实HTTP响应逆序完成，各自正文及页脚不受焦点切换影响
+    ok 3 - 同聊天A/B的真实HTTP响应逆序完成，各自正文及页脚不受焦点切换影响
+      ---
+      duration_ms: 48.3895
+      ...
+# {"ts":"1970-01-01T00:01:01.000Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+    # Subtest: 真实HTTP权限错误按完成后30秒缓存，历史优先及到期恢复且错误正文不泄漏
+    ok 4 - 真实HTTP权限错误按完成后30秒缓存，历史优先及到期恢复且错误正文不泄漏
+      ---
+      duration_ms: 17.3466
+      ...
+# {"ts":"2026-11-17T08:24:46.630Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJS5K3262YFQSN","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.670Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJTC1J6K65YJ89","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.712Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:46.716Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJVV0RHVSQK28Z","agent":"opencode","route":"feishu:oc_same_chat"}
+    # Subtest: 真实SQLite精确只读标题经发送边界安全展示，库及runtime切换不共用旧结果
+    ok 5 - 真实SQLite精确只读标题经发送边界安全展示，库及runtime切换不共用旧结果
+      ---
+      duration_ms: 173.2191
+      ...
+# {"ts":"2026-11-17T08:24:46.724Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJW39H6S14KT8Q","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.732Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJWAWGP4EJ349P","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.739Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJWJHX585M7RYY","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.746Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJWSPXX58SAK52","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.752Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJWZRVFF86Z2JH","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.759Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJX6F3VY3MBW66","agent":"opencode","route":"feishu:oc_same_chat"}
+# {"ts":"2026-11-17T08:24:46.766Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:46.769Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QJXGMEHD20Q19G","agent":"opencode","route":"feishu:oc_same_chat"}
+    # Subtest: 真实源的空白、默认名及响应ID错配不泄漏伪标题或其他会话标题
+    ok 6 - 真实源的空白、默认名及响应ID错配不泄漏伪标题或其他会话标题
+      ---
+      duration_ms: 53.3836
+      ...
+# {"ts":"2026-11-17T08:24:48.779Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:48.783Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QMWEXKV55BRRH4","agent":"opencode","route":"feishu:oc_chat_bidir:root:oc_chat_bidir"}
+# {"ts":"2026-11-17T08:24:48.795Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_bidir:root:oc_chat_bidir","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:48.796Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_bidir_1","chatId":"oc_chat_bidir","rootId":"om_root_bidir","parentId":"","textLength":24}
+# {"ts":"2026-11-17T08:24:48.803Z","level":"info","scope":"message-dispatcher","message":"thread route unbound, falling back to chat root route","messageId":"om_msg_bidir_1","routeKey":"feishu:oc_chat_bidir:root:om_root_bidir","fallbackRouteKey":"feishu:oc_chat_bidir:root:oc_chat_bidir"}
+# {"ts":"2026-11-17T08:24:48.803Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_bidir_1","routeKey":"feishu:oc_chat_bidir:root:oc_chat_bidir","parentId":"","sourceRouteKey":"feishu:oc_chat_bidir:root:om_root_bidir","effectiveRouteKey":"feishu:oc_chat_bidir:root:oc_chat_bidir","routedBy":"thread-root-fallback"}
+# {"ts":"2026-11-17T08:24:48.804Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_bidir:root:oc_chat_bidir"}
+# {"ts":"2026-11-17T08:24:48.825Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QMWEXKV55BRRH4","chatId":"oc_chat_bidir","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_bidir_1","serverUrl":"http://localhost:4096","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}}
+# {"ts":"2026-11-17T08:24:48.825Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_bidir_1","routeKey":"feishu:oc_chat_bidir:root:oc_chat_bidir","sessionId":"wks_M7M9QMWEXKV55BRRH4","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_bidir:root:om_root_bidir","effectiveRouteKey":"feishu:oc_chat_bidir:root:oc_chat_bidir","routedBy":"thread-root-fallback","agentRefId":"ses_bidir_1","opencodeSessionId":"ses_bidir_1"}
+# {"ts":"2026-11-17T08:24:48.831Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_bidir_1","sessionId":"wks_M7M9QMWEXKV55BRRH4","eventCount":2}
+# {"ts":"2026-11-17T08:24:48.843Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QMWEXKV55BRRH4","chatId":"oc_chat_bidir","textLen":40,"bufferLen":1}
+    # Subtest: 真实挂起HTTP在标题预算后实际关闭连接，发送降级且重复发送不再请求
+    ok 7 - 真实挂起HTTP在标题预算后实际关闭连接，发送降级且重复发送不再请求
+      ---
+      duration_ms: 2013.9516
+      ...
+    1..7
+ok 17 - 真实标题源到飞书页脚的跨层验证
+  ---
+  duration_ms: 2371.1481
+  type: 'suite'
+  ...
+# {"ts":"2026-11-17T08:24:48.849Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:48.851Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QMYJPNFAGW3EMY","agent":"opencode","route":"feishu:oc_chat_upstream_error:root:oc_chat_upstream_error"}
+# {"ts":"2026-11-17T08:24:48.857Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_upstream_error:root:oc_chat_upstream_error","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:48.857Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_upstream_error_1","chatId":"oc_chat_upstream_error","rootId":"om_root_upstream_error","parentId":"","textLength":22}
+# {"ts":"2026-11-17T08:24:48.862Z","level":"info","scope":"message-dispatcher","message":"thread route unbound, falling back to chat root route","messageId":"om_msg_upstream_error_1","routeKey":"feishu:oc_chat_upstream_error:root:om_root_upstream_error","fallbackRouteKey":"feishu:oc_chat_upstream_error:root:oc_chat_upstream_error"}
+# {"ts":"2026-11-17T08:24:48.862Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_upstream_error_1","routeKey":"feishu:oc_chat_upstream_error:root:oc_chat_upstream_error","parentId":"","sourceRouteKey":"feishu:oc_chat_upstream_error:root:om_root_upstream_error","effectiveRouteKey":"feishu:oc_chat_upstream_error:root:oc_chat_upstream_error","routedBy":"thread-root-fallback"}
+# {"ts":"2026-11-17T08:24:48.863Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_upstream_error:root:oc_chat_upstream_error"}
+# {"ts":"2026-11-17T08:24:48.887Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QMYJPNFAGW3EMY","chatId":"oc_chat_upstream_error","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_upstream_error_1","serverUrl":"http://localhost:4096","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}}
+# {"ts":"2026-11-17T08:24:48.887Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_upstream_error_1","routeKey":"feishu:oc_chat_upstream_error:root:oc_chat_upstream_error","sessionId":"wks_M7M9QMYJPNFAGW3EMY","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_upstream_error:root:om_root_upstream_error","effectiveRouteKey":"feishu:oc_chat_upstream_error:root:oc_chat_upstream_error","routedBy":"thread-root-fallback","agentRefId":"ses_upstream_error_1","opencodeSessionId":"ses_upstream_error_1"}
+# {"ts":"2026-11-17T08:24:48.906Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_upstream_error_1","sessionId":"wks_M7M9QMYJPNFAGW3EMY","eventCount":2}
+# {"ts":"2026-11-17T08:24:48.937Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QMYJPNFAGW3EMY","chatId":"oc_chat_upstream_error","textLen":30,"bufferLen":1}
+# Subtest: 飞书-TUI 双向链路集成测试
+    # Subtest: 已 attach 会话双向消息
+        # Subtest: 飞书 thread 消息进入已 attach session → prompt 被调用 → TUI assistant 回复通过 watch 出站到飞书
+        ok 1 - 飞书 thread 消息进入已 attach session → prompt 被调用 → TUI assistant 回复通过 watch 出站到飞书
+          ---
+          duration_ms: 68.2331
+          ...
+# {"ts":"2026-11-17T08:24:48.946Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:48.949Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QN1M6AZ00GV659","agent":"claude","route":"feishu:oc_chat_claude_question:root:oc_chat_claude_question"}
+# {"ts":"2026-11-17T08:24:48.955Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_claude_question:root:oc_chat_claude_question","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:48.955Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_claude_question_1","chatId":"oc_chat_claude_question","rootId":"om_root_claude_question","parentId":"","textLength":23}
+# {"ts":"2026-11-17T08:24:48.964Z","level":"info","scope":"message-dispatcher","message":"thread route unbound, falling back to chat root route","messageId":"om_msg_claude_question_1","routeKey":"feishu:oc_chat_claude_question:root:om_root_claude_question","fallbackRouteKey":"feishu:oc_chat_claude_question:root:oc_chat_claude_question"}
+# {"ts":"2026-11-17T08:24:48.964Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_claude_question_1","routeKey":"feishu:oc_chat_claude_question:root:oc_chat_claude_question","parentId":"","sourceRouteKey":"feishu:oc_chat_claude_question:root:om_root_claude_question","effectiveRouteKey":"feishu:oc_chat_claude_question:root:oc_chat_claude_question","routedBy":"thread-root-fallback"}
+# {"ts":"2026-11-17T08:24:48.964Z","level":"warn","scope":"message-dispatcher","message":"claude integration removed","error":"claude_removed","sessionId":"wks_M7M9QN1M6AZ00GV659","routeKey":"feishu:oc_chat_claude_question:root:oc_chat_claude_question"}
+# {"ts":"2026-11-17T08:24:48.965Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:48.969Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_claude_autobind:root:oc_chat_claude_autobind","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:48.977Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_claude_autobind_1","chatId":"oc_chat_claude_autobind","rootId":"om_root_claude_autobind","parentId":"","textLength":12}
+# {"ts":"2026-11-17T08:24:48.979Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_claude_autobind_1","routeKey":"feishu:oc_chat_claude_autobind:root:om_root_claude_autobind","parentId":"","sourceRouteKey":"feishu:oc_chat_claude_autobind:root:om_root_claude_autobind","effectiveRouteKey":"feishu:oc_chat_claude_autobind:root:om_root_claude_autobind","routedBy":"unbound"}
+# {"ts":"2026-11-17T08:24:48.979Z","level":"info","scope":"message-dispatcher","message":"route not bound, sending guide card","routeKey":"feishu:oc_chat_claude_autobind:root:om_root_claude_autobind"}
+# {"ts":"2026-11-17T08:24:48.981Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:48.984Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QN2QX8SEP9PB2D","agent":"opencode","route":"feishu:oc_chat_fallback:root:oc_chat_fallback"}
+# {"ts":"2026-11-17T08:24:48.996Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_fallback:root:oc_chat_fallback","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:48.996Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_fallback_1","chatId":"oc_chat_fallback","rootId":"om_root_fallback","parentId":"","textLength":33}
+# {"ts":"2026-11-17T08:24:49.004Z","level":"info","scope":"message-dispatcher","message":"thread route unbound, falling back to chat root route","messageId":"om_msg_fallback_1","routeKey":"feishu:oc_chat_fallback:root:om_root_fallback","fallbackRouteKey":"feishu:oc_chat_fallback:root:oc_chat_fallback"}
+# {"ts":"2026-11-17T08:24:49.004Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_fallback_1","routeKey":"feishu:oc_chat_fallback:root:oc_chat_fallback","parentId":"","sourceRouteKey":"feishu:oc_chat_fallback:root:om_root_fallback","effectiveRouteKey":"feishu:oc_chat_fallback:root:oc_chat_fallback","routedBy":"thread-root-fallback"}
+# {"ts":"2026-11-17T08:24:49.007Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_fallback:root:oc_chat_fallback"}
+# {"ts":"2026-11-17T08:24:49.032Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QN2QX8SEP9PB2D","chatId":"oc_chat_fallback","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_fallback_1","serverUrl":"http://localhost:4096","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}}
+# {"ts":"2026-11-17T08:24:49.032Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_fallback_1","routeKey":"feishu:oc_chat_fallback:root:oc_chat_fallback","sessionId":"wks_M7M9QN2QX8SEP9PB2D","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_fallback:root:om_root_fallback","effectiveRouteKey":"feishu:oc_chat_fallback:root:oc_chat_fallback","routedBy":"thread-root-fallback","agentRefId":"ses_fallback_1","opencodeSessionId":"ses_fallback_1"}
+# {"ts":"2026-11-17T08:24:49.039Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_fallback_1","sessionId":"wks_M7M9QN2QX8SEP9PB2D","eventCount":2}
+# {"ts":"2026-11-17T08:24:49.053Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QN2QX8SEP9PB2D","chatId":"oc_chat_fallback","textLen":18,"bufferLen":1}
+        # Subtest: watch 收到空 message 的 upstream_error 仍回传可读错误到飞书
+        ok 2 - watch 收到空 message 的 upstream_error 仍回传可读错误到飞书
+          ---
+          duration_ms: 98.0159
+          ...
+        # Subtest: REQ-005-B04: 旧 Claude 会话的入站消息在 watch 前返回 claude_removed
+        ok 3 - REQ-005-B04: 旧 Claude 会话的入站消息在 watch 前返回 claude_removed
+          ---
+          duration_ms: 18.596
+          ...
+        # Subtest: REQ-004-B07: route 仅有 cwd 时不自动绑定 Claude，也不启动 watch
+        ok 4 - REQ-004-B07: route 仅有 cwd 时不自动绑定 Claude，也不启动 watch
+          ---
+          duration_ms: 15.8047
+          ...
+# {"ts":"2026-11-17T08:24:49.066Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:49.070Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QN5DJ0YF58X4DJ","agent":"opencode","route":"feishu:oc_chat_embedded:root:oc_chat_embedded"}
+# {"ts":"2026-11-17T08:24:49.084Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:49.095Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QN65BF4VJ323ZX","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:49.108Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","sessionId":"wks_M7M9QN65BF4VJ323ZX"}
+# {"ts":"2026-11-17T08:24:49.118Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","sessionId":"wks_M7M9QN65BF4VJ323ZX"}
+# {"ts":"2026-11-17T08:24:49.118Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-embedded-e2e","opencodeSessionId":"ses_embedded_e2e","walkerSessionId":"wks_M7M9QN65BF4VJ323ZX","routeKey":"feishu:oc_chat_embedded:root:oc_chat_embedded"}
+# {"ts":"2026-11-17T08:24:49.119Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_embedded_e2e","chatId":"oc_chat_embedded","rootId":null,"parentId":"","textLength":18}
+# {"ts":"2026-11-17T08:24:49.128Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_embedded_e2e","routeKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","parentId":"","sourceRouteKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","effectiveRouteKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:49.130Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_embedded:root:oc_chat_embedded"}
+# {"ts":"2026-11-17T08:24:49.144Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QN65BF4VJ323ZX","chatId":"oc_chat_embedded","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_embedded_e2e","transport":"tui-bridge","runtimeId":"runtime-embedded-e2e"}}
+# {"ts":"2026-11-17T08:24:49.144Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_embedded_e2e","routeKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","sessionId":"wks_M7M9QN65BF4VJ323ZX","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","effectiveRouteKey":"feishu:oc_chat_embedded:root:oc_chat_embedded","routedBy":"route-focus","agentRefId":"ses_embedded_e2e","opencodeSessionId":"ses_embedded_e2e"}
+        # Subtest: thread route 无绑定 → 回退到同群根 route → prompt 和 watch 均正常
+        ok 5 - thread route 无绑定 → 回退到同群根 route → prompt 和 watch 均正常
+          ---
+          duration_ms: 85.2296
+          ...
+        1..5
+    ok 1 - 已 attach 会话双向消息
+      ---
+      duration_ms: 286.4387
+      type: 'suite'
+      ...
+# {"ts":"2026-11-17T08:24:49.171Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-embedded-e2e","sessionId":"ses_embedded_e2e","deliveryId":"del_M7M9QN8JR752T5T7Z6","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:49.171Z","level":"info","scope":"message-dispatcher","message":"session runtime token missing, reading latest driver runtime","sessionId":"wks_M7M9QN65BF4VJ323ZX","opencodeSessionId":"ses_embedded_e2e","hasContextSize":false,"hasTokenUsage":"***"}
+# {"ts":"2026-11-17T08:24:49.207Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_embedded_e2e","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db select data from message where session_id='ses_embedded_e2e' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:49.270Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_embedded_e2e","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db select data from message where session_id='ses_embedded_e2e' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:49.340Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_embedded_e2e","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db select data from message where session_id='ses_embedded_e2e' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:49.413Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_embedded_e2e","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db select data from message where session_id='ses_embedded_e2e' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:49.489Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_embedded_e2e","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bm5n4S\\\\opencode.db select data from message where session_id='ses_embedded_e2e' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:49.489Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_embedded_e2e","sessionId":"wks_M7M9QN65BF4VJ323ZX","eventCount":2}
+# {"ts":"2026-11-17T08:24:49.496Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-embedded-e2e","sessionId":"ses_embedded_e2e","deliveryId":"","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:49.496Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QN65BF4VJ323ZX","chatId":"oc_chat_embedded","textLen":21,"bufferLen":1}
+# {"ts":"2026-11-17T08:24:49.503Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-embedded-e2e","sessionId":"ses_embedded_e2e","deliveryId":"","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:49.503Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QN65BF4VJ323ZX","chatId":"oc_chat_embedded","textLen":45,"bufferLen":1}
+# {"ts":"2026-11-17T08:24:49.513Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-embedded-e2e","sessionId":"ses_embedded_e2e","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"permission"}
+# {"ts":"2026-11-17T08:24:49.516Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:49.522Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_tui_restart_push:root:oc_chat_tui_restart_push","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:49.528Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QNKQ7W63MPH51X","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:49.534Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_tui_restart_push:root:oc_chat_tui_restart_push","sessionId":"wks_M7M9QNKQ7W63MPH51X"}
+# {"ts":"2026-11-17T08:24:49.539Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_tui_restart_push:root:oc_chat_tui_restart_push","sessionId":"wks_M7M9QNKQ7W63MPH51X"}
+# {"ts":"2026-11-17T08:24:49.543Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QNKQ7W63MPH51X","chatId":"oc_chat_tui_restart_push","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_restart_push_e2e","transport":"tui-bridge","runtimeId":"runtime-restart-old-e2e"}}
+# {"ts":"2026-11-17T08:24:49.543Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-restart-old-e2e","opencodeSessionId":"ses_restart_push_e2e","walkerSessionId":"wks_M7M9QNKQ7W63MPH51X","routeKey":"feishu:oc_chat_tui_restart_push:root:oc_chat_tui_restart_push"}
+# {"ts":"2026-11-17T08:24:49.546Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QNM9W2Q9D0N0BR","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:49.551Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_tui_restart_push:root:oc_chat_tui_restart_push","sessionId":"wks_M7M9QNM9W2Q9D0N0BR"}
+# {"ts":"2026-11-17T08:24:49.556Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_tui_restart_push:root:oc_chat_tui_restart_push","sessionId":"wks_M7M9QNM9W2Q9D0N0BR"}
+# {"ts":"2026-11-17T08:24:49.563Z","level":"info","scope":"session-service","message":"session removed from route","routeKey":"feishu:oc_chat_tui_restart_push:root:oc_chat_tui_restart_push","sessionId":"wks_M7M9QNKQ7W63MPH51X"}
+# {"ts":"2026-11-17T08:24:49.568Z","level":"info","scope":"session-service","message":"session deleted","sessionId":"wks_M7M9QNKQ7W63MPH51X"}
+# {"ts":"2026-11-17T08:24:49.568Z","level":"info","scope":"opencode-tui-bridge","message":"retired stale tui session on register","sessionId":"wks_M7M9QNKQ7W63MPH51X","opencodeSessionId":"ses_restart_push_e2e","oldRuntimeId":"runtime-restart-old-e2e","newRuntimeId":"runtime-restart-new-e2e"}
+# {"ts":"2026-11-17T08:24:49.572Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QNM9W2Q9D0N0BR","chatId":"oc_chat_tui_restart_push","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_restart_push_e2e","transport":"tui-bridge","runtimeId":"runtime-restart-new-e2e"}}
+# {"ts":"2026-11-17T08:24:49.573Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-restart-new-e2e","opencodeSessionId":"ses_restart_push_e2e","walkerSessionId":"wks_M7M9QNM9W2Q9D0N0BR","routeKey":"feishu:oc_chat_tui_restart_push:root:oc_chat_tui_restart_push"}
+# {"ts":"2026-11-17T08:24:49.573Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-restart-new-e2e","sessionId":"ses_restart_push_e2e","deliveryId":"","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:49.573Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QNM9W2Q9D0N0BR","chatId":"oc_chat_tui_restart_push","textLen":30,"bufferLen":1}
+    # Subtest: 普通 embedded TUI bridge
+        # Subtest: 飞书 prompt 经本地 TUI runtime 执行并回传，且不访问独立 4096 服务
+        ok 1 - 飞书 prompt 经本地 TUI runtime 执行并回传，且不访问独立 4096 服务
+          ---
+          duration_ms: 452.464
+          ...
+# {"ts":"2026-11-17T08:24:49.605Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:49.609Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QNP88J93Z886GN","agent":"opencode","route":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade"}
+# {"ts":"2026-11-17T08:24:49.615Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade","cwd":"H:\\\\rsstest"}
+# {"ts":"2026-11-17T08:24:49.620Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QNP88J93Z886GN","chatId":"oc_chat_http_upgrade","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_http_upgrade","serverUrl":"http://localhost:4096","cwd":"H:\\\\rsstest"}}
+# {"ts":"2026-11-17T08:24:49.625Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QNP88J93Z886GN","field":"agentRef"}
+# {"ts":"2026-11-17T08:24:49.649Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade","sessionId":"wks_M7M9QNP88J93Z886GN"}
+# {"ts":"2026-11-17T08:24:49.658Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QNP88J93Z886GN","chatId":"oc_chat_http_upgrade","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_http_upgrade","transport":"tui-bridge","runtimeId":"runtime-http-upgrade"}}
+# {"ts":"2026-11-17T08:24:49.659Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-http-upgrade","opencodeSessionId":"ses_http_upgrade","walkerSessionId":"wks_M7M9QNP88J93Z886GN","routeKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade"}
+# {"ts":"2026-11-17T08:24:49.659Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_http_upgrade","chatId":"oc_chat_http_upgrade","rootId":null,"parentId":"","textLength":2}
+# {"ts":"2026-11-17T08:24:49.660Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_http_upgrade","routeKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade","parentId":"","sourceRouteKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade","effectiveRouteKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:49.662Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade"}
+# {"ts":"2026-11-17T08:24:49.681Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_http_upgrade","routeKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade","sessionId":"wks_M7M9QNP88J93Z886GN","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade","effectiveRouteKey":"feishu:oc_chat_http_upgrade:root:oc_chat_http_upgrade","routedBy":"route-focus","agentRefId":"ses_http_upgrade","opencodeSessionId":"ses_http_upgrade"}
+        # Subtest: TUI 重启复用同 opencodeSessionId 后，手工 TUI 回复仍推送到原飞书 route
+        ok 2 - TUI 重启复用同 opencodeSessionId 后，手工 TUI 回复仍推送到原飞书 route
+          ---
+          duration_ms: 86.3349
+          ...
+        1..2
+    ok 2 - 普通 embedded TUI bridge
+      ---
+      duration_ms: 539.0847
+      type: 'suite'
+      ...
+# {"ts":"2026-11-17T08:24:49.689Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-http-upgrade","sessionId":"ses_http_upgrade","deliveryId":"del_M7M9QNRRDEYY377GC9","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:49.689Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_http_upgrade","sessionId":"wks_M7M9QNP88J93Z886GN","eventCount":2}
+# {"ts":"2026-11-17T08:24:49.701Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:49.708Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:49.718Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QNSMEDXWY7VCT2","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:49.727Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","sessionId":"wks_M7M9QNSMEDXWY7VCT2"}
+# {"ts":"2026-11-17T08:24:49.736Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","sessionId":"wks_M7M9QNSMEDXWY7VCT2"}
+# {"ts":"2026-11-17T08:24:49.743Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QNSMEDXWY7VCT2","chatId":"oc_chat_multi_runtime_dedup","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_multi_runtime_dedup","transport":"tui-bridge","runtimeId":"runtime-multi-secondary"}}
+# {"ts":"2026-11-17T08:24:49.743Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-multi-secondary","opencodeSessionId":"ses_multi_runtime_dedup","walkerSessionId":"wks_M7M9QNSMEDXWY7VCT2","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup"}
+# {"ts":"2026-11-17T08:24:49.749Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QNTJ7KWYPVQCQ0","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:49.764Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","sessionId":"wks_M7M9QNTJ7KWYPVQCQ0"}
+# {"ts":"2026-11-17T08:24:49.776Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","sessionId":"wks_M7M9QNTJ7KWYPVQCQ0"}
+# {"ts":"2026-11-17T08:24:49.784Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QNTJ7KWYPVQCQ0","chatId":"oc_chat_multi_runtime_dedup","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_multi_runtime_dedup","transport":"tui-bridge","runtimeId":"runtime-multi-primary"}}
+# {"ts":"2026-11-17T08:24:49.784Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-multi-primary","opencodeSessionId":"ses_multi_runtime_dedup","walkerSessionId":"wks_M7M9QNTJ7KWYPVQCQ0","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup"}
+# {"ts":"2026-11-17T08:24:49.784Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_multi_runtime_dedup","chatId":"oc_chat_multi_runtime_dedup","rootId":null,"parentId":"","textLength":2}
+# {"ts":"2026-11-17T08:24:49.785Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_multi_runtime_dedup","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","parentId":"","sourceRouteKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","effectiveRouteKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:49.791Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup"}
+# {"ts":"2026-11-17T08:24:49.813Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_multi_runtime_dedup","routeKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","sessionId":"wks_M7M9QNTJ7KWYPVQCQ0","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","effectiveRouteKey":"feishu:oc_chat_multi_runtime_dedup:root:oc_chat_multi_runtime_dedup","routedBy":"route-focus","agentRefId":"ses_multi_runtime_dedup","opencodeSessionId":"ses_multi_runtime_dedup"}
+    # Subtest: 不会重复或跨 route 推送 TUI 回复
+        # Subtest: /new 创建的 HTTP session 在 TUI 注册后应原地升级且只推送一次回复
+        ok 1 - /new 创建的 HTTP session 在 TUI 注册后应原地升级且只推送一次回复
+          ---
+          duration_ms: 98.8858
+          ...
+# {"ts":"2026-11-17T08:24:49.854Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-multi-primary","sessionId":"ses_multi_runtime_dedup","deliveryId":"del_M7M9QNXDV1RW0W7Y9Q","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:49.854Z","level":"info","scope":"message-dispatcher","message":"session runtime token missing, reading latest driver runtime","sessionId":"wks_M7M9QNTJ7KWYPVQCQ0","opencodeSessionId":"ses_multi_runtime_dedup","hasContextSize":false,"hasTokenUsage":"***"}
+# {"ts":"2026-11-17T08:24:49.918Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_multi_runtime_dedup","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db select data from message where session_id='ses_multi_runtime_dedup' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:50.010Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_multi_runtime_dedup","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db select data from message where session_id='ses_multi_runtime_dedup' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:50.074Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_multi_runtime_dedup","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db select data from message where session_id='ses_multi_runtime_dedup' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:50.140Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_multi_runtime_dedup","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db select data from message where session_id='ses_multi_runtime_dedup' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:50.212Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_multi_runtime_dedup","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-bJTW9x\\\\opencode.db select data from message where session_id='ses_multi_runtime_dedup' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:50.212Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_multi_runtime_dedup","sessionId":"wks_M7M9QNTJ7KWYPVQCQ0","eventCount":2}
+# {"ts":"2026-11-17T08:24:50.219Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-multi-secondary","sessionId":"ses_multi_runtime_dedup","deliveryId":"","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:50.219Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:50.227Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_multi_runtime_early:root:oc_chat_multi_runtime_early","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.233Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QP9RNCGN60WPXG","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:50.239Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_multi_runtime_early:root:oc_chat_multi_runtime_early","sessionId":"wks_M7M9QP9RNCGN60WPXG"}
+# {"ts":"2026-11-17T08:24:50.246Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_multi_runtime_early:root:oc_chat_multi_runtime_early","sessionId":"wks_M7M9QP9RNCGN60WPXG"}
+# {"ts":"2026-11-17T08:24:50.246Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-early-secondary","opencodeSessionId":"ses_multi_runtime_early","walkerSessionId":"wks_M7M9QP9RNCGN60WPXG","routeKey":"feishu:oc_chat_multi_runtime_early:root:oc_chat_multi_runtime_early"}
+# {"ts":"2026-11-17T08:24:50.252Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPABC63Z2APJC9","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:50.258Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_multi_runtime_early:root:oc_chat_multi_runtime_early","sessionId":"wks_M7M9QPABC63Z2APJC9"}
+# {"ts":"2026-11-17T08:24:50.265Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_multi_runtime_early:root:oc_chat_multi_runtime_early","sessionId":"wks_M7M9QPABC63Z2APJC9"}
+# {"ts":"2026-11-17T08:24:50.265Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-early-primary","opencodeSessionId":"ses_multi_runtime_early","walkerSessionId":"wks_M7M9QPABC63Z2APJC9","routeKey":"feishu:oc_chat_multi_runtime_early:root:oc_chat_multi_runtime_early"}
+# {"ts":"2026-11-17T08:24:50.269Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-early-secondary","sessionId":"ses_multi_runtime_early","deliveryId":"","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:50.269Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-early-primary","sessionId":"ses_multi_runtime_early","deliveryId":"del_M7M9QPAXQB43Q1DK8M","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:50.272Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_multi_runtime_recover:root:oc_chat_multi_runtime_recover","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.281Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPB8RQJY7CPTQT","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:50.288Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_multi_runtime_recover:root:oc_chat_multi_runtime_recover","sessionId":"wks_M7M9QPB8RQJY7CPTQT"}
+# {"ts":"2026-11-17T08:24:50.296Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_multi_runtime_recover:root:oc_chat_multi_runtime_recover","sessionId":"wks_M7M9QPB8RQJY7CPTQT"}
+# {"ts":"2026-11-17T08:24:50.296Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-recover-secondary","opencodeSessionId":"ses_multi_runtime_recover","walkerSessionId":"wks_M7M9QPB8RQJY7CPTQT","routeKey":"feishu:oc_chat_multi_runtime_recover:root:oc_chat_multi_runtime_recover"}
+# {"ts":"2026-11-17T08:24:50.305Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPBY083FB86DRH","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:50.312Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_multi_runtime_recover:root:oc_chat_multi_runtime_recover","sessionId":"wks_M7M9QPBY083FB86DRH"}
+# {"ts":"2026-11-17T08:24:50.321Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_multi_runtime_recover:root:oc_chat_multi_runtime_recover","sessionId":"wks_M7M9QPBY083FB86DRH"}
+# {"ts":"2026-11-17T08:24:50.321Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-recover-primary","opencodeSessionId":"ses_multi_runtime_recover","walkerSessionId":"wks_M7M9QPBY083FB86DRH","routeKey":"feishu:oc_chat_multi_runtime_recover:root:oc_chat_multi_runtime_recover"}
+# {"ts":"2026-11-17T08:24:50.330Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-recover-secondary","sessionId":"ses_multi_runtime_recover","deliveryId":"","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:50.336Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPCY7DPNVFB0G7","agent":"opencode","route":"feishu:oc_chat_dedup:root:oc_chat_dedup"}
+# {"ts":"2026-11-17T08:24:50.344Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_dedup:root:oc_chat_dedup","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.344Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_dedup_1","chatId":"oc_chat_dedup","rootId":"om_root_dedup","parentId":"","textLength":10}
+# {"ts":"2026-11-17T08:24:50.350Z","level":"info","scope":"message-dispatcher","message":"thread route unbound, falling back to chat root route","messageId":"om_msg_dedup_1","routeKey":"feishu:oc_chat_dedup:root:om_root_dedup","fallbackRouteKey":"feishu:oc_chat_dedup:root:oc_chat_dedup"}
+# {"ts":"2026-11-17T08:24:50.350Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_dedup_1","routeKey":"feishu:oc_chat_dedup:root:oc_chat_dedup","parentId":"","sourceRouteKey":"feishu:oc_chat_dedup:root:om_root_dedup","effectiveRouteKey":"feishu:oc_chat_dedup:root:oc_chat_dedup","routedBy":"thread-root-fallback"}
+# {"ts":"2026-11-17T08:24:50.352Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_dedup:root:oc_chat_dedup"}
+# {"ts":"2026-11-17T08:24:50.375Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QPCY7DPNVFB0G7","chatId":"oc_chat_dedup","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_dedup_1","serverUrl":"http://localhost:4096","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}}
+# {"ts":"2026-11-17T08:24:50.375Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_dedup_1","routeKey":"feishu:oc_chat_dedup:root:oc_chat_dedup","sessionId":"wks_M7M9QPCY7DPNVFB0G7","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_dedup:root:om_root_dedup","effectiveRouteKey":"feishu:oc_chat_dedup:root:oc_chat_dedup","routedBy":"thread-root-fallback","agentRefId":"ses_dedup_1","opencodeSessionId":"ses_dedup_1"}
+# {"ts":"2026-11-17T08:24:50.381Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_dedup_1","sessionId":"wks_M7M9QPCY7DPNVFB0G7","eventCount":2}
+# {"ts":"2026-11-17T08:24:50.397Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QPCY7DPNVFB0G7","chatId":"oc_chat_dedup","textLen":35,"bufferLen":1}
+        # Subtest: 同一 OpenCode session 的多个 TUI runtime 不应重复推送同一 assistant message
+        ok 2 - 同一 OpenCode session 的多个 TUI runtime 不应重复推送同一 assistant message
+          ---
+          duration_ms: 518.661
+          ...
+        # Subtest: 其他 TUI runtime 先上报 prompt 回答时也不应抢先群发
+        ok 3 - 其他 TUI runtime 先上报 prompt 回答时也不应抢先群发
+          ---
+          duration_ms: 45.4802
+          ...
+        # Subtest: 旁路 final 被活动 prompt 抑制后，主 delivery 失败时应自动恢复
+        ok 4 - 旁路 final 被活动 prompt 抑制后，主 delivery 失败时应自动恢复
+          ---
+          duration_ms: 63.3265
+          ...
+# {"ts":"2026-11-17T08:24:50.408Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QPCY7DPNVFB0G7","chatId":"oc_chat_dedup","textLen":35,"bufferLen":1}
+# {"ts":"2026-11-17T08:24:50.408Z","level":"info","scope":"message-dispatcher","message":"skip duplicate watched session text","sessionId":"wks_M7M9QPCY7DPNVFB0G7","chatId":"oc_chat_dedup","textLen":35}
+# {"ts":"2026-11-17T08:24:50.408Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:50.412Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPFA9V9J9K5TB2","agent":"opencode","route":"feishu:oc_chat_iso_a:root:oc_chat_iso_a"}
+# {"ts":"2026-11-17T08:24:50.422Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_iso_a:root:oc_chat_iso_a","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.422Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_iso_a","chatId":"oc_chat_iso_a","rootId":"om_root_a","parentId":"","textLength":12}
+# {"ts":"2026-11-17T08:24:50.430Z","level":"info","scope":"message-dispatcher","message":"thread route unbound, falling back to chat root route","messageId":"om_msg_iso_a","routeKey":"feishu:oc_chat_iso_a:root:om_root_a","fallbackRouteKey":"feishu:oc_chat_iso_a:root:oc_chat_iso_a"}
+# {"ts":"2026-11-17T08:24:50.430Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_iso_a","routeKey":"feishu:oc_chat_iso_a:root:oc_chat_iso_a","parentId":"","sourceRouteKey":"feishu:oc_chat_iso_a:root:om_root_a","effectiveRouteKey":"feishu:oc_chat_iso_a:root:oc_chat_iso_a","routedBy":"thread-root-fallback"}
+# {"ts":"2026-11-17T08:24:50.433Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_iso_a:root:oc_chat_iso_a"}
+# {"ts":"2026-11-17T08:24:50.461Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QPFA9V9J9K5TB2","chatId":"oc_chat_iso_a","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_iso_a","serverUrl":"http://localhost:4096","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}}
+# {"ts":"2026-11-17T08:24:50.461Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_iso_a","routeKey":"feishu:oc_chat_iso_a:root:oc_chat_iso_a","sessionId":"wks_M7M9QPFA9V9J9K5TB2","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_iso_a:root:om_root_a","effectiveRouteKey":"feishu:oc_chat_iso_a:root:oc_chat_iso_a","routedBy":"thread-root-fallback","agentRefId":"ses_iso_a","opencodeSessionId":"ses_iso_a"}
+# {"ts":"2026-11-17T08:24:50.467Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_iso_a","sessionId":"wks_M7M9QPFA9V9J9K5TB2","eventCount":2}
+# {"ts":"2026-11-17T08:24:50.488Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QPFA9V9J9K5TB2","chatId":"oc_chat_iso_a","textLen":20,"bufferLen":1}
+        # Subtest: 单次双向流程不会重复发送回复
+        ok 5 - 单次双向流程不会重复发送回复
+          ---
+          duration_ms: 75.9575
+          ...
+# {"ts":"2026-11-17T08:24:50.499Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:50.503Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPJ5S2FCJ67XCJ","agent":"opencode","route":"feishu:oc_chat_session_iso:root:oc_chat_session_iso"}
+# {"ts":"2026-11-17T08:24:50.509Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_session_iso:root:oc_chat_session_iso","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.516Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPJDDF0R81VNCM","agent":"opencode","route":"feishu:oc_chat_session_iso:root:oc_chat_session_iso"}
+# {"ts":"2026-11-17T08:24:50.516Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QPJ5S2FCJ67XCJ","chatId":"oc_chat_session_iso","textLen":15,"bufferLen":1}
+        # Subtest: 不同 chat 的回复不会误投递到其他 chatId
+        ok 6 - 不同 chat 的回复不会误投递到其他 chatId
+          ---
+          duration_ms: 90.3002
+          ...
+# {"ts":"2026-11-17T08:24:50.526Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QPJDDF0R81VNCM","chatId":"oc_chat_session_iso","textLen":39,"bufferLen":1}
+# {"ts":"2026-11-17T08:24:50.527Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:50.532Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.543Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPKDPJV6WKM3VW","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:50.551Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPKDPJV6WKM3VW"}
+# {"ts":"2026-11-17T08:24:50.558Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPKDPJV6WKM3VW"}
+# {"ts":"2026-11-17T08:24:50.558Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QPKDPJV6WKM3VW","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.565Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QPKDPJV6WKM3VW","field":"model"}
+        # Subtest: 不同 session 的 watch 回复隔离，不会跨 session 投递
+        ok 7 - 不同 session 的 watch 回复隔离，不会跨 session 投递
+          ---
+          duration_ms: 28.6612
+          ...
+        1..7
+    ok 3 - 不会重复或跨 route 推送 TUI 回复
+      ---
+      duration_ms: 921.8017
+      type: 'suite'
+      ...
+# {"ts":"2026-11-17T08:24:50.579Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_a","controlDeliveryId":"del_M7M9QPMFD9M5QY1JJK"}
+# {"ts":"2026-11-17T08:24:50.579Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QPMFD9M5QY1JJK","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:50.583Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPMNX5MB6XD8D7","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.592Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPMNX5MB6XD8D7"}
+# {"ts":"2026-11-17T08:24:50.592Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_a","walkerSessionId":"wks_M7M9QPMNX5MB6XD8D7"}
+# {"ts":"2026-11-17T08:24:50.627Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.627Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:50.635Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.645Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPPKCAQCKGQRC7","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:50.651Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPPKCAQCKGQRC7"}
+# {"ts":"2026-11-17T08:24:50.658Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPPKCAQCKGQRC7"}
+# {"ts":"2026-11-17T08:24:50.658Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QPPKCAQCKGQRC7","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.664Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QPPKCAQCKGQRC7","field":"model"}
+    # Subtest: 飞书 /clear 全链路集成
+        # Subtest: 飞书 /clear 在当前 TUI 创建空上下文（control 携带新 session ID）
+        ok 1 - 飞书 /clear 在当前 TUI 创建空上下文（control 携带新 session ID）
+          ---
+          duration_ms: 104.6178
+          ...
+# {"ts":"2026-11-17T08:24:50.689Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_nohost","controlDeliveryId":"del_M7M9QPQKR2GNAH1FK4"}
+# {"ts":"2026-11-17T08:24:50.689Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QPQKR2GNAH1FK4","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:50.692Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPR21CST7MKPZB","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.702Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPR21CST7MKPZB"}
+# {"ts":"2026-11-17T08:24:50.702Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_nohost","walkerSessionId":"wks_M7M9QPR21CST7MKPZB"}
+# {"ts":"2026-11-17T08:24:50.745Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.745Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:50.752Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.760Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPT7SBN27B7Q81","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:50.767Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPT7SBN27B7Q81"}
+# {"ts":"2026-11-17T08:24:50.774Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPT7SBN27B7Q81"}
+# {"ts":"2026-11-17T08:24:50.774Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QPT7SBN27B7Q81","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.780Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QPT7SBN27B7Q81","field":"model"}
+        # Subtest: clear 全链路不访问独立服务或 createSession
+        ok 2 - clear 全链路不访问独立服务或 createSession
+          ---
+          duration_ms: 116.3811
+          ...
+# {"ts":"2026-11-17T08:24:50.797Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QPV2J5JE8YCZ47","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:50.797Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_order","controlDeliveryId":"del_M7M9QPV2J5JE8YCZ47"}
+# {"ts":"2026-11-17T08:24:50.799Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPVE80J6RTPKSM","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.807Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPVE80J6RTPKSM"}
+# {"ts":"2026-11-17T08:24:50.808Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_order","walkerSessionId":"wks_M7M9QPVE80J6RTPKSM"}
+# {"ts":"2026-11-17T08:24:50.839Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.847Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:50.850Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:50.863Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPXCZY2C7CXKR8","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:50.904Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPXCZY2C7CXKR8"}
+# {"ts":"2026-11-17T08:24:50.912Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPXCZY2C7CXKR8"}
+# {"ts":"2026-11-17T08:24:50.913Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QPXCZY2C7CXKR8","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.920Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QPXCZY2C7CXKR8","field":"model"}
+        # Subtest: 关联 register 与 control 完成后 route 焦点切换（control-first）
+        ok 3 - 关联 register 与 control 完成后 route 焦点切换（control-first）
+          ---
+          duration_ms: 98.7854
+          ...
+# {"ts":"2026-11-17T08:24:50.940Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_order","controlDeliveryId":"del_M7M9QPZNR2CFA116TA"}
+# {"ts":"2026-11-17T08:24:50.940Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QPZNR2CFA116TA","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:50.944Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QPZWM6T4ZQGZSB","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:50.955Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QPZWM6T4ZQGZSB"}
+# {"ts":"2026-11-17T08:24:50.955Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_order","walkerSessionId":"wks_M7M9QPZWM6T4ZQGZSB"}
+# {"ts":"2026-11-17T08:24:50.997Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.003Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:51.007Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:51.014Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQ256BNA5KFMY6","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.022Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ256BNA5KFMY6"}
+# {"ts":"2026-11-17T08:24:51.028Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ256BNA5KFMY6"}
+# {"ts":"2026-11-17T08:24:51.028Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QQ256BNA5KFMY6","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.034Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QQ256BNA5KFMY6","field":"model"}
+        # Subtest: 关联 register 与 control 完成后 route 焦点切换（register-first）
+        ok 4 - 关联 register 与 control 完成后 route 焦点切换（register-first）
+          ---
+          duration_ms: 156.4004
+          ...
+# {"ts":"2026-11-17T08:24:51.050Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_keep","controlDeliveryId":"del_M7M9QQ3014M13AKBNA"}
+# {"ts":"2026-11-17T08:24:51.050Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QQ3014M13AKBNA","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:51.051Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQ3AMJRX69TBXD","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.059Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ3AMJRX69TBXD"}
+# {"ts":"2026-11-17T08:24:51.059Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_keep","walkerSessionId":"wks_M7M9QQ3AMJRX69TBXD"}
+# {"ts":"2026-11-17T08:24:51.095Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.103Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ256BNA5KFMY6"}
+# {"ts":"2026-11-17T08:24:51.109Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:51.112Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:51.118Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQ5DRN7KF9C64B","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.125Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ5DRN7KF9C64B"}
+# {"ts":"2026-11-17T08:24:51.130Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ5DRN7KF9C64B"}
+# {"ts":"2026-11-17T08:24:51.130Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QQ5DRN7KF9C64B","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.136Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QQ5DRN7KF9C64B","field":"model"}
+        # Subtest: clear 后旧 session 仍在 route 且可通过 setFocus 恢复
+        ok 5 - clear 后旧 session 仍在 route 且可通过 setFocus 恢复
+          ---
+          duration_ms: 105.215
+          ...
+# {"ts":"2026-11-17T08:24:51.158Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_inherit","controlDeliveryId":"del_M7M9QQ65CXR6B08QYB"}
+# {"ts":"2026-11-17T08:24:51.158Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QQ65CXR6B08QYB","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:51.160Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQ6QESKY68XKBY","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.167Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ6QESKY68XKBY"}
+# {"ts":"2026-11-17T08:24:51.168Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_inherit","walkerSessionId":"wks_M7M9QQ6QESKY68XKBY"}
+# {"ts":"2026-11-17T08:24:51.204Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.211Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:51.215Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:51.222Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQ8MV371ZCVFV7","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.230Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ8MV371ZCVFV7"}
+# {"ts":"2026-11-17T08:24:51.239Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQ8MV371ZCVFV7"}
+# {"ts":"2026-11-17T08:24:51.239Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QQ8MV371ZCVFV7","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.247Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QQ8MV371ZCVFV7","field":"model"}
+        # Subtest: 新 session 继承 model 与 cwd
+        ok 6 - 新 session 继承 model 与 cwd
+          ---
+          duration_ms: 102.0388
+          ...
+# {"ts":"2026-11-17T08:24:51.272Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQA68CF94HSY80","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.281Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQA68CF94HSY80"}
+# {"ts":"2026-11-17T08:24:51.291Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQA68CF94HSY80"}
+# {"ts":"2026-11-17T08:24:51.292Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_unrelated","walkerSessionId":"wks_M7M9QQA68CF94HSY80","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.303Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_isolated","controlDeliveryId":"del_M7M9QQ9R7X6F0P1JBP"}
+# {"ts":"2026-11-17T08:24:51.304Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QQ9R7X6F0P1JBP","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:51.308Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQB9PMZCX6XV5B","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.323Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQB9PMZCX6XV5B"}
+# {"ts":"2026-11-17T08:24:51.323Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_isolated","walkerSessionId":"wks_M7M9QQB9PMZCX6XV5B"}
+# {"ts":"2026-11-17T08:24:51.371Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.375Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:51.378Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:51.386Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQDSYFMFK16Z37","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.394Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQDSYFMFK16Z37"}
+# {"ts":"2026-11-17T08:24:51.401Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQDSYFMFK16Z37"}
+# {"ts":"2026-11-17T08:24:51.401Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QQDSYFMFK16Z37","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.407Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QQDSYFMFK16Z37","field":"model"}
+        # Subtest: 注入无关普通 register 不阻断 clear 且不提前改变原 route 焦点
+        ok 7 - 注入无关普通 register 不阻断 clear 且不提前改变原 route 焦点
+          ---
+          duration_ms: 164.0645
+          ...
+# {"ts":"2026-11-17T08:24:51.426Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_reject","controlDeliveryId":"del_M7M9QQENS1N4MQ521J"}
+# {"ts":"2026-11-17T08:24:51.426Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QQENS1N4MQ521J","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:51.428Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQF36M79XPYVPV","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.437Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQF36M79XPYVPV"}
+# {"ts":"2026-11-17T08:24:51.438Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_reject","walkerSessionId":"wks_M7M9QQF36M79XPYVPV"}
+# {"ts":"2026-11-17T08:24:51.498Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.498Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:51.507Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:51.515Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQHS6RM7K56ADC","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.525Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQHS6RM7K56ADC"}
+# {"ts":"2026-11-17T08:24:51.533Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQHS6RM7K56ADC"}
+# {"ts":"2026-11-17T08:24:51.534Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QQHS6RM7K56ADC","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.540Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QQHS6RM7K56ADC","field":"model"}
+        # Subtest: 错误关联 ID 的 register 被拒绝且不回退为普通注册
+        ok 8 - 错误关联 ID 的 register 被拒绝且不回退为普通注册
+          ---
+          duration_ms: 128.5927
+          ...
+# {"ts":"2026-11-17T08:24:51.591Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_concurrent","controlDeliveryId":"del_M7M9QQJTXE01K4W77T"}
+# {"ts":"2026-11-17T08:24:51.591Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QQJTXE01K4W77T","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:51.598Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQMCC495Y7D199","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.605Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQMCC495Y7D199"}
+# {"ts":"2026-11-17T08:24:51.605Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_concurrent","walkerSessionId":"wks_M7M9QQMCC495Y7D199"}
+# {"ts":"2026-11-17T08:24:51.617Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.622Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:51.626Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:51.634Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQNHTM55QE1XVB","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.643Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQNHTM55QE1XVB"}
+# {"ts":"2026-11-17T08:24:51.651Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQNHTM55QE1XVB"}
+# {"ts":"2026-11-17T08:24:51.651Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QQNHTM55QE1XVB","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.660Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QQNHTM55QE1XVB","field":"model"}
+        # Subtest: 同一 runtime 并发 clear 在投递前失败且只创建一个新 OpenCode session
+        ok 9 - 同一 runtime 并发 clear 在投递前失败且只创建一个新 OpenCode session
+          ---
+          duration_ms: 118.4222
+          ...
+# {"ts":"2026-11-17T08:24:51.752Z","level":"error","scope":"message-dispatcher","message":"command handler failed","command":"clear","error":"OpenCode TUI runtime connection is stale"}
+# {"ts":"2026-11-17T08:24:51.756Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:51.774Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:51.800Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQTM76AN32M7BY","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.830Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQTM76AN32M7BY"}
+# {"ts":"2026-11-17T08:24:51.849Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQTM76AN32M7BY"}
+# {"ts":"2026-11-17T08:24:51.849Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QQTM76AN32M7BY","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.869Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QQTM76AN32M7BY","field":"model"}
+        # Subtest: stale runtime 与运行中 clear 保持旧焦点
+        ok 10 - stale runtime 与运行中 clear 保持旧焦点
+          ---
+          duration_ms: 138.8652
+          ...
+# {"ts":"2026-11-17T08:24:51.939Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:51.943Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:51.951Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QQZDMJYPDP97HH","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:51.957Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQZDMJYPDP97HH"}
+# {"ts":"2026-11-17T08:24:51.963Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QQZDMJYPDP97HH"}
+# {"ts":"2026-11-17T08:24:51.963Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QQZDMJYPDP97HH","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:51.970Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QQZDMJYPDP97HH","field":"model"}
+        # Subtest: 运行中 /clear 在 route lock 外立即提示先 /cancel
+        ok 11 - 运行中 /clear 在 route lock 外立即提示先 /cancel
+          ---
+          duration_ms: 178.3618
+          ...
+# {"ts":"2026-11-17T08:24:51.997Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QR0DT06AS0D782","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:51.997Z","level":"error","scope":"message-dispatcher","message":"command handler failed","command":"clear","error":"SDK create failed"}
+# {"ts":"2026-11-17T08:24:51.999Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:52.004Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:52.013Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QR1B26BG4VETNP","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:52.025Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QR1B26BG4VETNP"}
+# {"ts":"2026-11-17T08:24:52.036Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QR1B26BG4VETNP"}
+# {"ts":"2026-11-17T08:24:52.036Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QR1B26BG4VETNP","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:52.047Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QR1B26BG4VETNP","field":"model"}
+        # Subtest: clear error 可恢复（旧焦点不变，pending 清理）
+        ok 12 - clear error 可恢复（旧焦点不变，pending 清理）
+          ---
+          duration_ms: 59.4509
+          ...
+# {"ts":"2026-11-17T08:24:52.119Z","level":"error","scope":"message-dispatcher","message":"command handler failed","command":"clear","error":"OpenCode TUI bridge clear timed out after 50ms"}
+# {"ts":"2026-11-17T08:24:52.121Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:52.127Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:52.141Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QR5BWXABT0AGCH","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:52.152Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QR5BWXABT0AGCH"}
+# {"ts":"2026-11-17T08:24:52.160Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QR5BWXABT0AGCH"}
+# {"ts":"2026-11-17T08:24:52.161Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QR5BWXABT0AGCH","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:52.169Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QR5BWXABT0AGCH","field":"model"}
+        # Subtest: clear 超时可恢复（旧焦点不变，pending 清理）
+        ok 13 - clear 超时可恢复（旧焦点不变，pending 清理）
+          ---
+          duration_ms: 122.5027
+          ...
+# {"ts":"2026-11-17T08:24:52.291Z","level":"error","scope":"message-dispatcher","message":"command handler failed","command":"clear","error":"OpenCode TUI bridge clear timed out after 100ms"}
+# {"ts":"2026-11-17T08:24:52.292Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QR6K37ZMP7Q17G","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:52.293Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:52.300Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:52.311Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QRANJDCZN2XM1H","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:52.324Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QRANJDCZN2XM1H"}
+# {"ts":"2026-11-17T08:24:52.336Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QRANJDCZN2XM1H"}
+# {"ts":"2026-11-17T08:24:52.336Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_old_e2e","walkerSessionId":"wks_M7M9QRANJDCZN2XM1H","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:52.350Z","level":"info","scope":"session-service","message":"session field updated","sessionId":"wks_M7M9QRANJDCZN2XM1H","field":"model"}
+        # Subtest: 超时后迟到 control 与关联 register 均不切换焦点
+        ok 14 - 超时后迟到 control 与关联 register 均不切换焦点
+          ---
+          duration_ms: 172.4549
+          ...
+# {"ts":"2026-11-17T08:24:52.370Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"runtime-clear-e2e","opencodeSessionId":"ses_new_then_prompt","controlDeliveryId":"del_M7M9QRCAV2T5DMZV84"}
+# {"ts":"2026-11-17T08:24:52.370Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_old_e2e","deliveryId":"del_M7M9QRCAV2T5DMZV84","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:52.374Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QRCK4SDJATMQNV","agent":"opencode","route":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:52.384Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QRCK4SDJATMQNV"}
+# {"ts":"2026-11-17T08:24:52.384Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"runtime-clear-e2e","oldSessionId":"ses_old_e2e","newSessionId":"ses_new_then_prompt","walkerSessionId":"wks_M7M9QRCK4SDJATMQNV"}
+# {"ts":"2026-11-17T08:24:52.419Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:52.432Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_after_clear","chatId":"oc_chat_clear","rootId":null,"parentId":"","textLength":17}
+# {"ts":"2026-11-17T08:24:52.432Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_after_clear","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","parentId":"","sourceRouteKey":"feishu:oc_chat_clear:root:oc_chat_clear","effectiveRouteKey":"feishu:oc_chat_clear:root:oc_chat_clear","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:52.434Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear"}
+# {"ts":"2026-11-17T08:24:52.451Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QRCK4SDJATMQNV","chatId":"oc_chat_clear","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_new_then_prompt","transport":"tui-bridge","runtimeId":"runtime-clear-e2e"}}
+# {"ts":"2026-11-17T08:24:52.451Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_after_clear","routeKey":"feishu:oc_chat_clear:root:oc_chat_clear","sessionId":"wks_M7M9QRCK4SDJATMQNV","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_clear:root:oc_chat_clear","effectiveRouteKey":"feishu:oc_chat_clear:root:oc_chat_clear","routedBy":"route-focus","agentRefId":"ses_new_then_prompt","opencodeSessionId":"ses_new_then_prompt"}
+# {"ts":"2026-11-17T08:24:52.479Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-clear-e2e","sessionId":"ses_new_then_prompt","deliveryId":"del_M7M9QRFQE4GQ1WJ26Q","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:52.479Z","level":"info","scope":"message-dispatcher","message":"session runtime token missing, reading latest driver runtime","sessionId":"wks_M7M9QRCK4SDJATMQNV","opencodeSessionId":"ses_new_then_prompt","hasContextSize":false,"hasTokenUsage":"***"}
+# {"ts":"2026-11-17T08:24:52.515Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_new_then_prompt","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db select data from message where session_id='ses_new_then_prompt' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:52.581Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_new_then_prompt","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db select data from message where session_id='ses_new_then_prompt' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:52.655Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_new_then_prompt","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db select data from message where session_id='ses_new_then_prompt' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:52.734Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_new_then_prompt","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db select data from message where session_id='ses_new_then_prompt' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:52.808Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_new_then_prompt","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-clear-xriyVl\\\\opencode.db select data from message where session_id='ses_new_then_prompt' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:52.808Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_after_clear","sessionId":"wks_M7M9QRCK4SDJATMQNV","eventCount":2}
+# {"ts":"2026-11-17T08:24:52.815Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:52.823Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QRTPF47968N6JB","agent":"opencode","route":"feishu:oc_chat_v3_long:root:oc_chat_v3_long"}
+# {"ts":"2026-11-17T08:24:52.828Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:52.835Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QRV2GT0R423QAE","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:52.842Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","sessionId":"wks_M7M9QRV2GT0R423QAE"}
+# {"ts":"2026-11-17T08:24:52.847Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","sessionId":"wks_M7M9QRV2GT0R423QAE"}
+# {"ts":"2026-11-17T08:24:52.847Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-v3-long","opencodeSessionId":"ses_v3_long","walkerSessionId":"wks_M7M9QRV2GT0R423QAE","routeKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long"}
+# {"ts":"2026-11-17T08:24:52.848Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_v3_long","chatId":"oc_chat_v3_long","rootId":null,"parentId":"","textLength":17}
+# {"ts":"2026-11-17T08:24:52.852Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_v3_long","routeKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","parentId":"","sourceRouteKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","effectiveRouteKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:52.853Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long"}
+# {"ts":"2026-11-17T08:24:52.866Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QRV2GT0R423QAE","chatId":"oc_chat_v3_long","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_v3_long","transport":"tui-bridge","runtimeId":"runtime-v3-long"}}
+# {"ts":"2026-11-17T08:24:52.867Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_v3_long","routeKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","sessionId":"wks_M7M9QRV2GT0R423QAE","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","effectiveRouteKey":"feishu:oc_chat_v3_long:root:oc_chat_v3_long","routedBy":"route-focus","agentRefId":"ses_v3_long","opencodeSessionId":"ses_v3_long"}
+        # Subtest: clear 后现有 prompt 双向链路仍正常工作
+        ok 15 - clear 后现有 prompt 双向链路仍正常工作
+          ---
+          duration_ms: 525.0665
+          ...
+        1..15
+    ok 4 - 飞书 /clear 全链路集成
+      ---
+      duration_ms: 2292.6314
+      type: 'suite'
+      ...
+# {"ts":"2026-11-17T08:24:52.892Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-v3-long","sessionId":"ses_v3_long","deliveryId":"del_M7M9QRWV3JFR0E239N","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:52.957Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-v3-long","sessionId":"ses_v3_long","deliveryId":"del_M7M9QRWV3JFR0E239N","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:53.020Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-v3-long","sessionId":"ses_v3_long","deliveryId":"del_M7M9QRWV3JFR0E239N","deliveryState":"final","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:53.020Z","level":"info","scope":"message-dispatcher","message":"session runtime token missing, reading latest driver runtime","sessionId":"wks_M7M9QRV2GT0R423QAE","opencodeSessionId":"ses_v3_long","hasContextSize":false,"hasTokenUsage":"***"}
+# {"ts":"2026-11-17T08:24:53.061Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v3_long","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db select data from message where session_id='ses_v3_long' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.164Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v3_long","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db select data from message where session_id='ses_v3_long' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.222Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v3_long","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db select data from message where session_id='ses_v3_long' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.303Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v3_long","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db select data from message where session_id='ses_v3_long' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.372Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v3_long","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-WOcqd6\\\\opencode.db select data from message where session_id='ses_v3_long' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.372Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_v3_long","sessionId":"wks_M7M9QRV2GT0R423QAE","eventCount":2}
+# {"ts":"2026-11-17T08:24:53.381Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:53.387Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QSCAG64933AAAE","agent":"opencode","route":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat"}
+# {"ts":"2026-11-17T08:24:53.394Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:53.401Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QSCQAR04ASBQ5N","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:53.408Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","sessionId":"wks_M7M9QSCQAR04ASBQ5N"}
+# {"ts":"2026-11-17T08:24:53.414Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","sessionId":"wks_M7M9QSCQAR04ASBQ5N"}
+# {"ts":"2026-11-17T08:24:53.414Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-v2-compat","opencodeSessionId":"ses_v2_compat","walkerSessionId":"wks_M7M9QSCQAR04ASBQ5N","routeKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat"}
+# {"ts":"2026-11-17T08:24:53.414Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_v2_compat","chatId":"oc_chat_v2_compat","rootId":null,"parentId":"","textLength":14}
+# {"ts":"2026-11-17T08:24:53.418Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_v2_compat","routeKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","parentId":"","sourceRouteKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","effectiveRouteKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:53.420Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat"}
+# {"ts":"2026-11-17T08:24:53.432Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QSCQAR04ASBQ5N","chatId":"oc_chat_v2_compat","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_v2_compat","transport":"tui-bridge","runtimeId":"runtime-v2-compat"}}
+# {"ts":"2026-11-17T08:24:53.432Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_v2_compat","routeKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","sessionId":"wks_M7M9QSCQAR04ASBQ5N","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","effectiveRouteKey":"feishu:oc_chat_v2_compat:root:oc_chat_v2_compat","routedBy":"route-focus","agentRefId":"ses_v2_compat","opencodeSessionId":"ses_v2_compat"}
+    # Subtest: v3 租约协议长任务与 v2 兼容
+        # Subtest: v3 accepted/heartbeat/final 长任务超过旧固定阈值仍完成
+        ok 1 - v3 accepted/heartbeat/final 长任务超过旧固定阈值仍完成
+          ---
+          duration_ms: 563.7682
+          ...
+# {"ts":"2026-11-17T08:24:53.470Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-v2-compat","sessionId":"ses_v2_compat","deliveryId":"del_M7M9QSEDSXCXARJ2JD","deliveryState":"","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:53.471Z","level":"info","scope":"message-dispatcher","message":"session runtime token missing, reading latest driver runtime","sessionId":"wks_M7M9QSCQAR04ASBQ5N","opencodeSessionId":"ses_v2_compat","hasContextSize":false,"hasTokenUsage":"***"}
+# {"ts":"2026-11-17T08:24:53.506Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v2_compat","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db select data from message where session_id='ses_v2_compat' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.568Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v2_compat","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db select data from message where session_id='ses_v2_compat' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.649Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v2_compat","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db select data from message where session_id='ses_v2_compat' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.722Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v2_compat","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db select data from message where session_id='ses_v2_compat' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.790Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_v2_compat","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-tui-OW3WMk\\\\opencode.db select data from message where session_id='ses_v2_compat' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:24:53.790Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_v2_compat","sessionId":"wks_M7M9QSCQAR04ASBQ5N","eventCount":2}
+# {"ts":"2026-11-17T08:24:53.799Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:53.805Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QSSC8FYZ9J9NK5","agent":"opencode","route":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover"}
+# {"ts":"2026-11-17T08:24:53.810Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:53.817Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QSSQ2F1CKW56AB","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:53.827Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","sessionId":"wks_M7M9QSSQ2F1CKW56AB"}
+# {"ts":"2026-11-17T08:24:53.839Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","sessionId":"wks_M7M9QSSQ2F1CKW56AB"}
+# {"ts":"2026-11-17T08:24:53.839Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-tomb-recover","opencodeSessionId":"ses_tomb_recover","walkerSessionId":"wks_M7M9QSSQ2F1CKW56AB","routeKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover"}
+# {"ts":"2026-11-17T08:24:53.840Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_tomb_recover","chatId":"oc_chat_tomb_recover","rootId":null,"parentId":"","textLength":17}
+# {"ts":"2026-11-17T08:24:53.848Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_tomb_recover","routeKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","parentId":"","sourceRouteKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","effectiveRouteKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:53.852Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover"}
+# {"ts":"2026-11-17T08:24:53.869Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QSSQ2F1CKW56AB","chatId":"oc_chat_tomb_recover","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_tomb_recover","transport":"tui-bridge","runtimeId":"runtime-tomb-recover"}}
+# {"ts":"2026-11-17T08:24:53.869Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_tomb_recover","routeKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","sessionId":"wks_M7M9QSSQ2F1CKW56AB","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","effectiveRouteKey":"feishu:oc_chat_tomb_recover:root:oc_chat_tomb_recover","routedBy":"route-focus","agentRefId":"ses_tomb_recover","opencodeSessionId":"ses_tomb_recover"}
+        # Subtest: v2 plugin 无 deliveryState 时按 final 兼容完成 prompt
+        ok 2 - v2 plugin 无 deliveryState 时按 final 兼容完成 prompt
+          ---
+          duration_ms: 418.2422
+          ...
+# {"ts":"2026-11-17T08:24:53.904Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-tomb-recover","sessionId":"ses_tomb_recover","deliveryId":"del_M7M9QSW7C8CVFANR18","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:54.013Z","level":"error","scope":"message-dispatcher","message":"driver prompt failed","messageId":"om_msg_tomb_recover","sessionId":"wks_M7M9QSSQ2F1CKW56AB","error":"TUI_RUNTIME_DISCONNECTED","code":"unknown"}
+# {"ts":"2026-11-17T08:24:54.120Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-tomb-recover","sessionId":"ses_tomb_recover","deliveryId":"del_M7M9QSW7C8CVFANR18","deliveryState":"final","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:54.121Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QSSQ2F1CKW56AB","chatId":"oc_chat_tomb_recover","textLen":20,"bufferLen":1}
+# {"ts":"2026-11-17T08:24:54.229Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-tomb-recover","sessionId":"ses_tomb_recover","deliveryId":"del_M7M9QSW7C8CVFANR18","deliveryState":"final","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:54.338Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:54.343Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QTA553AQMNJY1P","agent":"opencode","route":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel"}
+# {"ts":"2026-11-17T08:24:54.352Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:54.364Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QTAT2HN244ANWT","agent":"opencode"}
+# {"ts":"2026-11-17T08:24:54.379Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","sessionId":"wks_M7M9QTAT2HN244ANWT"}
+# {"ts":"2026-11-17T08:24:54.389Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","sessionId":"wks_M7M9QTAT2HN244ANWT"}
+# {"ts":"2026-11-17T08:24:54.389Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-tomb-cancel","opencodeSessionId":"ses_tomb_cancel","walkerSessionId":"wks_M7M9QTAT2HN244ANWT","routeKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel"}
+# {"ts":"2026-11-17T08:24:54.390Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_tomb_cancel","chatId":"oc_chat_tomb_cancel","rootId":null,"parentId":"","textLength":16}
+# {"ts":"2026-11-17T08:24:54.396Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_tomb_cancel","routeKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","parentId":"","sourceRouteKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","effectiveRouteKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:54.399Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel"}
+# {"ts":"2026-11-17T08:24:54.419Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QTAT2HN244ANWT","chatId":"oc_chat_tomb_cancel","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_tomb_cancel","transport":"tui-bridge","runtimeId":"runtime-tomb-cancel"}}
+# {"ts":"2026-11-17T08:24:54.419Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_tomb_cancel","routeKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","sessionId":"wks_M7M9QTAT2HN244ANWT","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","effectiveRouteKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel","routedBy":"route-focus","agentRefId":"ses_tomb_cancel","opencodeSessionId":"ses_tomb_cancel"}
+        # Subtest: transport_lost tombstone 迟到 final 补投至 watcher 且至多一次
+        ok 3 - transport_lost tombstone 迟到 final 补投至 watcher 且至多一次
+          ---
+          duration_ms: 536.8781
+          ...
+# {"ts":"2026-11-17T08:24:54.445Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-tomb-cancel","sessionId":"ses_tomb_cancel","deliveryId":"del_M7M9QTD95HGZ02Y0XW","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:24:54.449Z","level":"info","scope":"turn-state","message":"turn cancelled","sessionId":"wks_M7M9QTAT2HN244ANWT","reason":"cancel"}
+# {"ts":"2026-11-17T08:24:54.461Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_tomb_cancel:root:oc_chat_tomb_cancel"}
+# {"ts":"2026-11-17T08:24:54.461Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"runtime-tomb-cancel","sessionId":"ses_tomb_cancel","deliveryId":"del_M7M9QTD95HGZ02Y0XW","deliveryState":"final","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:24:54.569Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:24:54.578Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7M9QTHEE33HJ3GJJD","agent":"opencode","route":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw"}
+# {"ts":"2026-11-17T08:24:54.585Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}
+# {"ts":"2026-11-17T08:24:54.585Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_msg_dedup_pw","chatId":"oc_chat_dedup_pw","rootId":null,"parentId":"","textLength":10}
+# {"ts":"2026-11-17T08:24:54.598Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_msg_dedup_pw","routeKey":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw","parentId":"","sourceRouteKey":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw","effectiveRouteKey":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:24:54.601Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw"}
+# {"ts":"2026-11-17T08:24:54.617Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7M9QTHEE33HJ3GJJD","chatId":"oc_chat_dedup_pw","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_dedup_pw","serverUrl":"http://localhost:4096","cwd":"H:\\\\walker\\\\.worktree\\\\2026-11-17-feishu-real-session-title"}}
+# {"ts":"2026-11-17T08:24:54.617Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_msg_dedup_pw","routeKey":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw","sessionId":"wks_M7M9QTHEE33HJ3GJJD","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw","effectiveRouteKey":"feishu:oc_chat_dedup_pw:root:oc_chat_dedup_pw","routedBy":"route-focus","agentRefId":"ses_dedup_pw","opencodeSessionId":"ses_dedup_pw"}
+# {"ts":"2026-11-17T08:24:54.627Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_msg_dedup_pw","sessionId":"wks_M7M9QTHEE33HJ3GJJD","eventCount":2}
+# {"ts":"2026-11-17T08:24:54.643Z","level":"info","scope":"message-dispatcher","message":"watched session done","sessionId":"wks_M7M9QTHEE33HJ3GJJD","chatId":"oc_chat_dedup_pw","textLen":13,"bufferLen":1}
+# {"ts":"2026-11-17T08:24:54.643Z","level":"info","scope":"message-dispatcher","message":"skip duplicate watched session text","sessionId":"wks_M7M9QTHEE33HJ3GJJD","chatId":"oc_chat_dedup_pw","textLen":13}
+        # Subtest: cancelled tombstone 迟到 final 被抑制不投递到飞书
+        ok 4 - cancelled tombstone 迟到 final 被抑制不投递到飞书
+          ---
+          duration_ms: 232.0223
+          ...
+# {"ts":"2026-11-17T08:24:54.644Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+        # Subtest: 相同 completed text 经 prompt 和 watcher 两路径只回复一次
+        ok 5 - 相同 completed text 经 prompt 和 watcher 两路径只回复一次
+          ---
+          duration_ms: 75.6915
+          ...
+        1..5
+    ok 5 - v3 租约协议长任务与 v2 兼容
+      ---
+      duration_ms: 1827.1275
+      type: 'suite'
+      ...
+    1..5
+ok 18 - 飞书-TUI 双向链路集成测试
+  ---
+  duration_ms: 5867.4965
+  type: 'suite'
+  ...
+1..18
+# tests 57
+# suites 7
+# pass 57
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8947.5811
+{"exit_code":0,"isolated_home_verified":true}

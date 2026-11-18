@@ -2,13 +2,11 @@
 
 const assert = require('node:assert/strict');
 const { describe, it } = require('node:test');
-const { execFileSync } = require('node:child_process');
 const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const driverPath = path.join(root, 'src', 'drivers', 'opencode-driver.js');
-const baseline = '1ac4dc2966d26812bc67ad958f8b8f0e8e053c05';
 
 const DELETED_MODULE_PARTS = [
   ['claude', 'driver'],
@@ -143,14 +141,6 @@ function findUserClaudeHomeReads(dir) {
   return hits;
 }
 
-function git(args) {
-  return execFileSync('git', args, {
-    cwd: root,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-}
-
 function unreleasedSection() {
   const text = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
   const marker = '## [0.1.0]';
@@ -177,15 +167,9 @@ describe('claude removal guard', () => {
     }
   });
 
-  it('REQ-006-B03: OpenCode driver 相对基线无功能性 diff，且不含 Claude 接入符号', () => {
+  it('REQ-006-B03: OpenCode driver 保持存在，且不含 Claude 接入符号', () => {
     assert.equal(fs.existsSync(driverPath), true);
-    const headDiff = git(['diff', '--ignore-cr-at-eol', 'HEAD', '--', 'src/drivers/opencode-driver.js']);
-    assert.equal(headDiff, '');
-    const head = git(['rev-parse', 'HEAD']).trim();
-    if (head === baseline) {
-      const baselineDiff = git(['diff', '--ignore-cr-at-eol', baseline, '--', 'src/drivers/opencode-driver.js']);
-      assert.equal(baselineDiff, '');
-    }
+    // 长期守卫约束禁止接入的内容，不冻结合法OpenCode功能开发或工作区状态。
     const source = fs.readFileSync(driverPath, 'utf8');
     assert.equal(source.includes('ClaudeDriver'), false);
     assert.equal(source.includes('claude_removed'), false);

@@ -1,0 +1,110 @@
+{
+  "verdict": "PASS",
+  "mechanical_verification": {
+    "ok": true,
+    "errors": [],
+    "warnings": []
+  },
+  "requirements": 3,
+  "behaviors": 16,
+  "receipts": 5,
+  "reviewed_implementation_files_unchanged": 10,
+  "syntax_files": 112,
+  "tests_rerun": false,
+  "full_isolated_tests": {
+    "passed": 1578,
+    "total": 1578,
+    "exit_code": 0,
+    "sha256": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e"
+  },
+  "verification_log": {
+    "file": "evidence/verification-static-retry.log",
+    "exit_code": 0,
+    "sha256": "99114e84600accbee2a3f3caa015bb4d8df756f8c3caecbb09cb6fed5d65275a"
+  },
+  "review_static_log": {
+    "file": "evidence/review-static.log",
+    "exit_code": 0,
+    "sha256": "a775970c8b72a56e8479222ef848f5d748dc2d56b2b5b889f11d4e1014f1a94e"
+  },
+  "report_sha256": "64840d8e8c629f26d040e5e234d9a998e39c3028877215d0537be5deeb8c0b79",
+  "git_tree": "e506636f6a0698cd43367ac1ffe4d2bf8b259397",
+  "diff_sha256": "cdbcb46dd40b5d1ffa460593978034baf3e51c27af8e6b852241b88a6b91a2b9",
+  "product_diff_sha256": "1b2d948de4e821383b1d0bceee3fe5aec1a2038bbf976995f0e7bf30f06be2de",
+  "handoff_refresh": {
+    "report": "evidence/review-metadata-refresh.md",
+    "refreshed": [
+      "T3",
+      "executing",
+      "converge"
+    ],
+    "previous_handoff": "evidence/review-prior-handoff-verification.json",
+    "original_report_body_unchanged": true,
+    "original_report_sha256": "f75f9c9038b9c5724df28584dcb6aae0cae9aaef8b9fd60fcf73554b896f40b7",
+    "current_report_sha256": "b6b2d7f8517bf1a823913afd10a75663e25b3b09016c5b2e784143b3905f4ff8"
+  },
+  "next_stage": "code-review-request",
+  "resume_notes": [
+    "最新用户明确不再压缩、不设置compression_confirmed；此规则替代本交接旧版的请求压缩续跑说明。本次只刷新交接，不调用advance。",
+    "本树实际state和progress均code-review-request，verification已passed，不重复验证或擅自回退。",
+    "后续先获取实际pipeline context；继续审查准备须按用户授权，人工review-gate不自动approve。",
+    "所有新业务测试必须原隔离运行器及全新日志；当前仅复用既有业务证据，不重复测试。",
+    "两报告绑定仅为当前元数据快照，不冒充原测试运行时绑定；旧报告和旧交接原字节均保留。",
+    "原failing基线、首审FAIL及所有历史失败保持，不检查或清理用户数据库。",
+    "无本树独立CodeGraph索引，不使用主树回落或初始化；无提交、合并、推送、部署或重启。"
+  ],
+  "limitations": [
+    "未实机飞书/真实OpenCode/SQLite挂起或OS权限验收",
+    "默认用户目录隔离不是OS沙箱，路径守卫不提供符号链接攻击防护",
+    "历史编码及旧默认用户库查询风险保留",
+    "宪章命令为模板，按实际包脚本验证；Node低于ESLint支持声明",
+    "本次不声称流水线已全部完成"
+  ],
+  "status": "done",
+  "summary": "验证PASS不变，已补齐宿主推进后合规历史变化引起的报告绑定与旧交接指纹。原完整隔离1578/1578及57/381/6证据复用，不重跑业务测试；本阶段一次新静态复核lint、112源码语法、3REQ/16行为/5收据、差异及指纹全通过，10份产品/测试及5动态证据不变。两报告旧版逐字备份，原正文不变；绑定更新后机械校验ok:true。原启发式合规记录及所有失败保留。实际已处于code-review-request，本轮不回退或推进；按最新用户要求不再压缩、不设置compression_confirmed，不自动审批、提交、部署或重启。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json",
+    "evidence/verification-check.cjs",
+    "evidence/verification-static.log",
+    "evidence/verification-static-retry.log",
+    "evidence/verification-handoff-refresh.md",
+    "evidence/full-isolated-retry.log",
+    "evidence/T3-review-round2.md",
+    "evidence/converge-semantic-review.md",
+    "evidence/review-static.log",
+    "evidence/review-metadata-refresh.md",
+    "evidence/review-version-receipt.json",
+    "evidence/review-prior-test-report.md",
+    "evidence/review-prior-verify-report.md",
+    "evidence/review-prior-handoff-verification.json"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5",
+    "test-report.md": "b6b2d7f8517bf1a823913afd10a75663e25b3b09016c5b2e784143b3905f4ff8"
+  },
+  "artifact_fingerprints": {
+    "evidence/T3-review-round2.md": "42cce9feb25b1295f1bfdd793e13a0c65e3192a1001370e756e57e4ce49f4fa5",
+    "evidence/converge-semantic-review.md": "01f3863c548c49287c1b9afe4a6211999083ea36c4e3c389f0756486b28ed1c2",
+    "evidence/full-isolated-retry.log": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+    "evidence/review-metadata-refresh.md": "e138549cf30a050aadc2cfbcd546e1a3f77838d49130c06766bc518d72ce745e",
+    "evidence/review-prior-handoff-verification.json": "54f0ac8b6d5445a6e922c67bed5c19b7ae8315f8e526854a706671e6c935cf86",
+    "evidence/review-prior-test-report.md": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2",
+    "evidence/review-prior-verify-report.md": "655409425b8857f6e0440264172e3c45497cc9a96b5cba3c0811d052d342020d",
+    "evidence/review-static.log": "a775970c8b72a56e8479222ef848f5d748dc2d56b2b5b889f11d4e1014f1a94e",
+    "evidence/review-version-receipt.json": "cde6a01a3f3470a2c580344edbd238a045a75ed5e831ad77a74730dfe5428f97",
+    "evidence/verification-check.cjs": "5135b846b6c6b1d1cdd0d6c41d9fe6559aa29eda178784e212c03a1e0577c00f",
+    "evidence/verification-handoff-refresh.md": "be46e77878697af51f39f27d3a39d5ba58c3f12594c5de35bbb13f33643a989b",
+    "evidence/verification-static-retry.log": "99114e84600accbee2a3f3caa015bb4d8df756f8c3caecbb09cb6fed5d65275a",
+    "evidence/verification-static.log": "b1a6f9d12156a10d677feea14455098b5bf653b50ca2c39bf4eb5d0fa801b3b5",
+    "test-report.md": "b6b2d7f8517bf1a823913afd10a75663e25b3b09016c5b2e784143b3905f4ff8",
+    "verify-report.md": "64840d8e8c629f26d040e5e234d9a998e39c3028877215d0537be5deeb8c0b79"
+  },
+  "written_at": "2026-11-17T09:40:34.756Z"
+}

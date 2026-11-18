@@ -14,16 +14,277 @@ const { AgentEvent } = require('../src/drivers/agent-driver');
 const { OpencodeDriver } = require('../src/drivers/opencode-driver');
 const { OpencodeTuiBridge } = require('../src/opencode-tui-bridge/bridge');
 const { buildRouteKey } = require('../src/core/route-key');
+const http = require('node:http');
+const { fileURLToPath, pathToFileURL } = require('node:url');
+const { promisify } = require('node:util');
+const { execFile } = require('node:child_process');
+const { FeishuApi } = require('../src/platform/feishu/api');
+const { ProgressCard } = require('../src/platform/feishu/progress-card');
+const { basicAuthHeader } = require('../src/drivers/opencode-service');
+
+/** SQL目标只允许当前夹具目录；同时识别普通文件名与只读file URI。 */
+function assertFixtureDatabase(tmpDir, args) {
+  const target = String(args[2]);
+  const database = target.startsWith('file:') ? fileURLToPath(new URL(target)) : path.resolve(target);
+  const relative = path.relative(tmpDir, database);
+  assert.ok(relative && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative),
+    'SQLite目标必须位于当前测试临时目录');
+}
+
+/** 沿用驱动既有注入点隔离数据库、模型与服务发现，路径断言失败不会被业务降级吞掉。 */
+function isolatedDriverOptions(tmpDir) {
+  const exec = promisify(execFile);
+  const rejected = [];
+  return {
+    opencodeDbPath: path.join(tmpDir, 'opencode.db'),
+    modelState: null,
+    readServiceRecord: () => null,
+    execFile: async (command, args, options) => {
+      try { assertFixtureDatabase(tmpDir, args); }
+      catch (error) { rejected.push(error); throw error; }
+      return exec(command, args, options);
+    },
+    assertDatabaseIsolation: () => assert.equal(rejected.length, 0, '驱动曾试图越出夹具目录执行SQL'),
+  };
+}
+
+describe('真实标题源到飞书页脚的跨层验证', () => {
+  it('数据库路径守卫接受夹具普通路径与只读URI，拒绝目录穿越及相似前缀', (t) => {
+    const ctx = makeRealCtx();
+    t.after(() => ctx.cleanup());
+    const database = path.join(ctx.tmpDir, '标题.db');
+    const uri = pathToFileURL(database);
+    uri.searchParams.set('mode', 'ro');
+    assert.doesNotThrow(() => assertFixtureDatabase(ctx.tmpDir, ['-batch', '-noheader', database]));
+    assert.doesNotThrow(() => assertFixtureDatabase(ctx.tmpDir, ['-batch', '-noheader', uri.href]));
+    for (const target of [path.join(ctx.tmpDir, '..', '越界.db'), ctx.tmpDir + '-other/标题.db']) {
+      assert.throws(() => assertFixtureDatabase(ctx.tmpDir, ['-batch', '-noheader', target]));
+      assert.throws(() => assertFixtureDatabase(ctx.tmpDir, ['-batch', '-noheader', pathToFileURL(target).href]));
+    }
+  });
+
+  /** 隔离HTTP标题服务，仅使用合成会话，测试结束实际关闭所有连接。 */
+  async function serve(t, handler) {
+    const requests = [];
+    const server = http.createServer((req, res) => {
+      requests.push({ method: req.method, url: req.url, auth: req.headers.authorization });
+      handler(req, res);
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+    return { serverUrl: 'http://127.0.0.1:' + server.address().port, requests };
+  }
+
+  /** 真实存储、驱动、调度和飞书格式化；只拦截不可回滚的飞书外网发送。 */
+  function harness(t, options) {
+    const ctx = makeRealCtx();
+    const driver = new OpencodeDriver({ ...ctx.driverOptions, ...options });
+    const api = new FeishuApi({ appId: '合成应用', appSecret: '合成密钥' });
+    api.token = '合成token';
+    api.tokenExpiresAt = Date.now() + 600000;
+    const requests = [];
+    api._request = async (method, _host, url, body) => {
+      const envelope = JSON.parse(body);
+      requests.push({ method, url, content: JSON.parse(envelope.content) });
+      return { code: 0, data: { message_id: 'om_synthetic_' + requests.length } };
+    };
+    const dispatcher = new MessageDispatcher({
+      sessionService: ctx.sessionService, driverRegistry: { get: () => driver },
+      feishuApi: api, dedup: new MessageDedup({ windowMs: 300000 }),
+    });
+    t.after(() => { dispatcher.destroy(); ctx.cleanup(); });
+    return { ...ctx, driver, api, dispatcher, requests };
+  }
+
+  /** 创建已纳入但仅有自动名称的旧记录，模型和上下文预先就绪。 */
+  function owner(h, id, ref = {}, title) {
+    const created = h.sessionService.createSession({ route: 'feishu:oc_same_chat', agent: 'opencode',
+      cwd: h.tmpDir, title, agentRef: { opencodeSessionId: id, ...ref }, model: { providerID: 'p', modelID: 'm' } });
+    const session = h.sessionService.getSession(created.id);
+    // 上下文来自运行时，不通过仅允许持久字段的服务接口写入。
+    session.contextTokens = 123;
+    Object.freeze(session.agentRef);
+    return Object.freeze(session);
+  }
+
+  /** 通过真实调度发送桥接，测试正文唯一以便并发时按所属正文定位请求。 */
+  function send(h, session, text = '合成正文', method = 'sendText') {
+    return h.dispatcher._callFeishu(method, ['oc_same_chat', text], null, { session });
+  }
+
+  it('HTTP官方响应经真实驱动进入文本、Markdown、进度与问题卡，认证和本地记录保持', async (t) => {
+    const title = '中文😀真实标题';
+    const server = await serve(t, (_req, res) => {
+      const data = Buffer.from(JSON.stringify({ data: { id: 'ses_A', title } }));
+      const split = data.indexOf(Buffer.from('中')) + 1;
+      res.write(data.subarray(0, split));
+      setTimeout(() => res.end(data.subarray(split)), 10);
+    });
+    const h = harness(t, { serverUrl: server.serverUrl, serverPassword: '合成口令' });
+    const session = owner(h, 'ses_A');
+    const before = fs.readFileSync(path.join(h.tmpDir, 'state.json'));
+    await send(h, session);
+    assert.equal(h.requests.at(-1).content.text, '合成正文\n\n---\n会话：' + title + '\n模型：p/m\n上下文：123 tokens');
+    await send(h, session, '**Markdown正文**', 'sendMarkdown');
+    assert.ok(h.requests.at(-1).content.body.elements[0].content.includes('会话：' + title));
+    const progress = new ProgressCard({ sessionId: session.id });
+    progress.append(new AgentEvent(AgentEvent.TYPE_TOOL_USE, { name: '合成工具', status: 'running' }));
+    await h.dispatcher._callFeishu('replyCard', [{ chatId: 'oc_same_chat' }, progress.render()], null, { session });
+    assert.ok(h.requests.at(-1).content.body.elements.at(-1).content.includes('会话：' + title));
+    await h.dispatcher.questionHandler.handleAsked(session, 'oc_same_chat', 'feishu:oc_same_chat', new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
+      requestID: 'req_source_title', sessionID: 'ses_A',
+      questions: [{ header: '合成问题', question: '请选择', options: [{ label: 'A', description: '' }] }],
+    }));
+    assert.ok(h.requests.at(-1).content.body.elements.at(-1).content.includes('会话：' + title));
+    assert.deepEqual(server.requests, [{ method: 'GET', url: '/api/session/ses_A', auth: basicAuthHeader('合成口令') }]);
+    assert.deepEqual(fs.readFileSync(path.join(h.tmpDir, 'state.json')), before, '标题不得写本地名称或其他会话状态');
+    assert.match(session.title, /^session wks_/);
+  });
+
+  it('同聊天A/B的真实HTTP响应逆序完成，各自正文及页脚不受焦点切换影响', async (t) => {
+    let finishA;
+    let receivedA;
+    const aReady = new Promise((resolve) => { receivedA = resolve; });
+    const server = await serve(t, (req, res) => {
+      const id = decodeURIComponent(req.url.split('/').at(-1));
+      if (id === 'ses_A') {
+        finishA = () => res.end(JSON.stringify({ data: { id, title: '甲的真实标题' } }));
+        receivedA();
+      } else res.end(JSON.stringify({ data: { id, title: '乙的真实标题' } }));
+    });
+    const h = harness(t, { serverUrl: server.serverUrl });
+    const a = owner(h, 'ses_A');
+    const b = owner(h, 'ses_B');
+    h.sessionService.setFocus('feishu:oc_same_chat', a.id);
+    const pendingA = send(h, a, '甲的正文');
+    const sameA = send(h, a, '甲的并发正文');
+    await aReady;
+    h.sessionService.setFocus('feishu:oc_same_chat', b.id);
+    await send(h, b, '乙的正文');
+    finishA();
+    await Promise.all([pendingA, sameA]);
+    for (const request of h.requests) {
+      const text = request.content.text;
+      const expected = text.startsWith('乙') ? '乙的真实标题' : '甲的真实标题';
+      const unexpected = text.startsWith('乙') ? '甲的真实标题' : '乙的真实标题';
+      assert.ok(text.includes('会话：' + expected) && !text.includes(unexpected));
+    }
+    assert.equal(server.requests.length, 2, '同键并发必须只有一次真实GET');
+    assert.equal(h.sessionService.getCurrent('feishu:oc_same_chat').id, b.id);
+  });
+
+  it('真实HTTP权限错误按完成后30秒缓存，历史优先及到期恢复且错误正文不泄漏', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: 1000 });
+    let forbidden = false;
+    let title = '历史真实标题';
+    const marker = '合成错误正文不应记录';
+    const server = await serve(t, (_req, res) => {
+      if (forbidden) { res.writeHead(403); res.end(marker); }
+      else res.end(JSON.stringify({ data: { id: 'ses_A', title } }));
+    });
+    const h = harness(t, { serverUrl: server.serverUrl, serverPassword: '合成口令' });
+    const session = owner(h, 'ses_A', {}, '本地有效名称');
+    await send(h, session);
+    forbidden = true;
+    t.mock.timers.setTime(31000);
+    let output = '';
+    const original = process.stderr.write;
+    process.stderr.write = function capture(chunk) { output += String(chunk); return true; };
+    try { await send(h, session); } finally { process.stderr.write = original; }
+    assert.ok(h.requests.at(-1).content.text.includes('会话：历史真实标题'));
+    assert.ok(!output.includes(marker) && !output.includes('合成口令'));
+    forbidden = false;
+    title = '恢复后的真实标题';
+    t.mock.timers.setTime(60999);
+    await send(h, session);
+    assert.ok(h.requests.at(-1).content.text.includes('会话：历史真实标题'));
+    assert.equal(server.requests.length, 2);
+    t.mock.timers.setTime(61000);
+    await send(h, session);
+    assert.ok(h.requests.at(-1).content.text.includes('会话：恢复后的真实标题'));
+    assert.equal(server.requests.length, 3);
+  });
+
+  it('真实SQLite精确只读标题经发送边界安全展示，库及runtime切换不共用旧结果', async (t) => {
+    const h = harness(t, { serverUrl: 'http://127.0.0.1:1' });
+    const exec = promisify(execFile);
+    const databaseA = path.join(h.tmpDir, '合成标题甲.db');
+    const databaseB = path.join(h.tmpDir, '合成标题乙.db');
+    const id = "ses_'; DROP TABLE session;--";
+    const titleA = '甲标题\n<at id="all"> *仅文本*';
+    const quote = (value) => "'" + value.replace(/'/g, "''") + "'";
+    for (const [database, title] of [[databaseA, titleA], [databaseB, '乙库真实标题']]) {
+      await exec(h.driver.sqliteCmd, [database, 'CREATE TABLE session(id TEXT PRIMARY KEY,title TEXT); INSERT INTO session VALUES(' + quote(id) + ',' + quote(title) + ');']);
+    }
+    h.driver.opencodeDbPath = databaseA;
+    const a = owner(h, id, { transport: 'tui-bridge' });
+    const beforeA = fs.readFileSync(databaseA);
+    const beforeB = fs.readFileSync(databaseB);
+    await send(h, a, '正文', 'sendMarkdown');
+    const content = h.requests.at(-1).content.body.elements[0].content;
+    assert.ok(content.includes('会话：甲标题 &lt;at id="all"&gt; \\*仅文本\\*'));
+    h.driver.opencodeDbPath = databaseB;
+    await send(h, a);
+    assert.ok(h.requests.at(-1).content.text.includes('会话：乙库真实标题'));
+    h.driver.opencodeDbPath = databaseA;
+    const runtimeB = owner(h, id, { transport: 'tui-bridge', runtimeId: 'runtime_B' });
+    await send(h, runtimeB);
+    assert.ok(h.requests.at(-1).content.text.includes('会话：甲标题 <at id="all"> *仅文本*'));
+    assert.deepEqual(fs.readFileSync(databaseA), beforeA);
+    assert.deepEqual(fs.readFileSync(databaseB), beforeB);
+    h.driver.opencodeDbPath = path.join(h.tmpDir, '不存在.db');
+    await send(h, a);
+    assert.ok(!h.requests.at(-1).content.text.includes('会话：'));
+    assert.equal(fs.existsSync(h.driver.opencodeDbPath), false, '只读查询不得创建缺失数据库');
+  });
+
+  it('真实源的空白、默认名及响应ID错配不泄漏伪标题或其他会话标题', async (t) => {
+    let responseTitle;
+    let responseId;
+    const server = await serve(t, (_req, res) => res.end(JSON.stringify({ data: { id: responseId, title: responseTitle } })));
+    const h = harness(t, { serverUrl: server.serverUrl });
+    const cases = [null, 123, ' ', 'ses_3', 'opencode ses_4', 'session ses_5', '他人标题'];
+    for (const [index, title] of cases.entries()) {
+      const id = 'ses_' + index;
+      responseId = index === 6 ? 'ses_other' : id;
+      responseTitle = title;
+      await send(h, owner(h, id));
+      const text = h.requests.at(-1).content.text;
+      assert.equal(text, '合成正文\n\n---\n模型：p/m\n上下文：123 tokens');
+    }
+    assert.ok(server.requests.every((request) => request.method === 'GET'));
+  });
+
+  it('真实挂起HTTP在标题预算后实际关闭连接，发送降级且重复发送不再请求', async (t) => {
+    let closed;
+    const connectionClosed = new Promise((resolve) => { closed = resolve; });
+    const server = await serve(t, (_req, res) => res.on('close', closed));
+    const h = harness(t, { serverUrl: server.serverUrl });
+    const session = owner(h, 'ses_timeout');
+    const start = Date.now();
+    await send(h, session);
+    await connectionClosed;
+    assert.ok(Date.now() - start < 3500, '只允许标题预算及本地调度余量，不可无限等待');
+    assert.equal(h.requests.at(-1).content.text, '合成正文\n\n---\n模型：p/m\n上下文：123 tokens');
+    await send(h, session);
+    assert.equal(server.requests.length, 1);
+  });
+});
 
 function makeRealCtx() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walker-feishu-tui-'));
   const stateStore = new JsonStore(path.join(tmpDir, 'state.json'), {});
   const sessionService = new SessionService({ stateStore });
+  const driverOptions = isolatedDriverOptions(tmpDir);
   return {
     tmpDir,
     sessionService,
+    driverOptions,
     config: { admin: { token: '' } },
-    cleanup() { fs.rmSync(tmpDir, { recursive: true, force: true }); },
+    cleanup() {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      driverOptions.assertDatabaseIsolation();
+    },
   };
 }
 
@@ -372,6 +633,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
 
       let networkCalls = 0;
       const driver = new OpencodeDriver({
+        ...ctx.driverOptions,
         serverUrl: 'http://localhost:4096',
         tuiBridge: bridge,
         httpClient: {
@@ -500,6 +762,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
         runtimeStaleMs: 1000,
       });
       const driver = new OpencodeDriver({
+        ...ctx.driverOptions,
         serverUrl: 'http://localhost:4096',
         tuiBridge: bridge,
         httpClient: { request: async () => { throw new Error('TUI bridge test must not use HTTP'); } },
@@ -622,6 +885,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
         runtimeStaleMs: 1000,
       });
       const driver = new OpencodeDriver({
+        ...ctx.driverOptions,
         serverUrl: 'http://localhost:4096',
         tuiBridge: bridge,
         httpClient: { request: async () => { throw new Error('TUI bridge test must not use HTTP'); } },
@@ -915,7 +1179,9 @@ describe('飞书-TUI 双向链路集成测试', () => {
 
       let networkCalls = 0;
       let createSessionCalls = 0;
+      const driverOptions = isolatedDriverOptions(tmpDir);
       const driver = new OpencodeDriver({
+        ...driverOptions,
         serverUrl: 'http://localhost:4096',
         tuiBridge: bridge,
         httpClient: {
@@ -956,6 +1222,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
           if (dispatcher) { dispatcher.destroy(); dispatcher = null; }
           bridge.close();
           fs.rmSync(tmpDir, { recursive: true, force: true });
+          driverOptions.assertDatabaseIsolation();
         },
         async sendClear(messageId) {
           return dispatcher.handleCommand({
@@ -1375,6 +1642,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
 
       const driver = new OpencodeDriver({
+        ...ctx.driverOptions,
         serverUrl: 'http://localhost:4096',
         tuiBridge: bridge,
         httpClient: { request: async () => { throw new Error('no http'); } },
@@ -1456,6 +1724,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
 
       const driver = new OpencodeDriver({
+        ...ctx.driverOptions,
         serverUrl: 'http://localhost:4096',
         tuiBridge: bridge,
         httpClient: { request: async () => { throw new Error('no http'); } },
@@ -1515,6 +1784,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
 
       const driver = new OpencodeDriver({
+        ...ctx.driverOptions,
         serverUrl: 'http://localhost:4096',
         tuiBridge: bridge,
         httpClient: { request: async () => { throw new Error('no http'); } },
@@ -1607,6 +1877,7 @@ describe('飞书-TUI 双向链路集成测试', () => {
       bridge.register({ runtimeId, sessionId: opencodeSessionId, cwd, opencodeVersion: '1.17.20' });
 
       const driver = new OpencodeDriver({
+        ...ctx.driverOptions,
         serverUrl: 'http://localhost:4096',
         tuiBridge: bridge,
         httpClient: { request: async () => { throw new Error('no http'); } },

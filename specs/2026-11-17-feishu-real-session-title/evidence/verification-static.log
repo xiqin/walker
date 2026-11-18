@@ -1,0 +1,57 @@
+{"time":"2026-11-17T09:23:19.549Z","node":"v22.11.0","cwd":"H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title","tests_rerun":false,"service_started":false}
+{"unchanged_reviewed_file":"src/core/http-helper.js","sha256":"34bc7c0ff4c43e2decb5c72b23ab373795a5085402709a6ffd56bc8363bcb0f1"}
+{"unchanged_reviewed_file":"src/drivers/opencode-driver.js","sha256":"66acd7c8b2f07de6e0337a2d45b900c963084fe38100c91051389f592934b40d"}
+{"unchanged_reviewed_file":"test/claude-removal-guard.test.js","sha256":"ce9e6b837a7044a5ba1011819469adccc826f73a04d4a7c38cdd22e1df0eab97"}
+{"unchanged_reviewed_file":"test/http-helper.test.js","sha256":"f916349dbc3ecd154c0304fbcea45ecbce47438ad2f96baee9c8bcc60be2f86e"}
+{"unchanged_reviewed_file":"test/opencode-driver.test.js","sha256":"1a98e27cc0cf507216b88eec9407389d4044f6b11836c597625ae7480f72ddd1"}
+{"unchanged_reviewed_file":"src/dispatch/message-dispatcher.js","sha256":"883919180319e37626255b251cae335b8151dd71d75608faf8e5a714cef3ef72"}
+{"unchanged_reviewed_file":"test/message-dispatcher.test.js","sha256":"85160b545c329adbbf84c9727aca1b00d0445d6384eebc472057511aa14ba878"}
+{"unchanged_reviewed_file":"test/feishu-api.test.js","sha256":"6ec801b0633a4a44890670a279fde032b3af781450b2d631aae8806541814778"}
+{"unchanged_reviewed_file":"test/integration-feishu-tui-sync.test.js","sha256":"f263cd149e74f70526e4ed272435b21b1574b4c6538cb6f5f2c841bcf71a6ace"}
+{"unchanged_reviewed_file":"test/integration-feishu-question.test.js","sha256":"0df42feb693587370c8cc3595e78b5fcc5919468fb5e3a1a08f22f5cb5121a16"}
+{"command":"C:\\Windows\\system32\\cmd.exe","args":["/d","/s","/c","npm run lint"]}
+
+> walker-bridge@1.0.0 lint
+> eslint .
+
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\agent-runtime-admin.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\auth.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\card-preview.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\command-simulator.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\config-editor.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\config-routes.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\config.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\core-routes.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\diagnostics.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\event-store.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\file-admin.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\index.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\maintenance-routes.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\observability-routes.js"]}
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--check","H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\src\\admin\\public\\js\\api.js"]}
+(node:147940) Warning: To load an ES module, set "type": "module" in the package.json or use the .mjs extension.
+(Use `node --trace-warnings ...` to show where the warning was created)
+H:\walker\.worktree\2026-11-17-feishu-real-session-title\src\admin\public\js\api.js:2
+export class ApiError extends Error {
+^^^^^^
+
+SyntaxError: Unexpected token 'export'
+    at wrapSafe (node:internal/modules/cjs/loader:1469:18)
+    at checkSyntax (node:internal/main/check_syntax:78:3)
+
+Node.js v22.11.0
+AssertionError [ERR_ASSERTION]: I:\nvmNodejs\nodejs\node.exe退出非零
+
+1 !== 0
+
+    at run (H:\walker\.worktree\2026-11-17-feishu-real-session-title\specs\2026-11-17-feishu-real-session-title\evidence\verification-check.cjs:20:10)
+    at Object.<anonymous> (H:\walker\.worktree\2026-11-17-feishu-real-session-title\specs\2026-11-17-feishu-real-session-title\evidence\verification-check.cjs:58:29)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Object..js (node:internal/modules/cjs/loader:1689:10)
+    at Module.load (node:internal/modules/cjs/loader:1318:32)
+    at Function._load (node:internal/modules/cjs/loader:1128:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:218:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:170:5)
+    at node:internal/main/run_main_module:36:49
+{"exit_code":1,"passed":false}

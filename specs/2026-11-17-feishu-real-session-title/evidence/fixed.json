@@ -1,0 +1,8 @@
+{
+  "commit": "db54556bc0be99478114c6c809dc78efa6edc31a",
+  "node": "v22.11.0",
+  "expectedTitle": "事件触发客户信息同步",
+  "localTitle": "session wks_M7A3D1RA",
+  "actual": "复现正文\n\n---\n会话：事件触发客户信息同步\n模型：seasun/grok-4.7\n上下文：169507 tokens",
+  "passed": true
+}
