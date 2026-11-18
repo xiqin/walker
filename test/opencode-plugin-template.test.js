@@ -132,9 +132,9 @@ describe('plugin-template v5 protocol', () => {
     }
   });
 
-  it('bridge version 注释保持为 20', () => {
+  it('bridge version 注释保持为 21', () => {
     const src = getPluginSource(8787, 'token123', 30000);
-    assert.ok(src.includes('// Walker TUI bridge version: 20'));
+    assert.ok(src.includes('// Walker TUI bridge version: 21'));
     assert.equal(src.includes('@opencode/plugin/tui'), false);
     assert.equal(src.includes('define(plugin)'), false);
   });
