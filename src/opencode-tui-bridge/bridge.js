@@ -50,6 +50,7 @@ class OpencodeTuiBridge {
       return this._registerClearAssociated({
         runtimeId, sessionId, cwd, controlDeliveryId,
         opencodeVersion: data.opencodeVersion,
+        sessionTitle: data.sessionTitle,
       });
     }
 
@@ -58,11 +59,13 @@ class OpencodeTuiBridge {
       runtime = { runtimeId, queue: [], currentSessionId: sessionId, cwd, lastSeenAt: now };
       this.runtimes.set(runtimeId, runtime);
     }
+    if (runtime.currentSessionId !== sessionId) delete runtime.sessionTitle;
     runtime.currentSessionId = sessionId;
     runtime.cwd = cwd;
     runtime.opencodeVersion = data.opencodeVersion || runtime.opencodeVersion || '';
     runtime.bridgeProtocolVersion = Number(data.bridgeProtocolVersion) || 0;
     runtime.lastSeenAt = now;
+    this._updateSessionTitle(runtime, sessionId, data.sessionTitle);
 
     let session = this._findSession(runtimeId, sessionId)
       || this._findUpgradeableSession(sessionId, cwd);
@@ -110,7 +113,7 @@ class OpencodeTuiBridge {
   }
 
   _registerClearAssociated(input) {
-    const { runtimeId, sessionId, cwd, controlDeliveryId, opencodeVersion } = input;
+    const { runtimeId, sessionId, cwd, controlDeliveryId, opencodeVersion, sessionTitle } = input;
     const runtime = this.runtimes.get(runtimeId);
     if (!runtime) {
       throw new Error('unknown TUI runtime for clear register: ' + runtimeId);
@@ -129,6 +132,7 @@ class OpencodeTuiBridge {
     clearPending.newSessionId = sessionId;
     clearPending.registeredCwd = cwd;
     clearPending.registeredOpencodeVersion = opencodeVersion || '';
+    clearPending.registeredSessionTitle = sessionTitle;
     clearPending.registerCompleted = true;
     runtime.lastSeenAt = Date.now();
 
@@ -464,6 +468,10 @@ class OpencodeTuiBridge {
     });
 
     if (data.deliveryId) {
+      const pending = this.pending.get(data.deliveryId);
+      if (pending && pending.runtimeId === runtimeId && pending.sessionId === sessionId) {
+        this._updateSessionTitle(runtime, sessionId, data.sessionTitle);
+      }
       const clearPending = this._clearPending.get(data.deliveryId);
       if (clearPending) {
         return this._handleClearControlResult({
@@ -491,6 +499,8 @@ class OpencodeTuiBridge {
       });
       return { delivered: false, ignored: true };
     }
+
+    this._updateSessionTitle(runtime, sessionId, data.sessionTitle);
 
     if (assistantMessageId) {
       if (this._hasAssistantMessage(sessionId, assistantMessageId)) {
@@ -893,6 +903,9 @@ class OpencodeTuiBridge {
     }
 
     runtime.currentSessionId = clearPending.newSessionId;
+    delete runtime.sessionTitle;
+    runtime.opencodeVersion = clearPending.registeredOpencodeVersion || runtime.opencodeVersion || '';
+    this._updateSessionTitle(runtime, clearPending.newSessionId, clearPending.registeredSessionTitle);
     runtime.walkerSessionId = newWalkerSession.id;
     runtime.cwd = cwd;
 
@@ -1239,6 +1252,26 @@ class OpencodeTuiBridge {
         error: err.message,
       });
     }
+  }
+
+  /** 接收已通过runtime/会话身份校验的标题快照，不写入持久会话记录。 */
+  _updateSessionTitle(runtime, sessionId, metadata) {
+    if (!metadata || metadata.id !== sessionId || runtime.currentSessionId !== sessionId) return;
+    runtime.sessionTitle = { id: sessionId,
+      title: typeof metadata.title === 'string' && metadata.title.trim() ? metadata.title : null };
+  }
+
+  /** 从明确关联TUI的服务缓存取标题；undefined仅代表旧版本SQLite兼容路径。 */
+  getSessionTitle(sessionRef) {
+    const ref = this._validateRef(sessionRef);
+    const runtime = this.runtimes.get(ref.runtimeId);
+    if (!runtime) return null;
+    const modern = Number.parseInt(runtime.opencodeVersion, 10) >= 2 || runtime.sessionTitle !== undefined;
+    if (!modern) return undefined;
+    if (Date.now() - runtime.lastSeenAt > this.runtimeStaleMs) return null;
+    if (runtime.currentSessionId !== ref.opencodeSessionId) return null;
+    const metadata = runtime.sessionTitle;
+    return metadata && metadata.id === ref.opencodeSessionId ? metadata.title : null;
   }
 
   _validateRef(sessionRef) {

@@ -231,6 +231,11 @@ class OpencodeDriver extends AgentDriver {
     try {
       let title;
       if (sessionRef.transport === 'tui-bridge') {
+        // V2标题随所属TUI的服务缓存上报；缺失也不能跨服务或回旧表猜测。
+        if (this.tuiBridge && typeof this.tuiBridge.getSessionTitle === 'function') {
+          const ownedTitle = this.tuiBridge.getSessionTitle(sessionRef);
+          if (ownedTitle !== undefined) return ownedTitle;
+        }
         const database = pathToFileURL(path.resolve(this.opencodeDbPath));
         database.searchParams.set('mode', 'ro');
         const sql = "SELECT hex(title) FROM session WHERE id='" + id.replace(/'/g, "''") + "' LIMIT 1;";

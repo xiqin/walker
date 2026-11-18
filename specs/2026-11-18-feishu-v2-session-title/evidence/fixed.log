@@ -1,0 +1,5 @@
+{"command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\specs\\2026-11-18-feishu-v2-session-title\\evidence\\title-source-probe.cjs"],"isolated_home":"C:\\Users\\tianxiqin\\AppData\\Local\\Temp\\opencode\\walker-v2-title-zeq4HO","home_verified":true}
+{"ts":"2026-11-18T02:08:57.071Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7P6M4QDDT8YA9PBM8","agent":"opencode"}
+{"ts":"2026-11-18T02:08:57.101Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"runtime-owned","opencodeSessionId":"ses_owned","walkerSessionId":"wks_M7P6M4QDDT8YA9PBM8","routeKey":null}
+{"expected":"所属V2服务的真实标题","actual":"所属V2服务的真实标题","sqliteReads":0,"passed":true}
+{"exit_code":0,"isolated_home_verified":true}

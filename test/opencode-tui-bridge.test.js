@@ -55,6 +55,63 @@ function createHarness() {
 }
 
 describe('OpencodeTuiBridge', () => {
+  it('真实标题按runtime和会话隔离，事件更新先于watcher且不持久化标题', () => {
+    const h = createHarness();
+    try {
+      const a = h.bridge.register({ runtimeId: 'title-a', sessionId: 'ses_shared', cwd: h.tmpDir,
+        opencodeVersion: '2.1.1', sessionTitle: { id: 'ses_shared', title: '服务甲的标题' } });
+      h.bridge.register({ runtimeId: 'title-b', sessionId: 'ses_shared', cwd: h.tmpDir,
+        opencodeVersion: '2.1.1', sessionTitle: { id: 'ses_shared', title: '服务乙的标题' } });
+      const ref = runtimeId => ({ transport: 'tui-bridge', runtimeId, opencodeSessionId: 'ses_shared' });
+      assert.equal(h.bridge.getSessionTitle(ref('title-a')), '服务甲的标题');
+      assert.equal(h.bridge.getSessionTitle(ref('title-b')), '服务乙的标题');
+      const before = fs.readFileSync(path.join(h.tmpDir, 'state.json'));
+      let observed;
+      h.bridge.watchSession(ref('title-a'), { onEvent: () => { observed = h.bridge.getSessionTitle(ref('title-a')); } });
+      h.bridge.reportEvents({ runtimeId: 'title-a', sessionId: 'ses_shared',
+        sessionTitle: { id: 'ses_shared', title: '甲更新后的标题' }, events: [{ type: 'done', data: {} }] });
+      assert.equal(observed, '甲更新后的标题');
+      assert.equal(h.bridge.getSessionTitle(ref('title-b')), '服务乙的标题');
+      assert.deepEqual(fs.readFileSync(path.join(h.tmpDir, 'state.json')), before);
+      assert.notEqual(h.sessionService.getSession(a.sessionId).title, '甲更新后的标题');
+    } finally { h.cleanup(); }
+  });
+
+  it('标题不接受错配ID或外来广播，切换、空标题和dispose不借用前一会话', () => {
+    const h = createHarness();
+    try {
+      const ref = id => ({ transport: 'tui-bridge', runtimeId: 'title-switch', opencodeSessionId: id });
+      h.bridge.register({ runtimeId: 'title-switch', sessionId: 'ses_A', cwd: h.tmpDir,
+        opencodeVersion: '2.1.1', sessionTitle: { id: 'ses_A', title: '甲标题' } });
+      const ignored = h.bridge.reportEvents({ runtimeId: 'title-switch', sessionId: 'ses_other',
+        sessionTitle: { id: 'ses_other', title: '不属于甲' }, events: [] });
+      assert.equal(ignored.ignored, true);
+      h.bridge.reportEvents({ runtimeId: 'title-switch', sessionId: 'ses_A',
+        sessionTitle: { id: 'ses_other', title: '错配标题' }, events: [] });
+      assert.equal(h.bridge.getSessionTitle(ref('ses_A')), '甲标题');
+      h.bridge.register({ runtimeId: 'title-switch', sessionId: 'ses_B', cwd: h.tmpDir,
+        opencodeVersion: '2.1.1' });
+      assert.equal(h.bridge.getSessionTitle(ref('ses_A')), null);
+      assert.equal(h.bridge.getSessionTitle(ref('ses_B')), null);
+      h.bridge.reportEvents({ runtimeId: 'title-switch', sessionId: 'ses_B',
+        sessionTitle: { id: 'ses_B', title: '' }, events: [] });
+      assert.equal(h.bridge.getSessionTitle(ref('ses_B')), null);
+      h.bridge.dispose({ runtimeId: 'title-switch' });
+      assert.equal(h.bridge.getSessionTitle(ref('ses_B')), null);
+    } finally { h.cleanup(); }
+  });
+
+  it('未携带服务标题的旧版本仍明确保留SQLite兼容路径', () => {
+    const h = createHarness();
+    try {
+      h.bridge.register({ runtimeId: 'title-legacy', sessionId: 'ses_old', cwd: h.tmpDir, opencodeVersion: '1.2.0' });
+      const ref = { transport: 'tui-bridge', runtimeId: 'title-legacy', opencodeSessionId: 'ses_old' };
+      assert.equal(h.bridge.getSessionTitle(ref), undefined);
+      h.bridge.register({ runtimeId: 'title-legacy', sessionId: 'ses_next', cwd: h.tmpDir, opencodeVersion: '1.2.0' });
+      assert.equal(h.bridge.getSessionTitle({ ...ref, opencodeSessionId: 'ses_next' }), undefined);
+    } finally { h.cleanup(); }
+  });
+
   it('未绑定投递的 TUI 上游错误通过 watcher 输出，且保留错误详情', () => {
     const h = createHarness();
     try {
@@ -803,6 +860,8 @@ describe('OpencodeTuiBridge clearSession', () => {
             sessionId: 'ses_new',
             cwd: h.cwd,
             controlDeliveryId: delivery.deliveryId,
+            opencodeVersion: '2.1.1',
+            sessionTitle: { id: 'ses_new', title: '清空后的真实标题' },
           });
         } else {
           h.bridge.register({
@@ -810,6 +869,8 @@ describe('OpencodeTuiBridge clearSession', () => {
             sessionId: 'ses_new',
             cwd: h.cwd,
             controlDeliveryId: delivery.deliveryId,
+            opencodeVersion: '2.1.1',
+            sessionTitle: { id: 'ses_new', title: '清空后的真实标题' },
           });
           const currentMid = h.sessionService.getCurrent(h.routeKey);
           assert.equal(currentMid.agentRef.opencodeSessionId, 'ses_old',
@@ -824,6 +885,9 @@ describe('OpencodeTuiBridge clearSession', () => {
 
         const result = await clearPromise;
         assert.equal(result.newSessionId, 'ses_new');
+        assert.equal(h.bridge.getSessionTitle({ ...h.tuiSession.agentRef, opencodeSessionId: 'ses_new' }),
+          '清空后的真实标题', order + ': 两种汇合顺序都应保留新标题');
+        assert.equal(h.bridge.getSessionTitle(h.tuiSession.agentRef), null);
         const current = h.sessionService.getCurrent(h.routeKey);
         assert.equal(current.agentRef.opencodeSessionId, 'ses_new',
           order + ': 汇合后焦点应切换到新 session');
