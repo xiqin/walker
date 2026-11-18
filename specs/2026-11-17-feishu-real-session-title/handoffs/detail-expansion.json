@@ -1,0 +1,60 @@
+{
+  "expanded_behaviors": [
+    "REQ-001-B01",
+    "REQ-001-B02",
+    "REQ-001-B03",
+    "REQ-002-B01",
+    "REQ-002-B02",
+    "REQ-002-B03",
+    "REQ-002-B04",
+    "REQ-002-B05",
+    "REQ-003-B01",
+    "REQ-003-B02",
+    "REQ-003-B03",
+    "REQ-003-B04",
+    "REQ-003-B05",
+    "REQ-003-B06",
+    "REQ-003-B07",
+    "REQ-003-B08"
+  ],
+  "blocked_behaviors": [],
+  "checks": {
+    "detail_expansion": {
+      "ok": true,
+      "total_reqs": 3,
+      "total_behaviors": 16,
+      "errors": [],
+      "warnings": []
+    },
+    "intent": {
+      "ok": true,
+      "errors": [],
+      "blockers": [],
+      "warnings": [],
+      "semantic_verification": "not_performed"
+    }
+  },
+  "next_action": "宿主压缩后进入planning并加载loom-writing-plans。先用CodeGraph核实TUI会话表读取方式、HTTP认证与实际超时控制、销毁调用链，明确缓存及进行中请求容量策略，再生成计划任务和追溯账本。计划分析通过后到approved等待用户审批，不提前修改业务代码。",
+  "notes": [
+    "15维度适用及不适用原因见behavior-dimensions.md，避免向schema不支持的需求层级添加字段。",
+    "保留既有14项行为和来源/意图，仅细化并追加2项；缓存30秒、总预算2秒、连接与会话隔离不变。",
+    "不启动额外OpenCode服务；不提交、合并、推送、部署或重启。"
+  ],
+  "status": "done",
+  "summary": "完成15固定维度审视，3项需求共16项行为，全部标注适用性并具备验收与测试计划。补充缓存到期/容量边界、现有权限失败不绕过，细化逆序完成与销毁后迟到结果清理。行为校验和意图校验均通过，无待澄清项；未修改业务代码。",
+  "artifacts": [
+    "requirements.json",
+    "behavior-dimensions.md"
+  ],
+  "stage": "detail-expansion",
+  "task_id": "detail-expansion",
+  "basis_fingerprints": {
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5"
+  },
+  "artifact_fingerprints": {
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440"
+  },
+  "written_at": "2026-11-17T06:43:16.904Z"
+}

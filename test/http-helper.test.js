@@ -4,6 +4,50 @@ const http = require('node:http');
 const { httpRequest, sseConnect } = require('../src/core/http-helper');
 
 describe('httpRequest', () => {
+  it('UTF-8跨网络分块完整解码，保留成功响应契约', async (t) => {
+    const value = { title: '中文😀标题' };
+    const payload = Buffer.from(JSON.stringify(value));
+    const split = payload.indexOf(Buffer.from('中')) + 1;
+    const server = http.createServer((_req, res) => {
+      res.write(payload.subarray(0, split));
+      setImmediate(() => res.end(payload.subarray(split)));
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+    const result = await httpRequest('GET', 'http://127.0.0.1:' + server.address().port);
+    assert.deepEqual(result, { status: 200, data: value });
+  });
+
+  it('中文响应大小限制按原始字节计数且实际关闭连接', async (t) => {
+    let close;
+    const closed = new Promise((resolve) => { close = resolve; });
+    const server = http.createServer((_req, res) => {
+      res.on('close', close);
+      res.write('中文中文中文');
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+    await assert.rejects(httpRequest('GET', 'http://127.0.0.1:' + server.address().port, null, null, { maxBodyBytes: 8, timeoutMs: 1000 }), /response body exceeded 8 bytes/);
+    await closed;
+  });
+
+  it('JSON解析失败仅记录状态与字节长度，不记录响应正文', async (t) => {
+    const marker = '合成敏感内容';
+    const body = 'authorization=' + marker;
+    const server = http.createServer((_req, res) => { res.writeHead(403); res.end(body); });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+    let output = '';
+    const original = process.stderr.write;
+    process.stderr.write = function capture(chunk) { output += String(chunk); return true; };
+    try {
+      assert.deepEqual(await httpRequest('GET', 'http://127.0.0.1:' + server.address().port), { status: 403, data: {} });
+    } finally { process.stderr.write = original; }
+    assert.ok(output.includes('response JSON parse failed'));
+    assert.ok(output.includes(String(Buffer.byteLength(body))));
+    assert.ok(!output.includes(marker) && !output.includes('authorization=') && !output.includes('bodyPreview'));
+  });
+
   it('超过 timeoutMs 时销毁请求并返回包含 URL 的错误', async () => {
     const server = http.createServer((_req, _res) => {});
 

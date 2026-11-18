@@ -1,0 +1,122 @@
+{
+  "fixed_point": "db54556bc0be99478114c6c809dc78efa6edc31a",
+  "branch": "feature/2026-11-17-feishu-real-session-title",
+  "review_scope": "未提交工作区差异及本工作树规格目录",
+  "request_sha256": "dce2b75d9eaa0b81047c2e69303f757c098bedf1e22b6fd46f5fe21d8260f016",
+  "product_diff_sha256": "1b2d948de4e821383b1d0bceee3fe5aec1a2038bbf976995f0e7bf30f06be2de",
+  "diff_sha256": "cdbcb46dd40b5d1ffa460593978034baf3e51c27af8e6b852241b88a6b91a2b9",
+  "pre_review": {
+    "standards_findings": 1,
+    "standards_worst": "warning",
+    "spec_findings": 0,
+    "omissions": 0,
+    "checked_behaviors": 16,
+    "blockers": 0,
+    "independent_review_reused": true
+  },
+  "omission_check": {
+    "report": "evidence/review-omission-hunter.json",
+    "checked_behaviors": 16,
+    "blocker_count": 0,
+    "rerun": false
+  },
+  "mechanical_verification": {
+    "ok": true,
+    "errors": [],
+    "warnings": []
+  },
+  "tests_rerun": false,
+  "full_isolated_tests_reused": {
+    "passed": 1578,
+    "total": 1578,
+    "exit_code": 0
+  },
+  "static_evidence_reused": {
+    "syntax_files": 112,
+    "requirements": 3,
+    "behaviors": 16,
+    "receipts": 5,
+    "exit_code": 0
+  },
+  "graph_query_skipped": "无本工作树独立索引，不使用主树回落或擅自初始化",
+  "next_stage": "review-gate",
+  "human_approval_pending": false,
+  "human_approval_received": true,
+  "formal_gate_approved": false,
+  "human_review": {
+    "verdict": "PASS",
+    "actor": "用户",
+    "quote": "通过",
+    "report": "review-feedback.md",
+    "receipt": "evidence/human-review-approval.json",
+    "request_and_product_unchanged": true
+  },
+  "compression_authorization": {
+    "quote": "你压缩后继续",
+    "report": "evidence/review-continuation-authorization.md",
+    "supersedes_previous_no_compression": true
+  },
+  "continuation_control": {
+    "bound": false,
+    "bind_error": "不能开启接续：流水线失败",
+    "paused": true,
+    "authoritative_stage_rechecked": "code-review-request",
+    "cause_unconfirmed": true
+  },
+  "resume_notes": [
+    "最新用户明确人工审查通过并授权压缩后继续；此前不再压缩的限制已针对此阶段解除，详见授权记录。",
+    "本checkpoint后立即请求loom_compact_closed_stage并结束回合，不设置compression_confirmed，不调用advance；受理不等于宿主已完成压缩。",
+    "宿主事件后先读取实际pipeline context；若已进入review-gate，核对review-request指纹、产品差异和review-feedback真人通过记录，再使用正式审批工具登记用户已给出的审批；不再次要求同一未变版本重复确认。",
+    "若仍在code-review-request，先核实实际拒绝/推进结果，不重复请求压缩、不伪造状态。",
+    "后续按实际code-review-response及synced阶段技能执行，不虚构修复或独立重跑；存在新代码差异则原审批不能直接复用。",
+    "可选自动接续绑定未成功且已暂停，不把工具拒绝当作权威阶段已failed，不清除历史失败或修改状态文件。",
+    "不重复业务测试；任何新业务测试必须隔离运行器及全新日志。历史基线、首审FAIL、所有失败及旧报告交接备份均保留。",
+    "无实机飞书/真实OpenCode验收，隔离非OS沙箱，EACCES替身及Node进程终止限制保留；无本树独立图索引，不用主树回落或初始化。",
+    "不检查清理用户数据库，不自动提交、合并、推送、部署、重启或启动真实服务。"
+  ],
+  "status": "done",
+  "summary": "审查请求及双轴/16行为遗漏预审查已完成，无阻断，保留历史编码警告和实机限制。用户已明确回复“通过”，随后明确授权“你压缩后继续”；真实反馈和版本核对已保存，受审请求及产品差异不变，未重跑业务测试。机械校验ok:true。最新授权替代此前禁止本阶段压缩的暂停；本checkpoint后仅请求宿主原生压缩并结束回合，不设置compression_confirmed或自行advance。宿主推进后核对实际review-gate状态，依据真实用户通过记录正式登记，随后按状态处理反馈和同步。可选自动接续绑定被工具拒绝为流水线失败，但权威context仍code-review-request、3任务done；未清除历史失败或伪称已绑定。无提交推送合并部署重启。",
+  "artifacts": [
+    "review-request.md",
+    "review-feedback.md",
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json",
+    "evidence/review-static.log",
+    "evidence/review-omission-hunter.json",
+    "evidence/converge-semantic-review.md",
+    "evidence/T3-review-round2.md",
+    "evidence/full-isolated-retry.log",
+    "evidence/review-metadata-refresh.md",
+    "evidence/review-handoff-audit.json",
+    "evidence/code-review-request-snapshot.json",
+    "evidence/code-review-request-check.json",
+    "evidence/human-review-approval.json",
+    "evidence/review-continuation-authorization.md"
+  ],
+  "stage": "code-review-request",
+  "task_id": "code-review-request",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5"
+  },
+  "artifact_fingerprints": {
+    "evidence/T3-review-round2.md": "42cce9feb25b1295f1bfdd793e13a0c65e3192a1001370e756e57e4ce49f4fa5",
+    "evidence/code-review-request-check.json": "61299582b863afa925805744cf66cf8aa9baa57307822a067fdf086115bc5569",
+    "evidence/code-review-request-snapshot.json": "10c04992ab8f5c94cd74cbbf97d3bbe39a06559b3f458087bb8733945ae912eb",
+    "evidence/converge-semantic-review.md": "01f3863c548c49287c1b9afe4a6211999083ea36c4e3c389f0756486b28ed1c2",
+    "evidence/full-isolated-retry.log": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+    "evidence/human-review-approval.json": "d04d59a7de89d429fe8cceb4aeccc2c2c040f5796bc529977a51efce8e30629c",
+    "evidence/review-continuation-authorization.md": "b4f52e6c5410b0910026c7c3f007872eaaaa43784e152eff2fe79e294323da8d",
+    "evidence/review-handoff-audit.json": "deb8d633f730fa15c5bbc93a91b6899c630e5d88a9ac0cb79f1475abd4477eb1",
+    "evidence/review-metadata-refresh.md": "e138549cf30a050aadc2cfbcd546e1a3f77838d49130c06766bc518d72ce745e",
+    "evidence/review-omission-hunter.json": "16563f45fb6a89279108ce560cacb72ea9c6ebe8630c96ee1f22f1bc6111dca4",
+    "evidence/review-static.log": "a775970c8b72a56e8479222ef848f5d748dc2d56b2b5b889f11d4e1014f1a94e",
+    "review-request.md": "dce2b75d9eaa0b81047c2e69303f757c098bedf1e22b6fd46f5fe21d8260f016",
+    "test-report.md": "b6b2d7f8517bf1a823913afd10a75663e25b3b09016c5b2e784143b3905f4ff8",
+    "verify-report.md": "64840d8e8c629f26d040e5e234d9a998e39c3028877215d0537be5deeb8c0b79"
+  },
+  "written_at": "2026-11-17T10:03:14.659Z"
+}

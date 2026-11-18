@@ -1,0 +1,91 @@
+{
+  "verdict": "PASS",
+  "mechanical_verification": {
+    "ok": true,
+    "errors": [],
+    "warnings": []
+  },
+  "requirements": 3,
+  "behaviors": 16,
+  "receipts": 5,
+  "reviewed_implementation_files_unchanged": 10,
+  "syntax_files": 112,
+  "tests_rerun": false,
+  "full_isolated_tests": {
+    "passed": 1578,
+    "total": 1578,
+    "exit_code": 0,
+    "sha256": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e"
+  },
+  "verification_log": {
+    "file": "evidence/verification-static-retry.log",
+    "exit_code": 0,
+    "sha256": "99114e84600accbee2a3f3caa015bb4d8df756f8c3caecbb09cb6fed5d65275a"
+  },
+  "report_sha256": "655409425b8857f6e0440264172e3c45497cc9a96b5cba3c0811d052d342020d",
+  "git_tree": "e506636f6a0698cd43367ac1ffe4d2bf8b259397",
+  "diff_sha256": "c3203dc47bb975495fd9cdbd9e3c82bdf3ab9ba4b47a187bf6106b7629d41f83",
+  "handoff_refresh": {
+    "report": "evidence/verification-handoff-refresh.md",
+    "refreshed": [
+      "T3",
+      "executing",
+      "converge"
+    ],
+    "original_report_body_unchanged": true,
+    "original_report_sha256": "f75f9c9038b9c5724df28584dcb6aae0cae9aaef8b9fd60fcf73554b896f40b7",
+    "current_report_sha256": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2"
+  },
+  "next_stage": "code-review-request",
+  "resume_notes": [
+    "用户已明确授权压缩后继续推进。首次verification压缩因测试报告补记导致旧交接指纹过期而未受理；已正式刷新三份交接及当前交接，按实际工具结果处理后续。",
+    "本checkpoint后立即请求loom_compact_closed_stage并结束回合；宿主事件自动推进，不自行设置compression_confirmed。",
+    "续跑先获取实际pipeline context，再加载loom-requesting-code-review，人工review-gate必须等用户明确确认，不自动approve。",
+    "所有新业务测试仅经原隔离运行器写入全新日志，已有证据可复用不必重跑。",
+    "当前测试报告只加补记/版本绑定，原文逐字不变；独立报告中的旧哈希保留，不伪称补记后仍是原逐字受审版本。",
+    "无本树独立CodeGraph索引，不用主树回落索引或擅自初始化；后续synced明确记录图限制。",
+    "保留原failing基线、首审FAIL及全部失败证据，不检查清理用户数据库。"
+  ],
+  "limitations": [
+    "未实机飞书/真实OpenCode/SQLite挂起或OS权限验收",
+    "默认用户目录重定向不是OS沙箱，路径守卫不提供符号链接攻击防护",
+    "历史编码及旧默认用户库查询风险保留",
+    "宪章命令为既有模板，按真实包脚本校验；Node低于ESLint支持声明",
+    "没有提交、合并、推送、部署、重启或启动真实服务"
+  ],
+  "status": "done",
+  "summary": "最终本地自动化验证PASS：3生产/7测试指纹与独立审查一致，复用完整隔离1578/1578及57/381/6证据，不重跑业务测试。实际lint、112源码语法、git diff --check及3REQ/16行为/5收据账本通过；机械校验ok:true。测试报告仅补历史说明及当前版本绑定，原正文重算哈希与原受审版完全一致；压缩首次被旧交接指纹拒绝后已通过正式工具刷新T3/executing/converge，不绕过门禁。首版检查脚本ESM准备失败及原日志保留。无产品改动、提交、推送、部署或重启，下一阶段code-review-request，人工审查门禁未过，不声称全流水线完成。",
+  "artifacts": [
+    "verify-report.md",
+    "test-report.md",
+    "traceability.json",
+    "evidence/verification-check.cjs",
+    "evidence/verification-static.log",
+    "evidence/verification-static-retry.log",
+    "evidence/verification-handoff-refresh.md",
+    "evidence/full-isolated-retry.log",
+    "evidence/T3-review-round2.md",
+    "evidence/converge-semantic-review.md"
+  ],
+  "stage": "verification",
+  "task_id": "verification",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5",
+    "test-report.md": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2"
+  },
+  "artifact_fingerprints": {
+    "evidence/T3-review-round2.md": "42cce9feb25b1295f1bfdd793e13a0c65e3192a1001370e756e57e4ce49f4fa5",
+    "evidence/converge-semantic-review.md": "01f3863c548c49287c1b9afe4a6211999083ea36c4e3c389f0756486b28ed1c2",
+    "evidence/full-isolated-retry.log": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+    "evidence/verification-check.cjs": "5135b846b6c6b1d1cdd0d6c41d9fe6559aa29eda178784e212c03a1e0577c00f",
+    "evidence/verification-handoff-refresh.md": "be46e77878697af51f39f27d3a39d5ba58c3f12594c5de35bbb13f33643a989b",
+    "evidence/verification-static-retry.log": "99114e84600accbee2a3f3caa015bb4d8df756f8c3caecbb09cb6fed5d65275a",
+    "evidence/verification-static.log": "b1a6f9d12156a10d677feea14455098b5bf653b50ca2c39bf4eb5d0fa801b3b5",
+    "test-report.md": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2",
+    "verify-report.md": "655409425b8857f6e0440264172e3c45497cc9a96b5cba3c0811d052d342020d"
+  },
+  "written_at": "2026-11-17T09:31:23.233Z"
+}

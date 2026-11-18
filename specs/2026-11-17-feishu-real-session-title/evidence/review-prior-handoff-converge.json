@@ -1,0 +1,71 @@
+{
+  "round": 1,
+  "reference_coverage": "16/16",
+  "semantic_coverage": "16/16",
+  "blocker_count": 0,
+  "new_tasks": [],
+  "semantic_review": {
+    "verdict": "PASS",
+    "report": "evidence/converge-semantic-review.md",
+    "sha256": "01f3863c548c49287c1b9afe4a6211999083ea36c4e3c389f0756486b28ed1c2",
+    "tests_rerun": false,
+    "independent": true
+  },
+  "ledger_check": {
+    "requirements": 3,
+    "behaviors": 16,
+    "receipts": 5,
+    "passed": true
+  },
+  "omission_review": {
+    "checked_behaviors": 16,
+    "blocker_count": 0
+  },
+  "next_stage": "verification",
+  "resume_notes": [
+    "用户已明确授权压缩后继续推进；converge之前已由宿主正式推进verification，本次仅刷新报告补记导致的旧交接指纹，不重复推进旧阶段。",
+    "verification完成，按实际状态继续code-review-request及人工review-gate，不自动审批。",
+    "所有新业务测试仅经run-isolated.cjs写入不存在的新日志；原failing基线、首审FAIL及失败证据保留。",
+    "无本树独立CodeGraph索引，不用主树回落索引或擅自初始化；不检查或清理用户数据库。"
+  ],
+  "limitations": [
+    "历史UTF-16LE/乱码警告保留",
+    "默认用户目录重定向不是OS安全沙箱",
+    "未实机飞书/真实OpenCode验收，EACCES替身及Node替换进程终止不等同SQLite实机挂起",
+    "Node低于ESLint声明支持范围，实际通过不保证官方兼容"
+  ],
+  "verification_metadata_refresh": {
+    "report": "evidence/verification-handoff-refresh.md",
+    "original_report_body_unchanged": true,
+    "product_files_unchanged": true,
+    "tests_rerun": false
+  },
+  "status": "done",
+  "summary": "第1轮收敛PASS：3REQ/16行为本地引用完整；独立代码、断言与既有动态证据语义审查16/16 covered，missing/partial/contradicts/未批准unrequested均0，遗漏与八维负空间无阻断，无新任务。保留自动引用工具与独立语义的口径区分。本次仅因最终验证测试报告新增补记正式刷新指纹，原正文、生产/测试和独立报告均未变，不重跑收敛或业务测试，不代替新独立审查；当前验证已完成待压缩推进审查准备，无提交、推送、部署或重启。",
+  "artifacts": [
+    "convergence-report.json",
+    "findings/omission-hunter.json",
+    "evidence/converge-semantic-review.md",
+    "test-report.md",
+    "traceability.json",
+    "evidence/T3-review-round2.md",
+    "evidence/full-isolated-retry.log",
+    "evidence/verification-handoff-refresh.md"
+  ],
+  "stage": "converge",
+  "task_id": "converge",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5"
+  },
+  "artifact_fingerprints": {
+    "evidence/T3-review-round2.md": "42cce9feb25b1295f1bfdd793e13a0c65e3192a1001370e756e57e4ce49f4fa5",
+    "evidence/converge-semantic-review.md": "01f3863c548c49287c1b9afe4a6211999083ea36c4e3c389f0756486b28ed1c2",
+    "evidence/full-isolated-retry.log": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+    "evidence/verification-handoff-refresh.md": "be46e77878697af51f39f27d3a39d5ba58c3f12594c5de35bbb13f33643a989b",
+    "test-report.md": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2"
+  },
+  "written_at": "2026-11-17T09:30:38.752Z"
+}

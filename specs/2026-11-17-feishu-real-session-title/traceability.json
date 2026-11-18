@@ -1,0 +1,105 @@
+{
+  "requirements": {
+    "REQ-001": {
+      "tasks": ["T1", "T2", "T3"],
+      "tests": ["test/opencode-driver.test.js", "test/message-dispatcher.test.js", "test/integration-feishu-tui-sync.test.js"],
+      "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/fixed.json"],
+      "behaviors": {
+        "REQ-001-B01": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": ["test/opencode-driver.test.js", "test/message-dispatcher.test.js#真实标题进入全部统一发送入口，进度参数补位且不改调用参数", "test/integration-feishu-tui-sync.test.js#HTTP官方响应经真实驱动进入文本、Markdown、进度与问题卡，认证和本地记录保持"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/fixed.json"]
+        },
+        "REQ-001-B02": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#空值和精确自动名称省略，正常session开头的标题不被误删", "test/integration-feishu-tui-sync.test.js#真实源的空白、默认名及响应ID错配不泄漏伪标题或其他会话标题"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-001-B03": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": ["test/opencode-driver.test.js#真实临时SQLite精确转义ID并完整读取中文多行标题且不改数据库", "test/message-dispatcher.test.js#真实文本及卡片请求安全折叠转义标题，替换旧页脚而不改正文", "test/integration-feishu-tui-sync.test.js#真实SQLite精确只读标题经发送边界安全展示，库及runtime切换不共用旧结果", "test/integration-feishu-tui-sync.test.js#数据库路径守卫接受夹具普通路径与只读URI，拒绝目录穿越及相似前缀"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        }
+      }
+    },
+    "REQ-002": {
+      "tasks": ["T2", "T3"],
+      "tests": ["test/message-dispatcher.test.js", "test/integration-feishu-tui-sync.test.js"],
+      "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"],
+      "behaviors": {
+        "REQ-002-B01": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#同聊天焦点切换和同键并发不串标题，逆序完成仍各归其主", "test/integration-feishu-tui-sync.test.js#同聊天A/B的真实HTTP响应逆序完成，各自正文及页脚不受焦点切换影响"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-002-B02": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#同ID切换HTTP端点后旧连接晚完成不覆盖新连接缓存", "test/message-dispatcher.test.js#同ID按TUI数据库及runtime隔离，旧记录补齐runtime后不复用旧键", "test/integration-feishu-tui-sync.test.js#同聊天A/B的真实HTTP响应逆序完成，各自正文及页脚不受焦点切换影响"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-002-B03": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#30秒期限从读取完成起计算，29999毫秒命中而30000毫秒刷新", "test/integration-feishu-tui-sync.test.js#真实HTTP权限错误按完成后30秒缓存，历史优先及到期恢复且错误正文不泄漏"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-002-B04": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#销毁立即唤醒发送、清空缓存和定时器，迟到结果不重填或再次读取", "test/integration-feishu-tui-sync.test.js#HTTP官方响应经真实驱动进入文本、Markdown、进度与问题卡，认证和本地记录保持"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-002-B05": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#128项上限采用已完成条目LRU，129身份不挪用其他标题且淘汰历史", "test/message-dispatcher.test.js#16项挂起读取后第17项立即降级发送，不排队且释放后可以重读"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log"]
+        }
+      }
+    },
+    "REQ-003": {
+      "tasks": ["T1", "T2", "T3"],
+      "tests": ["test/opencode-driver.test.js", "test/message-dispatcher.test.js", "test/integration-feishu-tui-sync.test.js", "test/feishu-api.test.js"],
+      "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"],
+      "behaviors": {
+        "REQ-003-B01": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": ["test/opencode-driver.test.js#HTTP 401只返回受控错误，不启动服务或回退数据库", "test/opencode-driver.test.js#SQLite权限拒绝只使用原来源，错误不包含数据库路径和原始输出", "test/integration-feishu-tui-sync.test.js#真实挂起HTTP在标题预算后实际关闭连接，发送降级且重复发送不再请求"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-003-B02": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#真实标题进入全部统一发送入口，进度参数补位且不改调用参数", "test/message-dispatcher.test.js#原生问题卡创建和处理更新均显示所属真实标题而非默认名", "test/feishu-api.test.js#真实标题源兼容：历史页脚在远端标题失效后省略会话行，文本和卡片均不留下默认名"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-003-B03": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#显式失效身份和无关联不借焦点，只有route-only保留一次焦点解析", "test/integration-feishu-tui-sync.test.js#HTTP官方响应经真实驱动进入文本、Markdown、进度与问题卡，认证和本地记录保持", "test/integration-feishu-tui-sync.test.js#数据库路径守卫接受夹具普通路径与只读URI，拒绝目录穿越及相似前缀"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-003-B04": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#失败缓存到期后恢复；同身份历史真实标题优先于本地标题", "test/message-dispatcher.test.js#首次失败期间同底层身份的不同本地降级不互相污染，期限后可恢复", "test/integration-feishu-tui-sync.test.js#真实HTTP权限错误按完成后30秒缓存，历史优先及到期恢复且错误正文不泄漏"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-003-B05": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#首次失败期间同底层身份的不同本地降级不互相污染，期限后可恢复", "test/integration-feishu-tui-sync.test.js#真实HTTP权限错误按完成后30秒缓存，历史优先及到期恢复且错误正文不泄漏"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-003-B06": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": ["test/opencode-driver.test.js#真实挂起HTTP在剩余预算内销毁连接", "test/opencode-driver.test.js#SQLite调用包装触发真实子进程挂起，预算到期实际终止", "test/message-dispatcher.test.js#挂起源总等待2秒后降级，迟到结果不发布且失败被缓存", "test/integration-feishu-tui-sync.test.js#真实挂起HTTP在标题预算后实际关闭连接，发送降级且重复发送不再请求"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-003-B07": {
+          "tasks": ["T2", "T3"],
+          "tests": ["test/message-dispatcher.test.js#失败日志只包含受控类型及身份，同键重复不放大且不泄漏原异常", "test/integration-feishu-tui-sync.test.js#真实HTTP权限错误按完成后30秒缓存，历史优先及到期恢复且错误正文不泄漏"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        },
+        "REQ-003-B08": {
+          "tasks": ["T1", "T2", "T3"],
+          "tests": ["test/opencode-driver.test.js#按关联地址精确编码ID，沿用认证并读取官方双层响应", "test/opencode-driver.test.js#SQLite权限拒绝只使用原来源，错误不包含数据库路径和原始输出", "test/message-dispatcher.test.js#显式关联地址优先于驱动地址，权限拒绝只在原身份降级发送", "test/integration-feishu-tui-sync.test.js#HTTP官方响应经真实驱动进入文本、Markdown、进度与问题卡，认证和本地记录保持"],
+          "evidence": ["specs/2026-11-17-feishu-real-session-title/evidence/targeted-isolated.log", "specs/2026-11-17-feishu-real-session-title/evidence/integration-isolated.log"]
+        }
+      }
+    }
+  }
+}

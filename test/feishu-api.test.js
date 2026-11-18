@@ -74,6 +74,17 @@ test('会话页脚 REQ-001-B01/B04、REQ-002-B04：文本、Markdown 与卡片�
   assert.equal(JSON.stringify(card), original);
 });
 
+test('真实标题源兼容：历史页脚在远端标题失效后省略会话行，文本和卡片均不留下默认名', async () => {
+  const { api, requests } = captureFooterRequests();
+  const old = '---\n会话：session wks_synthetic\n模型：旧模型\n上下文：1 tokens';
+  const runtime = { model: 'p/m', contextSize: 123 };
+  await api.sendText('oc_chat', '正文\n\n' + old, runtime);
+  await api.patchCard('om_card', { body: { elements: [{ tag: 'markdown', content: old }] } }, runtime);
+  assert.equal(parseTextContent(requests[0]), '正文\n\n---\n模型：p/m\n上下文：123 tokens');
+  assert.equal(parseCardContent(requests[1]).body.elements[0].content, '---\n模型：p/m\n上下文：123 tokens');
+  assert.ok(requests.every((request) => !request.body.includes('session wks_')));
+});
+
 test('会话页脚 REQ-001-B02：无效标题及异常读取保留旧页脚', async () => {
   const { api, requests } = captureFooterRequests();
   const badRuntime = { model: 'm', contextTokens: 1 };

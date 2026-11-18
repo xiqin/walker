@@ -6,6 +6,191 @@ const { OpencodeDriver } = require('../src/drivers/opencode-driver');
 const { basicAuthHeader } = require('../src/drivers/opencode-service');
 const { OpencodeTuiBridge } = require('../src/opencode-tui-bridge/bridge');
 const { stubCodexDriver } = require('../src/drivers/stub-drivers');
+const httpServer = require('node:http');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const childProcess = require('node:child_process');
+const { promisify } = require('node:util');
+
+describe('OpencodeDriver 关联会话只读标题', () => {
+  /** 使用真实客户端访问隔离HTTP服务；t负责清理连接和监听端口。 */
+  async function serve(t, handler) {
+    const server = httpServer.createServer(handler);
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    t.after(() => new Promise((resolve) => {
+      server.closeAllConnections();
+      server.close(resolve);
+    }));
+    return 'http://127.0.0.1:' + server.address().port;
+  }
+
+  it('按关联地址精确编码ID，沿用认证并读取官方双层响应', async (t) => {
+    const id = "ses_中文/'?";
+    const requests = [];
+    const url = await serve(t, (req, res) => {
+      requests.push({ method: req.method, url: req.url, auth: req.headers.authorization });
+      res.end(JSON.stringify({ data: { id, title: '真实标题\n第二行' } }));
+    });
+    const driver = new OpencodeDriver({ serverUrl: 'http://127.0.0.1:1', serverPassword: '合成口令' });
+    const ref = Object.freeze({ opencodeSessionId: id, serverUrl: url });
+    assert.equal(await driver.getSessionTitle(ref), '真实标题\n第二行');
+    assert.deepEqual(requests, [{ method: 'GET', url: '/api/session/' + encodeURIComponent(id), auth: basicAuthHeader('合成口令') }]);
+  });
+
+  it('兼容直接响应且不生成默认标题，拒绝其他会话响应', async (t) => {
+    let payload = { id: 'ses_A', title: '直接标题' };
+    const url = await serve(t, (_req, res) => res.end(JSON.stringify(payload)));
+    const driver = new OpencodeDriver({ serverUrl: url });
+    const ref = { opencodeSessionId: 'ses_A' };
+    assert.equal(await driver.getSessionTitle(ref), '直接标题');
+    for (const title of [null, '', '  ', 123, {}]) {
+      payload = { data: { id: 'ses_A', title } };
+      assert.equal(await driver.getSessionTitle(ref), null);
+    }
+    for (const data of [null, [], '错误结构', { id: 'ses_B', title: '不能借用' }]) {
+      payload = { data };
+      await assert.rejects(driver.getSessionTitle(ref), { code: 'TITLE_INVALID_RESPONSE' });
+    }
+  });
+
+  it('真实HTTP中文与表情跨字节分块仍保持标题原文', async (t) => {
+    const title = '中😀文标题';
+    const url = await serve(t, (_req, res) => {
+      const payload = Buffer.from(JSON.stringify({ data: { id: 'ses_A', title } }));
+      const start = payload.indexOf(Buffer.from(title));
+      res.write(payload.subarray(0, start + 1));
+      setTimeout(() => {
+        res.write(payload.subarray(start + 1, start + 5));
+        setTimeout(() => res.end(payload.subarray(start + 5)), 10);
+      }, 10);
+    });
+    const driver = new OpencodeDriver({ serverUrl: url });
+    assert.equal(await driver.getSessionTitle({ opencodeSessionId: 'ses_A' }), title);
+  });
+
+  for (const status of [200, 401, 403]) {
+    it(`HTTP ${status}非JSON响应不在日志记录认证或正文原文`, async (t) => {
+      const marker = '仅合成凭据及消息原文';
+      const url = await serve(t, (_req, res) => { res.writeHead(status); res.end('authorization=' + marker); });
+      const driver = new OpencodeDriver({ serverUrl: url, serverPassword: '合成认证口令',
+        execFile() { assert.fail('不得切换数据库'); }, runtime: { spawn() { assert.fail('不得启动服务'); } },
+      });
+      let output = '';
+      const original = process.stderr.write;
+      process.stderr.write = function capture(chunk) { output += String(chunk); return true; };
+      try {
+        if (status === 200) assert.equal(await driver.getSessionTitle({ opencodeSessionId: 'ses_A' }), null);
+        else await assert.rejects(driver.getSessionTitle({ opencodeSessionId: 'ses_A' }), { code: 'TITLE_FORBIDDEN' });
+      } finally {
+        process.stderr.write = original;
+      }
+      assert.ok(output.includes('response JSON parse failed'));
+      assert.ok(!output.includes(marker) && !output.includes('合成认证口令') && !output.includes('authorization='));
+      assert.ok(!output.includes('bodyPreview'));
+    });
+  }
+
+  it('无明确ID或预算耗尽时不发起任何读取', async () => {
+    let calls = 0;
+    const driver = new OpencodeDriver({ serverUrl: 'http://127.0.0.1:1', httpClient: { request() { calls++; } } });
+    for (const id of [undefined, '', ' ', 123, 'ses_\0错误']) {
+      assert.equal(await driver.getSessionTitle({ opencodeSessionId: id }), null);
+    }
+    for (const timeoutMs of [0, -1, NaN, Infinity]) {
+      await assert.rejects(driver.getSessionTitle({ opencodeSessionId: 'ses_A' }, { timeoutMs }), { code: 'TITLE_TIMEOUT' });
+    }
+    assert.equal(calls, 0);
+  });
+
+  for (const status of [401, 403, 404, 500]) {
+    it(`HTTP ${status}只返回受控错误，不启动服务或回退数据库`, async (t) => {
+      let calls = 0;
+      const url = await serve(t, (_req, res) => { calls++; res.writeHead(status); res.end(JSON.stringify({ error: '不可泄漏的合成错误' })); });
+      const driver = new OpencodeDriver({ serverUrl: url,
+        runtime: { spawn() { assert.fail('不得启动服务'); } },
+        execFile() { assert.fail('不得切换到数据库'); },
+      });
+      const error = await driver.getSessionTitle({ opencodeSessionId: 'ses_A' }).catch((error) => error);
+      assert.equal(error.code, status === 401 || status === 403 ? 'TITLE_FORBIDDEN' : 'TITLE_HTTP_ERROR');
+      assert.equal(error.message, '会话标题读取失败');
+      assert.equal(calls, 1);
+    });
+  }
+
+  it('真实挂起HTTP在剩余预算内销毁连接', async (t) => {
+    let closed;
+    const connectionClosed = new Promise((resolve) => { closed = resolve; });
+    const url = await serve(t, (_req, res) => { res.on('close', closed); });
+    const driver = new OpencodeDriver({ serverUrl: url });
+    const start = Date.now();
+    await assert.rejects(driver.getSessionTitle({ opencodeSessionId: 'ses_A' }, { timeoutMs: 80 }), { code: 'TITLE_TIMEOUT' });
+    await connectionClosed;
+    assert.ok(Date.now() - start < 1500, '连接应实际关闭，而非只让调用者停止等待');
+  });
+
+  it('剩余预算上限两秒并传入既有客户端', async () => {
+    const budgets = [];
+    const driver = new OpencodeDriver({ serverUrl: 'http://127.0.0.1:1', httpClient: {
+      async request(_method, _url, _body, options) { budgets.push(options.timeoutMs); return { status: 200, data: { title: '标题' } }; },
+    } });
+    await driver.getSessionTitle({ opencodeSessionId: 'ses_A' }, { timeoutMs: 10000 });
+    await driver.getSessionTitle({ opencodeSessionId: 'ses_A' }, { timeoutMs: 125 });
+    assert.ok(budgets[0] > 0 && budgets[0] <= 2000);
+    assert.ok(budgets[1] > 0 && budgets[1] <= 125);
+  });
+
+  it('真实临时SQLite精确转义ID并完整读取中文多行标题且不改数据库', async (t) => {
+    const exec = promisify(childProcess.execFile);
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'walker-title-'));
+    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    const database = path.join(directory, '合成 #问号?.db'.replace('?', '号'));
+    const driver = new OpencodeDriver({ serverUrl: 'http://127.0.0.1:1', opencodeDbPath: database });
+    const id = "ses_A'; DROP TABLE session;--";
+    const title = '合成中文标题\n第二行 <at id="all">';
+    await exec(driver.sqliteCmd, [database, "CREATE TABLE session(id TEXT PRIMARY KEY,title TEXT); INSERT INTO session VALUES('" + id.replace(/'/g, "''") + "','" + title.replace(/'/g, "''") + "'); INSERT INTO session VALUES('ses_B','其他标题');"]);
+    const before = await fs.readFile(database);
+    assert.equal(await driver.getSessionTitle({ transport: 'tui-bridge', opencodeSessionId: id }), title);
+    assert.equal(await driver.getSessionTitle({ transport: 'tui-bridge', opencodeSessionId: 'ses_missing' }), null);
+    assert.deepEqual(await fs.readFile(database), before);
+    const missing = path.join(directory, '不存在.db');
+    driver.opencodeDbPath = missing;
+    await assert.rejects(driver.getSessionTitle({ transport: 'tui-bridge', opencodeSessionId: id }), { code: 'TITLE_SOURCE_ERROR' });
+    await assert.rejects(fs.stat(missing), { code: 'ENOENT' });
+  });
+
+  it('SQLite权限拒绝只使用原来源，错误不包含数据库路径和原始输出', async () => {
+    const driver = new OpencodeDriver({ serverUrl: 'http://127.0.0.1:1',
+      httpClient: { request() { assert.fail('不得切换HTTP'); } },
+      execFile: async (_command, args, options) => {
+        assert.match(args[2], /^file:.*[?&]mode=ro$/);
+        assert.match(args[3], /^SELECT hex\(title\) FROM session WHERE id=/);
+        assert.ok(options.timeout > 0 && options.timeout <= 2000);
+        assert.equal(options.killSignal, 'SIGKILL');
+        assert.equal(options.maxBuffer, 64 * 1024);
+        throw Object.assign(new Error('合成凭据及数据库路径'), { code: 'EACCES' });
+      },
+    });
+    await assert.rejects(driver.getSessionTitle({ transport: 'tui-bridge', opencodeSessionId: 'ses_A' }), {
+      message: '会话标题读取失败', code: 'TITLE_SOURCE_ERROR',
+    });
+  });
+
+  it('SQLite调用包装触发真实子进程挂起，预算到期实际终止', async () => {
+    const exec = promisify(childProcess.execFile);
+    let processHandle;
+    const driver = new OpencodeDriver({ serverUrl: 'http://127.0.0.1:1',
+      execFile: (_command, _args, options) => {
+        const promise = exec(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], options);
+        processHandle = promise.child;
+        return promise;
+      },
+    });
+    await assert.rejects(driver.getSessionTitle({ transport: 'tui-bridge', opencodeSessionId: 'ses_A' }, { timeoutMs: 80 }), { code: 'TITLE_TIMEOUT' });
+    assert.equal(processHandle.killed, true);
+    assert.ok(processHandle.exitCode !== null || processHandle.signalCode !== null);
+  });
+});
 
 class FakeHttpClient {
   constructor(responses, onRequest) {

@@ -1,0 +1,66 @@
+{
+  "next_stage": "converge",
+  "verification_command": "node specs/2026-11-17-feishu-real-session-title/evidence/run-isolated.cjs full specs/2026-11-17-feishu-real-session-title/evidence/full-isolated-retry.log",
+  "exit_code": 0,
+  "full_tests": 1578,
+  "full_pass": 1578,
+  "full_fail": 0,
+  "full_sha256": "844048330C3A66529F1CF179577422AAAED2D1E8D0A8A26D5B14572E9DB1909E",
+  "ledger_command": "node specs/2026-11-17-feishu-real-session-title/evidence/check-ledger.cjs",
+  "ledger_result": {
+    "requirements": 3,
+    "behaviors": 16,
+    "receipts": 5,
+    "passed": true
+  },
+  "limitations": [
+    "仅默认用户路径隔离而非OS安全沙箱",
+    "历史证据编码警告保留",
+    "EACCES为替身；真实终止Node替换命令进程，不是SQLite实机挂起",
+    "未实机飞书验收；Node/ESLint引擎声明不兼容警告"
+  ],
+  "resume_notes": [
+    "仅本工作树规格为权威，无独立CodeGraph索引，不使用主树回落索引",
+    "所有新测试使用run-isolated.cjs及不存在的新日志路径，禁止裸运行完整测试",
+    "requirements.json的failing仍为原失败基线，不误判为当前动态失败",
+    "test-report新增验证补记说明复审已返回及当前绑定，原正文逐字不变，原独立结论仍以原审查报告为准",
+    "当前verification已完成，本次仅刷新指纹，不回退阶段、不重复执行或审批"
+  ],
+  "verification_metadata_refresh": {
+    "report": "evidence/verification-handoff-refresh.md",
+    "original_report_body_unchanged": true,
+    "product_files_unchanged": true,
+    "tests_rerun": false
+  },
+  "status": "done",
+  "summary": "T1/T2/T3均done且独立审查PASS。真实关联标题、身份隔离缓存及跨层页脚完成；原T3 R1/R2已修复并经round2独立复审关闭。隔离57/381/6及完整1578/1578通过，3REQ/16行为/5收据通过；原失败、首审FAIL及历史用户库风险保留。本次仅刷新最终验证测试报告补记导致的交接指纹，不重做实现或测试，生产/测试指纹和原报告正文均不变；未提交、推送、部署或重启。",
+  "artifacts": [
+    "handoffs/T1.json",
+    "handoffs/T2.json",
+    "handoffs/T3.json",
+    "test-report.md",
+    "traceability.json",
+    "evidence/T3-review-round2.md",
+    "evidence/full-isolated-retry.log",
+    "evidence/isolation-remediation.md",
+    "question-isolation-scope-amendment.md",
+    "evidence/verification-handoff-refresh.md"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5",
+    "tasks/": "d4cfc1958229b85860fcf44664a0f2417679353a947e91b16ffa707002649762"
+  },
+  "artifact_fingerprints": {
+    "evidence/T3-review-round2.md": "42cce9feb25b1295f1bfdd793e13a0c65e3192a1001370e756e57e4ce49f4fa5",
+    "evidence/full-isolated-retry.log": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+    "evidence/isolation-remediation.md": "24f43853ff0c1e8a21c2c0b2a4c030e9bbd829bd38079abd962f946f6c8ce5ad",
+    "evidence/verification-handoff-refresh.md": "be46e77878697af51f39f27d3a39d5ba58c3f12594c5de35bbb13f33643a989b",
+    "test-report.md": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2"
+  },
+  "written_at": "2026-11-17T09:30:14.899Z"
+}

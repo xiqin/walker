@@ -1,0 +1,11 @@
+{
+  "task_id": "T1",
+  "spec_dir": "H:\\walker\\.worktree\\2026-11-17-feishu-real-session-title\\specs\\2026-11-17-feishu-real-session-title",
+  "status": "done",
+  "retry_count": 0,
+  "agent_session_id": null,
+  "created_at": "2026-11-17T07:06:33.055Z",
+  "updated_at": "2026-11-17T07:43:56.357Z",
+  "last_reviewer_result": null,
+  "blocker": "独立审查两个HTTP边界反例已复核失败，需用户批准扩大T1范围至src/core/http-helper.js及test/http-helper.test.js；见http-scope-amendment.md。未开始T2。"
+}

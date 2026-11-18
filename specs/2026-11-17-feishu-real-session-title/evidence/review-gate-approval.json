@@ -1,0 +1,34 @@
+{
+  "date": "2026-11-17",
+  "human_verdict": "PASS",
+  "source": "用户此前对本审查请求明确回复：通过；本次要求继续执行review-gate。",
+  "human_approval_receipt": "evidence/human-review-approval.json",
+  "feedback_file": "review-feedback.md",
+  "request_sha256": "dce2b75d9eaa0b81047c2e69303f757c098bedf1e22b6fd46f5fe21d8260f016",
+  "product_diff_sha256": "1b2d948de4e821383b1d0bceee3fe5aec1a2038bbf976995f0e7bf30f06be2de",
+  "feedback_sha256": "e89fbcbf97d931eb04ce252b5e5f478a37a6961dfe418133a45d1c5bebf22ee3",
+  "pre_approval_check": {
+    "stage": "review-gate",
+    "head": "db54556bc0be99478114c6c809dc78efa6edc31a",
+    "request_and_product_unchanged": true,
+    "feedback_unchanged": true,
+    "handoff_artifacts_verified": 14,
+    "passed": true
+  },
+  "formal_gate_approved": true,
+  "approval_tool": "loom_approve_gate",
+  "approval_result": {
+    "ok": true,
+    "from": "review-gate",
+    "to": "code-review-response"
+  },
+  "tests_rerun": false,
+  "compression_requested": false,
+  "compression_confirmed_set": false,
+  "notes": [
+    "旧人工通过收据与交接原字节保留，其中formal_gate_approved为false代表当时尚未正式登记，不覆盖历史记录。",
+    "本阶段没有专用技能或声明的handoff产物，使用正式审批工具完成门禁，没有直接改写状态或progress。",
+    "没有新增代码修改或业务测试，没有提交、合并、推送、部署、重启或启动真实服务。",
+    "原有非阻断编码警告、实机验收和图索引限制保持不变；本收据不表示整条流水线完成。"
+  ]
+}

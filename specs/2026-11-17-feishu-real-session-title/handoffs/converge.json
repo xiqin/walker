@@ -1,0 +1,78 @@
+{
+  "round": 1,
+  "reference_coverage": "16/16",
+  "semantic_coverage": "16/16",
+  "blocker_count": 0,
+  "new_tasks": [],
+  "semantic_review": {
+    "verdict": "PASS",
+    "report": "evidence/converge-semantic-review.md",
+    "sha256": "01f3863c548c49287c1b9afe4a6211999083ea36c4e3c389f0756486b28ed1c2",
+    "tests_rerun": false,
+    "independent": true
+  },
+  "ledger_check": {
+    "requirements": 3,
+    "behaviors": 16,
+    "receipts": 5,
+    "passed": true
+  },
+  "omission_review": {
+    "checked_behaviors": 16,
+    "blocker_count": 0
+  },
+  "next_stage": "verification",
+  "resume_notes": [
+    "converge和verification均已由宿主正式推进；本次只刷新报告绑定后的交接，不重复推进。",
+    "实际状态code-review-request；用户最新禁止再次压缩及设置compression_confirmed，不自动推进新阶段或审批。",
+    "原failing基线/首审FAIL/失败记录均保留，不调查或清理用户数据库；不提交部署重启。",
+    "无本树独立CodeGraph索引，不使用主树回落或擅自初始化。"
+  ],
+  "limitations": [
+    "历史编码警告及默认目录隔离非OS沙箱",
+    "未实机飞书/真实OpenCode/SQLite挂起或OS权限验收",
+    "EACCES替身及Node替换进程终止，不冒称原生权限/SQLite故障",
+    "Node低于ESLint声明支持范围"
+  ],
+  "verification_metadata_refresh": {
+    "report": "evidence/review-metadata-refresh.md",
+    "previous_handoff": "evidence/review-prior-handoff-converge.json",
+    "original_report_body_unchanged": true,
+    "product_files_unchanged": true,
+    "tests_rerun": false
+  },
+  "status": "done",
+  "summary": "原第1轮收敛PASS不变：引用16/16，独立语义16/16 covered，missing/partial/contradicts/未批准unrequested及阻断均0，无新任务。仅刷新宿主元数据变化后报告绑定和交接；原独立报告、converge遗漏产物、生产/测试和动态日志不变。本轮新遗漏辅助16行为0阻断另存，不冒充新语义审查；不重做收敛、不压缩或推进。",
+  "artifacts": [
+    "convergence-report.json",
+    "findings/omission-hunter.json",
+    "evidence/converge-semantic-review.md",
+    "test-report.md",
+    "traceability.json",
+    "evidence/T3-review-round2.md",
+    "evidence/full-isolated-retry.log",
+    "evidence/verification-handoff-refresh.md",
+    "evidence/review-metadata-refresh.md",
+    "evidence/review-version-receipt.json",
+    "evidence/review-omission-hunter.json"
+  ],
+  "stage": "converge",
+  "task_id": "converge",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5"
+  },
+  "artifact_fingerprints": {
+    "evidence/T3-review-round2.md": "42cce9feb25b1295f1bfdd793e13a0c65e3192a1001370e756e57e4ce49f4fa5",
+    "evidence/converge-semantic-review.md": "01f3863c548c49287c1b9afe4a6211999083ea36c4e3c389f0756486b28ed1c2",
+    "evidence/full-isolated-retry.log": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+    "evidence/review-metadata-refresh.md": "e138549cf30a050aadc2cfbcd546e1a3f77838d49130c06766bc518d72ce745e",
+    "evidence/review-omission-hunter.json": "16563f45fb6a89279108ce560cacb72ea9c6ebe8630c96ee1f22f1bc6111dca4",
+    "evidence/review-version-receipt.json": "cde6a01a3f3470a2c580344edbd238a045a75ed5e831ad77a74730dfe5428f97",
+    "evidence/verification-handoff-refresh.md": "be46e77878697af51f39f27d3a39d5ba58c3f12594c5de35bbb13f33643a989b",
+    "test-report.md": "b6b2d7f8517bf1a823913afd10a75663e25b3b09016c5b2e784143b3905f4ff8"
+  },
+  "written_at": "2026-11-17T09:40:03.802Z"
+}

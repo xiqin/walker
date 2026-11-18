@@ -1,6 +1,7 @@
 'use strict';
 
 const { buildRouteKey } = require('../core/route-key');
+const path = require('node:path');
 const { AgentEvent } = require('../drivers/agent-driver');
 const { createLogger } = require('../core/logger');
 const { TurnStateManager } = require('./turn-state');
@@ -17,6 +18,24 @@ const DEFAULT_HEARTBEAT_INITIAL_MS = 30000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 60000;
 const DEFAULT_HEARTBEAT_STUCK_MS = 300000;
 const ATTACH_RECENT_WINDOW_MS = 15 * 24 * 60 * 60 * 1000;
+const TITLE_CACHE_TTL_MS = 30000;
+const TITLE_READ_BUDGET_MS = 2000;
+const TITLE_CACHE_LIMIT = 128;
+const TITLE_READ_LIMIT = 16;
+const TITLE_FAILURE_CODES = new Set([
+  'TITLE_TIMEOUT', 'TITLE_FORBIDDEN', 'TITLE_HTTP_ERROR', 'TITLE_INVALID_RESPONSE', 'TITLE_SOURCE_ERROR',
+]);
+
+/** 过滤空白、关联ID和精确的自动名称；不误删以session开头的正常标题。 */
+function validSessionTitle(value, session) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const title = value.trim();
+  const ids = [session && session.id, session && session.agentRef && session.agentRef.opencodeSessionId]
+    .filter((id) => typeof id === 'string' && id);
+  if (title === 'opencode session' || ids.some((id) => title === id
+    || ['session ', 'opencode '].some((prefix) => title === prefix + id || title === prefix + id.slice(0, 12)))) return null;
+  return value;
+}
 
 function getAgentRefId(agentRef) {
   if (!agentRef || typeof agentRef !== 'object') return '';
@@ -104,6 +123,7 @@ class MessageDispatcher {
     this._promptQueues = new Map();
     this._promptQueueTexts = new WeakMap();
     this._routeLocks = new Map();
+    this._sessionTitleCache = new Map();
     this.turnStateManager = new TurnStateManager({
       dispatcher: this,
       sessionService: this.sessionService,
@@ -2118,18 +2138,109 @@ class MessageDispatcher {
 
   async _feishuRuntimeContext(context) {
     const session = this._sessionFromFeishuContext(context);
+    // 先固定所属身份并立即开始读取，不能等模型补读后再使用变化后的连接。
+    const snapshot = session && { ...session, agentRef: { ...session.agentRef } };
+    const titlePromise = this._feishuSessionTitle(snapshot);
     const model = (session && session.model) || await this._currentDriverModelFallback(session) || undefined;
     if (model && session && !session.model) {
       session.model = model;
       this._updateSessionRuntimeField(session.id, 'model', model);
     }
+    const sessionTitle = await titlePromise;
     return {
-      ...(session && typeof session.title === 'string' ? { sessionTitle: session.title } : {}),
+      ...(sessionTitle ? { sessionTitle } : {}),
       model,
       defaultModel: this.defaultModel,
       contextSize: this._firstRuntimeValue(context, session, ['contextSize', 'contextTokens', 'tokens']),
       tokenUsage: this._firstRuntimeValue(context, session, ['tokenUsage', 'usage']),
     };
+  }
+
+  /** 按关联连接及ID复用真实标题；本地降级只属于当前调用，不写共享缓存。 */
+  _feishuSessionTitle(session) {
+    const localTitle = validSessionTitle(session && session.title, session);
+    if (!session || this._destroyed) return localTitle;
+    const agentName = session.agent || this.defaultAgent || 'opencode';
+    const ref = { ...session.agentRef };
+    if (agentName !== 'opencode' || typeof ref.opencodeSessionId !== 'string'
+      || !ref.opencodeSessionId.trim() || ref.opencodeSessionId.includes('\0')) return localTitle;
+    const driver = this.driverRegistry && typeof this.driverRegistry.get === 'function'
+      ? this.driverRegistry.get(agentName) : null;
+    if (!driver || typeof driver.getSessionTitle !== 'function') return localTitle;
+    ref.serverUrl = ref.serverUrl || driver.serverUrl;
+    const transport = ref.transport || 'http';
+    let source;
+    if (transport === 'tui-bridge') {
+      source = [typeof driver.opencodeDbPath === 'string' ? path.resolve(driver.opencodeDbPath) : '', ref.runtimeId || ''];
+    } else {
+      try {
+        // 实际GET使用绝对API路径，连接身份只需origin，不能把认证或查询参数放入键。
+        source = new URL(ref.serverUrl).origin;
+      } catch (_) { return localTitle; }
+    }
+    const key = JSON.stringify([agentName, transport, source, ref.opencodeSessionId]);
+    // 兼容旧对象及复现探针只继承原型、未运行构造器的情况。
+    const cache = this._sessionTitleCache || (this._sessionTitleCache = new Map());
+    let entry = cache.get(key);
+    if (entry) {
+      cache.delete(key);
+      cache.set(key, entry);
+      if (entry.pending) return entry.pending.then((title) => title || localTitle);
+      if (Date.now() - entry.completedAt < TITLE_CACHE_TTL_MS) return entry.title || localTitle;
+    }
+    if (Array.from(cache.values()).filter((item) => item.pending).length >= TITLE_READ_LIMIT) {
+      return (entry && entry.title) || localTitle;
+    }
+    if (!entry) {
+      if (cache.size >= TITLE_CACHE_LIMIT) {
+        const oldest = Array.from(cache).find(([, item]) => !item.pending);
+        if (!oldest) return localTitle;
+        cache.delete(oldest[0]);
+      }
+      entry = { title: null, completedAt: null, pending: null, cancel: null };
+      cache.set(key, entry);
+    }
+    return this._startSessionTitleRead(cache, key, entry, driver, ref, session)
+      .then((title) => title || localTitle);
+  }
+
+  /** 为一次真实读取管理截止时间、完成缓存与销毁唤醒；迟到结果不能再次发布。 */
+  _startSessionTitleRead(cache, key, entry, driver, ref, session) {
+    const deadline = Date.now() + TITLE_READ_BUDGET_MS;
+    let resolve;
+    let settled = false;
+    const pending = new Promise((done) => { resolve = done; });
+    entry.pending = pending;
+    const finish = (title, code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      entry.pending = null;
+      entry.cancel = null;
+      if (!this._destroyed && cache.get(key) === entry) {
+        if (title) entry.title = title;
+        entry.completedAt = Date.now();
+        if (code) logger.debug('会话标题读取降级', {
+          sessionId: session.id, opencodeSessionId: ref.opencodeSessionId,
+          transport: ref.transport || 'http', code,
+        });
+      }
+      resolve(entry.title);
+    };
+    const timer = setTimeout(() => finish(null, 'TITLE_TIMEOUT'), Math.max(0, deadline - Date.now()));
+    entry.cancel = () => finish(null);
+    let request;
+    try {
+      // 必须同步调用驱动；驱动会立即固定请求地址、认证或数据库，再异步等待。
+      request = driver.getSessionTitle(ref, { timeoutMs: Math.max(0, deadline - Date.now()) });
+    } catch (error) {
+      request = Promise.reject(error);
+    }
+    Promise.resolve(request).then(
+      (title) => Date.now() >= deadline ? finish(null, 'TITLE_TIMEOUT') : finish(validSessionTitle(title, session)),
+      (error) => finish(null, TITLE_FAILURE_CODES.has(error && error.code) ? error.code : 'TITLE_SOURCE_ERROR'),
+    );
+    return pending;
   }
 
   async _currentDriverModelFallback(session) {
@@ -2148,10 +2259,12 @@ class MessageDispatcher {
   }
 
   _sessionFromFeishuContext(context) {
-    if (context && context.session) return context.session;
-    if (context && context.sessionId && this.sessionService && typeof this.sessionService.getSession === 'function') {
-      const session = this.sessionService.getSession(context.sessionId);
-      if (session) return session;
+    if (context && context.session !== undefined) {
+      return context.session && typeof context.session === 'object' ? context.session : null;
+    }
+    if (context && context.sessionId) {
+      return this.sessionService && typeof this.sessionService.getSession === 'function'
+        ? this.sessionService.getSession(context.sessionId) || null : null;
     }
     if (context && context.routeKey && this.sessionService && typeof this.sessionService.getCurrent === 'function') {
       const session = this.sessionService.getCurrent(context.routeKey);
@@ -2350,6 +2463,13 @@ class MessageDispatcher {
   }
 
   destroy() {
+    this._destroyed = true;
+    if (this._sessionTitleCache) {
+      for (const entry of this._sessionTitleCache.values()) {
+        if (entry.cancel) entry.cancel();
+      }
+      this._sessionTitleCache.clear();
+    }
     for (const [_sessionId, stopFn] of this.sessionWatchStops) {
       try { if (typeof stopFn === 'function') stopFn(); } catch (_) {}
     }
@@ -2367,7 +2487,6 @@ class MessageDispatcher {
     this.cancelledTurnSessions.clear();
     this._promptQueues.clear();
     this._routeLocks.clear();
-    this._destroyed = true;
     logger.info('dispatcher destroyed, all resources cleaned');
   }
 

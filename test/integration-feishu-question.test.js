@@ -112,11 +112,14 @@ async function createFixture(options) {
     walkerDefaultCwd: CWD,
     walkerDefaultRuntime: 'windows',
     feishuRouteMode: 'thread',
+    // TUI夹具不能依赖宿主service.json或用户会话库，且不启动独立服务。
+    opencodeServerUrl: 'http://127.0.0.1:1',
+    opencodeDbPath: path.join(tmpDir, 'opencode.db'),
     opencodeServerAutostart: false,
     opencodeTuiLeaseTimeoutMs: 10000,
     opencodeTuiHeartbeatIntervalMs: 15,
     admin: { enabled: false },
-  });
+  }, { readOpencodeService: () => null });
   const feishuApi = makeFeishuApi();
   app.platform.api = feishuApi;
   app.sessionService.createSession({ route: ROUTE_KEY, agent: 'opencode', cwd: CWD });

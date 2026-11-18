@@ -1,0 +1,74 @@
+{
+  "next_action": "通过正式failed→recover approved恢复审批门禁，用户确认当前完整追加计划后正式approve；保留全部done任务及既有工作树，不重跑整条流水线。",
+  "decisions": [
+    "只读驱动与身份缓存架构不变，不新增协议、配置或通用抽象。",
+    "用户批准T1共享HTTP UTF-8和正文日志修复、旧守卫协调，T3 question夹具隔离。",
+    "T1→T2→T3串行且owns互斥；共享追溯由主执行者维护。",
+    "TUI只读URI/hex(title)，HTTP复用认证客户端及实际超时，标题先于异步模型读取固定身份。",
+    "128条目/16读取，完成起30秒缓存及总计2秒预算，饱和同身份降级。"
+  ],
+  "checks": {
+    "plan_validation": {
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    "original_schedule": {
+      "exit_code": 0,
+      "batches": [
+        [
+          "T1"
+        ],
+        [
+          "T2"
+        ],
+        [
+          "T3"
+        ]
+      ]
+    },
+    "original_strict_conflicts": {
+      "exit_code": 1,
+      "reason": "合法有序上下游读写交集，无写写冲突，不是并行门禁。"
+    },
+    "approval_refresh": "evidence/approval-refresh-validation.md"
+  },
+  "notes": [
+    "原规划期未运行测试的说明仅为历史观察；当前实现及隔离测试、独立复审见executing交接。",
+    "spec.md和requirements.json与原审批字节一致，T1/T2共15产物与原交接指纹一致。",
+    "不提交、推送、部署、重启，不启动真实服务。"
+  ],
+  "open_questions": [],
+  "status": "done",
+  "summary": "原3个串行任务及128/16/30秒/2秒方案保持不变；用户另行批准的HTTP层、旧守卫及question夹具范围已纳入owns和计划。当前计划校验及跨产物复核通过，无新增需求或生产接口；仅刷新过期交接指纹，不重做规划、不代替人工重新审批。",
+  "artifacts": [
+    "plan.md",
+    "tasks/T1.md",
+    "tasks/T2.md",
+    "tasks/T3.md",
+    "traceability.json",
+    "engineering-facts.md",
+    "planning-checks.json",
+    "http-scope-amendment.md",
+    "guard-scope-amendment.md",
+    "question-isolation-scope-amendment.md",
+    "evidence/approval-refresh-validation.md"
+  ],
+  "stage": "planning",
+  "task_id": "planning",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5",
+    "tasks/": "d4cfc1958229b85860fcf44664a0f2417679353a947e91b16ffa707002649762"
+  },
+  "artifact_fingerprints": {
+    "evidence/approval-refresh-validation.md": "baba352e7ae123c76f42b480f7ac8be7d903797a4c3f9c8389ca1b96e2ba8917",
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "tasks/T1.md": "0efb6703d359ff6cdf77c23a1043b03fc9d804af16e11668c995a8b9f23d647f",
+    "tasks/T2.md": "a84084f122f36bc9c2d74e1e023d554ed0e0773d44334009c37bd70d33c68243",
+    "tasks/T3.md": "c617bab57ab5a54d3bd41d899b849683e4154c235d1b1e422e3c0853046a6303"
+  },
+  "written_at": "2026-11-17T08:54:10.347Z"
+}

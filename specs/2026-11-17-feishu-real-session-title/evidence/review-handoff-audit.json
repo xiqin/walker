@@ -1,0 +1,23 @@
+{
+  "current_stage": "code-review-request",
+  "refreshed_handoffs": 4,
+  "test_report_sha256": "b6b2d7f8517bf1a823913afd10a75663e25b3b09016c5b2e784143b3905f4ff8",
+  "verify_report_sha256": "64840d8e8c629f26d040e5e234d9a998e39c3028877215d0537be5deeb8c0b79",
+  "original_converge_omission_bytes_preserved": true,
+  "compression_requested": false,
+  "advance_called": false,
+  "tests_rerun": false,
+  "first_audit_attempt": {
+    "exit_code": 1,
+    "error": "AssertionError T3: basis_fingerprints test-report.md undefined",
+    "reason": "首版审计错误要求所有阶段的输入指纹都包含本报告，T3实际将报告作为产物记录；不是产品或正式交接错误。",
+    "correction": "仅核对实际声明的输入指纹，四份交接均强制核对报告产物指纹；verification另核对报告与汇总哈希。"
+  },
+  "mechanical_verification": {
+    "ok": true,
+    "errors": [],
+    "warnings": []
+  },
+  "exit_code": 0,
+  "passed": true
+}

@@ -1,0 +1,15 @@
+{
+  "head": "db54556bc0be99478114c6c809dc78efa6edc31a",
+  "diff_sha256": "cdbcb46dd40b5d1ffa460593978034baf3e51c27af8e6b852241b88a6b91a2b9",
+  "product_diff_sha256": "1b2d948de4e821383b1d0bceee3fe5aec1a2038bbf976995f0e7bf30f06be2de",
+  "original_test_report_body_unchanged": true,
+  "tests_rerun": false,
+  "files": {
+    "test-report.md": "b6b2d7f8517bf1a823913afd10a75663e25b3b09016c5b2e784143b3905f4ff8",
+    "verify-report.md": "64840d8e8c629f26d040e5e234d9a998e39c3028877215d0537be5deeb8c0b79",
+    "evidence/review-static.log": "a775970c8b72a56e8479222ef848f5d748dc2d56b2b5b889f11d4e1014f1a94e",
+    "evidence/review-omission-hunter.json": "16563f45fb6a89279108ce560cacb72ea9c6ebe8630c96ee1f22f1bc6111dca4",
+    "evidence/review-prior-test-report.md": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2",
+    "evidence/review-prior-verify-report.md": "655409425b8857f6e0440264172e3c45497cc9a96b5cba3c0811d052d342020d"
+  }
+}

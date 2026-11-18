@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const childProcess = require('node:child_process');
 const { promisify } = require('node:util');
+const { pathToFileURL } = require('node:url');
 const { AgentDriver, AgentEvent } = require('./agent-driver');
 const { createLogger } = require('../core/logger');
 const { mapSSEEvent, isTerminalSSEEvent } = require('./opencode-sse-adapter');
@@ -213,6 +214,56 @@ class OpencodeDriver extends AgentDriver {
   async getCurrentModel() {
     const modelState = await this._loadModelState();
     return this._extractCurrentModel(modelState);
+  }
+
+  /**
+   * 只读获取明确关联会话的标题，不启动服务或切换标题来源。
+   * @param {Object} sessionRef - 包含 opencodeSessionId、transport 和关联地址的身份快照
+   * @param {Object} options - timeoutMs 为调用方剩余读取预算，最多两秒
+   * @returns {Promise<string|null>} 标题原文或无标题；读取失败抛出受控分类错误
+   */
+  async getSessionTitle(sessionRef, options = {}) {
+    const id = sessionRef && sessionRef.opencodeSessionId;
+    if (typeof id !== 'string' || !id.trim() || id.includes('\0')) return null;
+    const budget = options.timeoutMs === undefined ? 2000 : Number(options.timeoutMs);
+    if (!Number.isFinite(budget) || budget <= 0) throw sessionTitleError('TITLE_TIMEOUT');
+    const deadline = Date.now() + Math.min(budget, 2000);
+    try {
+      let title;
+      if (sessionRef.transport === 'tui-bridge') {
+        const database = pathToFileURL(path.resolve(this.opencodeDbPath));
+        database.searchParams.set('mode', 'ro');
+        const sql = "SELECT hex(title) FROM session WHERE id='" + id.replace(/'/g, "''") + "' LIMIT 1;";
+        const result = await this.execFile(this.sqliteCmd, ['-batch', '-noheader', database.href, sql], {
+          encoding: 'utf8', timeout: Math.max(1, Math.ceil(deadline - Date.now())),
+          killSignal: 'SIGKILL', maxBuffer: 64 * 1024,
+        });
+        const hex = String(typeof result === 'string' ? result : result && result.stdout || '').trim();
+        if (!hex) return null;
+        if (!/^(?:[0-9a-f]{2})+$/i.test(hex)) throw sessionTitleError('TITLE_INVALID_RESPONSE');
+        title = Buffer.from(hex, 'hex').toString('utf8');
+      } else {
+        const url = this._buildUrl('/api/session/' + encodeURIComponent(id), {}, sessionRef);
+        const resp = await this.httpClient.request('GET', url, null, {
+          timeoutMs: Math.max(1, Math.ceil(deadline - Date.now())),
+        });
+        if (!resp || !(resp.status >= 200 && resp.status < 300)) {
+          const status = resp && resp.status;
+          throw sessionTitleError(status === 401 || status === 403 ? 'TITLE_FORBIDDEN' : 'TITLE_HTTP_ERROR');
+        }
+        const data = resp.data && Object.hasOwn(resp.data, 'data') ? resp.data.data : resp.data;
+        if (!data || typeof data !== 'object' || Array.isArray(data) || (data.id !== undefined && data.id !== id)) {
+          throw sessionTitleError('TITLE_INVALID_RESPONSE');
+        }
+        title = data.title;
+      }
+      return typeof title === 'string' && title.trim() ? title : null;
+    } catch (error) {
+      // 不透传可能携带认证头、地址、SQL或数据库输出的原始异常。
+      if (error && error.sessionTitleFailure) throw error;
+      const timedOut = error && (error.killed || ['ETIMEDOUT', 'PROMPT_REQUEST_TIMEOUT'].includes(error.code));
+      throw sessionTitleError(timedOut ? 'TITLE_TIMEOUT' : 'TITLE_SOURCE_ERROR');
+    }
   }
 
   async getLatestSessionRuntime(sessionRef) {
@@ -1087,6 +1138,11 @@ class OpencodeDriver extends AgentDriver {
 }
 
 module.exports = { OpencodeDriver };
+
+/** 构造可安全记录的标题读取错误；code 只能由本模块的固定分类传入。 */
+function sessionTitleError(code) {
+  return Object.assign(new Error('会话标题读取失败'), { code, sessionTitleFailure: true });
+}
 
 function permissionDecision(response, remember) {
   const value = String(response || '').trim().toLowerCase();

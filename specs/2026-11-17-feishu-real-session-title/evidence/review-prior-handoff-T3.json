@@ -1,0 +1,78 @@
+{
+  "requirements": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003"
+  ],
+  "behavior_count": 16,
+  "review_verdict": "PASS",
+  "review_report": "evidence/T3-review-round2.md",
+  "breaking_changes": [],
+  "remaining_risks": [
+    "历史日志UTF-16LE及中文乱码为非阻断警告，原文件不重编码",
+    "环境目录重定向不是OS沙箱；不拦截任意硬编码路径或网络",
+    "未做实机飞书、真实OpenCode服务、挂起SQLite或OS权限配置验收",
+    "Node v22.11.0低于所装ESLint声明支持范围，实际lint通过但不保证官方兼容"
+  ],
+  "next_step": "converge、verification的任务验证已完成，当前仅刷新交接，随后按实际状态准备审查；不得自动提交、合并、推送、部署或重启。",
+  "verification_metadata_refresh": {
+    "report": "evidence/verification-handoff-refresh.md",
+    "original_test_report_sha256": "f75f9c9038b9c5724df28584dcb6aae0cae9aaef8b9fd60fcf73554b896f40b7",
+    "current_test_report_sha256": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2",
+    "original_report_body_unchanged": true,
+    "product_files_unchanged": true,
+    "tests_rerun": false
+  },
+  "status": "done",
+  "summary": "6项跨层及1项页脚兼容验证完成，另补SQL路径守卫和获批question夹具隔离。57项集成、381项定向、6项question与完整1578项隔离回归通过；5份收据及16行为追溯通过。原R1/R2已独立复审PASS，原FAIL/失败证据及历史风险保留。本次仅刷新最终验证测试报告补记后的产物指纹，原报告正文移除补记后哈希与原受审版完全一致；生产/测试及原动态证据均未变，不重跑任务、不代替新独立审查。",
+  "artifacts": [
+    "test/integration-feishu-tui-sync.test.js",
+    "test/integration-feishu-question.test.js",
+    "test/feishu-api.test.js",
+    "test-report.md",
+    "traceability.json",
+    "evidence/T3-review.md",
+    "evidence/T3-review-round2.md",
+    "evidence/run-isolated.cjs",
+    "evidence/check-ledger.cjs",
+    "evidence/database-isolation-probe.cjs",
+    "evidence/isolation-remediation.md",
+    "evidence/full-isolated-retry.log",
+    "evidence/targeted-isolated.log",
+    "evidence/integration-isolated.log",
+    "evidence/question-isolated-fixed.log",
+    "evidence/full-isolated.log",
+    "evidence/question-isolated-baseline.log",
+    "evidence/fixed.json",
+    "evidence/verification-handoff-refresh.md"
+  ],
+  "task_id": "T3",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5",
+    "tasks/T3.md": "c617bab57ab5a54d3bd41d899b849683e4154c235d1b1e422e3c0853046a6303"
+  },
+  "artifact_fingerprints": {
+    "evidence/T3-review-round2.md": "42cce9feb25b1295f1bfdd793e13a0c65e3192a1001370e756e57e4ce49f4fa5",
+    "evidence/T3-review.md": "a89420dcbe3849d2fdac9b90f10c3b69814296a8092a58b91189c9fa65e7863d",
+    "evidence/check-ledger.cjs": "95399cf2919b5468811d7b0a7932bb5e30d1dcd7de86b7dad60947e0d1e3f1ce",
+    "evidence/database-isolation-probe.cjs": "e4f964a670c72c8ef0df2427933108f93de20884002c9768e43dab52ccfcadc8",
+    "evidence/fixed.json": "dfc1e576e4e248f15f7cac1119340cae56945ac0518968c0cdebb9927a730a8b",
+    "evidence/full-isolated-retry.log": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+    "evidence/full-isolated.log": "00d30c3f60be4c7a6cf17d7243c106d186498917fcfc437eed9ea1fc30395bb0",
+    "evidence/integration-isolated.log": "3036e5300cf7de714c21980ff6e49d505c41ef9754cce102e9c87b0f6d7955d5",
+    "evidence/isolation-remediation.md": "24f43853ff0c1e8a21c2c0b2a4c030e9bbd829bd38079abd962f946f6c8ce5ad",
+    "evidence/question-isolated-baseline.log": "6578b384e1788f9743748cb37d7151b61f3965bc562dc5ef460b494f28b8eeb2",
+    "evidence/question-isolated-fixed.log": "11839e437bfc2e1e0be81b243eb092847e886e69f5940f04908aa6e9f9b7dca8",
+    "evidence/run-isolated.cjs": "2b18125faa4267ccd24392a1f75b45d6b233a4ff4bda9b2dd828ec21167981de",
+    "evidence/targeted-isolated.log": "f9fd4e8058c3e0b755e7b357f7d9b1362270f9ef92747ca3d4455c0310f3c4b9",
+    "evidence/verification-handoff-refresh.md": "be46e77878697af51f39f27d3a39d5ba58c3f12594c5de35bbb13f33643a989b",
+    "test-report.md": "8c74562a2c993d2a04a069917c0787e52807983ddbf8c60b3c20ed6faf8090e2",
+    "test/feishu-api.test.js": "6ec801b0633a4a44890670a279fde032b3af781450b2d631aae8806541814778",
+    "test/integration-feishu-question.test.js": "0df42feb693587370c8cc3595e78b5fcc5919468fb5e3a1a08f22f5cb5121a16",
+    "test/integration-feishu-tui-sync.test.js": "f263cd149e74f70526e4ed272435b21b1574b4c6538cb6f5f2c841bcf71a6ace"
+  },
+  "written_at": "2026-11-17T09:28:32.942Z"
+}

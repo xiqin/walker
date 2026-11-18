@@ -1,0 +1,70 @@
+{
+  "next_stage": "converge",
+  "verification_command": "node specs/2026-11-17-feishu-real-session-title/evidence/run-isolated.cjs full specs/2026-11-17-feishu-real-session-title/evidence/full-isolated-retry.log",
+  "exit_code": 0,
+  "full_tests": 1578,
+  "full_pass": 1578,
+  "full_fail": 0,
+  "full_sha256": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+  "ledger_command": "node specs/2026-11-17-feishu-real-session-title/evidence/check-ledger.cjs",
+  "ledger_result": {
+    "requirements": 3,
+    "behaviors": 16,
+    "receipts": 5,
+    "passed": true
+  },
+  "limitations": [
+    "默认目录隔离不是OS沙箱",
+    "历史编码及旧默认用户库查询风险保留",
+    "EACCES为替身，实际终止Node替换进程，不是SQLite挂起实机验收",
+    "无实机飞书/真实OpenCode验收，Node/ESLint支持声明警告保留"
+  ],
+  "resume_notes": [
+    "本次只补已完成验证的元数据，不重复旧阶段。",
+    "实际状态code-review-request，用户最新明确不要再压缩或设置compression_confirmed，不推进新阶段。",
+    "所有新业务测试必须隔离运行器及全新日志，既有证据复用，不重复测试。",
+    "不检查清理用户数据库，不提交推送合并部署重启；无本树独立图索引，不使用主树回落索引。"
+  ],
+  "verification_metadata_refresh": {
+    "report": "evidence/review-metadata-refresh.md",
+    "previous_handoff": "evidence/review-prior-handoff-executing.json",
+    "original_report_body_unchanged": true,
+    "product_files_unchanged": true,
+    "tests_rerun": false
+  },
+  "status": "done",
+  "summary": "原T1/T2/T3均done且独立复审PASS，隔离完整1578/1578及57/381/6证据不变，原R1/R2闭环及历史风险保留。本次只刷新宿主追加合规历史后两报告绑定；原报告正文、10产品/测试及原动态日志不变，不重做实现或测试、不回退或推进、不压缩。",
+  "artifacts": [
+    "handoffs/T1.json",
+    "handoffs/T2.json",
+    "handoffs/T3.json",
+    "test-report.md",
+    "traceability.json",
+    "evidence/T3-review-round2.md",
+    "evidence/full-isolated-retry.log",
+    "evidence/isolation-remediation.md",
+    "question-isolation-scope-amendment.md",
+    "evidence/verification-handoff-refresh.md",
+    "evidence/review-metadata-refresh.md",
+    "evidence/review-version-receipt.json"
+  ],
+  "stage": "executing",
+  "task_id": "executing",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5",
+    "tasks/": "d4cfc1958229b85860fcf44664a0f2417679353a947e91b16ffa707002649762"
+  },
+  "artifact_fingerprints": {
+    "evidence/T3-review-round2.md": "42cce9feb25b1295f1bfdd793e13a0c65e3192a1001370e756e57e4ce49f4fa5",
+    "evidence/full-isolated-retry.log": "844048330c3a66529f1cf179577422aaaed2d1e8d0a8a26d5b14572e9db1909e",
+    "evidence/isolation-remediation.md": "24f43853ff0c1e8a21c2c0b2a4c030e9bbd829bd38079abd962f946f6c8ce5ad",
+    "evidence/review-metadata-refresh.md": "e138549cf30a050aadc2cfbcd546e1a3f77838d49130c06766bc518d72ce745e",
+    "evidence/review-version-receipt.json": "cde6a01a3f3470a2c580344edbd238a045a75ed5e831ad77a74730dfe5428f97",
+    "evidence/verification-handoff-refresh.md": "be46e77878697af51f39f27d3a39d5ba58c3f12594c5de35bbb13f33643a989b",
+    "test-report.md": "b6b2d7f8517bf1a823913afd10a75663e25b3b09016c5b2e784143b3905f4ff8"
+  },
+  "written_at": "2026-11-17T09:39:44.364Z"
+}

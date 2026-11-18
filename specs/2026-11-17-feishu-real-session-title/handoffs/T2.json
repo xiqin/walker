@@ -1,0 +1,34 @@
+{
+  "approval_refresh": "evidence/approval-refresh-validation.md",
+  "limitations": [
+    "当前隔离证据以test-report.md及T3-review-round2.md为准，不以旧回归/覆盖率替代。"
+  ],
+  "status": "done",
+  "summary": "关联快照、有界缓存、默认名过滤、降级及销毁清理完成，独立16行为与七维审查PASS。历史18项新增/252项定向/1570项回归及原探针通过记录保留，不追认为隔离验收；当前仅刷新获批计划依据，T2代码、测试和全部原产物指纹不变。T3已补真实源跨层与完整隔离1578项回归。",
+  "artifacts": [
+    "src/dispatch/message-dispatcher.js",
+    "test/message-dispatcher.test.js",
+    "evidence/dispatch-validation.md",
+    "evidence/T2-review.md",
+    "evidence/dispatch-coverage.log",
+    "evidence/dispatch-full-regression-retry.log",
+    "traceability.json"
+  ],
+  "task_id": "T2",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5",
+    "tasks/T2.md": "a84084f122f36bc9c2d74e1e023d554ed0e0773d44334009c37bd70d33c68243"
+  },
+  "artifact_fingerprints": {
+    "evidence/T2-review.md": "969cd8d6c62e6ae2c77d4f843eb158949431b0110c293240009f8fecb79950a8",
+    "evidence/dispatch-coverage.log": "c321b32f2248be03fef1dbe8ef77bd68affa1b49b36a210859cb25b1fc9473ed",
+    "evidence/dispatch-full-regression-retry.log": "ffecc16f4356a8474118b859b0df93fe233ba60954d6256d6811d0f143902d66",
+    "evidence/dispatch-validation.md": "1e73ec8f1a4d4d34eca4c42b2c88986a10473a6fdc8f1a315f7407a02142bd92",
+    "src/dispatch/message-dispatcher.js": "883919180319e37626255b251cae335b8151dd71d75608faf8e5a714cef3ef72",
+    "test/message-dispatcher.test.js": "85160b545c329adbbf84c9727aca1b00d0445d6384eebc472057511aa14ba878"
+  },
+  "written_at": "2026-11-17T08:55:20.575Z"
+}

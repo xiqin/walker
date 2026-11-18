@@ -1,0 +1,42 @@
+{
+  "interface": "getSessionTitle(sessionRef, options={}) => Promise<string|null>，只用明确opencodeSessionId，timeoutMs剩余预算最多2000毫秒，受控异常由调用方降级",
+  "limitations": [
+    "TUI使用driver.opencodeDbPath，只读URI和精确hex(title)",
+    "本层历史测试不是默认用户目录隔离证据，当前跨层及隔离回归见T3交接",
+    "不提交推送部署或启动真实服务"
+  ],
+  "approval_refresh": "evidence/approval-refresh-validation.md",
+  "status": "done",
+  "summary": "精确只读标题接口及获批HTTP边界/旧守卫协调完成，独立复审均PASS；历史129项定向和1552项回归计数保留但不追认为隔离验收。当前仅刷新已批准计划追加后的依据指纹，T1生产/测试及全部原产物SHA-256与旧交接一致。新隔离完整1578项及R1/R2闭环见T3/执行交接。",
+  "artifacts": [
+    "src/drivers/opencode-driver.js",
+    "src/core/http-helper.js",
+    "test/opencode-driver.test.js",
+    "test/http-helper.test.js",
+    "test/claude-removal-guard.test.js",
+    "evidence/driver-validation.md",
+    "evidence/T1-review-round2.md",
+    "evidence/T1-guard-review.md",
+    "evidence/guard-full-regression.log"
+  ],
+  "task_id": "T1",
+  "basis_fingerprints": {
+    "plan.md": "3301f7668b252beee6f5962f7273715e9e3ea529de716f5e3b6026b5ba64f3b9",
+    "requirements.json": "b8f48036905950e2a96c61aa95f68799314e9507b6f4040b1d01cd51b369f440",
+    "sources/": "35eab319a100434ca3ec5a92be72e06078097bd4cd9161c6430e8a1f124db8bb",
+    "spec.md": "54b3477cf867d7caea8a9a0e5fc12e7fff25b2207d25a628475faf17a30333a5",
+    "tasks/T1.md": "0efb6703d359ff6cdf77c23a1043b03fc9d804af16e11668c995a8b9f23d647f"
+  },
+  "artifact_fingerprints": {
+    "evidence/T1-guard-review.md": "3b1df732a1e40b8d3f18d0bd61b43aaeb26949850da28f6ea42da70ee2e420f1",
+    "evidence/T1-review-round2.md": "ebeb57b4fb428095fe0b3480bddb757c979e44c9d484af1ee800e2864af104fc",
+    "evidence/driver-validation.md": "e4006ae5478e4cd0c42177c1569f12e40020f605526d45d6ef6308bc99d10cf3",
+    "evidence/guard-full-regression.log": "84e3f2a9c1c735f753112b919381f7de1662a7a88f3085d67954a2fa17f6cd04",
+    "src/core/http-helper.js": "34bc7c0ff4c43e2decb5c72b23ab373795a5085402709a6ffd56bc8363bcb0f1",
+    "src/drivers/opencode-driver.js": "66acd7c8b2f07de6e0337a2d45b900c963084fe38100c91051389f592934b40d",
+    "test/claude-removal-guard.test.js": "ce9e6b837a7044a5ba1011819469adccc826f73a04d4a7c38cdd22e1df0eab97",
+    "test/http-helper.test.js": "f916349dbc3ecd154c0304fbcea45ecbce47438ad2f96baee9c8bcc60be2f86e",
+    "test/opencode-driver.test.js": "1a98e27cc0cf507216b88eec9407389d4044f6b11836c597625ae7480f72ddd1"
+  },
+  "written_at": "2026-11-17T08:54:47.131Z"
+}

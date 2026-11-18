@@ -1,0 +1,412 @@
+{"isolated_home":"C:\\Users\\tianxiqin\\AppData\\Local\\Temp\\opencode\\walker-isolated-8nNE7F","command":"I:\\nvmNodejs\\nodejs\\node.exe","args":["--test","--test-concurrency=1","test/integration-feishu-question.test.js"]}
+TAP version 13
+# {"ts":"2026-11-17T08:33:05.778Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6T7HWCV4ZW04C9","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:05.794Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:05.811Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6T8HPY7NF47DN0","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:05.821Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6T8HPY7NF47DN0"}
+# {"ts":"2026-11-17T08:33:05.831Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6T8HPY7NF47DN0"}
+# {"ts":"2026-11-17T08:33:05.838Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6T8HPY7NF47DN0","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"35809d08-7c3b-4d39-8a41-dfd1a2be4a0a"}}
+# {"ts":"2026-11-17T08:33:05.838Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"35809d08-7c3b-4d39-8a41-dfd1a2be4a0a","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6T8HPY7NF47DN0","routeKey":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:05.860Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"35809d08-7c3b-4d39-8a41-dfd1a2be4a0a","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_asked"}
+# {"ts":"2026-11-17T08:33:05.860Z","level":"info","scope":"message-dispatcher","message":"watched session question asked","sessionId":"wks_M7MA6T8HPY7NF47DN0","chatId":"oc_question","routeKey":"feishu:oc_question:root:oc_question","requestID":"req_multi","questionCount":2}
+# {"ts":"2026-11-17T08:33:05.861Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_multi","sessionID":"ses_native_question","questionCount":2,"walkerSessionId":"wks_M7MA6T8HPY7NF47DN0","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:05.861Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_multi","questionCount":2,"walkerSessionId":"wks_M7MA6T8HPY7NF47DN0","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:05.891Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_multi","questionCount":2,"walkerSessionId":"wks_M7MA6T8HPY7NF47DN0","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:05.903Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_multi:0 --option option_1 wks_M7MA6T8HPY7NF47DN0","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:05.905Z","level":"info","scope":"question-handler","message":"native question answer accepted","requestID":"req_multi","index":0,"answers":["稳妥"]}
+# {"ts":"2026-11-17T08:33:05.905Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"collecting"},"args":["req_multi:0","--option","option_1","wks_M7MA6T8HPY7NF47DN0"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:05.905Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_multi:1 --submit wks_M7MA6T8HPY7NF47DN0","chatId":"oc_question","messageId":"om_question_card_2","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":["question_selected_0","question_selected_1","question_custom"]}
+# {"ts":"2026-11-17T08:33:05.906Z","level":"info","scope":"question-handler","message":"native question answer accepted","requestID":"req_multi","index":1,"answers":["代码","测试","文档"]}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6TBKWVMHMABMP2',
+#   type: 'question_reply',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:06.324Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"35809d08-7c3b-4d39-8a41-dfd1a2be4a0a","sessionId":"ses_native_question","deliveryId":"del_M7MA6TBKWVMHMABMP2","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:06.324Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"35809d08-7c3b-4d39-8a41-dfd1a2be4a0a","sessionId":"ses_native_question","deliveryId":"del_M7MA6TBKWVMHMABMP2","deliveryState":"final","eventCount":0,"eventTypes":""}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6TBKWVMHMABMP2',
+#   type: 'question_reply',
+#   stage: 'final'
+# }
+# {"ts":"2026-11-17T08:33:06.326Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"replied"},"args":["req_multi:1","--submit","wks_M7MA6T8HPY7NF47DN0"],"messageId":"om_question_card_2","routeKey":"feishu:oc_question:root:oc_question","formKeys":["question_selected_0","question_selected_1","question_custom"]}
+# {"ts":"2026-11-17T08:33:06.340Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:06.340Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:06.340Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:06.340Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:06.340Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+# {"ts":"2026-11-17T08:33:06.343Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6TS6JMVMSSKKHT","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:06.349Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:06.360Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6TSQM2TPHP136H","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:06.367Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6TSQM2TPHP136H"}
+# {"ts":"2026-11-17T08:33:06.378Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6TSQM2TPHP136H"}
+# {"ts":"2026-11-17T08:33:06.384Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6TSQM2TPHP136H","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"af086a80-ec00-40c2-b2a1-37fb2e97a330"}}
+# Subtest: 集成测试: 原生 question/permission protocol v5
+    # Subtest: 由原始飞书卡片回调经平台和 bootstrap adapter 逐题收集，并只调用一次原生 SDK
+    ok 1 - 由原始飞书卡片回调经平台和 bootstrap adapter 逐题收集，并只调用一次原生 SDK
+      ---
+      duration_ms: 566.6697
+      ...
+# {"ts":"2026-11-17T08:33:06.384Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"af086a80-ec00-40c2-b2a1-37fb2e97a330","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6TSQM2TPHP136H","routeKey":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:06.403Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"af086a80-ec00-40c2-b2a1-37fb2e97a330","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_asked"}
+# {"ts":"2026-11-17T08:33:06.403Z","level":"info","scope":"message-dispatcher","message":"watched session question asked","sessionId":"wks_M7MA6TSQM2TPHP136H","chatId":"oc_question","routeKey":"feishu:oc_question:root:oc_question","requestID":"req_tui_replied","questionCount":1}
+# {"ts":"2026-11-17T08:33:06.403Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_tui_replied","sessionID":"ses_native_question","questionCount":1,"walkerSessionId":"wks_M7MA6TSQM2TPHP136H","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.403Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_tui_replied","questionCount":1,"walkerSessionId":"wks_M7MA6TSQM2TPHP136H","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.420Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_tui_replied","questionCount":1,"walkerSessionId":"wks_M7MA6TSQM2TPHP136H","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.431Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"af086a80-ec00-40c2-b2a1-37fb2e97a330","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_replied"}
+# {"ts":"2026-11-17T08:33:06.431Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_tui_replied:0 --option option_0 wks_M7MA6TSQM2TPHP136H","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:06.432Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"replied"},"args":["req_tui_replied:0","--option","option_0","wks_M7MA6TSQM2TPHP136H"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:06.447Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:06.447Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:06.447Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:06.447Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:06.447Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+# {"ts":"2026-11-17T08:33:06.450Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6TWHSJRNDKQ15K","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:06.457Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:06.462Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6TWX9YNVR0QK6Q","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:06.469Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6TWX9YNVR0QK6Q"}
+# {"ts":"2026-11-17T08:33:06.476Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6TWX9YNVR0QK6Q"}
+# {"ts":"2026-11-17T08:33:06.480Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6TWX9YNVR0QK6Q","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"f98a0f56-f42b-4df3-a78d-fec4ade3112e"}}
+# {"ts":"2026-11-17T08:33:06.480Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"f98a0f56-f42b-4df3-a78d-fec4ade3112e","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6TWX9YNVR0QK6Q","routeKey":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:06.494Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"f98a0f56-f42b-4df3-a78d-fec4ade3112e","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_asked"}
+# {"ts":"2026-11-17T08:33:06.495Z","level":"info","scope":"message-dispatcher","message":"watched session question asked","sessionId":"wks_M7MA6TWX9YNVR0QK6Q","chatId":"oc_question","routeKey":"feishu:oc_question:root:oc_question","requestID":"req_tui_rejected","questionCount":1}
+# {"ts":"2026-11-17T08:33:06.495Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_tui_rejected","sessionID":"ses_native_question","questionCount":1,"walkerSessionId":"wks_M7MA6TWX9YNVR0QK6Q","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.495Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_tui_rejected","questionCount":1,"walkerSessionId":"wks_M7MA6TWX9YNVR0QK6Q","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.513Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_tui_rejected","questionCount":1,"walkerSessionId":"wks_M7MA6TWX9YNVR0QK6Q","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.525Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"f98a0f56-f42b-4df3-a78d-fec4ade3112e","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_rejected"}
+# {"ts":"2026-11-17T08:33:06.525Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_tui_rejected:0 --option option_0 wks_M7MA6TWX9YNVR0QK6Q","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:06.526Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"rejected"},"args":["req_tui_rejected:0","--option","option_0","wks_M7MA6TWX9YNVR0QK6Q"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:06.540Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:06.540Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:06.541Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:06.541Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:06.541Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+# {"ts":"2026-11-17T08:33:06.543Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6TZF615E17MJ1J","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:06.550Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:06.557Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6TZW7CMME3Z74J","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:06.564Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6TZW7CMME3Z74J"}
+# {"ts":"2026-11-17T08:33:06.568Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6TZW7CMME3Z74J"}
+# {"ts":"2026-11-17T08:33:06.574Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6TZW7CMME3Z74J","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"1a4bccca-5671-4614-bacf-15037ba5e165"}}
+# {"ts":"2026-11-17T08:33:06.575Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"1a4bccca-5671-4614-bacf-15037ba5e165","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6TZW7CMME3Z74J","routeKey":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:06.588Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"1a4bccca-5671-4614-bacf-15037ba5e165","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_asked"}
+# {"ts":"2026-11-17T08:33:06.588Z","level":"info","scope":"message-dispatcher","message":"watched session question asked","sessionId":"wks_M7MA6TZW7CMME3Z74J","chatId":"oc_question","routeKey":"feishu:oc_question:root:oc_question","requestID":"req_concurrent","questionCount":2}
+# {"ts":"2026-11-17T08:33:06.588Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_concurrent","sessionID":"ses_native_question","questionCount":2,"walkerSessionId":"wks_M7MA6TZW7CMME3Z74J","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.588Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_concurrent","questionCount":2,"walkerSessionId":"wks_M7MA6TZW7CMME3Z74J","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.605Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_concurrent","questionCount":2,"walkerSessionId":"wks_M7MA6TZW7CMME3Z74J","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:06.618Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_concurrent:0 --option option_0 wks_M7MA6TZW7CMME3Z74J","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:06.619Z","level":"info","scope":"question-handler","message":"native question answer accepted","requestID":"req_concurrent","index":0,"answers":["A"]}
+# {"ts":"2026-11-17T08:33:06.619Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"collecting"},"args":["req_concurrent:0","--option","option_0","wks_M7MA6TZW7CMME3Z74J"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:06.619Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_concurrent:1 --option option_0 wks_M7MA6TZW7CMME3Z74J","chatId":"oc_question","messageId":"om_question_card_2","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:06.620Z","level":"info","scope":"question-handler","message":"native question answer accepted","requestID":"req_concurrent","index":1,"answers":["B"]}
+# {"ts":"2026-11-17T08:33:06.620Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_concurrent:1 --option option_0 wks_M7MA6TZW7CMME3Z74J","chatId":"oc_question","messageId":"om_question_card_2","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:06.621Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"submitting"},"args":["req_concurrent:1","--option","option_0","wks_M7MA6TZW7CMME3Z74J"],"messageId":"om_question_card_2","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6V1XYC1YGWAC55',
+#   type: 'question_reply',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:07.053Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"1a4bccca-5671-4614-bacf-15037ba5e165","sessionId":"ses_native_question","deliveryId":"del_M7MA6V1XYC1YGWAC55","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:07.054Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"1a4bccca-5671-4614-bacf-15037ba5e165","sessionId":"ses_native_question","deliveryId":"del_M7MA6V1XYC1YGWAC55","deliveryState":"final","eventCount":0,"eventTypes":""}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6V1XYC1YGWAC55',
+#   type: 'question_reply',
+#   stage: 'final'
+# }
+# {"ts":"2026-11-17T08:33:07.055Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"replied"},"args":["req_concurrent:1","--option","option_0","wks_M7MA6TZW7CMME3Z74J"],"messageId":"om_question_card_2","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:07.067Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:07.067Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:07.067Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:07.067Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:07.067Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+# {"ts":"2026-11-17T08:33:07.075Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6VG2Z53P362929","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:07.082Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:07.089Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6VGG8WPBPJA94D","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:07.095Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6VGG8WPBPJA94D"}
+# {"ts":"2026-11-17T08:33:07.100Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6VGG8WPBPJA94D"}
+# {"ts":"2026-11-17T08:33:07.105Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6VGG8WPBPJA94D","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"071e9d9c-7b8d-43c7-adc6-2cf19ef51491"}}
+# {"ts":"2026-11-17T08:33:07.105Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"071e9d9c-7b8d-43c7-adc6-2cf19ef51491","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6VGG8WPBPJA94D","routeKey":"feishu:oc_question:root:oc_question"}
+    # Subtest: 本地 TUI replied/rejected 抢先，重复和并发飞书卡片回调不会产生第二次原生回复
+    ok 2 - 本地 TUI replied/rejected 抢先，重复和并发飞书卡片回调不会产生第二次原生回复
+      ---
+      duration_ms: 728.1278
+      ...
+# {"ts":"2026-11-17T08:33:07.131Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"071e9d9c-7b8d-43c7-adc6-2cf19ef51491","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_asked"}
+# {"ts":"2026-11-17T08:33:07.131Z","level":"info","scope":"message-dispatcher","message":"watched session question asked","sessionId":"wks_M7MA6VGG8WPBPJA94D","chatId":"oc_question","routeKey":"feishu:oc_question:root:oc_question","requestID":"req_retryable","questionCount":1}
+# {"ts":"2026-11-17T08:33:07.131Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_retryable","sessionID":"ses_native_question","questionCount":1,"walkerSessionId":"wks_M7MA6VGG8WPBPJA94D","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:07.131Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_retryable","questionCount":1,"walkerSessionId":"wks_M7MA6VGG8WPBPJA94D","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:07.148Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_retryable","questionCount":1,"walkerSessionId":"wks_M7MA6VGG8WPBPJA94D","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:07.161Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_retryable:0 --option option_0 wks_M7MA6VGG8WPBPJA94D","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:07.161Z","level":"info","scope":"question-handler","message":"native question answer accepted","requestID":"req_retryable","index":0,"answers":["是"]}
+# {"ts":"2026-11-17T08:33:07.162Z","level":"warn","scope":"question-handler","message":"native question submit failed","requestID":"req_retryable","walkerSessionId":"wks_M7MA6VGG8WPBPJA94D","agent":"opencode","error":"accepted 前传输失败","code":"TUI_ACCEPTED_TIMEOUT","sdkInvoked":false,"safeToRetry":true}
+# {"ts":"2026-11-17T08:33:07.163Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"collecting"},"args":["req_retryable:0","--option","option_0","wks_M7MA6VGG8WPBPJA94D"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:07.192Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_retryable:0 --retry wks_M7MA6VGG8WPBPJA94D","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6VKSC01Y26569H',
+#   type: 'question_reply',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:07.592Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"071e9d9c-7b8d-43c7-adc6-2cf19ef51491","sessionId":"ses_native_question","deliveryId":"del_M7MA6VKSC01Y26569H","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:07.592Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"071e9d9c-7b8d-43c7-adc6-2cf19ef51491","sessionId":"ses_native_question","deliveryId":"del_M7MA6VKSC01Y26569H","deliveryState":"final","eventCount":0,"eventTypes":""}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6VKSC01Y26569H',
+#   type: 'question_reply',
+#   stage: 'final'
+# }
+# {"ts":"2026-11-17T08:33:07.593Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:07.593Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:07.593Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:07.593Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:07.593Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+# {"ts":"2026-11-17T08:33:07.597Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6W0C5SZE57MKK9","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:07.605Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:07.611Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6W0T0R7XH7E7Z2","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:07.617Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6W0T0R7XH7E7Z2"}
+# {"ts":"2026-11-17T08:33:07.622Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6W0T0R7XH7E7Z2"}
+# {"ts":"2026-11-17T08:33:07.628Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6W0T0R7XH7E7Z2","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"f3abbe99-db8d-4b75-867c-e0db2e21c01e"}}
+# {"ts":"2026-11-17T08:33:07.628Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"f3abbe99-db8d-4b75-867c-e0db2e21c01e","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6W0T0R7XH7E7Z2","routeKey":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:07.628Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"replied"},"args":["req_retryable:0","--retry","wks_M7MA6VGG8WPBPJA94D"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:07.639Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"f3abbe99-db8d-4b75-867c-e0db2e21c01e","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_asked"}
+# {"ts":"2026-11-17T08:33:07.639Z","level":"info","scope":"message-dispatcher","message":"watched session question asked","sessionId":"wks_M7MA6W0T0R7XH7E7Z2","chatId":"oc_question","routeKey":"feishu:oc_question:root:oc_question","requestID":"req_unknown","questionCount":1}
+# {"ts":"2026-11-17T08:33:07.640Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_unknown","sessionID":"ses_native_question","questionCount":1,"walkerSessionId":"wks_M7MA6W0T0R7XH7E7Z2","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:07.640Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_unknown","questionCount":1,"walkerSessionId":"wks_M7MA6W0T0R7XH7E7Z2","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:07.659Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_unknown","questionCount":1,"walkerSessionId":"wks_M7MA6W0T0R7XH7E7Z2","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:07.669Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_unknown:0 --option option_0 wks_M7MA6W0T0R7XH7E7Z2","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:07.670Z","level":"info","scope":"question-handler","message":"native question answer accepted","requestID":"req_unknown","index":0,"answers":["是"]}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6W2QRHFCYA4T89',
+#   type: 'question_reply',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:08.119Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"f3abbe99-db8d-4b75-867c-e0db2e21c01e","sessionId":"ses_native_question","deliveryId":"del_M7MA6W2QRHFCYA4T89","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.119Z","level":"warn","scope":"question-handler","message":"native question submit failed","requestID":"req_unknown","walkerSessionId":"wks_M7MA6W0T0R7XH7E7Z2","agent":"opencode","error":"OpenCode TUI bridge runtime disposed","code":"TUI_RUNTIME_DISCONNECTED","sdkInvoked":true,"safeToRetry":false}
+# {"ts":"2026-11-17T08:33:08.120Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"processed_unknown"},"args":["req_unknown:0","--option","option_0","wks_M7MA6W0T0R7XH7E7Z2"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:08.133Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_unknown:0 --option option_0 wks_M7MA6W0T0R7XH7E7Z2","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:08.135Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"processed_unknown"},"args":["req_unknown:0","--option","option_0","wks_M7MA6W0T0R7XH7E7Z2"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6W2QRHFCYA4T89',
+#   type: 'question_reply',
+#   stage: 'report'
+# }
+# {"ts":"2026-11-17T08:33:08.149Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:08.149Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:08.149Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:08.149Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:08.149Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+# {"ts":"2026-11-17T08:33:08.152Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6WHQPDW47Z20QQ","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:08.159Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:08.165Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6WJ4BB67VS64B1","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:08.172Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6WJ4BB67VS64B1"}
+# {"ts":"2026-11-17T08:33:08.178Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6WJ4BB67VS64B1"}
+# {"ts":"2026-11-17T08:33:08.182Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6WJ4BB67VS64B1","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"b638232a-9026-4af0-9103-e7fdbc42334e"}}
+# {"ts":"2026-11-17T08:33:08.182Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"b638232a-9026-4af0-9103-e7fdbc42334e","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6WJ4BB67VS64B1","routeKey":"feishu:oc_question:root:oc_question"}
+    # Subtest: accepted 前失败可安全重试，accepted 后租约丢失收敛为 processed_unknown 且不可重试
+    ok 3 - accepted 前失败可安全重试，accepted 后租约丢失收敛为 processed_unknown 且不可重试
+      ---
+      duration_ms: 1079.6864
+      ...
+# {"ts":"2026-11-17T08:33:08.196Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b638232a-9026-4af0-9103-e7fdbc42334e","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_asked"}
+# {"ts":"2026-11-17T08:33:08.196Z","level":"info","scope":"message-dispatcher","message":"watched session question asked","sessionId":"wks_M7MA6WJ4BB67VS64B1","chatId":"oc_question","routeKey":"feishu:oc_question:root:oc_question","requestID":"req_v3","questionCount":1}
+# {"ts":"2026-11-17T08:33:08.196Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_v3","sessionID":"ses_native_question","questionCount":1,"walkerSessionId":"wks_M7MA6WJ4BB67VS64B1","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:08.196Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_v3","questionCount":1,"walkerSessionId":"wks_M7MA6WJ4BB67VS64B1","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:08.213Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_v3","questionCount":1,"walkerSessionId":"wks_M7MA6WJ4BB67VS64B1","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:08.226Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_v3:0 --option option_0 wks_M7MA6WJ4BB67VS64B1","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:08.227Z","level":"info","scope":"question-handler","message":"native question answer accepted","requestID":"req_v3","index":0,"answers":["是"]}
+# {"ts":"2026-11-17T08:33:08.227Z","level":"warn","scope":"question-handler","message":"native question submit failed","requestID":"req_v3","walkerSessionId":"wks_M7MA6WJ4BB67VS64B1","agent":"opencode","error":"OpenCode TUI plugin does not support native question replies. Restart the OpenCode TUI to load the updated Walker plugin.","code":"QUESTION_REPLY_UNSUPPORTED","sdkInvoked":false,"safeToRetry":false}
+# {"ts":"2026-11-17T08:33:08.227Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"feishu_unavailable"},"args":["req_v3:0","--option","option_0","wks_M7MA6WJ4BB67VS64B1"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:08.241Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:08.242Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:08.242Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:08.242Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:08.242Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+# {"ts":"2026-11-17T08:33:08.245Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6WMMJNCZYJD1TD","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:08.250Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:08.257Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6WN0K5DWV8118N","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:08.263Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6WN0K5DWV8118N"}
+# {"ts":"2026-11-17T08:33:08.268Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6WN0K5DWV8118N"}
+# {"ts":"2026-11-17T08:33:08.274Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6WN0K5DWV8118N","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d"}}
+# {"ts":"2026-11-17T08:33:08.275Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6WN0K5DWV8118N","routeKey":"feishu:oc_question:root:oc_question"}
+    # Subtest: protocol v3 的 QUESTION_REPLY_UNSUPPORTED 降级为 feishu_unavailable，并提示在本地 TUI 回答
+    ok 4 - protocol v3 的 QUESTION_REPLY_UNSUPPORTED 降级为 feishu_unavailable，并提示在本地 TUI 回答
+      ---
+      duration_ms: 93.4595
+      ...
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6WP3XH322QH1JS',
+#   type: 'prompt',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:08.758Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6WP3XH322QH1JS',
+#   type: 'prompt',
+#   stage: 'accepted'
+# }
+# {"ts":"2026-11-17T08:33:08.759Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"question_asked"}
+# {"ts":"2026-11-17T08:33:08.760Z","level":"info","scope":"message-dispatcher","message":"watched session question asked","sessionId":"wks_M7MA6WN0K5DWV8118N","chatId":"oc_question","routeKey":"feishu:oc_question:root:oc_question","requestID":"req_nested","questionCount":1}
+# {"ts":"2026-11-17T08:33:08.760Z","level":"info","scope":"question-handler","message":"native question asked received","requestID":"req_nested","sessionID":"ses_native_question","questionCount":1,"walkerSessionId":"wks_M7MA6WN0K5DWV8118N","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:08.760Z","level":"info","scope":"question-handler","message":"native question cards sending","requestID":"req_nested","questionCount":1,"walkerSessionId":"wks_M7MA6WN0K5DWV8118N","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:08.780Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.781Z","level":"info","scope":"question-handler","message":"native question cards sent","requestID":"req_nested","questionCount":1,"walkerSessionId":"wks_M7MA6WN0K5DWV8118N","routeKey":"feishu:oc_question:root:oc_question","chatId":"oc_question"}
+# {"ts":"2026-11-17T08:33:08.789Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/answer req_nested:0 --option option_0 wks_M7MA6WN0K5DWV8118N","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:08.790Z","level":"info","scope":"question-handler","message":"native question answer accepted","requestID":"req_nested","index":0,"answers":["确认"]}
+# {"ts":"2026-11-17T08:33:08.805Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.820Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.835Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.851Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.867Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.882Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.898Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.914Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.930Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.944Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.960Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.975Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:08.990Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.005Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.020Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.036Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.052Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.068Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.083Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.098Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.113Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.128Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.143Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.159Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.175Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.190Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.206Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.221Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.237Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.253Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6X5P0A36CTDHG5',
+#   type: 'question_reply',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:09.269Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6X5P0A36CTDHG5","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.269Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6X5P0A36CTDHG5","deliveryState":"final","eventCount":0,"eventTypes":""}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6X5P0A36CTDHG5',
+#   type: 'question_reply',
+#   stage: 'final'
+# }
+# {"ts":"2026-11-17T08:33:09.270Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.271Z","level":"info","scope":"message-dispatcher","message":"answer command handled","result":{"status":"replied"},"args":["req_nested:0","--option","option_0","wks_M7MA6WN0K5DWV8118N"],"messageId":"om_question_card_1","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# {"ts":"2026-11-17T08:33:09.300Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.316Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.332Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.362Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.378Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.394Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.410Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.425Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.440Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.456Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"2d024446-88bf-4abf-8b6f-74e81e26f56d","sessionId":"ses_native_question","deliveryId":"del_M7MA6WP3XH322QH1JS","deliveryState":"final","eventCount":2,"eventTypes":"text,done"}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6WP3XH322QH1JS',
+#   type: 'prompt',
+#   stage: 'final'
+# }
+# {"ts":"2026-11-17T08:33:09.459Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:09.459Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:09.459Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:09.459Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:09.459Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+# {"ts":"2026-11-17T08:33:09.469Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6XTVKZDMKPNMT7","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:09.481Z","level":"info","scope":"session-service","message":"route cwd set","routeKey":"feishu:oc_question:root:oc_question","cwd":"H:\\\\walker"}
+# {"ts":"2026-11-17T08:33:09.491Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6XVHZB35JQY5SH","agent":"opencode"}
+# {"ts":"2026-11-17T08:33:09.501Z","level":"info","scope":"session-service","message":"session added to route","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6XVHZB35JQY5SH"}
+# {"ts":"2026-11-17T08:33:09.511Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6XVHZB35JQY5SH"}
+# {"ts":"2026-11-17T08:33:09.517Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6XVHZB35JQY5SH","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b"}}
+# {"ts":"2026-11-17T08:33:09.518Z","level":"info","scope":"opencode-tui-bridge","message":"tui runtime registered","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","opencodeSessionId":"ses_native_question","walkerSessionId":"wks_M7MA6XVHZB35JQY5SH","routeKey":"feishu:oc_question:root:oc_question"}
+    # Subtest: 父 prompt busy 时由真实插件 poll、accepted 和 SDK question.reply 完成控制 delivery，且保留父 prompt 与队列顺序
+    ok 5 - 父 prompt busy 时由真实插件 poll、accepted 和 SDK question.reply 完成控制 delivery，且保留父 prompt 与队列顺序
+      ---
+      duration_ms: 1219.885
+      ...
+# {"ts":"2026-11-17T08:33:09.534Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"","deliveryState":"","eventCount":1,"eventTypes":"permission"}
+# {"ts":"2026-11-17T08:33:09.578Z","level":"info","scope":"feishu-platform","message":"card action received","action":"cmd:/permit perm_native always wks_M7MA6XVHZB35JQY5SH","chatId":"oc_question","messageId":"om_question_card_1","openId":"ou_question","routeKey":"feishu:oc_question:root:oc_question","formKeys":[]}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6XYB8WM6Q2ARF7',
+#   type: 'permission_reply',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:09.580Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6XYB8WM6Q2ARF7","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.580Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6XYB8WM6Q2ARF7","deliveryState":"final","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:09.608Z","level":"info","scope":"message-dispatcher","message":"incoming text message received","messageId":"om_prompt","chatId":"oc_question","rootId":"root","parentId":"","textLength":4}
+# {"ts":"2026-11-17T08:33:09.610Z","level":"info","scope":"message-dispatcher","message":"message accepted by dedup","messageId":"om_prompt","routeKey":"feishu:oc_question:root:oc_question","parentId":"","sourceRouteKey":"feishu:oc_question:root:oc_question","effectiveRouteKey":"feishu:oc_question:root:oc_question","routedBy":"route-focus"}
+# {"ts":"2026-11-17T08:33:09.611Z","level":"info","scope":"session-service","message":"route touched","routeKey":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:09.628Z","level":"info","scope":"message-dispatcher","message":"route bound, prompting driver","messageId":"om_prompt","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6XVHZB35JQY5SH","agent":"opencode","parentId":"","sourceRouteKey":"feishu:oc_question:root:oc_question","effectiveRouteKey":"feishu:oc_question:root:oc_question","routedBy":"route-focus","agentRefId":"ses_native_question","opencodeSessionId":"ses_native_question"}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6Y01AH127KVGQH',
+#   type: 'prompt',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:09.983Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"accepted","eventCount":0,"eventTypes":""}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6Y01AH127KVGQH',
+#   type: 'prompt',
+#   stage: 'accepted'
+# }
+# {"ts":"2026-11-17T08:33:10.013Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:10.029Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:10.060Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:10.075Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:10.091Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:10.107Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:10.122Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:10.138Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"heartbeat","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:10.153Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Y01AH127KVGQH","deliveryState":"final","eventCount":2,"eventTypes":"text,done"}
+# {"ts":"2026-11-17T08:33:10.155Z","level":"info","scope":"message-dispatcher","message":"session runtime token missing, reading latest driver runtime","sessionId":"wks_M7MA6XVHZB35JQY5SH","opencodeSessionId":"ses_native_question","hasContextSize":false,"hasTokenUsage":"***"}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6Y01AH127KVGQH',
+#   type: 'prompt',
+#   stage: 'final'
+# }
+# {"ts":"2026-11-17T08:33:10.202Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_native_question","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db select data from message where session_id='ses_native_question' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:33:10.264Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_native_question","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db select data from message where session_id='ses_native_question' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:33:10.327Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_native_question","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db select data from message where session_id='ses_native_question' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:33:10.388Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_native_question","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db select data from message where session_id='ses_native_question' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:33:10.463Z","level":"warn","scope":"opencode-driver","message":"failed to read latest session runtime from opencode db","sessionId":"ses_native_question","sqliteCmd":"I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe","dbPath":"C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db","error":"Command failed: I:\\\\phpStudy\\\\Apache\\\\bin\\\\sqlite3.exe -batch -noheader C:\\\\Users\\\\tianxiqin\\\\AppData\\\\Local\\\\Temp\\\\walker-feishu-question-vYOU5T\\\\opencode.db select data from message where session_id='ses_native_question' order by time_created desc limit 20;\\nError: no such table: message\\r\\n"}
+# {"ts":"2026-11-17T08:33:10.463Z","level":"info","scope":"message-dispatcher","message":"driver prompt completed","messageId":"om_prompt","sessionId":"wks_M7MA6XVHZB35JQY5SH","eventCount":2}
+# {"ts":"2026-11-17T08:33:10.465Z","level":"info","scope":"message-dispatcher","message":"feishu api call retry","method":"replyMarkdown","attempt":1,"nextDelayMs":100,"error":"platform.api.replyMarkdown is not a function","sessionId":"wks_M7MA6XVHZB35JQY5SH","session":{"id":"wks_M7MA6XVHZB35JQY5SH","agent":"opencode","title":"session wks_M7MA6XVH","runtime":"windows","cwd":"H:\\\\walker","status":"created","agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b"},"errorMessage":null,"createdAt":1794904389489,"updatedAt":1794904389489}}
+# {"ts":"2026-11-17T08:33:10.571Z","level":"info","scope":"message-dispatcher","message":"feishu api call retry","method":"replyMarkdown","attempt":2,"nextDelayMs":200,"error":"platform.api.replyMarkdown is not a function","sessionId":"wks_M7MA6XVHZB35JQY5SH","session":{"id":"wks_M7MA6XVHZB35JQY5SH","agent":"opencode","title":"session wks_M7MA6XVH","runtime":"windows","cwd":"H:\\\\walker","status":"created","agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b"},"errorMessage":null,"createdAt":1794904389489,"updatedAt":1794904389489}}
+# {"ts":"2026-11-17T08:33:10.788Z","level":"warn","scope":"message-dispatcher","message":"feishu api call failed","method":"replyMarkdown","attempts":3,"error":"platform.api.replyMarkdown is not a function","sessionId":"wks_M7MA6XVHZB35JQY5SH","session":{"id":"wks_M7MA6XVHZB35JQY5SH","agent":"opencode","title":"session wks_M7MA6XVH","runtime":"windows","cwd":"H:\\\\walker","status":"created","agentRef":{"opencodeSessionId":"ses_native_question","transport":"tui-bridge","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b"},"errorMessage":null,"createdAt":1794904389489,"updatedAt":1794904389489}}
+# [walker-bridge] {
+#   deliveryId: 'del_M7MA6Z4ZPVS845MZJY',
+#   type: 'clear',
+#   stage: 'received'
+# }
+# {"ts":"2026-11-17T08:33:11.008Z","level":"info","scope":"opencode-tui-bridge","message":"tui reportEvents received","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","sessionId":"ses_native_question","deliveryId":"del_M7MA6Z4ZPVS845MZJY","deliveryState":"","eventCount":0,"eventTypes":""}
+# {"ts":"2026-11-17T08:33:11.008Z","level":"info","scope":"opencode-tui-bridge","message":"clear associated register staged","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","opencodeSessionId":"ses_after_clear","controlDeliveryId":"del_M7MA6Z4ZPVS845MZJY"}
+# {"ts":"2026-11-17T08:33:11.011Z","level":"info","scope":"session-service","message":"session created","sessionId":"wks_M7MA6ZB14WS20G2M4R","agent":"opencode","route":"feishu:oc_question:root:oc_question"}
+# {"ts":"2026-11-17T08:33:11.023Z","level":"info","scope":"session-service","message":"focus set","routeKey":"feishu:oc_question:root:oc_question","sessionId":"wks_M7MA6ZB14WS20G2M4R"}
+# {"ts":"2026-11-17T08:33:11.033Z","level":"info","scope":"message-dispatcher","message":"watchSessionEvents called","sessionId":"wks_M7MA6ZB14WS20G2M4R","chatId":"oc_question","hasDriver":true,"agentRef":{"opencodeSessionId":"ses_after_clear","transport":"tui-bridge","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b"}}
+# {"ts":"2026-11-17T08:33:11.034Z","level":"info","scope":"opencode-tui-bridge","message":"clear completed","runtimeId":"b1ca7193-5687-45e4-96ba-e8b1cf2a2e0b","oldSessionId":"ses_native_question","newSessionId":"ses_after_clear","walkerSessionId":"wks_M7MA6ZB14WS20G2M4R"}
+# {"ts":"2026-11-17T08:33:11.034Z","level":"info","scope":"bootstrap","message":"walker stopping"}
+# {"ts":"2026-11-17T08:33:11.034Z","level":"info","scope":"message-dispatcher","message":"dispatcher destroyed, all resources cleaned"}
+# {"ts":"2026-11-17T08:33:11.034Z","level":"info","scope":"feishu-platform","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:11.034Z","level":"info","scope":"bootstrap","message":"feishu platform stopped"}
+# {"ts":"2026-11-17T08:33:11.034Z","level":"info","scope":"bootstrap","message":"walker stopped"}
+    # Subtest: 真实 Driver 的 permission 回复经飞书 /permit 回填到 TUI SDK，同时普通 prompt 与 clear 保持回归
+    ok 6 - 真实 Driver 的 permission 回复经飞书 /permit 回填到 TUI SDK，同时普通 prompt 与 clear 保持回归
+      ---
+      duration_ms: 1573.8024
+      ...
+    1..6
+ok 1 - 集成测试: 原生 question/permission protocol v5
+  ---
+  duration_ms: 5263.4311
+  type: 'suite'
+  ...
+1..1
+# tests 6
+# suites 1
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5587.276
+{"exit_code":0,"isolated_home_verified":true}

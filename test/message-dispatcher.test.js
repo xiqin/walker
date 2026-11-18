@@ -12,6 +12,371 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+describe('MessageDispatcher 真实标题归属与有界缓存', () => {
+  /** 复用既有外部IO替身，发送结果直接在飞书调用边界观察。 */
+  function setup(read = async () => '真实标题') {
+    const mocks = makeMocks();
+    mocks.driver.serverUrl = 'http://127.0.0.1:4096';
+    mocks.driver.opencodeDbPath = path.join(os.tmpdir(), '合成标题库.db');
+    const reads = [];
+    mocks.driver.getSessionTitle = (ref, options) => {
+      reads.push({ ref: { ...ref }, options });
+      return read(ref, options);
+    };
+    mocks.driver.ensureReady = () => assert.fail('标题读取不得启动服务');
+    mocks.driver.listSessions = () => assert.fail('不得枚举会话');
+    mocks.sessionService.updateSessionField = () => assert.fail('标题读取不得写会话');
+    const dispatcher = new MessageDispatcher(mocks);
+    return { ...mocks, dispatcher, reads };
+  }
+
+  /** 构造同聊天同cwd中的已关联旧会话，不保存真实标题。 */
+  function session(id = 'ses_1234567890abcdef', extra = {}) {
+    const walkerId = 'wks_' + id;
+    return { id: walkerId, title: 'session ' + walkerId.slice(0, 12), agent: 'opencode',
+      cwd: 'H:/合成工作目录', model: 'p/m', contextTokens: 123,
+      agentRef: { opencodeSessionId: id }, ...extra };
+  }
+
+  /** 通过生产发送桥接发出正文，返回外部API实际收到的runtime。 */
+  async function send(harness, owner, context) {
+    await harness.dispatcher._callFeishu('sendText', ['oc_same_chat', '正文'], null, context || { session: owner });
+    return harness.feishuApi.calls.at(-1).runtime;
+  }
+
+  it('真实标题进入全部统一发送入口，进度参数补位且不改调用参数', async () => {
+    const h = setup();
+    const owner = Object.freeze(session());
+    const card = { body: { elements: [{ tag: 'markdown', content: '正文' }] } };
+    const cases = [
+      ['sendText', ['oc_same_chat', '正文']], ['replyText', [{ messageId: 'om_parent' }, '正文']],
+      ['sendMarkdown', ['oc_same_chat', '正文']], ['replyMarkdown', [{ messageId: 'om_parent' }, '正文']],
+      ['replyCard', [{ chatId: 'oc_same_chat' }, card]], ['patchCard', ['om_card', card]],
+      ['sendProgressCard', [{ chatId: 'oc_same_chat' }, owner.id]],
+      ['updateProgressCard', ['om_card', owner.id, new AgentEvent(AgentEvent.TYPE_DONE, {})]],
+    ];
+    for (const [method, args] of cases) {
+      const original = args.slice();
+      await h.dispatcher._callFeishu(method, args, null, { session: owner });
+      const call = h.feishuApi.calls.at(-1);
+      assert.equal(call.runtime.sessionTitle, '真实标题', method);
+      assert.equal(call.runtime.model, 'p/m');
+      assert.equal(call.runtime.contextSize, 123);
+      assert.deepEqual(args, original);
+      if (method === 'sendProgressCard') assert.equal(call.initialEvent, undefined);
+    }
+    assert.equal(h.reads.length, 1);
+    assert.match(owner.title, /^session wks_/);
+  });
+
+  it('真实文本及卡片请求安全折叠转义标题，替换旧页脚而不改正文', async () => {
+    const title = '多行\n<at id="all"> *标题*';
+    const h = setup(async () => title);
+    const api = new FeishuApi({ appId: '合成应用', appSecret: '合成密钥' });
+    api.token = '合成token';
+    api.tokenExpiresAt = Date.now() + 60000;
+    const requests = [];
+    api._request = async (_method, _host, _url, body) => {
+      requests.push(JSON.parse(JSON.parse(body).content));
+      return { code: 0, data: { message_id: 'om_synthetic' } };
+    };
+    h.dispatcher.feishuApi = api;
+    const old = '正文\n\n---\n会话：旧标题\n模型：旧模型\n上下文：1 tokens';
+    await h.dispatcher._callFeishu('sendText', ['oc_same_chat', old], null, { session: session() });
+    await h.dispatcher._callFeishu('replyCard', [{ chatId: 'oc_same_chat' }, { body: { elements: [{ tag: 'markdown', content: '正文' }] } }], null, { session: session() });
+    assert.equal(requests[0].text, '正文\n\n---\n会话：多行 <at id="all"> *标题*\n模型：p/m\n上下文：123 tokens');
+    const footer = requests[1].body.elements.at(-1).content;
+    assert.ok(footer.includes('&lt;at id="all"&gt;'));
+    assert.ok(footer.includes('\\*标题\\*'));
+    assert.ok(!footer.includes('<at'));
+    assert.equal(requests[1].body.elements[0].content, '正文');
+    assert.equal(h.reads.length, 1);
+  });
+
+  it('原生问题卡创建和处理更新均显示所属真实标题而非默认名', async () => {
+    const h = setup();
+    const owner = session('ses_question');
+    const asked = new AgentEvent(AgentEvent.TYPE_QUESTION_ASKED, {
+      requestID: 'req_title', sessionID: 'ses_question',
+      questions: [{ header: '选择', question: '请选择', options: [{ label: 'A', description: '' }] }],
+    });
+    await h.dispatcher.questionHandler.handleAsked(owner, 'oc_same_chat', 'route', asked);
+    assert.equal(h.feishuApi.calls.at(-1).type, 'replyCard');
+    assert.equal(h.feishuApi.calls.at(-1).runtime.sessionTitle, '真实标题');
+    await h.dispatcher.questionHandler.handleReplied(owner, 'oc_same_chat', new AgentEvent(AgentEvent.TYPE_QUESTION_REPLIED, {
+      requestID: 'req_title', sessionID: 'ses_question', answers: [['A']],
+    }));
+    assert.equal(h.feishuApi.calls.at(-1).type, 'patchCard');
+    assert.equal(h.feishuApi.calls.at(-1).runtime.sessionTitle, '真实标题');
+    assert.equal(h.reads.length, 1);
+  });
+
+  it('空值和精确自动名称省略，正常session开头的标题不被误删', async () => {
+    const owner = session();
+    const remoteId = owner.agentRef.opencodeSessionId;
+    const values = [null, undefined, 123, {}, '', '  ', owner.id, remoteId,
+      'session ' + owner.id.slice(0, 12), 'session ' + owner.id,
+      'opencode ' + remoteId.slice(0, 12), 'opencode ' + remoteId, 'opencode session'];
+    for (const value of values) {
+      const h = setup(async () => value);
+      const runtime = await send(h, owner);
+      assert.equal(Object.hasOwn(runtime, 'sessionTitle'), false, String(value));
+      assert.equal(runtime.model, 'p/m');
+    }
+    for (const title of ['session 讨论计划', 'opencode 改进方案', '有效本地标题']) {
+      const h = setup(async () => null);
+      assert.equal((await send(h, session(remoteId, { title }))).sessionTitle, title);
+    }
+  });
+
+  it('同聊天焦点切换和同键并发不串标题，逆序完成仍各归其主', async () => {
+    const a = deferred();
+    const b = deferred();
+    const h = setup((ref) => ref.opencodeSessionId === 'ses_A' ? a.promise : b.promise);
+    const ownerA = session('ses_A');
+    const ownerB = session('ses_B');
+    h.sessionService.getSession = (id) => id === ownerA.id ? ownerA : ownerB;
+    let focus = ownerA;
+    h.sessionService.getCurrent = () => focus;
+    const sendA = send(h, null, { sessionId: ownerA.id, routeKey: 'route' });
+    const sameA = send(h, null, { routeKey: 'route' });
+    focus = ownerB;
+    const sendB = send(h, null, { sessionId: ownerB.id, routeKey: 'route' });
+    assert.equal(h.reads.length, 2);
+    b.resolve('会话乙真实标题');
+    assert.equal((await sendB).sessionTitle, '会话乙真实标题');
+    a.resolve('会话甲真实标题');
+    const results = await Promise.all([sendA, sameA]);
+    assert.ok(results.every((runtime) => runtime.sessionTitle === '会话甲真实标题'));
+    assert.equal((await send(h, ownerB)).sessionTitle, '会话乙真实标题');
+    assert.equal(h.reads.length, 2);
+  });
+
+  it('模型补读之前启动标题查询，连接与agentRef变化不污染已启动消息', async () => {
+    const model = deferred();
+    const title = deferred();
+    const h = setup(() => title.promise);
+    const owner = session('ses_same', { model: null });
+    h.sessionService.updateSessionField = (_id, field) => assert.equal(field, 'model');
+    h.driver.getCurrentModel = () => model.promise;
+    const pending = send(h, owner);
+    assert.equal(h.reads.length, 1, '不能等模型返回才读取标题');
+    assert.equal(h.reads[0].ref.serverUrl, 'http://127.0.0.1:4096');
+    owner.agentRef.opencodeSessionId = 'ses_changed';
+    h.driver.serverUrl = 'http://127.0.0.1:5096';
+    title.resolve('原连接真实标题');
+    model.resolve('p/m2');
+    const runtime = await pending;
+    assert.equal(runtime.sessionTitle, '原连接真实标题');
+    assert.equal(runtime.model, 'p/m2');
+    assert.equal(h.reads[0].ref.opencodeSessionId, 'ses_same');
+    assert.ok(h.reads[0].options.timeoutMs > 0 && h.reads[0].options.timeoutMs <= 2000);
+  });
+
+  it('同ID切换HTTP端点后旧连接晚完成不覆盖新连接缓存', async () => {
+    const old = deferred();
+    const h = setup((ref) => ref.serverUrl.endsWith(':4096') ? old.promise : Promise.resolve('新连接标题'));
+    const owner = session('ses_same');
+    const pending = send(h, owner);
+    h.driver.serverUrl = 'http://127.0.0.1:5096';
+    assert.equal((await send(h, owner)).sessionTitle, '新连接标题');
+    old.resolve('旧连接标题');
+    assert.equal((await pending).sessionTitle, '旧连接标题');
+    assert.equal((await send(h, owner)).sessionTitle, '新连接标题');
+    assert.equal(h.reads.length, 2);
+  });
+
+  it('显式关联地址优先于驱动地址，权限拒绝只在原身份降级发送', async () => {
+    const h = setup(async () => { throw Object.assign(new Error('合成权限拒绝'), { code: 'TITLE_FORBIDDEN' }); });
+    const owner = session('ses_A', { title: '权限失败本地降级' });
+    owner.agentRef.serverUrl = 'http://127.0.0.1:6096';
+    h.sessionService.getCurrent = () => assert.fail('不得借用焦点');
+    assert.equal((await send(h, owner)).sessionTitle, '权限失败本地降级');
+    h.driver.serverUrl = 'http://127.0.0.1:7096';
+    assert.equal((await send(h, owner)).sessionTitle, '权限失败本地降级');
+    assert.equal(h.reads.length, 1);
+    assert.equal(h.reads[0].ref.serverUrl, owner.agentRef.serverUrl);
+    delete h.driver.getSessionTitle;
+    assert.equal((await send(h, owner)).sessionTitle, '权限失败本地降级');
+  });
+
+  it('同ID按TUI数据库及runtime隔离，旧记录补齐runtime后不复用旧键', async () => {
+    let sequence = 0;
+    const h = setup(async () => '来源标题' + (++sequence));
+    const owner = session('ses_same');
+    owner.agentRef.transport = 'tui-bridge';
+    assert.equal((await send(h, owner)).sessionTitle, '来源标题1');
+    owner.agentRef.runtimeId = 'runtime_A';
+    assert.equal((await send(h, owner)).sessionTitle, '来源标题2');
+    owner.agentRef.runtimeId = 'runtime_B';
+    assert.equal((await send(h, owner)).sessionTitle, '来源标题3');
+    h.driver.opencodeDbPath = path.join(os.tmpdir(), '另一合成库.db');
+    assert.equal((await send(h, owner)).sessionTitle, '来源标题4');
+    assert.equal(h.reads.length, 4);
+  });
+
+  it('30秒期限从读取完成起计算，29999毫秒命中而30000毫秒刷新', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: 1000 });
+    const first = deferred();
+    let calls = 0;
+    const h = setup(() => ++calls === 1 ? first.promise : Promise.resolve('新标题'));
+    const owner = session();
+    const pending = send(h, owner);
+    t.mock.timers.setTime(1500);
+    first.resolve('原标题');
+    assert.equal((await pending).sessionTitle, '原标题');
+    t.mock.timers.setTime(31499);
+    assert.equal((await send(h, owner)).sessionTitle, '原标题');
+    assert.equal(h.reads.length, 1);
+    t.mock.timers.setTime(31500);
+    assert.equal((await send(h, owner)).sessionTitle, '新标题');
+    assert.equal(h.reads.length, 2);
+  });
+
+  it('失败缓存到期后恢复；同身份历史真实标题优先于本地标题', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: 1000 });
+    let result = '原真实标题';
+    const h = setup(async () => { if (result instanceof Error) throw result; return result; });
+    const owner = session('ses_A', { title: '有效本地标题' });
+    assert.equal((await send(h, owner)).sessionTitle, '原真实标题');
+    result = Object.assign(new Error('不可泄漏原文'), { code: 'TITLE_FORBIDDEN' });
+    t.mock.timers.setTime(31000);
+    assert.equal((await send(h, owner)).sessionTitle, '原真实标题');
+    t.mock.timers.setTime(60999);
+    assert.equal((await send(h, owner)).sessionTitle, '原真实标题');
+    assert.equal(h.reads.length, 2);
+    result = '恢复真实标题';
+    t.mock.timers.setTime(61000);
+    assert.equal((await send(h, owner)).sessionTitle, '恢复真实标题');
+    assert.equal(h.reads.length, 3);
+  });
+
+  it('首次失败期间同底层身份的不同本地降级不互相污染，期限后可恢复', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: 1000 });
+    let failed = true;
+    const h = setup(async () => { if (failed) throw new Error('源故障'); return '恢复标题'; });
+    const a = session('ses_A', { id: 'wks_A', title: '本地甲' });
+    const b = session('ses_A', { id: 'wks_B', title: '本地乙' });
+    assert.equal((await send(h, a)).sessionTitle, '本地甲');
+    assert.equal((await send(h, b)).sessionTitle, '本地乙');
+    failed = false;
+    t.mock.timers.setTime(30999);
+    assert.equal((await send(h, b)).sessionTitle, '本地乙');
+    assert.equal(h.reads.length, 1);
+    t.mock.timers.setTime(31000);
+    assert.equal((await send(h, b)).sessionTitle, '恢复标题');
+    assert.equal(h.reads.length, 2);
+  });
+
+  it('显式失效身份和无关联不借焦点，只有route-only保留一次焦点解析', async () => {
+    const h = setup();
+    let focusReads = 0;
+    h.sessionService.getCurrent = () => { focusReads++; return session(); };
+    for (const context of [{ sessionId: 'missing', routeKey: 'route' },
+      { session: null, routeKey: 'route' }, { session: 'invalid', routeKey: 'route' }, {}]) {
+      const runtime = await send(h, null, context);
+      assert.equal(Object.hasOwn(runtime, 'sessionTitle'), false);
+    }
+    const noRef = session('ses_unused', { agentRef: undefined, title: '有效旧名称' });
+    assert.equal((await send(h, noRef)).sessionTitle, '有效旧名称');
+    assert.equal(h.reads.length, 0);
+    assert.equal(focusReads, 0);
+    assert.equal((await send(h, null, { routeKey: 'route' })).sessionTitle, '真实标题');
+    assert.equal(focusReads, 1);
+    assert.equal(h.reads.length, 1);
+  });
+
+  it('128项上限采用已完成条目LRU，129身份不挪用其他标题且淘汰历史', async () => {
+    const h = setup(async (ref) => '标题:' + ref.opencodeSessionId);
+    for (let i = 0; i < 128; i++) assert.equal((await send(h, session('ses_' + i))).sessionTitle, '标题:ses_' + i);
+    await send(h, session('ses_0'));
+    await send(h, session('ses_128'));
+    assert.equal(h.reads.length, 129);
+    assert.equal(h.dispatcher._sessionTitleCache.size, 128);
+    await send(h, session('ses_0'));
+    assert.equal(h.reads.length, 129, '最近访问项不能被淘汰');
+    h.driver.getSessionTitle = async () => { throw new Error('已淘汰来源不可用'); };
+    assert.equal(Object.hasOwn(await send(h, session('ses_1')), 'sessionTitle'), false, '淘汰项不能另存隐藏历史');
+    assert.equal(h.dispatcher._sessionTitleCache.size, 128);
+  });
+
+  it('16项挂起读取后第17项立即降级发送，不排队且释放后可以重读', async () => {
+    const gates = Array.from({ length: 17 }, () => deferred());
+    const h = setup((ref) => gates[Number(ref.opencodeSessionId.slice(4))].promise);
+    const pending = Array.from({ length: 16 }, (_, i) => send(h, session('ses_' + i)));
+    assert.equal(h.reads.length, 16);
+    const seventeen = session('ses_16', { title: '第17项本地标题' });
+    assert.equal((await send(h, seventeen)).sessionTitle, '第17项本地标题');
+    assert.equal(h.reads.length, 16);
+    gates[0].resolve('第一项真实标题');
+    await pending[0];
+    const retry = send(h, seventeen);
+    assert.equal(h.reads.length, 17);
+    gates[16].resolve('第17项真实标题');
+    assert.equal((await retry).sessionTitle, '第17项真实标题');
+    for (let i = 1; i < 16; i++) gates[i].resolve('标题' + i);
+    await Promise.all(pending);
+    assert.ok(h.dispatcher._sessionTitleCache.size <= 128);
+  });
+
+  it('挂起源总等待2秒后降级，迟到结果不发布且失败被缓存', async (t) => {
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+    const gate = deferred();
+    const h = setup(() => gate.promise);
+    const owner = session('ses_A', { title: '本地降级' });
+    let completed = false;
+    const pending = send(h, owner).then((runtime) => { completed = true; return runtime; });
+    t.mock.timers.tick(1999);
+    await Promise.resolve();
+    assert.equal(completed, false);
+    t.mock.timers.tick(1);
+    assert.equal((await pending).sessionTitle, '本地降级');
+    gate.resolve('不能发布的迟到真实标题');
+    await Promise.resolve();
+    assert.equal((await send(h, owner)).sessionTitle, '本地降级');
+    assert.equal(h.reads.length, 1);
+  });
+
+  it('销毁立即唤醒发送、清空缓存和定时器，迟到结果不重填或再次读取', async (t) => {
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+    const gate = deferred();
+    const h = setup(() => gate.promise);
+    const owner = session('ses_A', { title: '销毁时本地降级' });
+    const pending = send(h, owner);
+    h.dispatcher.destroy();
+    assert.equal((await pending).sessionTitle, '销毁时本地降级');
+    assert.equal(h.dispatcher._sessionTitleCache.size, 0);
+    gate.resolve('迟到标题');
+    await Promise.resolve();
+    t.mock.timers.tick(50000);
+    assert.equal((await send(h, owner)).sessionTitle, '销毁时本地降级');
+    assert.equal(h.dispatcher._sessionTitleCache.size, 0);
+    assert.equal(h.reads.length, 1);
+  });
+
+  it('失败日志只包含受控类型及身份，同键重复不放大且不泄漏原异常', async () => {
+    const { setLogLevel } = require('../src/core/logger');
+    const marker = '合成认证头及消息原文';
+    const h = setup(() => { throw Object.assign(new Error(marker), { code: marker }); });
+    let output = '';
+    const original = process.stderr.write;
+    setLogLevel('debug');
+    process.stderr.write = function capture(chunk) { output += String(chunk); return true; };
+    try {
+      await send(h, session());
+      await send(h, session());
+    } finally { process.stderr.write = original; setLogLevel(process.env.WALKER_LOG_LEVEL || 'info'); }
+    const rows = output.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    const failures = rows.filter((row) => row.message === '会话标题读取降级');
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].code, 'TITLE_SOURCE_ERROR');
+    assert.equal(failures[0].opencodeSessionId, session().agentRef.opencodeSessionId);
+    assert.equal(failures[0].sessionId, session().id);
+    assert.ok(!output.includes(marker) && !output.includes('http://') && !output.includes('authorization'));
+    assert.equal(h.reads.length, 1);
+  });
+});
+
 function makeMocks() {
   const sessionService = {
     getCurrent: () => null,

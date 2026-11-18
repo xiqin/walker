@@ -2,6 +2,7 @@
 
 const http = require('http');
 const https = require('https');
+const { StringDecoder } = require('node:string_decoder');
 const { createLogger } = require('./logger');
 
 const logger = createLogger('http-helper');
@@ -50,6 +51,8 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
     };
     const req = client.request(options, (res) => {
       let data = '';
+      // 网络分块可截断中文或表情字符；解码器保留尚未完整的UTF-8字节。
+      const decoder = new StringDecoder('utf8');
       let bodyBytes = 0;
       let bodyExceeded = false;
       res.on('data', (chunk) => {
@@ -62,12 +65,13 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
           fail(err);
           return;
         }
-        data += chunk;
+        data += decoder.write(chunk);
       });
       res.on('end', () => {
         if (settled) return;
         settled = true;
         cleanup();
+        data += decoder.end();
         let parsedData = {};
         try {
           parsedData = JSON.parse(data);
@@ -75,8 +79,8 @@ function httpRequest(method, url, body, extraHeaders, requestOptions) {
           if (data && data.length > 0) {
             logger.warn('response JSON parse failed', {
               statusCode: res.statusCode,
-              bodyLength: data.length,
-              bodyPreview: data.slice(0, 200),
+              // 错误页可能包含认证信息或消息原文，只保留安全元数据。
+              bodyLength: bodyBytes,
             });
           }
         }
